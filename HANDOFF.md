@@ -395,6 +395,3461 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E2A OPERATOR DECISIONS RECORDED — E2 now IN PROGRESS; none of the four Gate 2 legal drafts is written (2026-09-08)
+
+The operator reviewed the open E2 legal/policy questions and made the
+following decisions. **This entry documents those decisions only — it drafts
+no legal document, checks no Gate 2 legal-draft checkbox, and implements no
+route, footer, metadata, cookie, logging, or asset change.** E2 moves from
+**NOT STARTED** to **IN PROGRESS** on the strength of these decisions alone;
+the privacy policy, data-collection policy, EA/NHL non-affiliation/attribution
+notice, and Terms of Use drafts themselves remain unwritten.
+
+1. **Public identity.** Publish as "Boogeymen — a community gaming club,"
+   contactable through `webmaster@boogeymen.app`. No operator legal name or
+   postal address is published at this stage. Legal review of the drafts
+   remains required before publication.
+2. **Governing terms.** Alberta law governs. No exclusive-venue clause; any
+   mandatory statutory consumer/user rights are preserved regardless of venue
+   or law-selection language.
+3. **Children and age.** Retains the approved E1 posture unchanged: team
+   membership is adult-only, no children are involved or planned. Opponents
+   may be minors — their ages are unknown, unverifiable, not collected, and
+   the project has no means to determine them. No under-13-specific threshold
+   is introduced.
+4. **Reuse.** Personal/noncommercial viewing and normal search-engine
+   indexing are permitted. Disruptive bulk scraping, dataset republication,
+   and commercial reuse require permission.
+5. **Request verification.** Correction/deletion requesters must show
+   reasonable evidence of gamertag control. Government ID is not requested by
+   default.
+6. **Request outcomes.** Correction, de-identification, or removal is
+   decided case-by-case under applicable law and archival-integrity needs.
+   Prior publication by EA is not automatic grounds to refuse a request.
+7. **Recordings.** Source recordings contain party voice chat from team
+   members who authorize recording. These recordings and derived frames stay
+   under the already-approved indefinite-until-manual-deletion retention
+   policy (see the "E1G PRIVACY/RETENTION POLICY" Active State entry) — this
+   decision does not change retention. **Do not claim code inspection proves
+   recording contents, or that the recordings contain no audio** — no such
+   inspection has been performed.
+8. **GitHub.** The detailed Data Collection Policy will disclose that the
+   repository privately stores a limited set of authentic source fixtures,
+   and that copies made during the repository's prior public period cannot be
+   recalled.
+9. **Assets.** A provenance/permission audit must be completed before
+   attribution is finalized; unverifiable assets are replaced where
+   necessary. **Do not assume fair use, nominal use, licence, or permission**
+   for any third-party asset absent that audit.
+10. **Cloudflare and Proton.** Any drafted language must be based on
+    authoritative provider material and operator-supplied settings, using
+    explicitly conditional wording until each fact is verified. **No external
+    Cloudflare or Proton account was accessed in this session.**
+11. **Effective date.** Drafts use the actual Gate 3 publication date as
+    their effective date, not the drafting date.
+12. **Revision notice.** Each published policy shows a "Last updated" date
+    and the site carries an on-site notice for material changes.
+13. **Contacts.** `webmaster@boogeymen.app` handles privacy, data,
+    correction, and general requests; `security@boogeymen.app` handles
+    vulnerability reports; `alerts@boogeymen.app` remains internal-only and is
+    not published as a public contact.
+14. **Player names.** Current manually entered `player_profiles.player_name`
+    values are member-approved display names/aliases, not real names. This is
+    recorded as an operator-attested fact, not independently verified per row.
+    A fresh review is required if that entry practice changes.
+
+**Factual corrections recorded alongside these decisions** (none imply new
+behavior — they correct or narrow prior assumptions so future drafts don't
+overstate verified fact):
+
+- Active application source (`apps/web/src`, `apps/worker/src`,
+  `packages/*/src`) contains no direct use of `localStorage`,
+  `sessionStorage`, `document.cookie`, or `indexedDB` (grep-verified, zero
+  matches, 2026-09-08). **This is not "no browser storage of any kind"** —
+  framework/dependency internals, edge behavior, and deployed HTTP behavior
+  were not verified and may still set cookies or use storage.
+- `docker-compose.yml` configures no per-service logging driver, `log-opt`,
+  or size/retention limit (grep-verified, zero matches). The effective
+  logging driver and retention on both hosts is unknown until each host's
+  Docker daemon configuration is inspected. **Do not call current logs
+  bounded, unbounded, or indefinitely retained** — none of those claims is
+  verified yet; this remains E4 work.
+- The repository does not set `NEXT_TELEMETRY_DISABLED` anywhere
+  (grep-verified across env files, Dockerfiles, and Compose). Effective
+  Next.js telemetry state in the deployed app was not directly verified.
+- The public static asset inventory is **87 files, including 84 X-Factor
+  PNGs** (recounted and verified 2026-09-08 against `apps/web/public`) — not
+  91 and 90 as previously assumed. Any asset-provenance work (decision 9
+  above) should use these verified counts.
+
+See `docs/planning/launch-page-design-prototypes.md` for the related,
+separately-tracked cataloguing of the operator's local Claude Design ZIP
+exports (unchanged by this entry's decisions; those exports remain visual
+references only, per that file's content-boundary section).
+
+### 🟡 E2B2 CLOUDFLARE/PROTON PROVIDER SETTINGS RECORDED — Web Analytics contradicts the E1 no-tracking decision; operator choice required (2026-09-08)
+
+Documentation-only session, following on from E2A. The operator read the
+settings below directly from the live Cloudflare zone dashboard and Proton
+account dashboard and reported them for the record. **No external Cloudflare,
+Proton, GitHub, host, or database account was accessed by this agent session**
+— everything below is operator-attested dashboard evidence, the same basis
+already accepted for the E1B registrar facts and the E2A decisions. **This
+entry drafts no legal language, checks no Gate 2 checkbox, implements no
+route, and changes no provider setting.** Gate 2/E2 status is unchanged from
+E2A: **IN PROGRESS**, all four legal drafts still unwritten.
+
+**Cloudflare zone (`boogeymen.app`), as of 2026-09-08:**
+
+- Zone plan: Free.
+- DNS: apex `boogeymen.app` and `www.boogeymen.app` are both Tunnel records,
+  Proxied. No other website-serving hostname was identified. Mail records
+  (MX/SPF/DKIM/DMARC — see the "LAUNCH POLICY + DOMAIN MAIL" entry) are
+  separate and DNS-only.
+- TLS: encryption mode is **Full** (not Full (strict); no authenticated
+  origin-pull or per-hop encryption claim follows from this). Universal SSL
+  is Active. Always Use HTTPS is **Off** — do not infer that plain HTTP is
+  reachable or that no other redirect exists; runtime behavior was not
+  tested.
+- Web Analytics: **listed and enabled**, using the exact option "Enable,
+  excluding visitor data in the EU." Cloudflare states its Web Analytics JS
+  snippet is not injected for EU visitors; for this proxied site, collection
+  outside the EU uses Cloudflare's automatic setup. This exclusion concerns
+  only the Web Analytics snippet — **do not broaden it into "Cloudflare does
+  not process EU traffic"** (the proxy itself still handles all EU requests).
+- Security posture: Bot Fight Mode Off. The Free Managed Ruleset is
+  always-active/default protection; 0 additional operator-deployed managed
+  rules (the dashboard offers a plan upgrade for more). Custom rules: 0 of 5,
+  none enabled. Rate-limiting rules: 0 of 1, no actions/characteristics
+  configured. Always Online: Off (no Internet Archive integration enabled
+  through that feature). Load Balancing: page available, not enabled, zero
+  configured balancers. Waiting Room: not enabled, zero configured rooms,
+  requires a Business-plan upgrade.
+- "Replace insecure JavaScript libraries" is **On** — it may rewrite
+  applicable `polyfill.io` references to Cloudflare-hosted alternatives. This
+  does not prove the application currently requests such a library.
+- Logs: no Logs, Logpush, Log Explorer, or Instant Logs menu/product was
+  visible in the zone dashboard, and no operator-configured detailed-log job,
+  dataset, destination, or retention setting was found. The built-in
+  aggregate HTTP Traffic dashboard (request statistics) is available and is
+  **not** the same thing as operator-accessible raw request logs. **Do not
+  claim Cloudflare keeps no internal edge logs, and do not assign an
+  unverified retention duration** to whatever it keeps internally.
+
+**Proton account, as of 2026-09-08:**
+
+- Account Monitor: On, with detailed events On and displayed. Proton states
+  detailed account events can include the operator's IP address and the
+  Proton application used — this is operator-account security telemetry, not
+  website-visitor data, and its contents are not recorded here.
+- Auto-delete unwanted messages: **Off** — the optional automatic 30-day
+  deletion of Spam/Trash is not enabled. This is a technical mail-client
+  setting, not a retention policy for `webmaster@`/privacy correspondence;
+  see the open question below. Do not claim messages are retained forever
+  either — manual deletion and Proton's own lifecycle behavior are separate
+  from this toggle.
+- Addresses: `webmaster@boogeymen.app`, `security@boogeymen.app`, and
+  `alerts@boogeymen.app` are all present, enabled, and deliver into the same
+  Proton mailbox under one account's My Addresses list (consistent with the
+  "LAUNCH POLICY + DOMAIN MAIL" entry). Active forwarding rules: 0. Catch-all:
+  disabled; catch-all destination not applicable (dashboard action reads "Set
+  catch-all").
+- Mail access footprint: web browser only. No official desktop app, no
+  official mobile app, no Proton Mail Bridge, no third-party mail client, no
+  project-mail MBOX/EML/PDF export, and no separate project-mail backup or
+  sync exists. **Do not broaden this into "the browser stores nothing"** —
+  browser-side caching/storage was not inspected.
+- Alternative routing: not applicable to the current web-only usage — Proton
+  states this feature applies to its mobile/desktop apps and is unavailable
+  for its websites. Revisit if client usage changes.
+- Proton Drive: not currently used for this project and not previously used
+  for this project; the operator reports it is empty. This is
+  operator-attested, not independently inspected. It does not cancel Proton
+  Drive as the approved future E3 backup destination (E3 backup integration
+  and uploads have not started — see the "E3" roadmap entry).
+
+**Required unresolved findings — operator decisions still needed, not made by
+this entry:**
+
+- **Web Analytics vs. the E1 no-tracking decision.** Cloudflare Web Analytics
+  being enabled directly conflicts with the approved "LAUNCH POLICY + DOMAIN
+  MAIL" decision that the launch site "has no analytics or advertising and
+  uses no nonessential cookies/tracking; a consent banner is not planned
+  unless that changes." This session does **not** resolve the conflict and
+  does **not** change any Cloudflare setting. The operator must choose one
+  of: **(a)** disable Cloudflare Web Analytics before launch, preserving the
+  existing no-analytics decision as-is, or **(b)** amend the launch decision
+  and have the data-collection policy draft accurately disclose the
+  analytics collection described above. Do not assert a consent banner is
+  legally required merely from this dashboard setting — that determination
+  is part of the still-required legal review of the Gate 2 drafts.
+- **Contact-email retention.** Proton Auto-delete being Off is a mailbox
+  technical setting, not a retention policy. The operator still needs to
+  decide (and the data-collection policy still needs to state) how long
+  `webmaster@`/`security@`/`alerts@` correspondence — including
+  correction/deletion requests — is retained.
+- **Retention durations remain unverified.** Neither Cloudflare's internal
+  edge-log retention nor its Web Analytics data retention duration is known
+  from this session; any future draft language must use
+  conditional/provider-controlled wording rather than a specific duration.
+- **Asset provenance/permission audit remains open**, per E2A decision 9 —
+  unaffected by this entry; attribution still cannot be finalized and no
+  fair-use assumption is permitted.
+- **Correction (this session): Web Analytics is cookie-free; a narrower
+  cookie question remains.** The prior version of this bullet incorrectly
+  listed Web Analytics among Cloudflare features that may issue cookies
+  conditionally. Per Cloudflare's own documentation
+  (https://developers.cloudflare.com/web-analytics/about/,
+  https://www.cloudflare.com/web-analytics/), Cloudflare Web Analytics does
+  not use cookies, `localStorage`, or other client-side state to collect
+  metrics, and Cloudflare states it does not fingerprint individuals for
+  analytics. The enabled Web Analytics setting still conflicts with E1's
+  explicit "no analytics" decision, per the bullet above — that conflict is
+  unchanged and still requires an operator choice. But being cookie-free
+  means Web Analytics does **not**, by itself, conflict with E1's separate
+  "no nonessential cookies" decision, and does not by itself establish that a
+  consent banner is required. A broader claim that Cloudflare never sets
+  cookies is still unsupported — Cloudflare's edge security/challenge
+  mechanisms (e.g. the Free Managed Ruleset, or a future Bot Fight Mode or
+  challenge) may still issue strictly-necessary cookies conditionally,
+  independent of Web Analytics. Future legal drafting must distinguish the
+  cookie-free Web Analytics beacon from feature-dependent Cloudflare security
+  cookies, and must not list any specific cookie without documentation or
+  deployed-site observation supporting it. These are Cloudflare's own
+  privacy/documentation claims, attributed to Cloudflare — recording them
+  here is not an independent legal conclusion that no personal information is
+  processed by Web Analytics or by Cloudflare generally; that determination
+  remains part of the still-required legal review.
+
+**What this does not establish.** It does not authorize or imply any
+Cloudflare/Proton configuration change, tunnel reopening (still separately
+unauthorized — see "Tunnel reopening" below), production migration, or
+backup activation. It does not draft or approve any Gate 2 legal language and
+does not check any Gate 2 checkbox — E2A's fourteen decisions remain the only
+checked-off E2 decisions, and all four legal drafts (privacy policy,
+data-collection policy, EA/NHL attribution notice, Terms of Use) remain
+unwritten. See the "E2A OPERATOR DECISIONS RECORDED" entry above, decision 10,
+for the standing rule this entry supplies evidence for (conditional wording,
+authoritative provider material, operator-supplied settings).
+
+### 🟡 E2B3 ANALYTICS AND EMAIL-RETENTION DECISIONS RECORDED — Web Analytics must be disabled before publication, not yet done; contact-email retention set as targets, not automated (2026-09-08)
+
+Documentation-only session, resolving the two operator questions the "E2B2
+CLOUDFLARE/PROTON PROVIDER SETTINGS RECORDED" entry left open. **This entry
+drafts no legal language, checks no Gate 2 checkbox, implements no route, and
+changes no provider setting — no external Cloudflare, Proton, GitHub, host, or
+database account was accessed in this session.** Gate 2/E2 status is
+unchanged: **IN PROGRESS**, all four legal drafts still unwritten.
+
+**Decision 1 — Cloudflare Web Analytics vs. the E1 no-analytics decision.**
+The operator chose to **preserve the E1 "no analytics or advertising, no
+nonessential tracking/cookies" launch decision unchanged**, over amending it
+to accommodate Web Analytics.
+
+- Cloudflare Web Analytics ("Enable, excluding visitor data in the EU") is
+  **currently enabled** on the `boogeymen.app` zone, per the "E2B2
+  CLOUDFLARE/PROTON PROVIDER SETTINGS RECORDED" entry. **That has not changed
+  in this session.**
+- **Disabling Web Analytics before publication is now a required launch
+  precondition.** It is not done. Turning it off in the Cloudflare dashboard
+  is separately authorized future work — **it was not performed in this
+  session** and this entry does not authorize performing it.
+- Until an operator session confirms, from the live dashboard, that Web
+  Analytics is off, **no draft, page, or status note may state "no analytics"
+  or "analytics disabled" as a current operational fact.** The correct
+  interim framing is: analytics is currently enabled and scheduled for
+  disablement before launch, not yet disabled.
+- This resolves the E2B2 "Web Analytics vs. the E1 no-tracking decision" open
+  bullet by choosing its option (a) (disable before launch, preserve the
+  existing decision) over option (b) (amend the decision). E2B2's cookie-free
+  correction (Web Analytics itself is not a cookie-consent trigger) is
+  unaffected and still stands.
+- **Not resolved by this decision, and not addressed here:** Cloudflare's own
+  internal edge-log or Web Analytics data-retention duration. That remains
+  open exactly as E2B2 left it — any future draft language must still use
+  conditional, provider-attributed wording rather than a specific duration.
+
+**Decision 2 — contact-email retention.** The operator adopted a **tiered
+retention schedule** as the project's contact-email retention target for
+`webmaster@boogeymen.app`, `security@boogeymen.app`, and `alerts@boogeymen.app`
+correspondence (all of which deliver into one Proton mailbox, per E2B2, with
+Proton's optional Spam/Trash auto-delete Off):
+
+- Obvious spam/junk: deleted manually as soon as practical, targeting within
+  30 days.
+- Routine `webmaster@`/general correspondence and routine internal `alerts@`
+  traffic: retained up to 12 months after the last necessary action.
+- Privacy requests, correction/de-identification/removal requests,
+  vulnerability reports, and security-incident correspondence: retained up to
+  24 months after final closure.
+- Any of the above may be retained longer only while reasonably necessary for
+  an active request, dispute, investigation, security incident,
+  archival-integrity issue, or legal obligation.
+- Extended retention is reviewed at least annually and deleted once the
+  reason for keeping it ends.
+
+**This is an operator retention target and manual policy, not a technical
+control and not proof of automated enforcement.** Proton's Spam/Trash
+auto-delete remains Off (per E2B2) and this decision does not turn it on or
+otherwise configure Proton. No forwarding, export, Bridge, or backup exists
+(per E2B2) to apply the schedule to beyond the single live mailbox. Future
+drafts must describe this as the operator's stated retention target/practice,
+not as something Proton automatically enforces. This resolves the E2B2
+"Contact-email retention" open bullet.
+
+**Explicitly out of scope for this entry, per operator instruction:**
+Cloudflare's own provider-side retention duration (left open, see above), the
+asset-provenance/permission audit (E2A decision 9, untouched), any Gate 2
+legal-document text or checkbox, and the tunnel (reopening remains separately
+unauthorized).
+
+**What this does not establish.** It does not authorize or imply any
+Cloudflare or Proton configuration change, tunnel reopening, production
+migration, or backup activation. It does not draft or approve any Gate 2
+legal language and does not check any Gate 2 checkbox — E2A's fourteen
+decisions remain the only checked-off E2 decisions, and all four legal drafts
+(privacy policy, data-collection policy, EA/NHL attribution notice, Terms of
+Use) remain unwritten. See the "E2A OPERATOR DECISIONS RECORDED" and "E2B2
+CLOUDFLARE/PROTON PROVIDER SETTINGS RECORDED" entries above for the decisions
+and open questions this entry builds on and resolves.
+
+### 🟡 E2C2 ASSET PROVENANCE INTERVIEW RECORDED — operator attestations plus corrected local findings; no asset is legally cleared (2026-09-08)
+
+Documentation-only session advancing E2A decision 9 (asset provenance/permission
+audit). **This entry drafts no legal language, checks no Gate 2 checkbox,
+changes no code, configuration, or asset, and replaces nothing.** No external
+network, provider account, or repository account was accessed. Gate 2/E2 status
+is unchanged: **IN PROGRESS**, all four legal drafts still unwritten. The
+audit itself is **not complete** — this entry records interview answers and
+locally verified repository facts only. **Attribution still cannot be
+finalized, and no fair-use, nominal-use, licence, or permission assumption is
+permitted for any asset below.** Tunnel reopening remains separately
+unauthorized.
+
+**Corrections to the prior (unrecorded) E2C1 working report.** That report was
+not adopted wholesale; the following corrections were verified against the
+repository in this session and supersede it.
+
+- **EA opponent crests are server-side optimized, not direct browser fetches.**
+  `apps/web/src/components/ui/opponent-crest.tsx` renders through `next/image`
+  with no `unoptimized` prop; `apps/web/next.config.ts` configures only
+  `images.remotePatterns` for the two `media.contentapi.ea.com` crest paths,
+  with no custom loader or `loaderFile`; production runs `next start`
+  (`apps/web/Dockerfile:43`). **Repository evidence therefore does not
+  establish a direct visitor-browser request to EA, nor disclosure of each
+  visitor's IP or user-agent to EA.** Treat the crests as an **external
+  asset/IP and server-fetch dependency**, not an established visitor-privacy
+  disclosure gap. **Live behavior was not runtime-tested in this session** —
+  no claim about deployed request flow is made either way.
+- **"Replacement likely required" is withdrawn.** The correct standing
+  framing for every unverified family is **"permission/licence basis
+  unverified; research or replacement required."**
+- **E2A decision 9 blocks finalizing attribution before the audit. It does not
+  prohibit creating conditional legal drafts.** Draft work may proceed with
+  explicitly conditional asset language.
+- **The absence of a repository `LICENSE` file does not itself block Gate 2**
+  and does not require the Terms of Use to reference one. (Verified: no
+  `LICENSE*` at repo root.) A third-party notices file remains a *possible*
+  later requirement depending on which licences verification actually turns up.
+- **`scripts/scrape_ea_xfactor_pngs.sh` is evidence of acquisition/source
+  history**, neutrally recorded: it fetches 28 detail pages under
+  `ea.com/games/nhl/nhl-26/nhl26-x-factors-hub` and downloads the referenced
+  `drop-assets.ea.com` PNGs into `apps/web/public/assets/x-factors/`. It is
+  **not** characterized as "evidence against the project."
+- **The `docs/branding/README.md` naming rule is a provenance-process
+  weakness, not intentional provenance destruction.** The rule reads "Drop
+  source-site suffixes like `svgrepo-com`," and commit `22faa4c` renamed eight
+  `*-svgrepo-com.*` files accordingly. The effect is that filenames no longer
+  carry source hints; no intent to destroy provenance is claimed or implied.
+- **Scope distinction preserved.** `apps/web/public` holds **87 files** (84
+  X-Factor PNGs + `assets/platforms/{playstation,xbox}.svg` +
+  `images/bgm-logo.png`), confirming the E2A recount. The **wider production
+  visual surface is larger** and additionally includes
+  `apps/web/src/app/icon.png`, inline SVG paths in
+  `components/ui/archetype-icons.tsx` (its own comment: "Sourced from
+  `docs/branding/icons/archetypes/`"), `components/branding/rink.tsx` and
+  `event-markers.tsx`, `components/player-meta-icons.tsx` ("Twemoji-style
+  emoji flags"), build-produced Barlow / Barlow Semi Condensed served via
+  `next/font/google` from `apps/web/src/app/layout.tsx`, and the remote EA
+  crest sources. Asset work must address the wider surface, not the 87-file
+  count alone.
+- **`docs/Branding/spd_logo_final_3.png` is not a current fourth file.** It is
+  absent from the working tree, recoverable from Git history (added `0ab776b`,
+  case-renamed `e21c336` as R100, deleted in `22faa4c` — the same commit that
+  introduced `docs/branding/logos/team/spd-logo-mark.png`), and its historical
+  content hashes identically (sha256 `13f08949…2203d2a8`) to the three current
+  files `docs/branding/logos/team/spd-logo-mark.png`,
+  `apps/web/public/images/bgm-logo.png`, and `apps/web/src/app/icon.png`.
+  Three current byte-identical copies, one historical path.
+
+**Operator attestations (recorded as operator-attested facts, not
+independently verified and not legal clearance).**
+
+1. **BGM/SPD logo.** The operator created the `spd_logo_final_*` artwork
+   themselves. "SPD" was an old private clan tag; **its expansion is
+   confidential and must not be published** in any draft, page, or commit.
+   Supporting evidence is the original project source files retained privately
+   on the operator's computer; those files are deliberately **not** added to
+   the repository, and no contract or personal information was copied here.
+   Recorded as operator-attested authorship.
+2. **Rink and event-marker artwork.** The operator created the rink map and
+   event markers **from scratch**; no third-party artwork was incorporated.
+   The operator supplied that original work to Claude Design, which
+   incorporated it into the Concept B / Action Tracker design and from there
+   into the site. **Claude Design is therefore not the original source of this
+   artwork** and must not be described as such. Recorded as operator-attested
+   authorship.
+3. **NHL 26 X-Factor images.** **None known** — no direct EA permission, no
+   creator-program permission, no correspondence, and no previously reviewed
+   EA content-usage-policy basis.
+4. **SVG-derived icons** (flags, archetypes, hockey icons, platform marks).
+   Found online through SVG sites, including the SVG Repo-derived files that
+   repository evidence identifies. **No exact per-asset source-page URLs and
+   no saved per-asset licence records are retained.** Licences and permission
+   basis remain unverified. *Independently checked this session and
+   corrected:* `docs/branding/` contains no licence file, no attribution
+   file, and no exact per-asset source-page URLs — but embedded SVG Repo
+   generator markers (`<!-- Uploaded to: SVG Repo -->`, `www.svgrepo.com`,
+   `SVG Repo Mixer Tools`) are present in **27 files** across
+   `docs/branding/` (`flags`: 2, `icons/archetypes`: 15, `icons/hockey`: 6,
+   `icons/archive` duplicates: 2, `logos/platforms`: 2, `rink-event-map`: 0),
+   plus both deployed copies under `apps/web/public/assets/platforms/`, for
+   **29 repository SVG files total** carrying these markers.
+   `icons/archetypes/defensive-defenseman.svg` also carries an Affinity/Serif
+   XML namespace declaration in addition to the SVG Repo comment — additional
+   generator metadata, not its only marker, and not a source URL or licence,
+   and not evidence of authorship. The generic `www.svgrepo.com` site marker
+   is not an exact per-asset source-page URL and does not identify the
+   applicable licence.
+5. **PlayStation and Xbox marks.** Obtained through SVG Repo. **No separately
+   retained Sony or Microsoft permission or brand-guideline evidence is
+   known.** Note that a third-party SVG Repo licence, whatever it turns out to
+   be, would not by itself address the platform holders' own trademark/brand
+   rights.
+6. **EA opponent crests.** **None known** — no direct EA permission, no
+   correspondence, and no previously documented content-usage-policy basis.
+
+**Corrected asset-family classifications.** These describe verification status
+only. **No family below is legally cleared**, and operator recollection of a
+source is expressly not treated as clearance.
+
+- **BGM/SPD logo** (`logos/team/spd-logo-*.png`, `public/images/bgm-logo.png`,
+  `app/icon.png`) — **operator-created/permission evidence identified**
+  (operator authorship attested; private source files cited but not inspected
+  by any agent session). Not independently verified.
+- **Rink + event markers** (`components/branding/rink.tsx`,
+  `event-markers.tsx`, `docs/branding/rink-event-map/`) — **operator-created/
+  permission evidence identified** (operator authorship attested; Claude
+  Design was downstream, not the source). Not independently verified.
+- **NHL 26 X-Factor images** (84 PNGs, `public/assets/x-factors/`) —
+  **official-source research required**; **replacement candidate if research
+  fails.** Permission/licence basis unverified.
+- **EA opponent crests** (remote, `media.contentapi.ea.com`) — **official-source
+  research required**; **replacement candidate if research fails.** External
+  asset/IP and server-fetch dependency. Permission/licence basis unverified.
+- **PlayStation and Xbox marks** (`public/assets/platforms/*.svg`) —
+  **official-source research required** (Sony and Microsoft brand/trademark
+  guidance) **plus source-page/licence recovery required** (SVG Repo terms);
+  **replacement candidate if research fails.**
+- **SVG Repo-derived flags, archetype icons, hockey icons** (`docs/branding/
+  flags/`, `icons/archetypes/`, `icons/hockey/`, and the inline paths in
+  `components/ui/archetype-icons.tsx`) — **source-page/licence recovery
+  required**; **replacement candidate if recovery fails.**
+- **Twemoji-style flag SVGs** (`docs/branding/flags/canada.svg`,
+  `united-states.svg`, and the inline flags in
+  `components/player-meta-icons.tsx`) — **official-source research required**
+  (Twemoji licence terms and their attribution conditions). The files carry
+  `class="iconify iconify--twemoji"`; whether they are genuine Twemoji assets
+  and which licence version applies is **unverified**.
+- **Barlow / Barlow Semi Condensed** (via `next/font/google`, build-produced) —
+  **official-source research required** (font licence and any redistribution/
+  attribution condition arising from self-hosting at build time).
+
+**What remains open after this entry.**
+
+- Official-source research into EA, Sony, Microsoft, Twemoji, SVG Repo, and
+  font licence requirements. **Not started.**
+- Any asset replacement work that research turns out to require. **Not
+  started; nothing was replaced.**
+- Final attribution language and whatever Terms of Use wording it affects.
+  **Still blocked from finalization by E2A decision 9** (conditional drafts
+  are permitted).
+- Whether a third-party notices file is needed. Undetermined.
+- Disabling Cloudflare Web Analytics and verifying it from the live dashboard
+  before publication (per E2B3 decision 1). **Still not done.**
+- Legal review of all Gate 2 drafts. **Still required.**
+
+**What this does not establish.** It does not clear any asset for use, does not
+finalize attribution, and does not authorize replacing, editing, or removing
+any asset. It does not authorize any Cloudflare/Proton configuration change,
+tunnel reopening, production migration, or backup activation. It does not draft
+or approve any Gate 2 legal language and does not check any Gate 2 checkbox —
+E2A's fourteen decisions remain the only checked-off E2 decisions, and all four
+legal drafts (privacy policy, data-collection policy, EA/NHL attribution
+notice, Terms of Use) remain unwritten. See the "E2A OPERATOR DECISIONS
+RECORDED" entry (decision 9) for the standing rule this entry advances, and
+"E2B3 ANALYTICS AND EMAIL-RETENTION DECISIONS RECORDED" for the launch
+preconditions it leaves untouched.
+
+### 🟡 E2C3 EA CONTENT-USAGE POLICY RESEARCH RECORDED — no EA asset family is cleared; attribution still blocked (2026-09-09)
+
+Public-web research session advancing E2A decision 9 for the **EA-controlled
+asset families only**. Official EA sources only (`ea.com`, `help.ea.com`,
+`tos.ea.com`); no EA account accessed, no form submitted, no message sent, no
+agreement accepted, no EA API called, no asset file downloaded, no asset or
+code changed, no provider setting touched. **This entry drafts no legal
+language and checks no Gate 2 checkbox.** Gate 2/E2 status unchanged: **IN
+PROGRESS**, all four legal drafts still unwritten. Tunnel reopening remains
+separately unauthorized.
+
+**Full evidence, exact quotations, source matrix, and unresolved questions:**
+`docs/planning/ea-content-usage-policy-research.md`. **This is research, not
+legal advice, and clears nothing.**
+
+**Evidence-backed findings (each verified on the official EA page itself).**
+
+- **EA does publish a fan-content permission** — "EA's content policy",
+  `help.ea.com/en/articles/security-and-rules/ea-content-policy/`, last updated
+  **2026-08-03**. It expressly names **fan sites** as a permitted personal
+  project. It is **help content and is not incorporated by reference** into the
+  User Agreement (only the Terms of Sale, Positive Play Charter, and Privacy and
+  Cookie Policy are). EA's separately-titled "IP Policy" URL resolves to this
+  same article — there is no more permissive second document.
+- **The EA User Agreement (contractual, Last Updated 2026-05-14) governs EA's
+  websites** and, at §2, bars users from "access, copy, modify or distribute[ing]
+  any EA Service, Content or Entitlements … unless expressly authorized by EA or
+  permitted by law." §3 defines Content to include graphics and pictures
+  "appearing on or coming from EA Services, as well as the design and appearance
+  of our websites." §13(A) says the Agreement may be amended only in writing
+  signed by EA. **EA's official content policy is a published permission
+  expressly covering qualifying personal fan sites' use of "our game content."
+  It is not expressly incorporated into the User Agreement, but §13(A) does not
+  establish that separate EA permission is ineffective. The unresolved issues
+  are asset scope, particular use, rehosting/acquisition, and third-party
+  rights** — not incorporation-by-reference alone.
+- **EA expressly grants no third-party rights:** "We do not provide you with any
+  permission to use third-party content from our games. You use our game content
+  at your own risk." **EA cannot and does not purport to license NHL, NHLPA,
+  team/league branding, or player likenesses.** No EA page found publishes a list
+  of which NHL 26 assets are third-party licensed, so per-asset third-party
+  exposure is **unresolved**.
+- **Custom crests' pass-through status depends on their unresolved factual
+  nature.** If a custom crest is contributed UGC, User Agreement §5 identifies
+  no off-service user licence — it grants other users rights only "**on or
+  through the relevant EA Service**." If it is EA-rendered from EA-supplied
+  components, the EA game-content-policy analysis applies instead. **Which of
+  the two applies is unresolved.**
+- **Conditions if any permission is relied on:** the verbatim non-affiliation
+  statement EA specifies; no implied endorsement; no merging EA branding with
+  ours; no commercial use or paywalls (passive banner ads and partner-program
+  video monetization are the only stated exception — **donations, sponsorship,
+  and subscriptions are not named and are therefore not covered**); no combining
+  EA content with other third-party brands. **The reviewed EA policy specifies
+  the non-affiliation statement. No additional EA-authored attribution or
+  copyright-notice requirement was found in the reviewed sources. Third-party
+  rights may impose independent requirements**, and the non-affiliation
+  statement is a condition on permission, never evidence of it.
+- **Permission is revocable at will.** EA reserves the right to update the policy
+  "at any time without notice," non-enforcement is not waiver, and the User
+  Agreement licence is expressly "revocable."
+- **Acquisition method, kept separate from permission to display.** **No clause
+  expressly naming scraping, robots, spiders, crawlers, or bots was found** in
+  the User Agreement (full-text verified). User Agreement §2's general access,
+  copying, and extraction restrictions remain relevant. `www.ea.com/robots.txt`
+  does **not** disallow `/games/nhl/…` for general crawlers, but carries a
+  unilateral reservation-of-rights comment prohibiting "web scraping" of EA
+  content "unless specifically and explicitly authorized in writing." **Its scope
+  is genuinely ambiguous** — the plain series reads as a general scraping ban,
+  the surrounding context is an AI/TDM reservation invoking EU DSM Art. 4(3).
+  **No finding of wrongdoing is made**; EA's text does not clearly apply either
+  way. `drop-assets.ea.com/robots.txt` — the host the 84 PNGs were actually
+  downloaded from — **could not be read (HTTP 503 on two attempts)**; that gap is
+  open. `media.contentapi.ea.com` publishes no robots.txt (404). `legal.ea.com`
+  does not resolve.
+- **Repository facts re-verified this session:** 84 PNGs across 28 folders;
+  `scripts/scrape_ea_xfactor_pngs.sh` targets the `ea.com` NHL 26 X-Factors hub
+  and `drop-assets.ea.com`; `opponent-crest.tsx` uses `next/image`;
+  `format.ts:161-162` builds the two crest paths; `next.config.ts` permits
+  exactly those two `media.contentapi.ea.com` paths. **Material consequence:**
+  the repository configures default Next.js image optimization for those paths,
+  which normally fetches and serves remote images through the site and may
+  resize, transcode, or cache them. Deployed behavior was not runtime-tested.
+  Legal characterization remains for legal review.
+- **Official EA legal index searched during this research; not proof that no
+  other EA or game-specific terms exist.** The NHL 26 Pro Clubs marketing URL
+  (`ea.com/games/nhl/nhl-26/pro-clubs`) currently redirects to the NHL 27 page,
+  so it did not establish an NHL-26-specific crest-creation mechanism.
+
+**Status by EA asset family. No family is legally cleared.**
+
+- **84 NHL 26 X-Factor PNGs** (`apps/web/public/assets/x-factors/`) —
+  **NOT ADDRESSED / AMBIGUOUS → legal review required; replacement candidate.**
+  EA's policy permits fan sites but never addresses copying standalone marketing
+  artwork off EA's website and rehosting it as a self-contained asset library.
+- **EA base crests** (`…/pro-clubs/crests/t<id>.png`) — **CONDITIONALLY
+  SUPPORTED AT BEST, on unverified premises → legal review required; replacement
+  candidate.** Closest of the three to "game content," but EA publishes nothing
+  on embedding, linking, caching, or proxying, and whether any base crest
+  reproduces a real-world mark is unverified.
+- **Custom / user-created opponent crests** (`…/pro-clubs/custom-crests/<id>.png`)
+  — **CONDITIONAL / FACTUAL NATURE UNRESOLVED → legal review required;
+  replacement candidate.** If contributed UGC, §5 identifies no off-service
+  user licence. If EA-rendered from EA-supplied components, the EA
+  game-content-policy analysis applies (as for the base crests, above).
+  Repository names (e.g. `custom-crests`) do not determine which is true. No
+  official EA page found describes the crest-creation mechanic, and the one
+  page found under an NHL 26 URL (S8) redirects to the NHL 27 page, so it does
+  not resolve the question either.
+
+**Still blocked.** **Attribution finalization remains blocked** under E2A
+decision 9; this session advances the audit for the EA families only and does not
+complete it. The Sony, Microsoft, SVG Repo, Twemoji, and font families recorded
+in E2C2 are untouched and still open, as are the operator-created BGM/SPD and
+rink/event-marker attestations. Legal review of all Gate 2 drafts is still
+required.
+
+**Recommended next session (one task).** Produce an EA-asset decision memo
+covering, per family, the concrete replacement or removal option and its product
+cost — documentation only, no asset touched, no code changed. See the research
+document's section 10 for the sequence after that, and the "E2C2 ASSET
+PROVENANCE INTERVIEW RECORDED" and "E2A OPERATOR DECISIONS RECORDED" entries for
+the standing rules this entry advances.
+
+### 🟡 E2C4 EA ASSET PRODUCT-IMPACT DECISION MEMO RECORDED — options and recommendation only; no asset, code, or legal classification changed (2026-09-09)
+
+Repository-based product/engineering analysis session, following E2C3.
+**No asset, code, test, configuration, dependency, or provider setting
+changed. No database, host, Cloudflare, Proton, or GitHub account accessed.
+No legal draft written, no Gate 2 checkbox checked, no E2C3 legal
+classification altered.** Tunnel reopening remains separately unauthorized.
+E2/Gate 2 status unchanged: **IN PROGRESS**.
+
+**Full analysis, per-option cost tables, and the recommendation:**
+`docs/planning/ea-asset-decision-memo.md`. **This is decision support, not
+legal advice, and does not clear any asset.**
+
+**Verified rendering surfaces and technical dependencies (repository facts,
+this session).**
+
+- **X-Factor PNGs:** 84 files, 71 MB, under `apps/web/public/assets/x-factors/`.
+  **A second, byte-for-byte identical 71 MB copy exists at
+  `docs/branding/icons/x-factors/`** (`diff -qr` confirmed) — it has no
+  application, worker, or OCR runtime-code dependency, but it is actively
+  referenced by two tracked Markdown documents (`research/OCR-SS/apx.md`
+  and `research/OCR-SS/Manual OCR benchmark match 463.md`, 28 inline `<img>`
+  references each, **56 total**): a runtime-code-unused duplicate, not an
+  unreferenced one. Repository storage across both copies is ~142 MB; only
+  the primary 71 MB tree is copied into the web Docker image
+  (`apps/web/Dockerfile` does not copy `docs/branding/`). Exactly one
+  production visual consumer: `XFactorTiles` in
+  `components/matches/lineup/lineup-row.tsx` via `lib/xfactor-asset.ts`. A
+  tier-coloured dot fallback is **implemented in current source** for
+  missing icons (not runtime-tested or deployment-verified this session).
+  **A second, separate, non-decorative consumer exists outside the
+  website:** `tools/game_ocr/game_ocr/xfactor_icon_matcher.py` loads the
+  same 84 PNGs as OpenCV template-matching references for the video-ingestion
+  OCR pipeline (wired into `parsers.py` / `loadout_extractors/icon.py`, with
+  its own tests) — **removing the files would break OCR icon matching unless
+  they are relocated first**, not merely deleted. The Node worker's text
+  normalization/DB storage/backfill (`apps/worker/src/lib/normalize-xfactor.ts`,
+  `player_loadout_x_factors`: name/canonical-name/tier, all text) is
+  independent of the artwork; **the video-ingestion OCR icon-matching path
+  is not** — that distinction was not made precisely in E2C4's first draft.
+  This session did not verify whether/when the OCR path runs in deployed
+  production operations.
+- **Opponent crests:** full chain traced — EA `customKit.crestAssetId`/
+  `useBaseAsset` → `ingest-opponents.ts` → `opponent_clubs.crest_asset_id`/
+  `use_base_asset` (opaque ID + flag only, no image bytes stored) →
+  `opponentCrestUrls()` in `lib/format.ts` (builds base/custom CDN URLs,
+  order set by `useBaseAsset`) → `OpponentCrest` component (`next/image`
+  with preferred/alternate retry via `onError`, then a caller-supplied
+  `fallback`). **Exactly four production consumers** (`score-card.tsx`,
+  `lineup-module.tsx`, `hero-card.tsx`, `latest-result.tsx`), **all four
+  already implement a 2-letter club-abbreviation monogram fallback in
+  current source** (`abbreviateTeamName()`; not runtime-tested or
+  deployment-verified this session). Base and custom crests already have
+  independent `next.config.ts` `remotePatterns` entries and can be disabled
+  separately and reliably by changing `opponentCrestUrls()` alone, with no
+  changes needed to any of the four calling components. No existing test
+  covers `opponentCrestUrls()` or `OpponentCrest`. No live database was
+  queried and no deployed request behavior was tested — this is a static
+  code trace only.
+
+**Options and recommendation per family (see the memo for the full
+12-dimension comparison per option).**
+
+- **X-Factor PNGs — leading removal/replacement candidate**, per E2C3's
+  weakest classification. Recommended path: relocate the OCR templates out
+  of the public web tree, then let the dot fallback already implemented in
+  current source become the only rendering (Option 2); purpose-built
+  neutral badges (Option 3) are optional later polish, not a prerequisite.
+- **Custom opponent crests — the other leading removal/replacement
+  candidate**, per E2C3's unresolved UGC-vs-EA-rendered classification.
+  Disabling just this family via `opponentCrestUrls()` is small and
+  isolated, with a fallback already implemented in current source.
+- **EA base crests — the closest call, not cleared.** Retention pending
+  legal review (Option 1) is defensible specifically for this family;
+  disabling it later is equally cheap if the operator prefers a uniform
+  posture across both crest families instead of a split one.
+- **One shared neutral fallback could replace both crest families** if
+  both are disabled — they already funnel through the same component and
+  fallback contract.
+- **Smallest reversible sequence:** (1) relocate X-Factor OCR templates,
+  (2) decide the fate of the `docs/branding/icons/x-factors/` duplicate —
+  zero application/OCR runtime dependency and independent of every other
+  decision, but its 56 inline documentation references (see above) need an
+  explicit repoint/retain/replace/remove choice first, not a bare deletion,
+  (3) drop the X-Factor `<Image>` branch in favour of the existing dot, (4) stop
+  `opponentCrestUrls()` from returning URLs for whichever crest family/
+  families are disabled, (5) optionally prune the matching
+  `next.config.ts` `remotePatterns` entry. Each step is independently
+  revertible.
+- Immediate pre-publication work is the removal/disable step per family;
+  original replacement artwork (Option 3) is optional later enhancement.
+- **The final per-family choice — and whether to treat both crest families
+  uniformly or split them — is left explicit to the operator; this memo
+  does not select one.**
+
+**Unresolved operator inputs (not resolved by assumption).**
+
+- **Monetization posture (E2C3 U10)** — still unanswered: whether the site
+  has or plans any monetization beyond passive banner ads. E2A decision 4
+  covers third-party reuse of *this site's* content, not the site's own
+  monetization state; no monetization audit has been performed.
+- Uniform vs. split posture across the two crest families.
+- Option 2 vs. Option 3 timing for the X-Factor family.
+- Whether to remove the `docs/branding/icons/x-factors/` duplicate
+  independently/immediately or bundle it with the X-Factor relocation work
+  — and which documentation choice to make for its 56 inline references
+  first (repoint, retain, replace, or intentionally remove).
+- Disposition of `scripts/scrape_ea_xfactor_pngs.sh` (delete, archive, or
+  leave as historical record).
+
+**Still unchanged.** All three E2C3 legal classifications stand exactly as
+recorded (X-Factor PNGs: `NOT ADDRESSED / AMBIGUOUS`; base crests:
+`CONDITIONALLY SUPPORTED AT BEST, on unverified premises`; custom crests:
+`CONDITIONAL / FACTUAL NATURE UNRESOLVED`) — **no family is legally
+cleared.** The Sony, Microsoft, SVG Repo, Twemoji, and font families from
+E2C2 remain untouched and unresolved. Disabling Cloudflare Web Analytics
+(E2B3 decision 1) remains separate and undone. Attribution finalization
+remains blocked under E2A decision 9. Legal review of all Gate 2 drafts is
+still required.
+
+### 🟡 E2C5 FINAL ASSET-RETENTION OPERATOR DECISIONS RECORDED — all assets kept exactly as-is; this is retention, not legal clearance (2026-09-09)
+
+The operator reviewed E2C4's options/recommendation memo and made the
+following final decisions, closing the "unresolved operator inputs" left
+open by E2C4. **This entry documents those decisions only. No asset, code,
+test, configuration, dependency, or provider setting changed. No database,
+host, Cloudflare, Proton, or GitHub account accessed. No legal draft
+written, no Gate 2 checkbox checked, no E2C3 legal classification altered.**
+
+1. **No monetization currently or planned for launch.** This resolves the
+   E2C3/E2C4 "Monetization posture (U10)" open question.
+2. **All existing assets remain exactly unchanged.**
+3. This includes every EA asset, X-Factor copy/use, opponent crest, platform
+   mark, SVG Repo-derived asset, Twemoji-style flag, font, BGM/SPD asset,
+   rink, and event marker.
+4. **Do not** remove, replace, relocate, deduplicate, recolour, regenerate,
+   rename, hide, or switch any asset to a fallback.
+5. **Keep** the X-Factor documentation duplicate
+   (`docs/branding/icons/x-factors/`) and all 56 references to it in
+   `research/OCR-SS/apx.md` and `research/OCR-SS/Manual OCR benchmark match
+   463.md`.
+6. **Keep** `scripts/scrape_ea_xfactor_pngs.sh` unchanged. Retaining it is
+   **not** authorization to execute it.
+7. **The operator will personally handle the legal implications** of this
+   retention decision.
+
+This settles E2C4's per-family options in favor of uniform retention across
+both crest families and the X-Factor family — none of E2C4's
+removal/replacement/fallback options (2 or 3) are being taken at this time.
+
+**Preserved limits — read before acting on this entry.**
+
+- **This is a retention decision, not legal clearance.** No asset is
+  legally cleared by this entry.
+- E2C3's legal classifications remain unchanged exactly as recorded
+  (X-Factor PNGs: `NOT ADDRESSED / AMBIGUOUS`; base crests: `CONDITIONALLY
+  SUPPORTED AT BEST, on unverified premises`; custom crests: `CONDITIONAL /
+  FACTUAL NATURE UNRESOLVED`).
+- Do not infer permission, licence, fair use, endorsement, or sufficient
+  attribution for any retained asset from this decision.
+- Further research may continue only as needed to produce accurate legal
+  wording — not to reopen this asset-retention decision.
+- Legal review of all Gate 2 drafts remains required.
+- Disabling Cloudflare Web Analytics (E2B3 decision 1) still must happen
+  and be verified off before publication — unchanged and still undone.
+- **E2 remains IN PROGRESS.** No Gate 2 checkbox is checked by this entry.
+- Tunnel reopening remains separately unauthorized.
+
+### 🟡 E2D DATA COLLECTION POLICY INITIAL DRAFT WRITTEN — not reviewed, not published, no Gate 2 checkbox checked (2026-09-09)
+
+Narrowly-scoped drafting session. Produced
+`docs/planning/data-collection-policy-draft.md`: a publication-oriented Data
+Collection Policy draft plus a clearly separated internal
+drafting/publication-checks section. **No code, asset, test, configuration,
+dependency, or provider setting was changed. No external system (Cloudflare,
+Proton, GitHub, host, database) was accessed. Nothing was staged, committed,
+pushed, or published as a live route.** The draft was built from AGENTS.md,
+this file, `docs/planning/ea-content-usage-policy-research.md`, and
+`docs/planning/ea-asset-decision-memo.md` — design prototypes were treated as
+visual references only, and no legal wording was copied from them.
+
+**What the draft covers:** scope/launch posture (no active public account
+system at launch — dormant authentication capability disabled, not "no
+account system"; no on-site submission feature, with project email
+remaining an off-site voluntary submission channel; no monetization, no
+advertising, intended no-analytics posture); the information categories
+maintained (gamertags/history, player-profile alias framing —
+operator-attested, member-approved display names/aliases, not verified
+legal names, alongside acknowledgment that incidental personal information
+may still appear elsewhere in retained evidence we have not exhaustively
+inspected, roster, match/stat data, derived metrics, opponent data, raw EA
+payloads, OCR evidence/provenance, source recordings/screenshots/frames,
+team-member-authorized party voice chat, access/security logging framed as
+conditional — records the site/hosting stack/providers may generate, not a
+definite claim, against verified repository facts only, email
+correspondence, private-repo fixtures); sources; purposes (including
+development/testing/validation of the site and its OCR pipeline using
+authentic fixtures, and explicitly excluding traffic measurement as an
+approved launch purpose); public display/indexing (Gate 3 implementation
+not yet done); cookies/
+browser storage/analytics; dormant authentication and schema capability vs.
+current contents; service providers (Cloudflare, Proton, GitHub, EA,
+Alberta infrastructure) without inventing a processor/controller
+classification; retention (including the approved tiered email schedule and
+the unautomated 30-day log target); requests/corrections; children/
+opponents; cross-border handling; and security/changes.
+
+**Publication blockers preserved inside the draft's internal section, not
+hidden:**
+
+- Cloudflare Web Analytics is still enabled (per the E2B2/E2B3 entries
+  above) and must be dashboard-verified off before this policy is published
+  or before section 6 can claim "no analytics" as current fact.
+- Both `Effective date` and `Last updated` are placeholders pending the
+  actual Gate 3 publication date.
+- Hosting/cutover facts must be reverified against whatever is actually
+  serving traffic at publication time (per E1I, cutover has not happened as
+  of this draft).
+- Actual cookie behavior on the deployed site has not been audited; the
+  draft relies on a source grep plus Cloudflare's own published Web
+  Analytics description only.
+- Section 9's backup language must be reconciled with whatever E3 has
+  actually implemented by publication time (currently: producer/acceptor
+  verified only in isolation, nothing active on a real host).
+- Independent factual/legal review of the entire draft has not happened and
+  is required before publication.
+
+**Asset boundary respected.** E2C5's retain-everything-as-is decision is not
+reopened; the draft's section 3 gives only a short pointer to a separate
+attribution/non-affiliation notice and does not restate or alter any E2C3/
+E2C4/E2C5 asset classification.
+
+**What this does not do.** It does not check the Gate 2 "Data Collection
+Policy" checkbox — this is an initial draft still requiring independent
+review. It does not draft the Privacy Policy, Terms of Use, or attribution/
+non-affiliation notice. It does not disable Cloudflare Web Analytics, reopen
+the tunnel, or touch any live route/footer. **E2 remains IN PROGRESS.**
+
+### 🟡 E2D2 DATA COLLECTION POLICY INDEPENDENT REVIEW RECORDED — draft NOT accepted; applicable law UNRESOLVED; 3 blockers, 12 operator questions (2026-09-09; corrected E2D2A 2026-09-09)
+
+Read-only review session against `docs/planning/data-collection-policy-draft.md`
+(E2D). Produced `docs/planning/data-collection-policy-review.md`. **No code,
+asset, test, configuration, script, or dependency changed. No Cloudflare,
+Proton, GitHub, host, or database account accessed. The policy draft is
+byte-for-byte unchanged. Nothing staged, committed, pushed, published, or
+deployed. No Gate 2 checkbox changed.** Only `HANDOFF.md` and the review file
+were touched.
+
+**Corrected at E2D2A (same day).** The first version of the review overstated
+several legal conclusions. A correction pass rewrote the review and this entry.
+The most important structural fix: the first version treated operational duties
+as duties to publish particular wording on the public policy page. Corrected
+counts and reasoning are below; §12 of the review lists every change. **The
+correction did not weaken any obligation** — items moved from "the policy page
+must say this" to "the response template / internal procedure / collection
+notice must carry this", which is a harder target to forget, not an easier one.
+The draft remains **not accepted and not publishable**, for accurately stated
+reasons.
+
+**This is AI-assisted issue-spotting, not legal advice.** It does **not**
+satisfy the draft's own internal blocker 6 ("Legal review of this entire draft
+is required and has not happened"). That blocker stays open. The review is
+itself correctable and should be treated as issue spotting to be checked.
+
+**Verdict: the draft is factually accurate and not publishable.** Every
+repository-level claim independently rechecked this session held up (no
+submission routes; auth tombstone returns 404; `accounts.ts` does carry
+`ip_address`/`user_agent`/token/`password` columns; zero
+`localStorage`/`sessionStorage`/`document.cookie`/`indexedDB` matches in app
+source; zero Cloudflare-beacon references in `apps/web`; no `robots.txt` or
+sitemap; `docker-compose.yml` sets no logging/rotation key; fonts self-hosted
+via `next/font/google` at `apps/web/src/app/layout.tsx:2`). **No factual error
+was found in any of the 13 public sections.** The defects are legal structure,
+omissions, and staleness risk.
+
+**Counts (47 findings, corrected):** 3 BLOCKER · 6 OPERATOR INPUT REQUIRED ·
+22 MATERIAL CORRECTION · 8 RECOMMENDATION · 8 ACCEPTABLE AS WRITTEN. Separately,
+**12 operator questions** (Q-1 to Q-12). These supersede the first version's
+5 / 5 / 20 / 9 / 8 and its ten questions.
+
+**Six categories of requirement are now kept apart** throughout the review, and
+every finding is tagged with the ones it touches: public-policy wording
+**[PUB]**; collection notices **[NOTICE]**; individual access/correction
+responses **[RESP]**; internal policies and operational procedures **[INT]**;
+counsel-dependent legal determinations **[COUNSEL]**; pre-publication factual
+checks **[CHECK]**. The rule applied: a statutory duty is not treated as a duty
+to publish particular wording on the public policy page unless the cited
+provision expressly requires that publication.
+
+**Highest-risk findings, as corrected.**
+
+1. **Applicable law is UNRESOLVED and depends on unanswered legal-form facts**
+   (F-01/F-02). PIPA s.4(1) applies to "every organization and in respect of all
+   personal information" and is not commerce-gated; s.1(1)(i)(ii) expressly
+   includes "an unincorporated association", so if that is what Boogeymen is it
+   **may be fully subject** to the Act. Whether that is what it is — as opposed
+   to an individual acting in a personal or domestic capacity, or a body
+   qualifying under s.56 — is established nowhere. **Working assumption for
+   drafting only: plan as though PIPA applies in full**, because it is the most
+   demanding plausible branch. That is a planning posture, not a determination.
+   Correction: s.56 is **not** limited to incorporated bodies —
+   s.56(1)(b)(ii) also admits an organization "that meets the criteria
+   established under the regulations". The accurate narrow point is that
+   **qualifying s.56 status may narrow PIPA's application to non-commercial
+   handling**; no claim is made about overall burden and no legal form is
+   recommended. E2C5 decision 1 (no monetization) is relevant to PIPEDA and to
+   PIPA s.56(3), not as a universal exemption.
+2. **Opponent-player data: the lawful basis is undecided and remains a serious
+   unresolved Gate 2 issue** (F-07/F-08). The draft correctly never asserts the
+   "publicly available" exception. **Reliance on that exception is not presently
+   established, and it is equally not established that it can never apply** —
+   determining that requires a field-by-field, source-specific legal assessment
+   this review did not and could not perform. PIPA Reg 366/2003 s.7 says
+   personal information "does not come within" that meaning **except** in a
+   closed list of **six** categories (a)–(f) — the first version of this review
+   miscounted it as five, omitting (f), which covers information collected from
+   outside Alberta that would have fallen within (a)–(e) if collected within it.
+   The three data types must be assessed separately: **user-selected gamertags**
+   (the s.7(e) "provided that information" limb is most arguable),
+   **EA-assigned persona IDs** (harder), and **gameplay-generated statistics**
+   (harder again). **Preserved repository finding:**
+   `opponent-player-match-stats.ts:44` stores `ea_player_id`, an EA persona ID
+   documented as "Stable across matches", linking every appearance by the same
+   opponent (F-43, which the draft's §2 understates). Options put to the
+   operator, none chosen: considered basis with counsel's assessment,
+   de-identify in the public display, or club-level results only. **No future
+   session should record a permanent rejection of the exception before counsel
+   assesses it.**
+3. **Recorded party voice chat rests on an untested assumption** (F-30,
+   **UNRESOLVED**). The draft's whole justification is that a team member
+   authorized the recording. `HANDOFF.md` ("LAUNCH POLICY + DOMAIN MAIL",
+   2026-09-03) records that **most team members are in Massachusetts, USA.**
+   Criminal Code s.184(2)(a) provides a one-party-consent route for the Canadian
+   interception offence. Massachusetts G.L. c. 272 §99 B(4) is framed
+   differently: it turns on a "**secretly**" limb as well as an "all parties"
+   authorisation limb. **No Massachusetts conclusion and no conflicts-of-law
+   conclusion is drawn.** The factual question was expanded from two limbs to
+   five, and is now Q-6: (a) whose voices can be captured; (b) whether every
+   participant was told before recording began; (c) whether each expressly or
+   implicitly agreed; (d) whether the platform displays a recording indicator;
+   (e) where each participant was located. Escalated to operator + counsel.
+4. **The request section describes house practice without the statutory
+   mechanics behind it** (F-17 to F-22, F-38, F-39). PIPA ss.24–32 impose real
+   duties on **how a request is processed and what a response must contain** —
+   the s.28(1)(a) 45-day deadline and s.28(2.1) deemed-refusal rule; the s.31
+   extension route; s.32 fees (no fee for a correction; written estimate first);
+   the s.25(3) duty to **annotate** a correction refused; s.24(3)(b) mandatory
+   refusal where access would reveal another individual's information
+   (structurally unavoidable here); s.9 withdrawal of consent; s.34.1 breach
+   notice to the Commissioner. **Correction:** these bind the operator's
+   responses and procedures whether or not the policy page mentions them. The
+   **s.46 review right** is *indisputably required in applicable refusal and
+   correction responses* (s.29(1)(c)(iii), s.29(2)(b)(ii), s.29(3)(c)) and is a
+   **strong recommended public disclosure** — it is **not** established as a
+   statutory requirement for the general policy page. The first version's
+   "single clearest defect in the document" framing is withdrawn.
+5. **PIPA s.6 — the duty is about the organization's policies, not this
+   webpage** (F-24). The first version said the draft breached s.6(2); that was
+   wrong, and **an unfinished public draft does not breach s.6(2)**. Preserved:
+   if s.6(2) applies, the organization's **policies and practices** must include
+   the countries outside Canada where handling "is occurring **or may occur**"
+   and each service provider's authorized purposes; and **s.6(3)** requires
+   written information about those policies and practices to be **available on
+   request**. Neither requires the complete country list to be published on this
+   page — though publishing it may well be the simplest way to implement both
+   the transparency and the s.6(3) availability duty in one place, and is
+   recommended. Provider **service-provider status is a factual and legal
+   classification, not an arbitrary operator label**; Q-4 now collects contract
+   and service facts so counsel can characterise them.
+6. **Accountability: the required duty is internal** (F-05). Preserved: PIPA
+   s.5(3) requires an internally designated responsible individual, and
+   collection notices (s.13(1)(b)) and outside-Canada notices (s.13.1(3)(b)) may
+   use "the name **or position name or title**". **Correction:** s.29 and the
+   breach regulations (Reg s.19(h), s.19.1) were wrongly cited as proof that a
+   role title must appear in the general policy — s.19 governs the contents of a
+   report **to the Commissioner** and s.19.1 a notification **to affected
+   individuals**; s.29 governs particular responses. "Privacy Contact for
+   Boogeymen" remains a sensible proposed public role, without the claim that it
+   automatically resolves every context. F-05 is downgraded from BLOCKER to
+   MATERIAL CORRECTION and off the publication-blocker list; the s.5(3)
+   designation moves to the internal-requirements list. E2A decision 1 is not
+   reopened. Note also Reg s.8: designating a request office is **optional**, and
+   only choosing to do so triggers the duty to make its address public.
+7. **Logs — reclassified to a factual question** (F-14). The assertions that
+   publishing a manual 30-day target is worse than publishing nothing, and that
+   the operator cannot keep it because Docker automation is absent, are both
+   **removed as unestablished**. The absence of automated rotation does not show
+   that a manual practice does not happen. Now **OPERATOR INPUT REQUIRED** via
+   Q-12: do the logs exist, which services produce them, does manual review or
+   deletion actually occur, and is "roughly 30 days" accurate? Docker log
+   rotation under E4 remains **preferable future operational work**, not proof
+   that the current statement is false.
+8. **Retention — no new commitment imposed** (F-13). The s.35(1)
+   purpose-bounded framing concern is preserved: the draft frames retention as
+   unbounded-by-default with manual exceptions, which is the wrong way round
+   relative to the statute. **Correction:** the first version silently inserted
+   an annual review of the main archive into its suggested public wording. That
+   would be a new operational commitment, so it is removed from the wording and
+   put to the operator as **Q-11** (answering "no" is valid and reopens
+   nothing). **The approved retention decision is not reopened**, and E2B3's
+   approved annual cadence for the *email* tier is not extended to the archive
+   by implication.
+
+**Publication blockers: now 11** (was 13). The draft's own six stand unchanged
+(analytics disabled and dashboard-verified; placeholder dates; hosting/cutover
+reverified; live-site cookie audit; §9 backup reconciliation; legal review).
+Five added: applicability determination recorded (F-01); opponent-data basis
+decided (F-07/F-08); recording-law fact pattern gathered and answered or
+knowingly accepted (F-30); the §9 log statement factually checked (F-14/Q-12);
+and all internal-status narration removed plus the §6 analytics variant swap
+executed (F-42/F-34). **Three items were reclassified off this list** because
+the provisions cited do not require this webpage to carry them — the
+privacy-contact role title (F-05), the Commissioner review right (F-18), and the
+s.6(2) outside-Canada information (F-24). All three remain genuine obligations
+elsewhere, and two of the three remain strong public recommendations. Also
+flagged: **there is no publishable version of this policy in which Cloudflare
+Web Analytics is still enabled** — §1 and §6 contradict each other by design,
+and that resolves in only one direction.
+
+**Internal compliance requirements (12) are now listed separately** in §8 of the
+review — obligations that do not gate the public page and would survive a
+decision never to publish it: the s.5(3) designation; the s.6(1)–(2)
+policies-and-practices document with the country list and authorized purposes,
+available on request under s.6(3); the s.29 response template carrying the s.46
+review notice; the s.25(3) annotation step; s.32 fee handling; the
+s.24(3)/(4)/s.27 severance approach; the s.34.1 / Reg s.19 / s.19.1 incident
+procedure; verification-evidence handling; the per-category lawful-basis
+mapping; s.9 withdrawal handling; s.13/s.13.1 collection notices; and the
+internal notes at F-02/F-03/F-11.
+
+**Lawful basis — corrected wording** (F-07). The claim that the draft "states no
+lawful basis for anything it does" is withdrawn as a blanket assertion. The
+accurate defect: the draft **does not explicitly map consent provisions,
+exceptions, or reasonable-purposes analysis to each category**. The categories
+sit in materially different positions and are now treated separately —
+**members** (s.8(1)/s.8(2) plausible; E2A decision 14's operator attestation is
+evidence of awareness but no consent record is described), **voluntary email
+correspondents** (s.8(2) deemed consent, the strongest-positioned category),
+**recordings** (F-09/F-30), and **opponents** (F-08, the weakest). **No consent
+is inferred that has not been documented.** Recommended concrete step within the
+operator's control: collect a short written consent from every current member
+before publication.
+
+**Twelve operator questions (Q-1 to Q-12)**, rewritten to ask **facts and
+operator choices only** — none asks the operator to reach a legal conclusion.
+Q-1 now asks for the underlying organisational facts (bylaws, membership,
+officers, treasury, any filed incorporation/registration) instead of the
+entity's legal characterisation. **Q-9 no longer asks where the operator
+considers collection to legally occur** — that is a characterisation for counsel
+— and instead asks for physical locations and data flows. Q-4 collects provider
+contract and service facts before any legal characterisation. Q-6 is the
+five-part recording fact pattern. **Q-11 (archive review cadence)** and **Q-12
+(log facts)** are new. Q-5 would revisit E2A decision 7 — **flagged, not
+reopened**. Q-10 — no existing operator decision covers opponent-player
+publication, so nothing is being reopened.
+
+**Confirmed correct and to be preserved verbatim across future edits** (F-12,
+F-16, F-23, F-28, F-35, F-36, F-37, F-47): §10's "prior EA publication is not
+by itself a reason to refuse a request" line (it declines to treat prior EA
+visibility as self-evidently decisive **without prejudging the exception either
+way**, which is the right posture while F-08 is open); the cookie-free claim
+attributed to Cloudflare rather than adopted; the verified font statement; the
+Proton/GitHub facts matching E2B2/E1H/E1G including the deliberate non-naming of
+`alerts@`; §11's refusal to invent an age threshold (consistent with the Alberta
+capacity-based approach recorded in the OPC/OIPC-AB/OIPC-BC joint guidance);
+§9's tiered email schedule including its already-approved annual cadence; §10's
+no-government-ID-by-default posture; §7's dormant-authentication disclosure; and
+the internal-checks section as a practice to replicate in the three remaining
+legal drafts.
+
+**Official sources used** (11, all primary/government, accessed 2026-09-09,
+recorded with currency dates in §2 of the review): Alberta PIPA (King's Printer,
+current as of 2025-09-01); PIPA Regulation 366/2003 (consolidated up to
+147/2026); PIPEDA and the Alberta Exemption Order SOR/2004-219 and SOR/2001-7
+(Justice Laws, current to 2026-06-21); Criminal Code ss.184 and 193; the
+OPC/OIPC-AB/OIPC-BC joint meaningful-consent guidance; OIPC Alberta's *Minor
+Sports Associations* guidance; Alberta.ca's non-profit PIPA page; and — added at
+E2D2A — **Massachusetts G.L. c. 272 §99 (malegislature.gov)**, cited only to
+identify the statute and the facts that would matter under it. No law-firm
+article, blog, commercial summary, forum, or search/AI summary was relied on. No
+provision was read against case law.
+
+**Structural recommendation (F-44):** decide whether the Privacy Policy and Data
+Collection Policy are one document or two **before** drafting the privacy
+policy. Four overlapping legal documents maintained by one operator is a
+divergence trap given how many "reverify before publication" items already
+exist. Record the F-41 four-bucket split (publish / collection notice / response
+template / internal) at the same time so the remaining drafts inherit it.
+
+**Asset boundary respected.** E2C5's retain-everything-as-is decision is not
+reopened, and no E2C3/E2C4/E2C5 classification is restated or altered. The
+review's only asset-adjacent note is that §3's non-affiliation paragraph is
+misplaced and should stay a pointer to the separate attribution notice.
+
+**Next session:** Phase A of the review's §10 correction plan — gather the
+factual answers (Q-1, Q-2, Q-9, Q-12), put Q-1/Q-2/Q-9 and the Q-4/Q-6 fact
+patterns to counsel, and record the operator choices (Q-3, Q-5, Q-7, Q-8, Q-10,
+Q-11) as a decisions entry. Do not begin public text corrections until the
+applicability determination and the opponent-data approach are settled; the
+wording depends on both. Note that **Phase C (internal procedures) does not
+depend on the public page** and can proceed in parallel. **E2 remains IN
+PROGRESS.** Cloudflare Web Analytics remains enabled. Tunnel reopening remains
+separately unauthorized.
+
+### 🟡 E2D3 OPERATOR DECISIONS RECORDED — E2D2's operator questions substantially answered; applicable law and provider classification still UNRESOLVED; log-retention target superseded (2026-09-09)
+
+The operator reviewed the corrected E2D2 review and recorded the fourteen
+facts/decisions below. **This is a decision-recording entry only. It drafts
+no legal language, revises neither `docs/planning/data-collection-policy-draft.md`
+nor `docs/planning/data-collection-policy-review.md` (both remain byte-for-byte
+unchanged), checks no Gate 2 checkbox, and changes no code, configuration,
+asset, analytics setting, or tunnel state. No external Cloudflare, Proton,
+GitHub, host, or database account was accessed.**
+
+1. **Project operation and legal form.** The website/project is individually
+   operated — recorded as an operator factual characterization only. This
+   does **not** establish whether Boogeymen has or lacks bylaws, incorporation
+   filings, officers, a treasury, or any other organizational feature (Q-1
+   asked for these; none is answered here). It does **not** establish that the
+   project qualifies for any PIPA personal/domestic exclusion, and does
+   **not** establish that PIPA applies or does not apply. Applicable-law
+   characterization (F-01/F-02) remains **UNRESOLVED**. Per E2D2, conservative
+   drafting continues to assume the most demanding plausible privacy
+   obligations until the question is legally resolved.
+2. **Commercial activity (Q-2).** No monetization or other commercial
+   activity exists now or is planned — no merchandise, sponsorship, paid
+   access, third-party advertising, dataset licensing, or sale/barter of any
+   member or contact list. This is operator intent, not a universal exemption
+   from PIPEDA or PIPA s.56(3) (E2D2 finding 1). Any future commercial
+   activity triggers a fresh privacy review.
+3. **Public privacy contact (Q-3).** Approved public wording: "Privacy
+   Contact for Boogeymen", `webmaster@boogeymen.app`. The operator remains
+   the internally designated person responsible for privacy handling (PIPA
+   s.5(3); E2A decision 1 not reopened). No operator legal name, mailing
+   address, or formal legal-entity name is published or invented by this
+   entry. No PIPA Reg s.8 request office is designated by this decision.
+4. **Providers (Q-4, partial).** Cloudflare, Proton, and GitHub are used
+   specifically to support this project — that is the only fact supplied.
+   No facts were given about data-processing agreements, account-plan
+   contractual terms beyond what E2B2 already recorded, each provider's
+   independent processing purposes, or processor/controller/service-provider
+   classification. Those classifications remain **unresolved**; this entry
+   does not turn the operator's usage-purpose answer into a legal
+   characterization.
+5. **Member approval.** Current members verbally agreed to publication/use of
+   their gamertags, profiles, and statistics. This is operator-attested; no
+   written consent record was identified. It is **not** legal clearance and
+   is **not** a conclusion about the legal sufficiency or scope of that
+   consent (see E2D2's "Lawful basis — corrected wording").
+6. **Recordings and incidental voice audio (Q-6).** Operator facts: voice
+   audio is captured incidentally as a by-product of recording gameplay and
+   is not currently used for a separate purpose; participants know gameplay
+   sessions may be recorded and are verbally okay with it; no visible
+   platform recording indicator is present; participants may be located in
+   Alberta, Ontario, and Massachusetts. As before (E2A decision 7), this does
+   **not** claim code or repository inspection proves the contents of any
+   individual recording. It does **not** claim every possible future
+   participant has consented, does **not** claim opponents or unrelated
+   third parties are necessarily absent, does **not** claim compliance with
+   Canadian, Ontario, or Massachusetts recording law, and draws **no**
+   conflicts-of-law conclusion. If an opponent, guest, or other new
+   participant joins recorded voice chat, their awareness or agreement must
+   not be assumed.
+7. **Recording retention (Q-5).** Recordings and incidental audio are
+   retained under the existing approved retention posture (E1G / E2A
+   decision 7) — knowingly retained as-is. Audio is **not** stripped, no
+   audio-specific expiry is added, and no existing files are altered. This is
+   an operator retention decision, not legal clearance; the applicable
+   recording/privacy questions in item 6 remain unresolved.
+8. **Opponent-player display (Q-10).** Opponent-player gamertags and
+   individual statistics remain publicly displayed as currently implemented.
+   They are **not** de-identified or pseudonymized, publication is **not**
+   reduced to club-level results, and no code or data is changed. This does
+   **not** establish that a legal basis has been established, and does
+   **not** claim the PIPA Reg 366/2003 s.7 "publicly available" exception
+   either applies or cannot apply (E2D2 finding 2, F-07/F-08 remain
+   **UNRESOLVED**). This is a product/display decision; its legal basis
+   remains open, and any future legal review may require revisiting the
+   policy or implementation.
+9. **Request fees (Q-7).** No fee will be charged for access or correction
+   requests. This does not waive or replace any other verification,
+   severance, or response procedure already recorded (PIPA s.24(3)/(4),
+   s.27, s.32(2)).
+10. **Document structure (Q-8).** The Privacy Policy and Data Collection
+    Policy remain **two separate** Gate 2 drafts — HANDOFF's Gate 2 and
+    Gate 3 checklists explicitly require both. Boundary recorded: **Privacy
+    Policy** is a concise public overview (visitor privacy, providers,
+    cross-border handling, safeguards, privacy contact, rights/complaints,
+    changes); **Data Collection Policy** is the detailed inventory
+    (information categories, sources, purposes, public display, retention,
+    request handling). Each document should link to the other; detailed
+    category inventories, retention schedules, and provider facts should
+    have one authoritative home rather than being duplicated inconsistently
+    (E2D2 finding F-44). This records structure only — the Privacy Policy is
+    not drafted and the Data Collection Policy is not refactored by this
+    entry.
+11. **Main-archive review cadence (Q-11).** The operator does not adopt an
+    annual or other periodic review commitment for the main historical
+    archive. The approved retention posture is preserved unchanged (E2A
+    decision 7 / E2C5). No periodic-review promise may be inserted into
+    future public wording without a new operator decision. This does not
+    establish that indefinite retention is legally compliant.
+12. **Log retention — superseding decision (Q-12).** This explicitly
+    **SUPERSEDES the earlier approximate 30-day log target** recorded at the
+    "LAUNCH POLICY + DOMAIN MAIL" (2026-09-03) and "E1G PRIVACY/RETENTION
+    POLICY" (2026-09-07) Active State entries and reflected in §9/§13 of the
+    current draft. **Both of those earlier entries stay byte-for-byte
+    unchanged** — this entry supersedes their log-retention statement
+    going forward without rewriting the historical record. New operator
+    policy, verbatim:
+
+    > Logs under our control do not currently have a fixed automatic
+    > deletion period. We retain them only for as long as reasonably needed
+    > to operate, secure, troubleshoot, or protect the website, or to meet
+    > applicable legal obligations. We delete them when they are no longer
+    > reasonably needed for those purposes.
+
+    Recorded separately:
+
+    > Logs controlled independently by service providers are subject to
+    > those providers' practices and retention periods.
+
+    This is **purpose-based retention, not a 30-day schedule**. It does
+    **not** claim automated deletion exists, does **not** establish which
+    logs currently exist, and does **not** claim any logs have already been
+    deleted. **No log deletion is authorized or performed by this session.**
+    A later read-only inventory is still needed to identify actual Docker,
+    web, worker, database, tunnel, and provider-controlled logging. **Docker
+    logging configuration is not altered by this session.**
+13. **Physical/data-flow facts (Q-9, partial).** Recorded facts only,
+    nothing beyond what HANDOFF and this operator response already
+    establish: the operator/project is based in Alberta; current recording
+    participants may be in Alberta, Ontario, and Massachusetts (item 6); the
+    current/target server, database, OCR workstation, and backup facts
+    remain exactly as previously recorded (see the "E1I HOSTING COST +
+    SYSTEM TERMINATION MAP DOCUMENTED" and "E1A HOSTING + BACKUP POLICY
+    DECIDED" Active State entries); backups remain **inactive** — no
+    production backup-pipeline activation has been recorded by any later
+    entry; site traffic and email use the already-recorded Cloudflare and
+    Proton paths (E2B2). This entry does **not** determine where collection
+    legally "occurs" — Q-9 explicitly reserves that characterization for
+    counsel.
+14. **Counsel/legal review posture.** The operator does not consider the
+    project serious enough to retain counsel at this stage. Recorded as:
+    counsel review is **DEFERRED, not completed**; nothing in this entry is
+    legal clearance; no unresolved privacy or recording-law question from
+    E2D2 (blocker 6, F-01/F-02, F-07/F-08, F-30, the Massachusetts question)
+    is waived by that deferral. Conservative drafting may continue. **The
+    existing legal-review publication blocker (E2D2 blocker 6, "Legal review
+    of this entire draft is required and has not happened") remains open**
+    unless the operator later explicitly changes it. "Legal review complete"
+    is **not** recorded by this entry.
+
+**What this does and does not change.** This entry substantially addresses
+Q-2, Q-3, Q-5, Q-6, Q-7, Q-8, Q-9 (partial), Q-10, Q-11, and Q-12 of E2D2's
+twelve operator questions, and records the item-1 organizational fact
+relevant to Q-1. **Q-1's full applicability/legal-form determination and
+Q-4's provider contract/DPA/classification detail remain UNRESOLVED** and are
+for counsel, not this entry. No Gate 2 checkbox is checked — the Data
+Collection Policy draft checkbox in the "Privacy, data collection, and legal
+drafts" checklist above stays `[ ]`; no other checkbox is changed. E2C5's
+asset-retention decisions are not reopened and no E2C3/E2C4/E2C5
+classification is restated or altered. Cloudflare Web Analytics remains
+enabled. Tunnel reopening remains separately unauthorized. **E2 remains IN
+PROGRESS** — none of the four Gate 2 legal drafts is complete or reviewed by
+counsel, and `data-collection-policy-draft.md` itself is not yet revised to
+reflect these decisions.
+
+**Next session:** apply these fourteen decisions — most consequentially the
+item-12 log-retention supersession and the item-10 document-structure
+boundary — in a revision pass on `docs/planning/data-collection-policy-draft.md`,
+then route the still-open Q-1 and Q-4 facts plus the E2D2 counsel-dependent
+findings (F-01/F-02, F-07/F-08, F-30) to counsel per item 14. Do not begin
+that revision pass in the same session as further decision-recording.
+
+### 🟡 E2D4 DATA COLLECTION POLICY REVISED AGAINST E2D2A/E2D3 — draft text updated; applicability, provider-classification, opponent-data, and recording-law issues remain UNRESOLVED; no Gate 2 checkbox changed (2026-09-09)
+
+Narrowly-scoped drafting session. Revised
+`docs/planning/data-collection-policy-draft.md` in place, applying the
+corrected E2D2A independent review and the fourteen E2D3 operator decisions
+to the draft's text. **This is a text-only revision of the Data Collection
+Policy draft.** It does not draft the Privacy Policy, Terms of Use, or
+attribution notice; does not constitute independent factual/legal review;
+changes no code, asset, test, configuration, dependency, or provider
+setting; accesses no external system; and stages, commits, pushes, or
+publishes nothing. `docs/planning/data-collection-policy-review.md` is
+byte-for-byte unchanged.
+
+**Public sections changed:** preamble (effective-date placeholder reworded
+to drop "Gate 3" language); §1 Scope and launch posture (added an
+individually-operated statement that draws no legal-form conclusion;
+broadened the monetization statement from "at launch" to "no monetization
+or other commercial activity exists … and none is planned," with a
+fresh-privacy-review trigger if that changes); §2 Information we collect
+(added a "Member agreement to publication" bullet recording current
+members' verbal agreement — explicitly not written consent or legal
+clearance; added the EA-assigned stable persona-identifier disclosure to
+the opponent-data bullet; rewrote the party-voice-chat bullet to state the
+audio is an incidental by-product, is not analyzed/used separately/
+displayed, and that current participants know sessions may be recorded and
+have verbally agreed, without claiming a recording indicator exists, that
+every future participant has agreed, or that opponents/third parties can
+never be present; simplified the logs bullet to cross-reference retention
+rather than state a target); §5 Public display and indexing (removed
+"Gate 3" narration in favor of a plain user-facing statement); §9 How long
+we keep information (reframed main-archive retention as purpose-based per
+E2D2A F-13, with an explicit "not a statement that indefinite retention has
+been legally reviewed or approved" disclaimer and no periodic-review
+promise per E2D3 item 11; **replaced the ~30-day log-retention target with
+the E2D3 item 12 purpose-based policy, substantially verbatim**, plus a
+separate sentence on provider-controlled logs); §10 Requests and
+corrections (added the "Privacy Contact for Boogeymen" role label; added a
+firm no-fee statement for access and correction requests per E2D3 item 9;
+distinguished access / correction / withdrawal / removal as different
+request types; added mixed-record/severance handling and a conditional
+correction-annotation commitment; clarified verification-evidence handling
+— used only to verify/handle the request, not added to the published
+record, no immediate-deletion promise, retained under the existing
+privacy/correction-correspondence tier; added a plain-language pointer to
+the Alberta OIPC review route, explicitly framed as the applicable route
+rather than proof of statutory coverage); §13 (retitled "Accuracy,
+security, incidents, and changes to this policy"; added concise accuracy
+and incident-reporting commitments per E2D2A F-40/F-38 without detailing
+internal procedure; added the Privacy Contact label to the contact block).
+
+**Exact log-retention replacement (E2D3 item 12, substantially verbatim):**
+"Logs under our control do not currently have a fixed automatic deletion
+period. We retain them only for as long as reasonably needed to operate,
+secure, troubleshoot, or protect the website, or to meet applicable legal
+obligations. We delete them when they are no longer reasonably needed for
+those purposes." Recorded separately: "Logs controlled independently by
+service providers are subject to those providers' practices and retention
+periods." No automated deletion is claimed, no claim is made about which
+logs currently exist, and no log deletion or Docker/logging configuration
+change occurred in this session. The internal section's publication-blocker
+list was expanded to require a read-only logging inventory (Docker, web,
+worker, database, tunnel, provider-controlled) before publication, per
+E2D3 item 12 / review Q-12 — this supersedes proving a 30-day schedule.
+
+**Internal section also updated** (still not part of the public policy;
+must not ship): added a revision-provenance note citing E2D2A and E2D3;
+expanded the publication-blocker list from 6 to 13, folding in the review's
+five additional blockers (applicability, opponent-data, recording-law, the
+logging inventory, and the internal-narration/analytics-variant swap) plus
+two new items for provider-classification and the outside-Canada country
+list; updated the "current-vs-target discrepancies" and "factual
+uncertainties" lists to match the new log wording and to flag provider
+service-provider classification as unresolved; updated the "Gate 2 status"
+note to describe this session as a drafting pass, not review.
+
+**Unresolved matters retained, none closed by this session:**
+
+- **Applicable-law characterization (E2D2A F-01/F-02; E2D3 item 1)** —
+  UNRESOLVED. Conservative drafting continues to assume the most demanding
+  plausible obligations.
+- **Opponent-player collection/publication/retention basis (E2D2A F-07/
+  F-08; E2D3 item 8)** — UNRESOLVED. The "publicly available" exception is
+  neither relied on nor rejected; §2's new persona-identifier disclosure
+  makes the existing data flow more visible, it does not change it.
+- **Recording law across jurisdictions (E2D2A F-30; E2D3 item 6)** —
+  UNRESOLVED. E2D3's recorded facts are reflected in §2's rewritten
+  bullet; no Massachusetts or conflicts-of-law conclusion is drawn, and
+  none is claimed.
+- **Provider processor/controller/service-provider classification and the
+  outside-Canada country list (E2D2A F-24; E2D3 item 4, Q-4)** —
+  UNRESOLVED. No classification or country list was invented.
+- **Independent legal/counsel review** — still DEFERRED, not completed
+  (E2D3 item 14). Nothing in this session is legal advice or legal review.
+
+**What this does not do.** The **Privacy Policy remains a separate,
+unwritten draft** (E2D3 item 10 boundary preserved — this document stays
+the detailed source for categories, sources, purposes, public display,
+accounts/schema capability, operational/provider data flows, retention,
+and request handling). No legal review occurred. **No Gate 2 checkbox was
+changed** — the Data Collection Policy checkbox stays `[ ]`. Nothing was
+staged, committed, pushed, published, or deployed. Cloudflare Web
+Analytics remains enabled. Tunnel reopening remains separately
+unauthorized. **E2 remains IN PROGRESS.**
+
+**Next session:** either route the outstanding Q-1/Q-4/Q-6 fact patterns
+and E2D2A counsel-dependent findings to counsel, or perform the read-only
+logging inventory now required by publication blocker 10 — do not combine
+that fact-gathering with further public-text drafting in the same session.
+
+### 🟡 E2D5 DATA COLLECTION POLICY VERIFIED AND POLISHED — narrow drafting-quality pass on E2D4's text; applicability, provider-classification, opponent-data, and recording-law issues remain UNRESOLVED; no Gate 2 checkbox changed (2026-09-09)
+
+Narrowly-scoped Session 3 verification/polish pass over
+`docs/planning/data-collection-policy-draft.md` as revised at E2D4. Read the
+full draft, the full review (`docs/planning/data-collection-policy-review.md`),
+and the E2D/E2D2A/E2D3/E2D4 entries above before editing. **This session
+performed no logging inventory, no new legal or provider research, and no
+access to Cloudflare, Proton, GitHub, hosts, or the database; changed no
+code, configuration, asset, test, or dependency; changed no provider
+setting; did not reopen the asset-retention decision; checked no Gate 2
+checkbox; and staged, committed, pushed, published, deployed, or reopened
+nothing.** `docs/planning/data-collection-policy-review.md` is byte-for-byte
+unchanged.
+
+**Corrections applied (all narrow, text-only, no substance reopened):**
+
+1. **Header/status block.** Retitled to the stage-neutral "Data Collection
+   Policy — DRAFT" (dropped the "(E2D)" session-stage suffix) and reworded
+   the status line from "initial draft" to "revised working draft.
+   Unpublished. Not legally reviewed," with an explicit sentence that the
+   E2D2/E2D2A AI-assisted review is issue-spotting, not legal advice or
+   legal sign-off — the prior wording risked reading as though that review
+   satisfied the "independent … review has signed off" condition.
+2. **Removed both public-section pointers to the internal drafting notes.**
+   §1's legal-form sentence and §10's OIPC paragraph each ended with "see
+   the internal notes at the end of this document"; both now end as
+   self-contained sentences. The internal section itself is untouched and
+   still records the same open questions.
+3. **Replaced §10's "Removal is not a right our records automatically owe
+   you"** with neutral plain language: removal/de-identification is
+   considered case-by-case; governed by applicable law and the legitimate
+   need to keep an accurate archival record; the policy does not promise
+   removal in every case and does not rule out that applicable law may
+   require it. The adjacent "prior EA publication is not, by itself, a
+   reason to refuse a request" sentence (E2D2A F-12, confirmed-correct,
+   preserved verbatim) is unchanged.
+4. **Cleaned up §5.** Restated the approved public indexing policy plainly
+   (canonical pages indexable; query-variant/diagnostic surfaces excluded)
+   and removed the public enumeration of unfinished implementation work
+   (`robots.txt`, sitemap, per-page metadata) per review finding F-42, which
+   named exactly this pattern as internal-status narration that shouldn't
+   ship. The missing implementation work is now recorded only in the
+   internal section's "Current-vs-target discrepancies" list (new
+   "Indexing implementation" bullet), which is explicit that indexing
+   controls are **not yet deployed** — §5 no longer claims or implies
+   otherwise either way.
+5. **§2's opponent-data bullet** now reads "an EA-provided stable persona
+   identifier" instead of "an identifier EA assigns to each player" — the
+   repository/HANDOFF evidence (E2D2A F-43: `ea_player_id`, documented
+   "Stable across matches") establishes that EA provides a stable
+   identifier, not how EA created or assigned it, and the review's own
+   proposed wording ("an identifier EA uses for each player") did not claim
+   "assigns" either.
+6. **General re-read.** No other factual contradiction, stale internal
+   narration, or E2D2A/E2D3-inconsistent wording was found in the public
+   sections (§1–§13). No awkward wording was judged to materially affect
+   clarity enough to warrant a change beyond the five items above.
+
+**Preserved without reopening (verified unchanged):** individually
+operated/no-legal-form framing; no monetization now or planned; verbal
+member-approval framing; voice chat as incidental capture, current
+participant awareness/agreement, no recording-indicator claim, and the
+unresolved Alberta/Ontario/Massachusetts jurisdictional question; public
+opponent display with its legal basis still unresolved; no request fees;
+Privacy Policy and Data Collection Policy remaining two separate documents;
+no periodic main-archive review commitment; the E2D3 item 12 purpose-based
+log-retention wording, substantially verbatim; provider-controlled-log
+uncertainty; Cloudflare Web Analytics still enabled versus the
+pre-publication disablement requirement; backups not active; all E2C5
+asset-retention decisions; and every unresolved counsel question and
+publication blocker (now 13, unrenumbered and untouched) in the internal
+section.
+
+**Verification run this session:** `git diff --check` clean (no whitespace
+errors); no trailing whitespace in the policy file; both public references
+to "internal notes" confirmed removed; the "Removal is not a right … "
+sentence confirmed removed; public §5 confirmed to no longer inventory
+`robots.txt`/sitemap/metadata; the purpose-based log-retention paragraph
+confirmed unchanged; the Gate 2 "Draft the data-collection policy." checkbox
+(line 142 of this file) confirmed still `[ ]`; `git status --short` matched
+the expected dirty set exactly, with nothing staged; HEAD and `origin/main`
+both confirmed at `65bcddb43145d2fcffaeafb4d97d0e1a2737c35f` before and
+after editing.
+
+**What this does not do.** No independent factual/legal review occurred —
+this was drafting-quality polish, not review. Counsel review remains
+**deferred, not completed** (E2D3 item 14). None of E2D2A's four
+UNRESOLVED items (applicable law F-01/F-02, opponent-data basis F-07/F-08,
+recording law F-30, provider classification F-24) is resolved by this
+session. The Privacy Policy remains a separate, unwritten draft. Cloudflare
+Web Analytics remains enabled. Tunnel reopening remains separately
+unauthorized. **E2 remains IN PROGRESS.**
+
+**Next session recommendation:** a fresh session for the separate Privacy
+Policy first draft (per E2D3 item 8's document-structure boundary), treating
+this revised/polished Data Collection Policy draft as the authoritative
+source for categories, sources, purposes, public display, retention, and
+request handling that the Privacy Policy should cross-reference rather than
+duplicate. Do not combine that drafting session with any further Data
+Collection Policy edits, the outstanding logging inventory, or routing facts
+to counsel.
+
+### 🟡 E2E PRIVACY POLICY INITIAL DRAFT WRITTEN — not reviewed, not published, no Gate 2 checkbox checked (2026-09-09)
+
+Narrowly-scoped drafting session. Produced
+`docs/planning/privacy-policy-draft.md`: a concise, plain-language Privacy
+Policy working draft plus a clearly separated internal drafting/publication-
+checks section, matching the pattern used for the Data Collection Policy.
+**No code, asset, test, configuration, dependency, or provider setting was
+changed. No external system (Cloudflare, Proton, GitHub, host, database) was
+accessed. Nothing was staged, committed, pushed, or published as a live
+route.** The draft was built from `HANDOFF.md` (E1G, E2A–E2D5) and
+`docs/planning/data-collection-policy-draft.md`/`-review.md` (especially
+F-41 and F-44); `docs/planning/launch-page-design-prototypes.md` was read
+only for the prototype content-boundary warning — its saved Privacy Policy
+prototype (`privacy@boogeymen.gg`, its own analytics/browser-storage claims,
+its own minors posture) was used for visual/layout reference only, and none
+of its wording, mailbox, domain, analytics, browser-storage, or retention
+claims was copied.
+
+**Structure applied (per E2D3 item 10 / E2D2A F-41/F-44).** The Privacy
+Policy is a concise overview — who operates the project, visitor privacy,
+providers, cross-border handling, safeguards, privacy contact,
+requests/complaints, and policy changes — that links to the Data Collection
+Policy for the full category inventory, sources, purposes, public-display/
+indexing rules, provider/operational-flow detail, complete retention
+schedule, and complete request-handling mechanics. The complete category
+inventory, the tiered email-retention schedule, and the full provider fact
+set were deliberately **not** duplicated; the draft summarizes and
+cross-references instead.
+
+**What the draft covers:** draft/unpublished status with placeholder dates;
+Boogeymen as an individually-operated, volunteer community gaming-club
+project with no legal-form or governing-statute assertion; no monetization/
+advertising now or planned; public read-only posture with no accounts,
+uploads, comments, or on-site submission forms (voluntary email preserved);
+a concise summary of maintained information categories pointing to the Data
+Collection Policy for detail; canonical public pages intended for normal
+search indexing versus unpublished private evidence; visitor/device
+information (no direct browser-storage use in application source; possible
+infrastructure logs stated conditionally, no specific log asserted);
+analytics (Cloudflare Web Analytics accurately disclosed as **currently
+enabled**, stated as conflicting with the approved no-analytics posture,
+required to be disabled and dashboard-verified before publication, with the
+cookie-free claim attributed to Cloudflare and no claim that analytics is
+already disabled); providers (Cloudflare, Proton Mail, private GitHub
+storage, EA, community-operated Alberta hosting, with no processor/
+controller/service-provider classification and no invented DPA, contract,
+retention period, or storage country); cross-border handling (stated
+generally, no country list manufactured); retention (purpose-based summary
+linking to the Data Collection Policy, preserving the E2D3 item 12 no-fixed-
+period log-retention rule verbatim in substance, no 30-day promise, no
+periodic-archive-review promise); requests (Privacy Contact
+`webmaster@boogeymen.app`, no fees, reasonable evidence of gamertag control
+with no government-ID default, case-by-case correction/de-identification/
+removal, prior EA publication not automatic grounds for refusal, a
+conditionally-framed OIPC pointer); a `security@boogeymen.app`-only
+vulnerability-reporting line, with `alerts@boogeymen.app` never mentioned;
+adult-only team membership alongside the unverifiable-opponent-minors
+posture with no under-13 threshold; reasonable security, incident
+notification, and on-site change-notice commitments; and a closing
+cross-reference back to the Data Collection Policy. A final internal
+section records the same publication blockers and UNRESOLVED items as the
+Data Collection Policy (applicable law, opponent-data basis, recording law,
+provider classification, the logging inventory, and counsel review), and
+explicitly states it must not ship.
+
+**What this does not do.** It does not check the Gate 2 "Privacy Policy"
+checkbox — this is an initial draft still requiring independent review. It
+does not draft the Terms of Use or the EA/NHL attribution/non-affiliation
+notice, does not perform new legal research or the logging inventory, does
+not access any external account/host/database, does not touch any live
+route/footer, does not disable Cloudflare Web Analytics, and does not reopen
+the tunnel. Counsel review remains deferred, not completed (E2D3 item 14).
+**E2 remains IN PROGRESS.**
+
+**Next session recommendation:** a fresh session to either (a) route the
+outstanding Q-1/Q-4/Q-6 fact patterns and E2D2A counsel-dependent findings
+(F-01/F-02, F-07/F-08, F-30, F-24) to counsel, or (b) perform the read-only
+logging inventory required by both drafts' publication-blocker lists (E2D2A
+F-14; E2D3 item 12, Q-12). Do not combine either with further public-text
+drafting of the Privacy Policy, the Data Collection Policy, the Terms of
+Use, or the EA/NHL attribution notice in the same session.
+
+### 🟡 E2E2 PRIVACY POLICY INDEPENDENT REVIEW RECORDED — draft NOT accepted; 1 blocker, 7 material corrections; no Gate 2 checkbox checked (2026-09-09)
+
+Narrowly-scoped independent factual, structural, and cross-document review of
+`docs/planning/privacy-policy-draft.md` as written at E2E. Produced
+`docs/planning/privacy-policy-review.md`. **The Privacy Policy draft was not
+revised in this session and is byte-for-byte unchanged, as are
+`docs/planning/data-collection-policy-draft.md` and
+`docs/planning/data-collection-policy-review.md`.** No code, configuration,
+asset, test, or dependency changed; no external Cloudflare, Proton, GitHub,
+host, or database account was accessed; no provider setting changed; nothing
+was staged, committed, pushed, published, deployed, or reopened. **This review
+is issue-spotting, not legal advice and not counsel sign-off**; it performed no
+new legal research and used the corrected E2D2A review as the existing legal
+issue-spotting baseline.
+
+**Verdict: factually sound and decision-compliant, but NOT yet acceptable as
+the E2E drafting checkpoint.** Findings: **1 BLOCKER, 7 MATERIAL CORRECTIONS,
+9 RECOMMENDATIONS, 15 explicit ACCEPTABLE-AS-WRITTEN confirmations.** Every
+finding is labeled by owner (public policy / internal publication checklist /
+Data Collection Policy / Gate 3 / counsel).
+
+**The blocker (P-01).** The draft's five public links target the repository
+path `./data-collection-policy-draft.md` — a file whose own header forbids
+being linked or routed — and **no publication blocker covers link
+replacement**. No public route exists for either policy (verified against
+`apps/web/src/app`) and HANDOFF records no URL decision. Required: a
+non-resolving, greppable placeholder (e.g.
+`PLACEHOLDER-DATA-COLLECTION-POLICY-URL`), matching the file's existing
+date-placeholder convention, plus a new publication blocker requiring
+replacement with the final published route. **No route was invented.**
+
+**The seven material corrections.** §6 is written in pre-publication voice and
+the E2D2A F-34 analytics variant swap is absent from this document's blocker
+list (the Data Collection Policy's blocker 13 has it); §8 gives the unresolved
+provider *classification* as the reason no *country list* is published,
+conflating a counsel question with an internal completion item and leaking
+internal-work framing into public text; the Cloudflare strictly-necessary-cookie
+disclosure and the no-consent-banner posture are missing from the document that
+E2D3 item 10 assigns visitor privacy to; two internal statements misdescribe
+the draft (blocker 8 says recordings are not mentioned, but §3 mentions them —
+voice chat and recording *legality* are what is absent; and the
+no-duplication claim is contradicted by measurement); §5 drops "access" from
+the log-category list in the visitor-facing section; §6's cookie-free sentence
+is a non sequitur that loses the point the paragraph exists to make; and
+blocker 9 collapses the Data Collection Policy's separately-tracked blockers 11
+and 12. **None requires a new operator decision or counsel.**
+
+**Confirmed clean.** No contradiction with the Data Collection Policy was found
+on any of the eight topics checked (categories/sources, public indexing,
+analytics/browser storage, provider facts, retention/logs, request
+verification/removal, minors/opponents, incident handling/change notices). The
+draft does not imply PIPA/PIPEDA applicability is determined, does not imply
+opponent-data or recording legality is established, claims no provider
+contract/classification/retention period/storage country, does not claim Web
+Analytics is disabled (it discloses it as currently enabled, matching E2B3
+decision 1's mandated interim framing), never publishes `alerts@boogeymen.app`,
+restores no 30-day log target (E2D3 item 12 wording preserved substantially
+verbatim), copies no wording from the design prototype (no `boogeymen.gg`, no
+`privacy@`, none of its analytics/browser-storage/minors claims), and treats no
+asset retention as legal clearance. All "Gate 2"/"Gate 3" vocabulary is
+confined to the internal section.
+
+**Conciseness measured, not estimated.** 1,458 public words versus the Data
+Collection Policy's 3,571 (41%); the category inventory, email-retention tiers,
+accounts/schema capability, provider fact set, response targets, and request
+mechanics are not restated. But **15 of 60 public sentences are byte-identical
+to the Data Collection Policy and 12 more match at ≥0.75** — roughly 45%
+duplicated or near-duplicated, against F-44(b)'s "each fact lives in exactly one
+document." Two duplications cross E2D3 item 10's boundary in opposite
+directions (safeguards/incident and change notices toward the Privacy Policy;
+request-handling bullets and the OIPC paragraph toward the Data Collection
+Policy).
+
+**Three operator questions raised, none resolved here and none required to
+accept the checkpoint:** the public route/URL for each policy (Gate 3 routing,
+not legal); whether the Privacy Policy or the Data Collection Policy owns the
+cookie disclosure; and which document owns each duplicated fact. **No operator
+decision was manufactured.**
+
+**Counsel-only questions unchanged** from the corrected E2D2A baseline —
+applicable law (F-01/F-02, including the s.56 analysis), opponent-data basis
+(F-07/F-08), recording law (F-30), provider classification (F-24/Q-4), and the
+consent-banner question — plus one new drafting-strategy judgment: whether §7's
+sentence announcing that no provider classification has been made should be
+published at all. **None is resolved by this review.**
+
+**What this does not do.** It checks no Gate 2 checkbox — the Privacy Policy and
+Data Collection Policy checkboxes both remain `[ ]`. It performed no logging
+inventory, routed nothing to counsel, drafted no Terms of Use or EA/NHL
+attribution notice, reopened no E2C3/E2C4/E2C5 asset classification, and
+revised no policy text. Counsel review remains **deferred, not completed**
+(E2D3 item 14). Cloudflare Web Analytics remains enabled. Tunnel reopening
+remains separately unauthorized. **E2 remains IN PROGRESS.**
+
+**Next session recommendation:** a narrow Session 3 correction pass on
+`docs/planning/privacy-policy-draft.md` only, applying the review's eight
+required corrections (and optionally the decision-free improvements P-09, P-11,
+P-12, P-16). Do not combine it with the still-required read-only logging
+inventory, routing facts to counsel, any Data Collection Policy edit (the
+review's P-13 reciprocal-link and P-14 duplication-ownership items), the Terms
+of Use, or the EA/NHL attribution notice.
+
+### 🟡 E2E2A PRIVACY POLICY REVIEW CORRECTED — several E2E2 overstatements fixed in place; supersedes the affected E2E2 conclusions; historical E2E2 entry above not rewritten (2026-09-09)
+
+Narrowly-scoped correction session on `docs/planning/privacy-policy-review.md`
+only. **This entry supersedes the E2E2 entry above wherever the two disagree;
+the E2E2 entry itself is left byte-for-byte unrewritten**, per the convention
+E2D3 item 12 established for historical entries. Neither policy draft was
+touched: `docs/planning/privacy-policy-draft.md`,
+`docs/planning/data-collection-policy-draft.md`, and
+`docs/planning/data-collection-policy-review.md` remain byte-for-byte
+unchanged. No code, configuration, asset, test, or dependency changed; no
+external Cloudflare, Proton, GitHub, host, or database account was accessed;
+nothing staged, committed, pushed, published, deployed, or reopened; no Gate 2
+checkbox changed.
+
+**What was overstated in E2E2, and the correction:**
+
+1. **Legal-exposure conclusion.** E2E2's verdict claimed the draft "introduces
+   no new legal exposure." An AI issue-spotting review cannot establish the
+   absence of legal exposure. Corrected to: "No new unsupported legal claim
+   was identified within this review's stated factual and issue-spotting
+   scope."
+2. **Duplication versus the approved document boundary.** E2E2 measured
+   duplication against F-44(b)'s original proposal ("each fact lives in
+   exactly one document"), not against E2D3 item 10 — the actual, binding
+   operator decision, which sets a narrower boundary: detailed category
+   inventories, retention schedules, and provider facts have one authoritative
+   home; essential high-level facts (safeguards, change notices, the no-fee
+   and removal posture) may appear in both documents when useful for a concise
+   Privacy Policy summary. P-05(b) and P-14 are corrected to measure against
+   item 10, not F-44(b): the 15 byte-identical / 12 near-match sentence count
+   stands as a measurement and a maintenance-drift risk, but is no longer
+   characterized as a decision violation.
+3. **P-07 reclassified MATERIAL CORRECTION → RECOMMENDATION.** §6's first
+   paragraph already states the point ("conflicts with our intended 'no
+   analytics' launch posture") that E2E2 claimed the cookie-free sentence
+   "loses." The sentence is clumsy, not substantively wrong. Required-
+   correction count therefore changes from 8 to 7 items (P-01–P-06, P-08);
+   P-07 moves to optional polish (§7).
+4. **Q-E2E2-2 (cookies boundary) and Q-E2E2-3 (duplication homes) removed as
+   operator questions.** Both resolve from existing authority without a new
+   operator decision: E2D3 item 10 plus the Gate 2 checklist's requirement
+   that the Data Collection Policy cover analytics/cookies fixes the cookie
+   boundary (Privacy Policy carries a concise cookie summary and links to the
+   Data Collection Policy; the Data Collection Policy's detailed disclosure is
+   not removed — the prescribed resolution for P-04, which remains a MATERIAL
+   CORRECTION). Duplication homes becomes implementation guidance for P-14:
+   preserve essential high-level overlap; avoid copying full inventories,
+   schedules, or provider facts; shorten verbatim duplication where it can be
+   safely replaced by a summary and cross-reference; do not edit the Data
+   Collection Policy in the Privacy Policy correction session. **Only
+   Q-E2E2-1 (the future public route for each policy) remains an open
+   operator/Gate-3 question**, unchanged from E2E2 — it does not block
+   accepting the drafting checkpoint.
+5. **No new standalone counsel-only question added.** E2E2 added a sixth
+   counsel item (whether §7's "no classification made" sentence should be
+   published). That judgment call, raised in P-10, is not added as a
+   standalone counsel-only question here. The five established E2D2A-baseline
+   counsel questions (applicable law, opponent-data basis, recording law,
+   provider classification, consent-banner requirements) are unchanged.
+
+**Corrected finding counts:** 1 BLOCKER, 6 MATERIAL CORRECTIONS (was 7),
+10 RECOMMENDATIONS (was 9), 15 explicit acceptable-as-written confirmations,
+17 numbered findings plus 15 confirmations (totals unchanged). The subsequent
+Privacy Policy correction session now has **seven** required items
+(P-01–P-06, P-08); P-07 is optional polish.
+
+**Verdict unchanged in substance:** the initial Privacy Policy draft is still
+**not yet accepted** as the completed E2E drafting checkpoint — P-01 and the
+six material corrections remain outstanding. `docs/planning/privacy-policy-review.md`
+itself now carries a visible E2E2A revision note at the top and inline
+corrections throughout (§2, §3 P-05/P-07/P-14, §4.5, §5, §6, §7, §8, §9, §10).
+
+**What this does not do.** No new legal research; no logging inventory; no
+access to providers, accounts, hosts, or the database; nothing routed to
+counsel; no Terms of Use or EA/NHL attribution notice drafted; no Gate 2
+checkbox changed. Counsel review remains **deferred, not completed** (E2D3
+item 14). Cloudflare Web Analytics remains enabled. Tunnel reopening remains
+separately unauthorized. **E2 remains IN PROGRESS.**
+
+**Next session recommendation:** the narrow Session 3 correction pass on
+`docs/planning/privacy-policy-draft.md` only, applying P-01 through P-06 and
+P-08 (required), and optionally P-07, P-09, P-11, P-12, and P-16 where they
+improve clarity without increasing duplication — per the corrected review's
+§10. Do not combine it with the still-required read-only logging inventory,
+routing facts to counsel, any Data Collection Policy edit (P-13, P-14), the
+Terms of Use, or the EA/NHL attribution notice.
+
+### 🟡 E2E3 PRIVACY POLICY CORRECTED AGAINST E2E2A — required corrections and decision-free polish applied; blocker count now 13; no Gate 2 checkbox changed (2026-09-09)
+
+Narrowly-scoped Session 3 correction pass on
+`docs/planning/privacy-policy-draft.md` only, applying the E2E2A-corrected
+independent review's seven required items (P-01 through P-06, P-08) and five
+of the decision-free polish recommendations (P-07, P-09, P-11, P-12, P-16).
+**No operator decision was reopened and no new legal or factual research was
+performed.** `docs/planning/privacy-policy-review.md`,
+`docs/planning/data-collection-policy-draft.md`, and
+`docs/planning/data-collection-policy-review.md` remain byte-for-byte
+unchanged (md5-verified against the values `privacy-policy-review.md` itself
+records). No code, configuration, asset, test, or dependency changed; no
+external Cloudflare, Proton, GitHub, host, or database account was accessed;
+no provider setting changed; nothing staged, committed, pushed, published,
+deployed, or reopened; no Gate 2 checkbox changed (the "Draft the privacy
+policy" checkbox stays `[ ]`).
+
+**Required corrections applied:**
+
+1. **P-01.** Replaced all five public `./data-collection-policy-draft.md`
+   link targets with the greppable placeholder
+   `PLACEHOLDER-DATA-COLLECTION-POLICY-URL`, and added a new publication
+   blocker (13) requiring every occurrence to be replaced with the final
+   published Data Collection Policy route, verified before publication. No
+   route was invented.
+2. **P-02.** Left §6's public analytics wording untouched. Extended blocker 1
+   to require, once Web Analytics is disabled and dashboard-verified off, a
+   deliberate replacement of §6's interim "currently enabled / before
+   publication" wording with the final no-analytics publication variant
+   (E2D2A F-34), matching the Data Collection Policy's blocker 13.
+3. **P-03.** Rewrote §8 to state the unverified country list and the
+   unresolved provider-classification question as two separate sentences,
+   and removed the internal-work narration ("see 'Providers' above for why
+   that classification work is not yet complete"). No country or
+   classification was invented.
+4. **P-04.** Added a concise cookie summary to §5: Cloudflare may use
+   strictly necessary cookies for edge security/challenge processing with no
+   specific cookie named, no consent banner is planned while the posture is
+   "no nonessential tracking," whether a banner is legally required remains
+   a legal-review question, and the Data Collection Policy is the
+   authoritative detailed source. The Data Collection Policy's own cookie
+   disclosure was not touched.
+5. **P-05.** Corrected internal blocker 8 and the recording bullet in the
+   factual-uncertainties list — §3 does mention recordings (and, after P-12,
+   incidental voice chat); what is absent is detail and any legality
+   assertion. Corrected the "How this document stays separate" section to
+   say plainly that essential high-level facts are repeated verbatim across
+   both documents where useful (permitted by E2D3 item 10, not a violation),
+   flagged as a maintenance-drift risk to check on future revisions, while
+   detailed inventories/schedules/provider facts stay exclusively in the
+   Data Collection Policy.
+6. **P-06.** Restored "access" to §5's log-category list: "access,
+   operational, error, and security" logs, matching the Data Collection
+   Policy. No claim that every category is actually generated; the logging
+   inventory (blocker 11) remains open.
+7. **P-08.** Split the combined blocker into two: blocker 9
+   (provider processor/controller/service-provider classification,
+   counsel-dependent) and blocker 10 (outside-Canada country list, an
+   internal factual-completion item), sequenced and cross-referenced to the
+   Data Collection Policy's blocker 11/12 numbering.
+
+**Decision-free polish applied:**
+
+- **P-07.** Rewrote §6's cookie-free paragraph to state plainly that
+  cookie-free is Cloudflare's attributed claim, that Web Analytics is
+  nonetheless an analytics feature that conflicts with the approved
+  no-analytics posture regardless of cookie use, and that the consent-banner
+  question remains unresolved. §6's "currently enabled" framing itself was
+  not changed (that stays gated behind blocker 1/P-02).
+- **P-09.** Removed the redundant §14 ("More detail"); the introduction and
+  the §3/§10/§11 pointers already carry that function.
+- **P-11.** Added a clause to §3 noting opponent information includes an
+  EA-provided identifier that stays the same across matches. No lawful basis
+  or clearance is asserted.
+- **P-12.** Added a clause to §3 noting source gameplay recordings may
+  incidentally include in-game party voice chat, pointing to the Data
+  Collection Policy for the detailed factual treatment. No recording-legality
+  claim is made.
+- **P-16.** Replaced "private GitHub storage" with "GitHub" as the provider
+  name in §7, describing the repository as private and holding source code
+  plus a limited set of test fixtures. The prior-public-repository caveat
+  (E2A decision 8) was deliberately not duplicated here — it remains the Data
+  Collection Policy's disclosure.
+
+**Status and provenance.** Changed "initial working draft" to "revised
+working draft" and updated the internal revision-provenance paragraph to
+record the E2E → E2E2 → E2E2A → E2E3 chain.
+
+**Blocker count.** Recalculated, not assumed: the original 11 blockers, plus
+the new P-01 link-replacement blocker, plus the P-08 split (one blocker
+becoming two), give **13** publication blockers. Verified by reading the
+renumbered list back after editing.
+
+**P-17 (historical pointer, not corrected in place).** The review's P-17
+observes that `HANDOFF.md`'s E2D5 "next session recommendation" entry
+(2026-09-09) cites "E2D3 item 8" for the document-structure decision; the
+correct authority is **E2D3 item 10** (item 8 is the opponent-player display
+decision). Per the established convention (E2D3 item 12), the historical
+E2D5 entry is **not** rewritten here. This entry records the correction so a
+later session does not follow the E2D5 pointer to the wrong item.
+
+**What this does not do.** Does not edit
+`docs/planning/data-collection-policy-draft.md` or
+`docs/planning/data-collection-policy-review.md` (P-13, P-14 remain for a
+future Data Collection Policy session). Does not edit
+`docs/planning/privacy-policy-review.md`. Does not perform the read-only
+logging inventory, route anything to counsel, draft the Terms of Use or the
+EA/NHL attribution notice, implement routes/styling, or change code,
+configuration, assets, tests, or dependencies. Does not decide a final public
+route for either policy (Q-E2E2-1 remains open — Gate 3 routing, not legal).
+Does not check any Gate 2 checkbox. Counsel review remains **deferred, not
+completed** (E2D3 item 14); the five established counsel-only questions
+(applicable law, opponent-data basis, recording law, provider classification,
+consent-banner requirement) are unchanged. Cloudflare Web Analytics remains
+enabled. Tunnel reopening remains separately unauthorized. **E2 remains IN
+PROGRESS.**
+
+**Next session recommendation:** a fresh session for either the read-only
+logging inventory (blocker 11 on both drafts; E2D2A F-14, E2D3 item 12,
+Q-12) or routing the outstanding Q-1/Q-4/Q-6 fact patterns and counsel-
+dependent findings to counsel. Do not combine either with further public-text
+drafting of the Privacy Policy, the Data Collection Policy, the Terms of Use,
+or the EA/NHL attribution notice in the same session.
+
+### 🟡 E2F EA/NHL ATTRIBUTION NOTICE INITIAL DRAFT WRITTEN — not reviewed, not published, no Gate 2 checkbox checked (2026-09-09)
+
+Narrowly-scoped drafting session. Produced
+`docs/planning/ea-nhl-attribution-notice-draft.md`: a first working draft of
+the required EA/NHL non-affiliation and third-party asset/data attribution
+notice, with a clearly separated public-notice section and an internal
+drafting/publication-checks section. **No code, asset, test, configuration,
+dependency, or provider setting was changed. No external system (EA,
+Cloudflare, Proton, GitHub, host, database) was accessed. Nothing was
+staged, committed, pushed, published, or deployed, and the tunnel remains
+separately unauthorized.** The draft was built from `HANDOFF.md` (E2A,
+E2C2–E2C5) and `docs/planning/ea-content-usage-policy-research.md`,
+`docs/planning/ea-asset-decision-memo.md`, `docs/planning/data-collection-policy-draft.md`,
+and `docs/planning/privacy-policy-draft.md` for consistent project identity
+and contact wording; `docs/planning/launch-page-design-prototypes.md` was
+consulted only for its established prototype-content boundary.
+
+**What the draft covers:** project identity and non-affiliation (including
+EA's own specified non-affiliation wording); data attribution to EA's game
+services plus operator-run OCR; EA-sourced visual material (X-Factor images,
+opponent crests, and the base-versus-custom crest ownership question left
+explicitly unresolved, with custom crests not characterized as either
+user-generated or EA-created); NHL/NHLPA/third-party rights using neutral
+ownership wording; PlayStation/Xbox marks and other SVG Repo-derived assets
+(factual sourcing only, no licence/clearance claim); Twemoji-style flags and
+Barlow fonts (uncertainty preserved rather than guessed at); operator-created
+material (BGM/SPD logo and rink/event-marker artwork, without publishing the
+confidential "SPD" expansion or claiming independent inspection of private
+source files); an explicit asset-retention-is-not-clearance section
+preserving E2C5 exactly as-is; a visitor reuse boundary pointing to the
+not-yet-drafted Terms of Use; and a contact section using
+`webmaster@boogeymen.app`/`security@boogeymen.app` only. A short sitewide/
+footer-length notice is included as a clearly labelled drafting component for
+later Gate 3 implementation — **not implemented in code.**
+
+**Publication blockers preserved inside the draft's internal section, not
+hidden:** counsel/legal review is incomplete; no asset family from
+E2C3/E2C4/E2C5 is legally cleared (X-Factor PNGs `NOT ADDRESSED /
+AMBIGUOUS`; base crests `CONDITIONALLY SUPPORTED AT BEST, on unverified
+premises`; custom crests `CONDITIONAL / FACTUAL NATURE UNRESOLVED`); EA's
+content-policy research remains ambiguous and does not establish
+authorization for these specific uses; NHL/NHLPA/team/player third-party
+rights remain unresolved; base/custom crest factual ownership remains
+unresolved; exact SVG Repo per-asset source pages and licence records are
+missing; separate Sony/Microsoft evidence is missing; Twemoji/Barlow
+attribution wording remains subject to accurate source verification; the
+Terms of Use cross-reference and final public routes remain undecided; and
+the footer notice must later link to the full notice once one is published.
+
+**Asset boundary respected.** E2C5's retain-everything-as-is decision is not
+reopened — the draft's section 8 states plainly that retention is not legal
+clearance and does not recommend removing, replacing, relocating,
+deduplicating, recolouring, regenerating, renaming, hiding, or falling back
+any asset.
+
+**What this does not do.** It does not check the Gate 2 "EA/NHL
+non-affiliation and third-party asset/data attribution notice" checkbox —
+this is a first draft still requiring independent review. It does not draft
+the Terms of Use, revise the Privacy Policy or Data Collection Policy
+drafts, decide any public route, conduct new external legal or rightsholder
+research, or touch any live route/footer/asset/code. Cloudflare Web
+Analytics remains enabled and undone (E2B3). **E2 remains IN PROGRESS.**
+
+### 🟡 E2F2 EA/NHL ATTRIBUTION NOTICE INDEPENDENTLY REVIEWED — draft NOT accepted; 1 blocker, 10 material corrections; no Gate 2 checkbox checked (2026-09-09)
+
+Narrowly-scoped independent review session following E2F. Produced
+`docs/planning/ea-nhl-attribution-notice-review.md`: a factual, structural,
+and public/internal-boundary review of
+`docs/planning/ea-nhl-attribution-notice-draft.md`. **The attribution notice
+draft was NOT revised. No other planning draft or review was modified. No
+code, asset, test, configuration, dependency, route, or provider setting was
+changed. No external system (EA, Cloudflare, Proton, GitHub, host, database)
+was accessed and `scripts/scrape_ea_xfactor_pngs.sh` was not executed.
+Nothing was staged, committed, pushed, published, or deployed; the tunnel
+remains separately unauthorized.** This is issue-spotting, not legal advice
+and not counsel review; it makes **no** finding about permission,
+infringement, fair use, ownership, or clearance for any asset.
+
+**Verdict: NOT ACCEPTED as a drafting checkpoint.** Findings: **1 BLOCKER, 10
+MATERIAL CORRECTIONS, 7 RECOMMENDATIONS, 2 ACCEPTABLE AS WRITTEN** (20 total).
+
+**BLOCKER (A-01).** Public §6 contains a live cross-reference into the
+internal risk register — `— see "Internal drafting and publication checks"
+below`. The draft's own internal check 12 forbids internal *terms* in public
+text but not a structural *cross-reference*, so the leak passes the
+checklist. Publishing with the internal section intact routes readers to the
+unresolved-classification list; publishing with it deleted leaves a dangling
+pointer. Same class of defect as `privacy-policy-review.md` P-01.
+
+**Material corrections (summary).** Footer omits "or its licensors" and
+paraphrases rather than carries the statement EA specifies, although the
+footer is the only sitewide surface where EA content is displayed (A-02);
+footer's "all such material remains the property of its respective owners"
+sweeps factual match/statistics data into a property claim and contradicts
+public §2 (A-03); EA's bracketed placeholder is published literally as "this
+project/website" — resolve to "This website" as a standalone sentence (A-04);
+"EA does not review, verify, or approve…" is a categorical claim about a
+third party's conduct that no repository or operator evidence establishes —
+restate as project-side responsibility plus "we neither claim nor know of any
+EA review, verification, or approval" (A-05); "EA's own materials cannot
+grant" is a legal conclusion where the verified EA quotation ("We do not
+provide you with any permission to use third-party content from our games")
+is directly attributable (A-06); public §8 narrates E2C5's retention decision
+in public voice, is addressed to future internal sessions, and goes stale on
+any asset change (A-07); public §7 publishes agent review methodology ("what
+our operator has told us") (A-08); public §5 attributes embedded SVG Repo
+markers to site files that do not carry them and names hockey icons that are
+not deployed at all (A-09); flags are given two unreconciled origins across
+§5 and §6 (A-10); and §§3 and 5 publish express no-permission /
+no-licence / no-fair-use / no-evidence admissions with no attribution
+function (A-11).
+
+**Repository facts verified read-only in this session.** `apps/web/public`
+holds exactly two SVGs (`assets/platforms/{playstation,xbox}.svg`), both
+carrying SVG Repo markers; **no file under `apps/web/src` carries an SVG Repo
+marker**; `docs/branding/flags/{canada,united-states}.svg` carry **both** an
+SVG Repo marker and `class="iconify iconify--twemoji"`; the site's deployed
+flags are inline JSX in `components/player-meta-icons.tsx`; archetype icons
+are deployed as inline paths sourced from `docs/branding/icons/archetypes/`;
+and **`docs/branding/icons/hockey/` is referenced nowhere in `apps/web/src`.**
+
+**Boundaries preserved.** E2C5's retain-everything-as-is decision is **not
+reopened** — A-07 moves where the retention record lives, not the decision,
+and no asset change is recommended anywhere in the review. E2C3's three legal
+classifications are unchanged. E2A decision 4's reuse rules are left for the
+Terms of Use, not duplicated into the notice. The confidential SPD expansion
+remains unpublished. Gate 2 line 150 ("Draft an EA/NHL non-affiliation and
+third-party asset/data attribution notice…") remains `- [ ]` — **no Gate 2
+checkbox changed.**
+
+**Operator question (one).** **Q-E2F2-1:** should the public notice keep its
+express no-permission / no-clearance / no-evidence statements (public §8's
+"Retaining an asset is not the same thing as having permission to use it",
+§3's no-clearance paragraph, and §5's three missing-evidence/no-claim
+passages), or move them to the internal section? The review recommends moving
+them internal — none helps a reader understand attribution or non-affiliation
+and all are already recorded in the internal blockers and here — but E2C5
+decision 7 puts the legal posture in the operator's hands. Corrections A-07
+and A-11 are held pending this answer. **Asset retention is unaffected either
+way, and every source attribution stays public either way.**
+
+**Counsel-only questions preserved unresolved:** whether to invoke EA's
+condition in §1 while §3 disclaims relying on EA's policy (Q-C-1); whether to
+restore the stronger "EA cannot grant" formulation (Q-C-2); whether an
+attribution notice should contain express no-permission statements at all
+(Q-C-3); and the standard ownership formula plus any per-mark trademark
+acknowledgement (Q-C-4). E2C3's U1–U8 and LR-2–LR-6 remain unresolved and
+untouched.
+
+**Recommended next session (one task).** **E2F3 —** apply the nine mechanical
+corrections (A-01 through A-06, A-08 through A-10) plus the A-18 internal
+checklist item to `docs/planning/ea-nhl-attribution-notice-draft.md`. Hold
+A-07 and A-11 for the Q-E2F2-1 answer. Do not revise any other draft, resolve
+any public route, check a Gate 2 checkbox, conduct external licence research,
+or reopen E2C5. **E2 remains IN PROGRESS.**
+
+### 🟡 E2F2A E2F2 REVIEW CORRECTED — two overstatements removed; counts now 1 blocker / 9 material / 8 recommendations; no Gate 2 checkbox changed (2026-09-09)
+
+Narrow documentation-correction session following E2F2. **The E2F2 entry above
+is left exactly as written and is superseded, not rewritten, by this entry on
+the three points listed below.** Two factual overstatements in E2F2's review
+were corrected before its findings drive E2F3. **The attribution notice draft
+was NOT edited — it is byte-for-byte identical to its E2F state
+(sha256 `2752bd57…fae279`, verified before and after). No other planning draft
+or review was modified. No code, asset, configuration, test, route, or
+dependency was changed. No external system (EA, Cloudflare, Proton, GitHub,
+host, database) was accessed, no external research was conducted, and
+`scripts/scrape_ea_xfactor_pngs.sh` was not executed. Nothing was staged,
+committed, pushed, published, or deployed; the tunnel remains separately
+unauthorized.** Files edited: `docs/planning/ea-content-usage-policy-research.md`,
+`docs/planning/ea-nhl-attribution-notice-review.md`, and this one additive
+`HANDOFF.md` entry.
+
+**Correction 1 — EA disclaimer placement. Supersedes E2F2's A-02
+classification and its page-by-page/footer-placement claim.** The locally saved
+official EA quotation is: "If you have a website or other location where you're
+displaying our game content, include the following statement: 'This
+[project/website] is not endorsed by or affiliated with EA or its licensors.'"
+That supports including the statement on the website or other location
+displaying EA game content, and treating it as a **condition** if EA's content
+policy is relied on. It does **not** establish that the statement must appear on
+every page containing EA content, that it must appear in a sitewide footer, or
+that the footer is the only compliant placement. E2F2 asserted all three.
+`ea-content-usage-policy-research.md` §7 item 1 previously read "Required
+wherever EA game content is displayed"; it now states EA's direction precisely
+and records explicitly that the reviewed text specifies neither page-by-page nor
+footer placement, with a visible E2F2A correction note above it. The exact EA
+quotation and the condition-not-permission distinction are preserved verbatim,
+and no unrelated research conclusion was rewritten. In the review, **A-02 is
+reclassified from MATERIAL CORRECTION to RECOMMENDATION**; its heading,
+evidence, analysis, and proposed resolution are corrected; the "only sitewide
+surface" claim is removed; and the practical recommendation is kept — if a
+sitewide footer notice is used, matching EA's specified statement including "or
+its licensors" is the safer and more consistent drafting choice. Counsel
+question Q-C-1 was carrying the same overstatement and is corrected too.
+`ea-content-usage-policy-research.md` LR-7 already preserved "where it must
+appear" as open, and still does. **A-04 is unchanged and remains a MATERIAL
+CORRECTION:** the public full notice must resolve `[project/website]` naturally
+as "This website."
+
+**Correction 2 — flag derivation evidence. Supersedes E2F2's claim that no
+repository evidence links the deployed inline flags to the local SVG files.**
+That claim is **false.** Verified mechanically this session by parsing every `d`
+attribute in each file into an explicit command/argument sequence and comparing:
+the inline flags in `apps/web/src/components/player-meta-icons.tsx` reproduce
+the same vector path data as `docs/branding/flags/canada.svg` (3 of 3 paths
+identical) and `docs/branding/flags/united-states.svg` (4 of 4 identical), with
+identical `fill` values in both; the only differences are whitespace and elided
+implicit-`l` command letters. The two local SVG files carry **both** an SVG Repo
+generator/source marker and `class="iconify iconify--twemoji"`; the deployed JSX
+retains **neither** the metadata comments nor the class marker. So there is one
+flag family, linked by path-data identity — **not two unrelated origins.** What
+remains unresolved sits upstream of the repository: the original upstream
+source, the exact source-page URL, genuine Twemoji status, and the applicable
+licence and version. **A-10 remains a MATERIAL CORRECTION**, because the current
+public notice still gives that single family two unreconciled descriptions; its
+evidence and proposed wording are corrected, and the proposed E2F3 public
+wording is now: "The country flags rendered by the site reproduce vector artwork
+from the project's local Canada and United States SVG source files. Those local
+files carry both SVG Repo and Twemoji-style metadata; the original upstream
+source and applicable licence have not been established." **No upstream licence
+or permission is asserted.** A-09's flag evidence bullet is corrected the same
+way; A-09's other content (hockey icons not deployed, archetype icons inline,
+site files carrying no markers) is unchanged.
+
+**Corrected counts. Supersede E2F2's counts and its required/mechanical
+correction counts.** **1 BLOCKER, 9 MATERIAL CORRECTIONS, 8 RECOMMENDATIONS,
+2 ACCEPTABLE AS WRITTEN — 20 total** (E2F2 recorded 1/10/7/2). No finding was
+added or withdrawn; only A-02 changed class. **Required before the draft can be
+accepted: 10 — A-01 and A-03 through A-11** (E2F2 recorded eleven, including
+A-02). **A-07 and A-11 remain held for Q-E2F2-1.** **Eight required corrections
+are mechanical without that answer: A-01, A-03, A-04, A-05, A-06, A-08, A-09,
+A-10** (E2F2 recorded nine). **A-02 is now optional but recommended footer
+polish**, and **A-18 remains a recommended internal checklist improvement.**
+Updated consistently across the review: the finding-count table, the index, the
+finding bodies for A-02/A-09/A-10, §4.10's footer table, the §5 overall verdict,
+the §6 required-correction list, §7's optional improvements, §8's operator
+question, §9's Q-C-1, §10's recommended next session, and §11's untouched/scope
+section.
+
+**Boundaries preserved.** **Q-E2F2-1 remains unanswered — no operator answer was
+supplied in this session and none is recorded anywhere in the repository.** E2C5's
+retain-everything-as-is decision is **not reopened** and no asset changed. E2C3's
+three legal classifications are unchanged. No permission, licence, fair use,
+ownership, or clearance is inferred anywhere in this correction. Counsel review
+remains deferred and Q-C-1 through Q-C-4 stay unresolved. Gate 2 line 150 remains
+`- [ ]` — **no Gate 2 checkbox changed.** No Terms drafted, no logging inventory
+performed, no public route resolved.
+
+**Recommended next session (one task). E2F3 —** apply the **eight** mechanical
+corrections (A-01, A-03, A-04, A-05, A-06, A-08, A-09, A-10) plus the A-18
+internal checklist item to `docs/planning/ea-nhl-attribution-notice-draft.md`,
+using the corrected A-10 wording above. Hold A-07 and A-11 for the Q-E2F2-1
+answer. A-02 is optional polish; bundle it only if the operator asks. Do not
+revise any other draft, resolve any public route, check a Gate 2 checkbox,
+conduct external licence research, or reopen E2C5. **E2 remains IN PROGRESS.**
+
+### 🟡 E2F3 ATTRIBUTION NOTICE CORRECTED AGAINST E2F2A + OPERATOR Q-E2F2-1 DECISION — all ten required corrections applied; 14 publication blockers remain open; no Gate 2 checkbox changed (2026-09-09)
+
+Narrowly-scoped correction session following E2F2A. Revised
+`docs/planning/ea-nhl-attribution-notice-draft.md` against the E2F2A-corrected
+review and the operator's answer to Q-E2F2-1. **No asset, code, test,
+configuration, dependency, route, styling, or provider setting was changed. No
+external system (EA, Cloudflare, Proton, GitHub, host, database) was accessed,
+no new legal or rightsholder research was conducted, and
+`scripts/scrape_ea_xfactor_pngs.sh` was not executed. The review, the EA
+content-usage-policy research, the asset decision memo, and the privacy and
+data-collection drafts were not edited and remain byte-for-byte unchanged.
+Nothing was staged, committed, pushed, published, or deployed; the tunnel
+remains separately unauthorized.** Files edited: the attribution notice draft
+and this one additive `HANDOFF.md` entry. Historical E2F/E2F2/E2F2A entries are
+**not** rewritten.
+
+**Operator decision recorded — Q-E2F2-1 is now ANSWERED.** *Move the express
+no-permission, no-clearance, and missing-evidence statements into the internal
+section. Delete public §8, "Asset retention is not legal clearance." Keep
+factual source attribution and non-affiliation public.* The operator recorded
+that this **changes no asset and does not reopen E2C5.** This supersedes E2F2's
+and E2F2A's record that Q-E2F2-1 was unanswered; A-07 and A-11, previously
+held, were applied in this session.
+
+**All ten required corrections applied (A-01, A-03 through A-11).**
+
+1. **A-01 (BLOCKER) —** the public cross-reference `— see "Internal drafting and
+   publication checks" below` is deleted from public §6. No public text points
+   into the internal section.
+2. **A-03 —** the footer's single "all such material remains the property of its
+   respective owners" sentence is split: match/statistics data is
+   source-attributed to EA's NHL game services and the project's own recording
+   and review; third-party names, marks, and imagery remain **subject to the
+   rights of** their respective owners. Factual data is no longer described as
+   anyone's property and no ownership chain is invented.
+3. **A-04 —** EA's bracketed placeholder is resolved. Public §1 now carries
+   **"This website is not endorsed by or affiliated with EA or its licensors."**
+   as its own bolded standalone sentence, visibly separate from the broader
+   non-affiliation list, under a lead-in that frames it as a **condition** EA
+   specifies — not as evidence of permission.
+4. **A-05 —** "EA does not review, verify, or approve…" is gone. Replaced with
+   project-side wording: Boogeymen independently prepares, organizes, and
+   presents its calculations, summaries, and derived statistics and is solely
+   responsible for them, and **neither claims nor knows of** any EA review,
+   verification, or approval. No claim about EA's conduct beyond recorded
+   evidence.
+5. **A-06 —** "EA's own materials cannot grant…" is gone. Replaced with the
+   attributable fact: "EA states that it does not provide permission to use
+   third-party content from its games. EA's materials therefore do not purport
+   to grant rights held by the NHL, the NHLPA, individual teams or clubs,
+   individual players, Sony or PlayStation, Microsoft or Xbox, or other third
+   parties." No independent conclusion about EA's legal capacity.
+6. **A-07 (operator decision) —** public §8, "Asset retention is not legal
+   clearance," is **deleted in full**; former §9 → §8 and §10 → §9, and internal
+   blocker 9's Terms-of-Use section reference is updated to match. **E2C5 is
+   preserved internally and here:** every asset remains unchanged; no removal,
+   replacement, relocation, deduplication, recolouring, regeneration, renaming,
+   hiding, or fallback switch is authorized; retention remains distinct from
+   legal clearance. Internal blocker 13 is rewritten to carry all three points
+   and to record that **the public notice deliberately does not narrate the
+   internal asset-retention decision.**
+7. **A-08 —** the paragraph stating that no agent independently inspected the
+   operator's private source files is deleted from public §7. The factual public
+   attribution is kept exactly: BGM/SPD artwork created by the operator;
+   rink/event-marker artwork created by the operator and later incorporated with
+   Claude Design assistance. **The confidential SPD expansion remains
+   unpublished.** The not-independently-verified fact stays internal via E2C2 and
+   the internal family table.
+8. **A-09 —** public §5 now describes only supported deployed usage:
+   player-archetype icons **reproduced as inline vector paths** from local SVG
+   files obtained through SVG Repo, with the deployed inline paths noted as **not
+   themselves containing** the SVG Repo metadata. Hockey-related icons are
+   removed from the deployed public attribution and are no longer described as
+   being "on this site" (they are referenced nowhere in `apps/web/src`); they are
+   tracked internally as repository-only.
+9. **A-10 —** the single flag family is attributed **once**, in §6 only, using
+   the E2F2A-corrected evidence: "The country flags rendered by the site
+   reproduce vector artwork from the project's local Canada and United States SVG
+   source files. Those local files carry both SVG Repo and Twemoji-style
+   metadata; the original upstream source and applicable licence have not been
+   established." Flags are removed from §5's list (§5 now points to §6, a
+   public-to-public reference). **No two unrelated origins are claimed and no
+   Twemoji or SVG Repo licence is invented.**
+10. **A-11 (operator decision) —** removed from the public notice: §3's express
+    no-permission/no-clearance/fair-use paragraph; §5's "we do not hold… any Sony
+    or Microsoft permission, licence, or brand-guideline evidence"; §5's "we have
+    not retained the exact per-asset source-page URLs or per-asset licence
+    records"; and §5's blanket "we do not claim… licensed, in the public domain,
+    legally cleared, or used with permission." **Every factual public source
+    attribution is preserved** — EA game services and operator OCR (§2), EA CDN/
+    media sourcing for X-Factor images and crests (§3), SVG Repo for the
+    PlayStation/Xbox marks and archetype icons (§5), the flag derivation (§6),
+    Barlow/Barlow Semi Condensed (§6), operator-created artwork (§7). These facts
+    remain recorded internally through **existing** blockers 2 (no family
+    cleared), 3 (ambiguous EA policy scope), 6 (missing SVG Repo source/licence
+    records), 7 (missing separate Sony/Microsoft evidence), and 8 (unresolved
+    Twemoji/Barlow attribution) — **not duplicated**, since those blockers already
+    state them completely.
+
+**Two recommendations applied in the same pass.** **A-02 —** the footer now
+carries EA's specified statement exactly and separately ("This website is not
+endorsed by or affiliated with EA or its licensors."), followed by a separate
+concise sentence covering the broader NHL/NHLPA/platform/team/player
+non-affiliation list. **No page-by-page or footer placement requirement is
+asserted anywhere** — consistent with E2F2A's correction to
+`ea-content-usage-policy-research.md` §7 item 1 and with LR-7, which still
+preserves "where it must appear" as open. **A-18 —** a new internal checklist
+item (14) requires pre-publication verification that no publishable text points
+into the internal section, every placeholder link is replaced with a valid
+published route, the footer/full-notice relationship resolves correctly, and no
+internal section is shipped.
+
+**Deliberately not applied. A-12 through A-17 remain optional polish** for a
+later review: §3 crest-bullet compression and "retained as part of this project"
+(A-12); §4's "we do not know… ownership chain" audit voice (A-13); the three
+ownership phrasings and the §4 self-quotation (A-14); §8's "which is not yet
+published" Terms pointer (A-15); §6's work-in-progress framing (A-16); §1's
+noncommercial qualifier (A-17). The task was not broadened.
+
+**Status and provenance.** The draft's status line now reads **"revised working
+draft"** (was "first working draft"). A new internal **Revision provenance**
+subsection records E2F, E2F2, E2F2A with its corrected counts, the operator's
+Q-E2F2-1 decision, and E2F3 with the corrections applied and withheld.
+**Publication-blocker count recalculated: 14** (was 13 — blocker 13 rewritten,
+blocker 14 added for A-18; no blocker removed). Internal Gate 2 status rewritten
+to note that E2F2 was issue-spotting, not counsel review.
+
+**Preserved unchanged.** All factual source attribution; EA's exact
+condition-not-permission boundary; the base/custom crest ownership question left
+explicitly unresolved and uncharacterized either way; no monetization now or
+planned (E2C5 decision 1); operator-created artwork attribution; the
+confidential SPD expansion, still unpublished; E2C3's three legal
+classifications verbatim; E2C5's asset retention in full; the unresolved Terms
+of Use cross-reference and public-route placeholders (blocker 9, Q-E2E2-1); and
+the counsel-review requirement (blocker 1). `webmaster@boogeymen.app` and
+`security@boogeymen.app` remain the only contacts; `alerts@boogeymen.app` is
+absent.
+
+**Unresolved and carried forward.** Counsel review is still deferred and
+**Q-C-1 through Q-C-4 remain open** (invoking EA's condition while §3 no longer
+disclaims reliance; whether to restore the stronger "EA cannot grant"
+formulation; whether an attribution notice should contain express no-permission
+statements at all; the standard ownership formula). **No asset is legally
+cleared.** E2C3's U1–U8 and LR-2–LR-7 are untouched. The notice's own public
+route and the Terms of Use link are undecided. Terms of Use is not drafted.
+Cloudflare Web Analytics remains enabled and undone (E2B3 decision 1). Gate 2
+line 150 remains `- [ ]` — **no Gate 2 checkbox changed.** **E2 remains IN
+PROGRESS.**
+
+**Recommended next session (one task). E2F4 —** a narrowly scoped final
+verification and polish pass over
+`docs/planning/ea-nhl-attribution-notice-draft.md` only: re-read the public
+notice, footer component, and internal section end to end for internal
+consistency after the renumbering; confirm the public/internal boundary holds;
+and decide whether to apply any of A-12 through A-17. Do not revise any other
+draft, resolve any public route, check a Gate 2 checkbox, conduct external
+licence research, or reopen E2C5.
+
+### 🟡 E2F4 ATTRIBUTION NOTICE FINAL DRAFTING-QUALITY PASS — A-12 through A-17 applied; drafting-quality checkpoint only; 15 publication blockers now open; no Gate 2 checkbox changed (2026-09-09)
+
+Narrowly-scoped final drafting-quality verification and polish session
+following E2F3. Revised `docs/planning/ea-nhl-attribution-notice-draft.md`
+only. **No asset, code, test, configuration, dependency, route, styling, or
+provider setting was changed. No external system (EA, Cloudflare, Proton,
+GitHub, any host, any database) was accessed, no new legal or rightsholder
+research was conducted, and `scripts/scrape_ea_xfactor_pngs.sh` was not
+executed. The review, the EA content-usage-policy research, the asset decision
+memo, and the privacy and data-collection drafts were not edited and remain
+byte-for-byte unchanged. Nothing was staged, committed, pushed, published, or
+deployed; the tunnel remains separately unauthorized.** Files edited: the
+attribution notice draft and this one additive `HANDOFF.md` entry. Historical
+E2F/E2F2/E2F2A/E2F3 entries are **not** rewritten.
+
+**All six remaining recommendations applied (A-12 through A-17).**
+
+1. **A-12 — EA visual-material narration compressed.** §3's X-Factor bullet
+   keeps its factual EA web/CDN source attribution; "retained as part of this
+   project" is replaced with **"stored and served by this site."** The two
+   crest bullets are merged into one that keeps the factual attribution
+   (retrieved from EA's media/game-data sources using identifiers EA's game
+   services return) and preserves that **EA's own data distinguishes a base
+   crest family from a club-specific custom crest family**, closing with "We do
+   not state here who created or owns any particular crest." **Custom crests
+   are still not classified as EA-created or as user-generated**, and the
+   drafting-procedure sentence that narrated that choice is gone.
+2. **A-13 — audit voice removed from third-party-rights text.** §4's paragraph
+   beginning "We do not know, and do not state here…" is deleted. Replacement:
+   references to third parties identify a source or provide context; they do
+   not imply affiliation, do not identify the specific owner of any individual
+   mark or asset, and do not state the scope of any trademark right. The
+   attribution-is-not-permission clause is preserved. **No trademark
+   registration or ownership chain is invented.**
+3. **A-14 — ownership language standardized** on **"subject to the rights of
+   their respective owners"** across §4, §8, and the footer. Removed: the
+   self-quoted "belongs to its respective owner(s)"; the trailing "whatever
+   those rights turn out to be"; categorical "property of" wording (already
+   absent since E2F3's A-03). **No ownership language is applied to factual
+   match/statistical data** — the footer continues to source-attribute that
+   data rather than describe it as anyone's property.
+4. **A-15 — Terms pointer made publication-safe.** "which is not yet
+   published" is removed from public text. §8 now reads "Detailed rules about
+   how visitors may use content on this site are set out in our Terms of Use —
+   `PLACEHOLDER-TERMS-OF-USE-URL`." **No route was invented or decided.** A new
+   internal **blocker 15** requires all three of: the Terms of Use published
+   before or at the same time as this notice; every occurrence of
+   `PLACEHOLDER-TERMS-OF-USE-URL` replaced with the final published route; and
+   the resulting link verified to resolve — with the instruction to delete the
+   sentence rather than publish a pointer to a nonexistent document. Blocker 9
+   is updated to name the placeholder and to point at blocker 15.
+5. **A-16 — work-in-progress attribution narration replaced.** *Flags:* §6 now
+   states only the known fact — the rendered inline vectors reproduce the
+   project's local Canada and United States SVG files, and the metadata in
+   those files refers to SVG Repo and to a Twemoji-derived visual style. The
+   upstream-source and licence uncertainty is moved **entirely internal** to
+   blocker 8; **no Twemoji or SVG Repo licence is claimed.** *Typefaces:* §6
+   states that the site uses Barlow and Barlow Semi Condensed and that the
+   site's current source loads them through Next.js font tooling, which
+   retrieves the files at build time and self-hosts them as part of the build
+   output (verified against `apps/web/src/app/layout.tsx`, which imports
+   `Barlow` and `Barlow_Semi_Condensed` from `next/font/google`). "We are
+   continuing to work on it" and the rest of the status narration are gone.
+   **No licence, designer, source page, or attribution requirement is
+   invented.**
+6. **A-17 — noncommercial wording aligned with the privacy drafts.** §1 and the
+   footer now carry "There is no advertising, monetization, or other commercial
+   activity on this site now, and none is planned," matching
+   `privacy-policy-draft.md` lines 33–35. **Nothing promises this can never
+   change**, and the footer's flat "noncommercial" adjective is replaced by the
+   qualified formulation.
+
+**Final public/internal/footer verification.** The full notice, the footer
+drafting component, and the internal section were re-read end to end. **No
+section was added or removed, so the public numbering 1–9 is unchanged and §5's
+public-to-public pointer to section 6 still resolves.** Verified: the public
+text contains **no internal-section cross-reference**; no "continuing to work,"
+"we do not know," missing-evidence, no-permission, no-clearance, or
+asset-retention narration; **no positive permission, licence, fair-use,
+ownership, or clearance claim**; ownership language standardized and not
+applied to factual data; `PLACEHOLDER-TERMS-OF-USE-URL` present in public §8
+and tracked by internal blockers 9 and 15; **EA's specified standalone
+statement — "This website is not endorsed by or affiliated with EA or its
+licensors." — present in both the full notice (§1) and the footer**, with **no
+page-by-page or footer placement requirement asserted anywhere**; custom crests
+still factually unresolved; the confidential SPD expansion and
+`alerts@boogeymen.app` both still absent (`webmaster@boogeymen.app` and
+`security@boogeymen.app` remain the only contacts). `git diff --check` clean,
+no trailing whitespace introduced, and `git status --short` shows only the
+attribution notice draft and this `HANDOFF.md` entry as changed by this
+session — **no other document, asset, code, or configuration was touched.**
+
+**Result — drafting-quality checkpoint only.** The notice is accepted as a
+**drafting-quality checkpoint**: the public text now reads as a public
+attribution/non-affiliation notice rather than an audit report, and all
+internal evidence gaps and legal uncertainty live in the internal section.
+**This is explicitly not legal clearance and explicitly not publishable text**,
+and that statement is now recorded in the draft's status blockquote, its E2F4
+revision-provenance entry, and its internal Gate 2 status.
+
+**Status and blockers.** The draft's status line still reads **"revised working
+draft."** Revision provenance now records E2F, E2F2, E2F2A, the operator's
+Q-E2F2-1 decision, E2F3, and E2F4. **Publication-blocker count recalculated by
+counting the enumerated items, not assumed: 15** (was 14). Blocker 15 is new,
+for A-15's Terms publication/link dependency; blocker 8 was reworded to absorb
+the flag/typeface upstream-source and licence uncertainty removed from public
+§6, and to forbid reintroducing drafting-status narration; blocker 9 was
+updated to name the placeholder; **no blocker was removed.** The internal Gate 2
+status now reads "all fifteen publication blockers."
+
+**Preserved unchanged.** Every E2F3 correction and operator decision. All
+factual source attribution — EA game services and operator OCR (§2), EA web/CDN
+and media sourcing for X-Factor images and crests (§3), SVG Repo for the
+PlayStation/Xbox marks and archetype icons (§5), the flag derivation and
+Barlow/Barlow Semi Condensed (§6), operator-created artwork (§7). EA's
+condition-not-permission framing. The Q-E2F2-1 outcome: the express
+no-permission, no-clearance, and missing-evidence statements stay internal and
+public §8 ("Asset retention is not legal clearance") stays deleted. **E2C5
+asset retention is unchanged and was not reopened — every asset remains
+unchanged, and no removal, replacement, relocation, deduplication,
+recolouring, regeneration, renaming, hiding, or fallback switch is
+authorized.** E2C3's three legal classifications remain verbatim.
+
+**Unresolved and carried forward.** **Counsel review remains deferred and Q-C-1
+through Q-C-4 remain open** (invoking EA's condition while §3 no longer
+disclaims reliance; whether to restore the stronger "EA cannot grant"
+formulation; whether an attribution notice should contain express no-permission
+statements at all; the standard ownership formula). **No asset is legally
+cleared.** E2C3's U1–U8 and LR-2–LR-7 are untouched. **Routing remains
+undecided:** this notice's own public route, the footer's "Full notice" link,
+and the Terms of Use route (Q-E2E2-1, blockers 9 and 15). **Terms of Use is
+still not drafted.** The effective/last-updated date placeholders remain
+unresolved (blocker 11). Cloudflare Web Analytics remains enabled and undone
+(E2B3 decision 1). Gate 2 line 150 remains `- [ ]` — **no Gate 2 checkbox
+changed.** **E2 remains IN PROGRESS.**
+
+**Recommended next session (one task). Terms of Use first draft —** the last
+undrafted Gate 2 policy, and now a hard dependency of this notice via blocker
+15. Draft `docs/planning/terms-of-use-draft.md` only, against E2A decision 4
+(personal/noncommercial viewing and normal search-engine indexing permitted;
+disruptive bulk scraping, dataset republication, and commercial reuse require
+permission) and the existing privacy/data-collection/attribution drafts. Do not
+revise this notice or any other draft, resolve any public route, check a Gate 2
+checkbox, conduct external licence research, reopen E2C5, or reopen the tunnel.
+
+### 🟡 E2G TERMS OF USE INITIAL DRAFT WRITTEN — the last undrafted Gate 2 legal document now exists as a working draft; not reviewed, not published, no Gate 2 checkbox changed (2026-09-09)
+
+Narrowly-scoped drafting session following E2F4. Created
+`docs/planning/terms-of-use-draft.md` — the fourth and last of the Gate 2
+legal drafts, and a hard publication dependency of the attribution notice's
+blocker 15. **Files changed by this session: the new Terms draft and this one
+additive `HANDOFF.md` entry — nothing else.** No other draft, review,
+research, or prototype document was edited; the privacy, data-collection, and
+attribution drafts and their reviews are byte-for-byte unchanged. No new legal
+research was conducted; no external website, provider, account, host, or
+database was accessed; Cloudflare settings were not inspected or changed; the
+logging inventory was not performed; no prototype ZIP was extracted — the
+local `Boogeymen Terms of Use.zip` was **not** opened and none of its wording
+was used, per its recorded content boundary; no code, configuration, asset,
+test, dependency, or route changed; nothing was staged, committed, pushed,
+published, or deployed; the tunnel remains separately unauthorized. Historical
+E2A–E2F4 entries are **not** rewritten.
+
+**Public sections drafted (15).** 1 About these Terms (browse-wrap acceptance;
+express statement that appearing in match data is **not** agreement to the
+Terms); 2 What this site is (public read-only informational/archival project,
+individually operated, free; no advertising/monetization now or planned; no
+accounts, no login, no on-site submissions, email contact only; adult-only
+membership with opponents' ages unknown, unverifiable, and not collected, and
+no visitor-age threshold introduced); 3 How you may use this site (personal
+noncommercial viewing, linking, personal copies; **normal search-engine
+indexing permitted**; automated access not prohibited as such); 4 Uses that
+need permission first (disruptive bulk collection, dataset republication,
+commercial reuse — requests to `webmaster@boogeymen.app`, with an express
+limit that permission covers only material the project is in a position to
+permit); 5 Things you must not do (disruption/attack, access-control and
+rate-limit bypass, impersonation, unlawful use, with `security@boogeymen.app`
+named for vulnerability reports); 6 Accuracy and archival character (EA game
+services plus operator OCR/manual review; errors, gaps, and delays possible;
+nothing official or authoritative; correction/de-identification/removal
+handled case-by-case under applicable law and archival need **through the
+privacy documents' process, which these Terms do not change or replace**);
+7 Third-party content, names, and marks (no blanket ownership claim; material
+remains subject to the rights of its respective owners; no licence,
+permission, fair-use, endorsement, or clearance claim; short non-affiliation
+sentence plus attribution-notice pointer; rights-holder contact); 8 Privacy
+(pointers only); 9 Availability of the site; 10 Restricting access
+(proportionate rate-limiting/blocking/filtering, some automatic or temporary,
+with an express statement that there are no accounts to suspend, cancel, or
+terminate); 11 No warranties; 12 Limits on liability; 13 Governing law;
+14 Changes to these Terms; 15 Contact.
+
+**Exact permitted-use wording.** "You may read, view, and browse this site for
+your own personal, noncommercial purposes. You may link to our pages, and you
+may keep personal copies — a saved page, a screenshot, a quoted result — for
+your own personal, noncommercial use." Indexing: "**Normal search-engine
+indexing is permitted.** Ordinary search-engine crawlers are welcome to crawl
+and index this site's public pages in the usual way." Followed by: "Automated
+access is not prohibited as such. The limits in the next two sections are
+about disruptive volume, evasion, and downstream reuse — not about whether a
+request comes from a person or from a program."
+
+**Exact restricted-use wording (section 4, permission-required, not
+prohibited).** "**Bulk collection that disrupts the site.** Automated
+collection at a volume or rate that degrades, overloads, or interferes with
+this site or the infrastructure it runs on, or that works around rate limits
+or other protective measures. This is a restriction on disruptive bulk
+scraping. It is not a general ban on automated access, and it is not directed
+at ordinary search-engine crawling." · "**Republishing our information as a
+dataset.** Redistributing the match, statistics, roster, identifier, or
+related information published here — in whole or in substantial part — as a
+dataset, data feed, API, database, mirror, or comparable bulk compilation." ·
+"**Commercial reuse.** Using this site's content for commercial purposes,
+including in a paid, advertising-supported, sponsored, or otherwise
+revenue-generating product or service."
+
+**Deliberately absent, per E2A decision 6 and this session's scope:** no
+indemnity clause, no arbitration clause, no exclusive-venue clause, no
+jury-trial waiver, no liquidated damages, no liability cap figure, no blanket
+intellectual-property ownership claim, no blanket prohibition on automated
+access, and no age threshold beyond the already-approved adult-only membership
+posture. Sections 11 and 12 carry explicit mandatory-law carve-outs
+("applicable law — including consumer protection law — does not permit us to
+exclude, restrict, or modify … this section applies only to the extent
+applicable law allows"); section 13 states Alberta and applicable Canadian
+federal law with **no exclusive venue** and an express preservation of
+mandatory rights and access to a court or regulator where the reader lives.
+`alerts@boogeymen.app` is absent from the file entirely.
+
+**Cross-document boundaries recorded in the draft.** The Terms cover website
+*use* only. The Privacy Policy stays the concise privacy overview; the Data
+Collection Policy stays the authoritative detailed source for categories,
+sources, purposes, public display/indexing, provider detail, retention, and
+the full access/correction/withdrawal/removal mechanics — the Terms point at
+that process and never restate or override it; the attribution notice stays
+the authoritative public source for per-family asset attribution and the full
+non-affiliation statement, including EA's specified wording, and the Terms
+carry only a short non-affiliation sentence and a pointer rather than
+duplicating the notice's audit history. E2C5 asset retention is preserved and
+not reopened, and E2C3's three classifications are restated only internally,
+unchanged.
+
+**Placeholders used (non-resolving and greppable; no route invented).**
+`PLACEHOLDER-PRIVACY-POLICY-URL`, `PLACEHOLDER-DATA-COLLECTION-POLICY-URL`,
+`PLACEHOLDER-ATTRIBUTION-NOTICE-URL`, plus the two bracketed publication-date
+placeholders for Effective date and Last updated. **No `.md` link and no
+invented route appears anywhere in the public text.**
+
+**Unresolved operator/counsel questions recorded (Q-E2G-1 … Q-E2G-5).**
+(1) this document's own published route and the three placeholder routes —
+undecided Gate 3 routing, same open item as Q-E2E2-1 and the notice's blockers
+9/15; (2) whether the approved 7-day/30-day correction-request response
+targets should extend to section 4 reuse-permission requests — the draft
+deliberately promises nothing; (3) **whether AI-training, text-and-data-mining,
+and dataset-building crawlers fall inside E2A decision 4's permitted "normal
+search-engine indexing" or inside section 4's dataset-republication
+restriction — undecided, and deliberately not resolved either way**, with the
+parallel to EA's own genuinely ambiguous `robots.txt` AI/TDM reservation
+(E2C3 U5/LR-5) recorded; (4) whether noncommercial community reuse (Discord
+embed, forum quote, fan video screenshot) should be expressly permitted beyond
+personal viewing; (5) whether counsel wants any of the excluded provisions —
+none may be added without a fresh operator decision. The counsel questions
+carried from the other drafts (applicable law F-01/F-02, opponent-data basis
+F-07/F-08, recording law F-30, provider classification F-24, cookie-banner
+requirement, and the notice's Q-C-1 through Q-C-4) are untouched, unresolved,
+and neither relied on nor contradicted.
+
+**Publication blockers — twelve, all open** (counted by enumerating the
+internal list, not assumed): 1 legal/counsel review incomplete and deferred,
+**and no independent review of this draft of any kind** — unlike the other
+three drafts, which each had one; 2 replace both publication-date
+placeholders; 3 replace all three route placeholders and verify each link
+resolves to the published document; 4 sections 11/12/13 (warranty, liability,
+governing law) require counsel review, with the mandatory-law carve-outs not
+to be removed and no arbitration/venue/jury-waiver/indemnity/liquidated-damages
+addition without a fresh operator decision; 5 asset retention is not legal
+clearance — no asset family is cleared, E2C5 and E2C3's classifications
+unchanged, and no ownership/licence/clearance claim or retention narration may
+be added to public text; 6 a pre-publication consistency re-read against the
+other three drafts on the shared facts; 7 **Cloudflare Web Analytics
+disablement is a separate publication dependency, not a Terms provision** —
+resolve it in the privacy documents, add no analytics wording here; 8 the
+attribution notice's blocker 15 requires the Terms to be *published* before or
+with the notice — existing as a draft does not satisfy it; 9 no internal
+narration in public text and no public pointer into the internal section
+(structure as well as terms, per the A-01 precedent); 10 section 4's reuse
+restrictions are contractual site-use terms, **not** an assertion of rights in
+the underlying data, and counsel must confirm the characterization and the
+workability of a "disruptive" standard with no published rate limit; 11 no
+visitor-age threshold introduced, and whether one is required is a
+legal-review question; 12 the browse-wrap acceptance and change-notice
+mechanics need review, with section 1's "appearing in match data is not
+agreement" statement to be preserved in any rewrite.
+
+**This is an initial working draft, not legal clearance and not publishable
+text.** That statement is recorded in the draft's status blockquote, its E2G
+revision-provenance entry, and its internal Gate 2 status. It has had no
+independent review; the E2D2/E2D2A, E2E2/E2E2A, and E2F2/E2F2A reviews were
+issue-spotting on other documents and none of them covers this one.
+
+**Verification run this session.** Read the complete Terms draft end to end
+and the complete new HANDOFF entry in context. `git diff --check` clean (no
+whitespace errors); no trailing whitespace in `terms-of-use-draft.md`;
+`git status --short` showed exactly the pre-existing dirty set plus the new
+untracked `docs/planning/terms-of-use-draft.md`, with `HANDOFF.md` the only
+other file this session modified; `git diff --cached --stat` empty (nothing
+staged); HEAD and `origin/main` both confirmed at
+`65bcddb43145d2fcffaeafb4d97d0e1a2737c35f` before and after editing. Confirmed
+in the Terms file: `alerts@boogeymen.app` absent; no `.md` policy link in
+public text; "Normal search-engine indexing is permitted" present; the
+scraping restriction limited to disruptive bulk collection with the express
+"not a general ban on automated access" sentence; and no arbitration,
+exclusive venue, indemnity, liquidated damages, liability cap, invented age
+threshold, or blanket ownership/clearance claim. Gate 2 line 152 ("Draft the
+Terms of Use.") confirmed still `- [ ]`, and no other Gate 2 checkbox changed.
+
+**Status.** Gate 2 now has four written legal drafts and **zero** reviewed or
+publishable ones. **No Gate 2 checkbox changed. E2 remains IN PROGRESS.**
+Counsel review remains deferred and not completed. Cloudflare Web Analytics
+remains enabled and undone (E2B3 decision 1). Tunnel reopening remains
+separately unauthorized.
+
+**Recommended next session (one task). E2G2 —** a fresh, independent review
+session over `docs/planning/terms-of-use-draft.md` only, in the same shape as
+E2D2/E2E2/E2F2: verify every factual claim against `HANDOFF.md` and the
+repository, check the public/internal boundary and that no public text points
+into the internal section, check consistency against the privacy,
+data-collection, and attribution drafts, and confirm no prohibited clause,
+invented route, invented age threshold, or ownership/clearance claim crept in.
+Do not revise the draft in that session, do not resolve any public route, do
+not check a Gate 2 checkbox, do not reopen E2C5, and do not reopen the tunnel.
+
+### 🟡 E2G2 TERMS OF USE INDEPENDENTLY REVIEWED — draft NOT accepted; 1 blocker, 10 material corrections; two E2G inaccuracies corrected additively; no Gate 2 checkbox changed (2026-09-09)
+
+Narrowly-scoped independent review session following E2G, in the same shape as
+E2D2/E2E2/E2F2. Created `docs/planning/terms-of-use-review.md`. **Files changed
+by this session: the new review and this one additive `HANDOFF.md` entry —
+nothing else.** `docs/planning/terms-of-use-draft.md` was **not** revised and is
+byte-for-byte unchanged; the privacy, data-collection, and attribution drafts,
+their reviews, the EA content-usage research, the asset decision memo, and the
+launch-page prototypes are all unchanged. No external legal research was
+conducted; no external website, provider, account, host, or database was
+accessed; no code, configuration, asset, test, dependency, or route changed;
+nothing was staged, committed, pushed, published, or deployed; the tunnel
+remains separately unauthorized. E2C5, E2C3, E2C4, and every operator decision
+remain unreopened. Historical E2A–E2G entries are **not** rewritten.
+
+**Verdict. The draft is NOT ACCEPTED as a drafting-quality checkpoint.** The
+Terms are structurally sound and unusually disciplined — no arbitration,
+exclusive-venue, jury-waiver, indemnity, liquidated-damages, or liability-cap
+provision; no invented route, age threshold, or ownership/clearance claim;
+`alerts@boogeymen.app` absent; the public/internal boundary holding structurally
+as well as lexically. What blocks acceptance is a small set of concrete defects,
+not general weakness. **No new unsupported legal claim was identified in the
+public text within the review's stated factual and drafting scope**, with the
+single exception of finding T-04.
+
+**Counts, by enumeration: 1 BLOCKER, 10 MATERIAL CORRECTIONS, 10
+RECOMMENDATIONS, 9 ACCEPTABLE AS WRITTEN — 30 total.** Required before
+acceptance: **11** (T-01 … T-11). **Nine are mechanical** (T-01, T-02, T-03,
+T-04, T-05, T-07, T-08, T-09, T-10); **two are held for an operator answer**
+(T-06 for Q-E2G2-1, T-11 for Q-E2G2-2) — the same hold pattern E2F2A used for
+A-07/A-11.
+
+**T-01 (the one BLOCKER) — section 4 offers permission for conduct section 5
+prohibits.** Section 4's lead-in is "please ask us before you do any of the
+following," and its first bullet covers automated collection that "degrades,
+overloads, or interferes with this site … or that works around rate limits or
+other protective measures" — both of which section 5 prohibits outright in
+near-identical verbs. Read literally, the public text tells a reader that
+disruption and circumvention are available on request. Correction boundary:
+**volume is permission-required; disruption and evasion are prohibited, full
+stop**, with section 4 cross-referencing section 5. Do not fix it by softening
+section 5.
+
+**The ten material corrections.** T-02 section 4's "in whole or in substantial
+part" narrows E2A decision 4's unqualified dataset-republication requirement and
+does silently permit smaller dataset republication (the bullet's form list
+already excludes a quoted stat line, so the qualifier is redundant as well as
+narrowing) · T-03 the bullet heading "Republishing **our** information" applies
+a possessive to factual match data, against the A-03/A-14 rule that such data is
+source-attributed, never owned — "information from this site" is the safer
+heading · T-04 "We cannot give you permission for third-party material" is a
+legal-capacity conclusion, structurally identical to the "EA's own materials
+cannot grant…" formulation A-06 required removed, and should become "our
+permission is ours alone: it is not permission from anyone else who holds rights
+in material appearing on this site" · T-05 section 3's personal-copy grant
+carries no third-party carve-out, because section 4's "only the material we are
+actually in a position to permit" limiter is textually confined to section 4 ·
+**T-06 (held)** section 7's "licensed, cleared, or used with permission" reuses
+almost verbatim the vocabulary the operator's Q-E2F2-1 decision moved out of the
+attribution notice's public text — a scope disclaimer in form, the removed
+admission in substance; recommended fix is to keep "nothing in these Terms
+grants you any rights in that material" and drop the clearance half · T-07
+section 10's "Some of these measures are automatic" is not established (see
+below) · T-08/T-09 the wrong E2A decision is cited in three places (see below) ·
+T-10 E2G's "zero reviewed" status line (see below) · **T-11 (held)** section 3's
+saved-pages/screenshots/quoted-results grant exceeds E2A decision 4's
+"personal/noncommercial **viewing**" and should be operator-ratified rather than
+assumed.
+
+**T-07 — the automatic-enforcement claim is not supported, and the opposite
+inference was drawn.** Distinguishing the three categories: *verified current
+configuration* — E2B2 records **Rate-limiting rules: 0 of 1**, **Custom rules:
+0 of 5**, **Bot Fight Mode Off**; the application has no `middleware.ts` and no
+inbound rate limiter (every `throttle` in the workspace is the outbound EA API
+delay in `packages/ea-client/src/client.ts`); the site is unpublished and the
+tunnel offline, so nothing is operating on public traffic at all. The only
+automatic mechanism in the record is Cloudflare's **Free Managed Ruleset**
+("always-active/default protection"), whose actions were never recorded and
+whose evidence is operator-attested, not agent-verified. *Technical capability*
+— the Free plan offers one rate-limiting rule and five custom rules; none is
+deployed. *Possible future behavior* — no decision to deploy any is recorded.
+**No automatic rate limiter was inferred from zero configured rules.** Because
+section 10 lists rate-limiting first, the sentence points at the one measure the
+evidence excludes; restate as capability ("may be applied automatically by the
+network and hosting services we use") or delete, and re-verify at Gate 3.
+
+**Correction to E2G — wrong E2A citation (three locations). E2G is NOT rewritten;
+this entry supersedes it on this point**, following the E2D3-item-12 convention
+and the E2E3/P-17 precedent. **E2A decision 6 is "Request outcomes"**
+(case-by-case correction/de-identification/removal). **E2A decision 2 is
+"Governing terms"** — Alberta law, no exclusive-venue clause, mandatory
+statutory rights preserved. **No E2A decision addresses arbitration, jury-trial
+waiver, indemnity, liquidated damages, or a liability cap**; their exclusion
+rests solely on the operator's E2G session-scope instruction. Affected: (1)
+`terms-of-use-draft.md` internal blocker 4 — "per E2A decision 6, no arbitration
+clause, exclusive-venue clause…"; (2) `terms-of-use-draft.md` Q-E2G-5 — "per E2A
+decision 6 and the operator's E2G instructions"; (3) this file's E2G entry —
+"Deliberately absent, **per E2A decision 6** and this session's scope." Correct
+attribution in all three: **E2A decision 2** for governing law and no exclusive
+venue; **the operator's E2G session-scope instruction** for the remainder. The
+draft's revision-provenance list ("E2A decisions 1–4, 6, 7, 11, 12, 13") is
+**correct** and must not be changed — decision 6 genuinely underpins public
+section 6. A fourth, weaker instance is recorded as T-18: internal blocker 12
+cites "E2A decision 3 / E2D3 item 8 posture" for the appearing-in-match-data-is-
+not-agreement sentence, which neither entry states; it is a drafting-originated
+protective statement consistent with — but not required by — those entries.
+
+**Correction to E2G — review-status statement. E2G is NOT rewritten; this entry
+supersedes it on this point.** E2G's Status line reads "Gate 2 now has four
+written legal drafts and **zero** reviewed or publishable ones." That is wrong
+and self-inconsistent with the same entry's own blocker-1 gloss. Corrected
+statement: **Gate 2 has four written legal drafts and zero *legally reviewed* or
+publishable ones.** Three of the four have had independent drafting-quality
+reviews and subsequent correction passes — the Data Collection Policy
+(E2D2/E2D2A → E2D4 → E2D5), the Privacy Policy (E2E2/E2E2A → E2E3), and the
+EA/NHL attribution notice (E2F2/E2F2A → E2F3 → E2F4, accepted at E2F4 as a
+drafting-quality checkpoint). **The Terms of Use had none until this E2G2
+review.** Counsel review remains deferred and not completed for all four
+(E2D3 item 14), and none of the four is publishable.
+
+**Confirmed correct in the draft** (verified, not assumed): E2A decision 2
+compliance in section 13 — Alberta law, no exclusive venue, mandatory rights
+preserved — with no arbitration, indemnity, jury-waiver, liquidated-damages, or
+liability-cap provision anywhere (grep-verified; seven hits, all inspected: one
+false positive on "revenue", two express negations in §13, four internal
+prohibitions) · no visitor-age threshold invented, adult-only membership never
+converted into site eligibility, opponents expressly not treated as accepting
+the Terms, and no opponent-data lawful basis inferred · "Normal search-engine
+indexing is permitted" present as a bolded standalone statement, "automated
+access is not prohibited as such" present, and the machine-readable-indexing
+reference correctly conditional given that no `robots.txt` and no sitemap exist
+under `apps/web` · public/internal boundary intact both lexically and
+structurally, with the only inward pointer sitting in the status blockquote —
+the identical convention already used by `privacy-policy-draft.md` and
+`ea-nhl-attribution-notice-draft.md`, which survived E2F2/E2F2A/E2F3/E2F4 ·
+three greppable route placeholders, two date placeholders, no `.md` link and no
+`http` in public text, and no legal-page route exists under
+`apps/web/src/app` to invent · `alerts@boogeymen.app` absent (0 occurrences),
+`webmaster@`/`security@` split matching E2A decision 13 · section 6's "our
+legitimate need to keep an accurate archival record" is **verbatim** sibling
+language (`privacy-policy-draft.md:178`, `data-collection-policy-draft.md:349`),
+unflagged by either of those documents' reviews, subordinated to "under
+applicable law", and asserts no lawful basis — F-07/F-08 untouched · the
+cross-document boundary holds on all seven checks: the Terms do not replace the
+privacy/data request mechanics, do not duplicate the attribution audit, do not
+reopen E2C5, claim no asset clearance, use only route placeholders, contain no
+public pointer into the internal section, and do not publish
+`alerts@boogeymen.app`.
+
+**New operator questions (2).** **Q-E2G2-1** — does the Q-E2F2-1 decision (keep
+express no-permission/no-clearance/missing-evidence admissions internal) extend
+to section 7 of the Terms? Options: delete the clearance half of the clause
+(recommended, costs nothing), or keep it and record it as a deliberate extension
+so a later session does not remove it as drift. **Q-E2G2-2** — ratify or narrow
+section 3's personal-copy permission relative to E2A decision 4's
+"personal/noncommercial viewing"? Ratification is the expected outcome; it
+should be recorded in the draft's revision provenance rather than left implicit.
+Best answered together with the operator's existing Q-E2G-4.
+
+**E2G's own four questions assessed — all genuine, none blocking the drafting
+checkpoint.** Q-E2G-2 (response timing for reuse-permission requests): a real
+new-commitment question, but promising nothing is the correct default and it can
+stay unresolved indefinitely. Q-E2G-3 (AI/TDM crawlers): the most consequential
+of the four — as drafted, training/TDM crawlers land in a permitted-by-default
+gap, which may be the operator's preference but should be chosen rather than
+defaulted into; it is coupled to the unbuilt Gate 3 indexing implementation
+(E1F), so **the review recommends promoting it from a question to a numbered
+publication blocker** (T-20). Q-E2G-4 (noncommercial community sharing): genuine,
+and worth noting that the current default is *narrower* than the project's
+evident purpose — a screenshot permitted "for your own personal use" arguably
+does not cover posting it in the team Discord. Q-E2G-1 (routing): already tracked
+as internal blocker 3 and cross-referenced to Q-E2E2-1 and the notice's blockers
+9 and 15; nothing to add.
+
+**New counsel-only questions (3), routed and not answered.** **Q-C-E2G2-1** —
+does counsel want the stronger capacity formulation ("cannot grant") in the
+Terms, the attribution notice, both, or neither? Moves together with the
+notice's open Q-C-2. **Q-C-E2G2-2** — section 12 limits indirect/consequential
+loss and carries no cap, leaving direct loss unaddressed; is that the intended
+posture? **Q-C-E2G2-3** — "our legitimate need to keep an accurate archival
+record" now appears verbatim in three drafts; any counsel change must be applied
+to all three in one pass. The counsel questions carried from the other drafts
+(applicable law F-01/F-02, opponent-data basis F-07/F-08, recording law F-30,
+provider classification F-24, cookie-banner requirement, and the notice's Q-C-1
+through Q-C-4) are untouched, unresolved, and neither relied on nor contradicted.
+**No enforceability determination is made anywhere in the review**, and no legal
+advice or legal clearance is given or implied.
+
+**Files changed.** `docs/planning/terms-of-use-review.md` (new, 1927 lines) and
+this one additive `HANDOFF.md` entry.
+
+**Documents verified unchanged by this session.**
+`docs/planning/terms-of-use-draft.md` (byte-for-byte; sha256 recorded below),
+`privacy-policy-draft.md`, `privacy-policy-review.md`,
+`data-collection-policy-draft.md`, `data-collection-policy-review.md`,
+`ea-nhl-attribution-notice-draft.md`, `ea-nhl-attribution-notice-review.md`,
+`ea-content-usage-policy-research.md`, `ea-asset-decision-memo.md`, and
+`launch-page-design-prototypes.md`. No code, configuration, asset, test,
+dependency, or route was touched.
+
+**Verification run this session.** Read the complete Terms draft end to end, the
+complete new review, and the complete E2G2 entry in context, plus every cited
+authoritative passage (E2A in full, E2B2, E2C5, E2D3 in full, E2E3, E2F2A, E2F3,
+E2F4, E2G, E1F, the Gate 2 legal-drafts checklist, attribution-review findings
+A-03 and A-06, and the shared-fact passages of the privacy and data-collection
+drafts). `git diff --check` clean; no trailing whitespace and no tab characters
+in `terms-of-use-review.md`; `git status --short` shows exactly the pre-existing
+dirty set plus the new untracked `docs/planning/terms-of-use-review.md`, with
+`HANDOFF.md` the only other file this session modified; `git diff --cached
+--stat` empty (nothing staged); HEAD and `origin/main` both confirmed at
+`65bcddb43145d2fcffaeafb4d97d0e1a2737c35f` before and after editing;
+`terms-of-use-draft.md` sha256 confirmed identical before and after
+(`0027854099bde4c69f15c853843f92fe826ff6a28ea77d17f6ea6571a264e705`). Gate 2 line 152
+("Draft the Terms of Use.") confirmed still `- [ ]`, and **no Gate 2 checkbox
+changed.**
+
+**Status.** **No Gate 2 checkbox changed. E2 remains IN PROGRESS.** The Terms
+draft remains an initial, unpublished, legally unreviewed working draft with
+twelve open publication blockers; it is now independently reviewed but **not
+accepted**. Counsel review remains deferred and not completed (E2D3 item 14).
+Cloudflare Web Analytics remains enabled and undone (E2B3 decision 1). Tunnel
+reopening remains separately unauthorized.
+
+**Recommended next session (one task). E2G3 —** apply the nine mechanical
+corrections to `docs/planning/terms-of-use-draft.md` only: T-01 through T-05 and
+T-07 in the public text, T-08 in the internal checklist. T-09 and T-10 are
+HANDOFF corrections already recorded additively above and need no further action.
+Hold T-06 and T-11 for the operator's answers to Q-E2G2-1 and Q-E2G2-2, exactly
+as E2F3 held A-07 and A-11 for Q-E2F2-1. Bundle the optional items T-12 through
+T-21 only if the operator asks; otherwise leave them for a later polish pass in
+the shape of E2F4. Recount the publication blockers by enumeration afterwards.
+Do not revise any other draft, resolve any public route, check a Gate 2
+checkbox, conduct external legal research, reopen E2C5, or reopen the tunnel. If
+the operator prefers to answer Q-E2G2-1 and Q-E2G2-2 first, that is a
+decision-recording session and must not be combined with the revision pass.
+
+### 🟡 E2G2A OPERATOR DECISIONS RECORDED — Q-E2G2-1 and Q-E2G2-2 answered; T-06 and T-11 released for the E2G3 correction pass; Terms draft still NOT accepted; no Gate 2 checkbox changed (2026-09-09)
+
+Decision-recording session only, in the same shape as E2D3 and the Q-E2F2-1
+recording inside E2F3. The operator answered the two questions E2G2 raised and
+held. **Files changed by this session: this one additive `HANDOFF.md` entry —
+nothing else.** `docs/planning/terms-of-use-draft.md` and
+`docs/planning/terms-of-use-review.md` are **byte-for-byte unchanged**; no other
+policy, review, research, memo, or prototype document was touched; no code,
+configuration, asset, test, dependency, or route changed; no external research
+was conducted and no external website, provider, account, host, or database was
+accessed; nothing was staged, committed, pushed, published, or deployed; the
+tunnel remains separately unauthorized. E2C5, E2C3, E2C4, and every prior
+operator decision remain unreopened. Historical E2A–E2G2 entries are **not**
+rewritten. **E2G2's verdict and counts are unchanged: the draft is still NOT
+ACCEPTED; 1 BLOCKER, 10 MATERIAL CORRECTIONS, 10 RECOMMENDATIONS, 9 ACCEPTABLE
+AS WRITTEN — 30 total; 11 required before acceptance (T-01 … T-11).** What
+changes is only that the two held items now have operator answers and become
+actionable in E2G3.
+
+**1. Q-E2G2-1 — public clearance wording. ANSWERED: apply the Q-E2F2-1
+public/internal boundary consistently to the Terms of Use.**
+
+- In the future E2G3 correction pass, **delete this clause from public section
+  7**: "or states that any particular material is licensed, cleared, or used
+  with permission".
+- **Keep** the preceding visitor-rights boundary: "nothing in these Terms grants
+  you any rights in that material."
+- This is E2G2's recommended fix for **T-06**, which is therefore no longer held
+  and is now a required correction for E2G3.
+
+Meaning of the decision:
+
+- Express no-permission, no-clearance, and missing-evidence admissions **remain
+  internal**.
+- Public text **may still** state factual source attribution, non-affiliation,
+  that third-party material remains subject to third-party rights, and that the
+  Terms grant visitors no third-party rights.
+- **Silence does not claim that anything is cleared.**
+- This **changes no asset** and **does not reopen E2C5**.
+- It establishes **no licence, permission, fair use, ownership, endorsement, or
+  legal clearance**.
+
+**2. Q-E2G2-2 — personal copies and limited community sharing. ANSWERED: ratify
+and modestly extend E2A decision 4.** E2A decision 4 read "Personal/noncommercial
+viewing and normal search-engine indexing are permitted. Disruptive bulk
+scraping, dataset republication, and commercial reuse require permission."
+E2G2's T-11 flagged that public section 3's saved-pages/screenshots/quoted-results
+grant exceeded "viewing". The operator ratifies that grant and extends it to
+ordinary community sharing. **T-11 is therefore no longer held.**
+
+The future E2G3 public Terms **may permit**:
+
+- private personal saved pages;
+- personal screenshots;
+- short quoted results or excerpts;
+- ordinary limited noncommercial sharing in community contexts, such as a team
+  Discord, a forum post, or a fan video;
+- ordinary links to public Boogeymen pages.
+
+A link or reasonable source credit **should be encouraged where practical, but
+it is not a mandatory condition** of this permission.
+
+Boundaries on that permission:
+
+- It covers **limited, ordinary sharing — not republication as a dataset, data
+  feed, API, database, mirror, or comparable structured compilation**.
+- **Dataset republication remains permission-required regardless of whether the
+  proposed dataset is commercial or noncommercial.**
+- **Commercial reuse remains permission-required.**
+- **Disruptive bulk scraping remains permission-required.**
+- **Disruption, attacks, and circumvention of security or protective measures
+  remain prohibited outright and are not available by asking permission.** (This
+  is consistent with, and does not displace, E2G2's blocker **T-01**, which
+  remains a required correction on its own terms.)
+- **Any Boogeymen permission applies only to material Boogeymen is in a position
+  to permit.** It does **not** grant rights held by EA, NHL, NHLPA, Sony,
+  Microsoft, platform owners, players, teams, creators, or other third parties.
+  Third-party material remains subject to third-party rights.
+- **This decision does not legally clear any existing asset.**
+- **E2C5 remains unchanged:** no asset removal, replacement, relocation,
+  deduplication, recolouring, regeneration, renaming, hiding, or fallback switch
+  is authorized.
+
+**Q-E2G-4 is now ANSWERED by decision 2.** E2G's open question on noncommercial
+community sharing — and E2G2's observation that a screenshot permitted "for your
+own personal use" arguably did not cover posting it in the team Discord — is
+resolved by the permission and boundaries recorded above.
+
+**Still unresolved after this session (no answer is recorded and none may be
+inferred).**
+
+- **Q-E2G-2** — response times for reuse-permission requests. **No response
+  deadline is adopted.** Promising nothing remains the default.
+- **Q-E2G-3** — AI-training / TDM / dataset-building crawlers. Unresolved. E2G2's
+  recommendation to promote it to a numbered publication blocker (T-20) is
+  neither adopted nor rejected here.
+- **Q-E2G-1** — public routes for the legal pages. Unresolved; still tracked as
+  the draft's internal blocker 3 and cross-referenced to Q-E2E2-1.
+- **Q-E2G-5** and all counsel-only questions — **Q-C-E2G2-1, Q-C-E2G2-2,
+  Q-C-E2G2-3**, plus the counsel questions carried from the other drafts
+  (applicable law F-01/F-02, opponent-data basis F-07/F-08, recording law F-30,
+  provider classification F-24, the cookie-banner requirement, and the notice's
+  Q-C-1 through Q-C-4) — remain unresolved, untouched, and neither relied on nor
+  contradicted. Counsel review remains deferred and not completed (E2D3 item 14).
+
+**Status.** **No Gate 2 checkbox changed. E2 remains IN PROGRESS.** The Terms
+draft **remains byte-for-byte unchanged and is not accepted**; it will not be
+accepted until E2G3 applies the required corrections. It is still an
+unpublished, legally unreviewed working draft with twelve open publication
+blockers. Cloudflare Web Analytics remains enabled and undone (E2B3 decision 1).
+Tunnel reopening remains separately unauthorized. **No legal advice, licence,
+permission, fair use, ownership, endorsement, or legal clearance is given or
+implied by this entry.**
+
+**Verification run this session.** Read `AGENTS.md`, the complete E2G2 entry,
+E2G's question set, E2A decision 4, and the complete new E2G2A entry in context.
+`git diff --check` clean; `git status --short` shows exactly the pre-existing
+dirty set with `HANDOFF.md` the only file this session modified; `git diff
+--cached --stat` empty (nothing staged); HEAD and `origin/main` both confirmed at
+`65bcddb43145d2fcffaeafb4d97d0e1a2737c35f` before and after editing;
+`terms-of-use-draft.md` sha256 confirmed identical before and after
+(`0027854099bde4c69f15c853843f92fe826ff6a28ea77d17f6ea6571a264e705`) and
+`terms-of-use-review.md` likewise
+(`becb43efac383aee2bef66f9bf6138c38d92c826de320a27c1411018adfa5f61`). Gate 2 line
+152 ("Draft the Terms of Use.") confirmed still `- [ ]`, and **no Gate 2
+checkbox changed** — all 95 `- [ ]`/`- [x]` checklist lines in this file are
+byte-identical to HEAD (the only `[ ]` token this entry adds is the quoted one
+in the sentence above).
+
+**Recommended next session (one task). E2G3 —** the correction pass on
+`docs/planning/terms-of-use-draft.md` only, now covering **eleven** required
+items rather than nine: T-01 through T-05 and T-07 in the public text, T-08 in
+the internal checklist, **T-06** applying decision 1 above (delete the
+"licensed, cleared, or used with permission" clause from public section 7, keep
+the visitor-rights sentence), and **T-11** applying decision 2 above (ratify the
+personal-copy grant and extend it to ordinary limited noncommercial community
+sharing, with the dataset/commercial/scraping/disruption boundaries and the
+third-party-rights limiter stated in the public text). T-09 and T-10 are HANDOFF
+corrections already recorded additively in E2G2 and need no further action.
+Record decisions 1 and 2 in the draft's revision provenance. Bundle the optional
+items T-12 through T-21 only if the operator asks. Recount the publication
+blockers by enumeration afterwards. Do not revise any other draft, resolve any
+public route, check a Gate 2 checkbox, conduct external legal research, reopen
+E2C5, or reopen the tunnel.
+
+### 🟡 E2G3 TERMS OF USE CORRECTED — nine remaining draft corrections applied; drafting-quality checkpoint accepted; blocker count unchanged at twelve; no Gate 2 checkbox changed (2026-09-09)
+
+Correction-pass session following E2G2/E2G2A, in the same shape as E2D4,
+E2E3, and E2F3. **Files changed by this session:
+`docs/planning/terms-of-use-draft.md` and this one additive `HANDOFF.md`
+entry — nothing else.** `docs/planning/terms-of-use-review.md` is
+byte-for-byte unchanged (sha256 confirmed identical to the hash recorded at
+E2G2/E2G2A:
+`becb43efac383aee2bef66f9bf6138c38d92c826de320a27c1411018adfa5f61`); the
+privacy, data-collection, and attribution drafts and reviews, the EA
+content-usage research, the asset decision memo, and the launch-page
+prototypes are all unchanged (sha256-verified against this session's own
+read). No external legal research was conducted; no external website,
+provider, account, host, or database was accessed; no code, configuration,
+asset, test, dependency, or route changed; nothing was staged, committed,
+pushed, published, or deployed; the tunnel remains separately unauthorized.
+E2C5, E2C3, and E2C4 remain unreopened. Historical E2G, E2G2, and E2G2A
+entries are **not** rewritten.
+
+**Correction-count accounting (correcting E2G2A's inaccurate wording
+additively, without rewriting it).** E2G2 originally identified eleven
+required findings, T-01 through T-11. Of those: **T-09 and T-10** were
+HANDOFF-only corrections (the wrong-E2A-citation fix and the "zero reviewed"
+status-line fix) already completed additively by E2G2 itself and needed no
+further action. **E2G2A** then released the two held items, **T-06** (per
+Q-E2G2-1) and **T-11** (per Q-E2G2-2), for this session. That leaves exactly
+**nine** remaining Terms-draft corrections for E2G3: **T-01, T-02, T-03,
+T-04, T-05, T-06, T-07, T-08, and T-11.** E2G2A's recommended-next-session
+sentence said E2G3 would cover "eleven required items rather than nine" —
+that arithmetic is wrong (11 total − 2 already done = 9, not 11), and this
+entry corrects it here rather than by editing E2G2A's text.
+
+**All nine corrections applied to `docs/planning/terms-of-use-draft.md`.**
+
+- **T-01** (section 4, first bullet) — rewritten to separate
+  permission-required volume from prohibited conduct. The bullet now reads
+  "Systematic or high-volume bulk automated collection," states this is not
+  a blanket ban on automation and does not touch ordinary search-engine
+  crawling (permitted under section 3), and states explicitly that conduct
+  which actually degrades, overloads, disrupts, or circumvents rate limits
+  or protective measures is prohibited outright under section 5 and is
+  **not** available by asking permission. Section 5 itself was not touched
+  or softened.
+- **T-02** (section 4, second bullet) — deleted "— in whole or in
+  substantial part —". Dataset/feed/API/database/mirror/comparable
+  structured-compilation republication now requires permission regardless
+  of amount, and the bullet states it applies "whether the republication is
+  commercial or noncommercial" and does not cover the personal use, quoting,
+  and limited community sharing permitted in section 3.
+- **T-03** (same bullet's heading) — renamed "Republishing our information
+  as a dataset" to "Republishing information from this site as a dataset,"
+  removing the possessive/ownership implication over factual match data.
+- **T-04** (section 4, closing paragraph) — replaced "We cannot give you
+  permission for third-party material" with the scope formulation "Our
+  permission is ours alone: it is not permission from anyone else who holds
+  rights in material appearing on this site," preserving the preceding "only
+  the material we are actually in a position to permit" limiter.
+- **T-05** (section 3, new "Third-party rights" paragraph) — added beside
+  the use permission: Boogeymen grants the section 3 permissions only to the
+  extent it is actually in a position to do so; third-party material remains
+  subject to third-party rights; the permission does not grant rights held
+  by EA, NHL, NHLPA, Sony, Microsoft, platform owners, players, teams,
+  creators, or other third parties; and a public-to-public cross-reference
+  to section 7 (never a pointer into the internal section).
+- **T-06** (section 7, applying E2G2A decision 1) — deleted "or states that
+  any particular material is licensed, cleared, or used with permission"
+  from the third-party paragraph. Kept "nothing in these Terms grants you
+  any rights in that material." Express no-permission/no-clearance/
+  missing-evidence admissions remain internal; the public text makes no
+  positive clearance claim and none was added.
+- **T-07** (section 10) — deleted "Some of these measures are automatic";
+  the sentence now reads only "These measures may be temporary," per the
+  review's preferred resolution. No automatic rate limiter, automatic
+  blocking, or deployed behavior is claimed. No new blocker was added — the
+  claim was simply removed, exactly as directed.
+- **T-08** (internal blocker 4 and Q-E2G-5) — corrected the authority
+  citations. Both now state that **E2A decision 2** ("Governing terms")
+  supports Alberta governing law and the absence of an exclusive-venue
+  clause, and that **the operator's E2G session-scope instruction** — not
+  E2A decision 6 — excluded arbitration, jury-trial waiver, indemnity,
+  liquidated damages, and a liability-cap figure, with no E2A decision
+  covering that group. E2A decision 6 ("Request outcomes") is noted as
+  correctly supporting section 6 and was left in the revision-provenance
+  list, unremoved.
+- **T-11** (section 3, applying E2G2A decision 2) — section 3 rewritten
+  into labeled parts: **Linking** (its own sentence, not limited to
+  personal/noncommercial actors — this is also as much of **T-12** as this
+  session applies, per the task's scope); **Personal copies and quotes**
+  (saved pages, screenshots, short quoted results/excerpts, personal/
+  noncommercial); **Limited community sharing** (ordinary, limited,
+  noncommercial sharing such as a team Discord, a forum post, or a fan
+  video, with a link or credit "encouraged where practical" but stated as
+  **not** a condition); and a boundary paragraph restating that none of
+  this permits dataset/feed/API/database/mirror/comparable
+  structured-compilation republication, commercial reuse, or systematic/
+  high-volume bulk collection (section 4), and that disruption/circumvention
+  remains prohibited outright under section 5 "regardless of purpose or
+  permission." The **Third-party rights** paragraph (T-05) sits directly
+  beside this. E2C5 was not reopened and no asset was touched or implied
+  cleared.
+
+**Bookkeeping also completed, as required.** Added an **E2G2A** entry and an
+**E2G3** entry to the draft's Revision provenance, the E2G3 entry listing all
+nine active corrections by number and noting T-09/T-10 needed no action and
+T-13–T-21 remain optional and unapplied. Updated the document's status line
+and Gate 2 status wording from "initial working draft" to **"revised working
+draft"** / **drafting-quality checkpoint**, while leaving the historical E2G
+(2026-09-09) provenance entry's own "initial working draft" description of
+what E2G produced unchanged. Updated the internal review-history sentence in
+blocker 1: it now states plainly that E2G2 performed independent, non-legal
+issue-spotting, E2G2A recorded operator decisions, and E2G3 applied the
+required corrections — and that **neither E2G2 nor E2G3 is a legal review**.
+Recounted the twelve publication blockers by enumeration (1 through 12, all
+still present and open — items 1 and 4 revised for accuracy, none added or
+removed); the bolded "twelve" count needed no change. Updated the internal
+Gate 2 status paragraph consistently with the above.
+
+**Drafting-quality checkpoint: ACCEPTED, not legally reviewed, not
+publishable.** All eleven of E2G2's originally required findings (T-01
+through T-11) are now applied — T-09/T-10 by E2G2, the remaining nine by
+E2G2A's release and this session's correction pass — and no new defect was
+found while applying them. Following the same pattern E2F4 used for the
+attribution notice, the draft is accepted here as a **drafting-quality
+checkpoint only**: not legal clearance, not legal advice, not publishable
+text, and not a Gate 2 checkbox change. All twelve publication blockers
+remain open, counsel review remains deferred and not completed (E2D3 item
+14), and Cloudflare Web Analytics remains enabled and undone (E2B3 decision
+1).
+
+**Section 3's final permission and boundaries (public text).** Personal/
+noncommercial reading, viewing, and browsing; linking to public Boogeymen
+pages (unqualified); personal saved pages, screenshots, and short quoted
+results/excerpts; ordinary limited noncommercial community sharing (team
+Discord, forum post, fan video), with link/credit encouraged but not
+mandatory; explicitly **not** covering dataset/feed/API/database/mirror/
+comparable structured-compilation republication, commercial reuse, or
+systematic/high-volume bulk collection (all section 4, permission-required);
+explicitly **not** covering disruption, attacks, or circumvention of
+security/rate-limiting/protective measures (section 5, prohibited outright,
+no exception for permission); and a third-party-rights limiter naming EA,
+NHL, NHLPA, Sony, Microsoft, platform owners, players, teams, and creators,
+cross-referencing public section 7. Normal search-engine indexing remains
+permitted, restated unchanged from the prior draft.
+
+**Section 4/section 5 boundary (public text), corrected.** Section 4 no
+longer offers permission for conduct section 5 prohibits: its first bullet
+now covers only permission-required *volume* (systematic/high-volume bulk
+automated collection), and states twice — once in the bullet, once by
+cross-reference from section 3 — that actual disruption, overload, or
+circumvention of rate limits/protective measures is prohibited outright
+under section 5 and is not curable by asking permission. Section 5's text
+itself is untouched.
+
+**E2A authority attribution (internal text), corrected.** Internal blocker 4
+and Q-E2G-5 now correctly cite **E2A decision 2** for Alberta governing law
+and the absence of an exclusive-venue clause, and **the operator's E2G
+session-scope instruction** (not E2A decision 6) for excluding arbitration,
+jury-trial waiver, indemnity, liquidated damages, and a liability-cap
+figure — with E2A decision 6 left correctly attributed to section 6 in the
+revision-provenance list, per the review's finding. The parallel citation in
+this file's own historical E2G2 entry is not rewritten; E2G2 already
+superseded the original E2G entry on this point without rewriting it, and
+that correction stands independently of this session.
+
+**Resulting blocker count: twelve, unchanged.** No blocker was added or
+removed by this pass; items 1 and 4 were revised for accuracy (review
+history and authority citation respectively), and the bolded "twelve" in
+the draft's own text needed no correction.
+
+**Not applied, left for later.** T-12 was applied only to the extent needed
+to give linking its own unqualified sentence in section 3, per the task's
+explicit scope; the rest of T-12 and all of **T-13 through T-21** remain
+unapplied, left for an optional E2G4 polish session. **Note for that
+session:** the draft's own Q-E2G-4 text still reads "undecided" — it was not
+touched this session because it fell outside the nine required corrections
+— but it is now stale, since section 3's new community-sharing permission
+(T-11) substantively answers it, matching what E2G2A already recorded at the
+HANDOFF level ("Q-E2G-4 is now ANSWERED by decision 2"). Updating that
+sentence in the draft is in-scope for a future polish pass, not this one.
+
+**Unresolved questions, untouched.** **Q-E2G-1** (routing), **Q-E2G-2**
+(response timing), **Q-E2G-3** (AI/TDM crawlers), and **Q-E2G-5** (counsel,
+now correctly attributed per T-08 but still otherwise open) remain
+unresolved. All counsel-only questions — **Q-C-E2G2-1, Q-C-E2G2-2,
+Q-C-E2G2-3**, plus those carried from the other drafts (applicable law
+F-01/F-02, opponent-data basis F-07/F-08, recording law F-30, provider
+classification F-24, the cookie-banner requirement, and the attribution
+notice's Q-C-1 through Q-C-4) — remain unresolved, untouched, and neither
+relied on nor contradicted. Counsel review remains deferred and not
+completed (E2D3 item 14). **No legal advice, licence, permission, fair use,
+ownership, endorsement, or legal clearance is given or implied by this
+entry or by the draft it describes.**
+
+**No Gate 2 checkbox changed.** Gate 2 line 152 ("Draft the Terms of Use.")
+confirmed still `- [ ]` before and after this session; no other Gate 2
+checkbox was touched.
+
+**Verification run this session.** Read the complete revised Terms draft
+end to end, and the complete new E2G3 entry in context, plus `AGENTS.md` in
+full, the complete E2G2 and E2G2A entries, and the Gate 2 legal-drafts
+checklist. `git diff --check` clean; zero trailing-whitespace lines and zero
+tab characters in `terms-of-use-draft.md`; `git status --short` shows
+exactly the pre-existing dirty set (`HANDOFF.md` modified,
+`launch-page-design-prototypes.md` modified, the nine other `docs/planning/`
+files untracked) with `terms-of-use-draft.md` remaining untracked as at
+session start and `HANDOFF.md` the only tracked file this session modified;
+`git diff --cached --stat` empty (nothing staged); HEAD and `origin/main`
+both confirmed at `65bcddb43145d2fcffaeafb4d97d0e1a2737c35f` before and after
+editing. `docs/planning/terms-of-use-review.md` sha256 confirmed identical
+to the E2G2/E2G2A hash
+(`becb43efac383aee2bef66f9bf6138c38d92c826de320a27c1411018adfa5f61`); the
+privacy, data-collection, and attribution drafts/reviews, the EA
+content-usage research, the asset decision memo, and the launch-page
+prototypes were all confirmed unchanged. Forbidden-phrase checks against the
+public Terms text (everything above the "Internal drafting and publication
+checks" heading) confirm zero occurrences of "in whole or in substantial
+part", "Republishing our information", "We cannot give you permission",
+"licensed, cleared, or used with permission", "Some of these measures are
+automatic", and `alerts@boogeymen.app`; the removed phrases appear only
+inside the internal Revision provenance entry describing what was removed.
+Confirmed no public section points into the internal section, and that
+section 3's new cross-reference to section 7 is public-to-public. Confirmed
+no arbitration, exclusive-venue, indemnity, jury-waiver, liquidated-damages,
+liability-cap, invented route, age threshold, or blanket ownership/clearance
+provision was added anywhere in the public text.
+
+**Status.** **No Gate 2 checkbox changed. E2 remains IN PROGRESS.** The
+Terms draft is now a revised working draft, independently reviewed and
+corrected, **accepted as a drafting-quality checkpoint only** — not legally
+reviewed and not publishable. Counsel review remains deferred and not
+completed (E2D3 item 14). Cloudflare Web Analytics remains enabled and
+undone (E2B3 decision 1). Tunnel reopening remains separately unauthorized.
+
+**Recommended next session (one task, optional). E2G4 —** a final
+drafting-quality polish pass on `docs/planning/terms-of-use-draft.md`, in
+the shape of E2F4: consider T-13 through T-21 and the rest of T-12, and
+update the now-stale Q-E2G-4 "undecided" text to reflect that E2G2A already
+answered it. Not required before any other Gate 2 work proceeds. Do not
+combine it with resolving Q-E2G-1/Q-E2G-3, with Gate 3 routing work, or with
+any other draft.
+
+### 🟡 E2G4 TERMS OF USE FINAL DRAFTING-QUALITY POLISH — decision-free optional findings applied; blocker count now fourteen; no Gate 2 checkbox changed (2026-09-09)
+
+Final, optional drafting-quality polish session following E2G3, in the same
+shape as E2F4 for the attribution notice. **Files changed by this session:
+`docs/planning/terms-of-use-draft.md` and this one additive `HANDOFF.md`
+entry — nothing else.** `docs/planning/terms-of-use-review.md` is
+byte-for-byte unchanged (sha256 confirmed identical to the hash recorded at
+E2G2/E2G2A/E2G3:
+`becb43efac383aee2bef66f9bf6138c38d92c826de320a27c1411018adfa5f61`); the
+privacy, data-collection, and attribution drafts and reviews, the EA
+content-usage research, the asset decision memo, and the launch-page
+prototypes are all unchanged (confirmed this session by re-reading and, for
+the untracked planning files, by hashing). No external legal research was
+conducted; no external website, provider, account, host, or database was
+accessed; no Cloudflare inspection or change; no logging inventory; no
+prototype ZIP extraction; no code, configuration, asset, test, dependency,
+or route changed; nothing was staged, committed, pushed, published, or
+deployed; the tunnel remains separately unauthorized. E2C5, E2C3, and E2C4
+remain unreopened. Historical E2G, E2G2, E2G2A, and E2G3 entries are **not**
+rewritten.
+
+**Findings applied (all decision-free, per the task's explicit scope).**
+
+- **T-12 — confirmed already complete, not re-applied.** E2G3 already gave
+  linking its own unqualified sentence in section 3 ("**Linking.** You may
+  link to our public pages."). This session made no further edit to it and
+  recorded, in the draft's own revision provenance, that it is reviewed and
+  needs no change — avoiding pure churn.
+- **T-13 (section 3, indexing paragraph).** "This site's public pages"
+  replaced with "the pages we make available for indexing"; the invented
+  "sort" URL-variant example removed, leaving the accurate "filter and
+  pagination URLs"; the conditional "where we publish machine-readable
+  indexing instructions" framing preserved unchanged, since no `robots.txt`
+  or sitemap is deployed. Added new publication **blocker 13**, requiring
+  this paragraph to be re-verified against the deployed `robots.txt`,
+  sitemap, canonical metadata, `noindex` behavior, and the E1F indexing
+  decisions before publication.
+- **T-14 — reviewed and accepted without edit.** Section 7's non-affiliation
+  sentence is already unmistakably Boogeymen's own generic statement (the
+  review's option (b)) and already points to the attribution notice for
+  EA's specified wording. No duplicate of EA's standalone statement was
+  added anywhere in this draft; the sentence is unchanged.
+- **T-15 (section 11).** "…beyond what is stated in these Terms" replaced
+  with "…and we make no other warranties or representations about it." The
+  following mandatory-law paragraph is untouched.
+- **T-16 (section 1).** "please do not use the site" changed to "do not use
+  the site." The second paragraph (appearing in match data is not
+  acceptance) is untouched. Browse-wrap enforceability remains a
+  counsel/Gate 3 question; internal blocker 12 now connects that review to
+  the still-undecided Gate 3 footer/route placement (Q-E2G-1) rather than
+  treating it as a pure text question.
+- **T-17 (authentication maintenance condition).** Added to internal blocker
+  6 (the cross-document-consistency blocker, per the task's stated
+  preference for an auditable addition over a new blocker number): if
+  authentication is ever activated, public sections 2 and 10 must be
+  reviewed and revised in the same coordinated pass as the Data Collection
+  Policy's required fresh privacy review. The currently accurate public
+  no-account wording in sections 2 and 10 is untouched.
+- **T-18 (internal blocker 12's citation).** Corrected so it no longer
+  claims E2A decision 3 and E2D3 item 8 directly require section 1's
+  "appearing in match data is not agreement" sentence. That sentence is now
+  described as a drafting-originated protective statement, consistent with
+  — but not required by — E2A decision 3 and E2D3 item 8; not itself the
+  subject of a separate operator decision; preserved unless a later
+  operator or counsel review changes it.
+- **T-19 (section 2).** "Identifiers" replaced with "gamertags and related
+  identifiers," so the sentence no longer implies raw EA-internal
+  identifiers are necessarily displayed publicly.
+- **T-20 (AI/TDM publication blocker).** Added new publication **blocker
+  14**, requiring an explicit operator decision before publication on
+  whether AI-training, text-and-data-mining, and dataset-building crawlers
+  are permitted normal indexing, permission-required, or prohibited, and
+  requiring the eventual decision to be expressed consistently in the
+  public Terms, `robots.txt`/crawler instructions, and sitemap/indexing
+  controls. **Q-E2G-3 itself was left unresolved**, as instructed, and now
+  cross-references blocker 14.
+- **T-21 (section 9).** Added: "This does not affect the notice we give for
+  material changes to these Terms — see section 14." A public-to-public
+  pointer; section 14's material-change-notice commitment is unweakened.
+
+**Stale Q-E2G-4 corrected.** The internal Q-E2G-4 paragraph no longer reads
+"undecided." It is moved out of the unresolved-question list into a new
+"Resolved questions" subsection and marked **ANSWERED**: **E2G2A decision
+2** ratified and extended section 3's permission to ordinary limited
+noncommercial community sharing, and **E2G3** applied that decision
+publicly. The corrected text states that ordinary limited noncommercial
+community sharing is permitted; that a link or reasonable credit is
+encouraged where practical but not mandatory; that dataset republication,
+commercial reuse, and systematic/high-volume bulk collection remain
+permission-required; that disruption, attacks, and circumvention remain
+prohibited; and that third-party rights are unaffected.
+
+**Bookkeeping also completed, as required.** Added an **E2G4** entry to the
+draft's Revision provenance, listing every finding applied by number. Added
+the header's mention of E2G4 to the document's status blockquote and to
+internal blocker 1's review-chain sentence, consistent with the pattern
+E2F4 used for the attribution notice. Recounted the publication blockers by
+enumeration (1 through 14): blocker 6 gained the T-17 authentication-
+maintenance addition and blocker 12 was reworded for T-16/T-18 — neither is
+a new blocker number; blockers 13 and 14 are new (T-13, T-20); no blocker
+was removed. Updated the "There are **fourteen** publication blockers"
+intro line and the Gate 2 status paragraph consistently. Preserved the
+drafting-quality-checkpoint status throughout; no legal clearance or
+publication readiness is claimed anywhere in this pass.
+
+**Resulting blocker count: fourteen, up from twelve.** Two blockers were
+added — **13** (T-13's indexing-paragraph re-verification against deployed
+`robots.txt`/sitemap/canonical/`noindex`/E1F decisions) and **14** (T-20's
+required operator decision on AI/TDM crawler treatment, expressed
+consistently across the Terms, `robots.txt`, and sitemap/indexing
+controls). No blocker was removed. Blockers 6 and 12 were revised in place
+(T-17 and T-16/T-18 respectively) without changing the count.
+
+**Remaining operator questions.** **Q-E2G-1** (Gate 3 routing), **Q-E2G-2**
+(response timing for section 4 permission requests), and **Q-E2G-3**
+(AI/TDM crawler treatment, now also publication blocker 14) remain
+unresolved and untouched by this session, exactly as instructed.
+
+**Remaining counsel questions.** **Q-E2G-5** and all counsel-only questions
+carried from the other drafts (applicable law F-01/F-02, opponent-data
+basis F-07/F-08, recording law F-30, provider classification F-24, the
+cookie-banner requirement, and the attribution notice's Q-C-1 through Q-C-4)
+remain unresolved, untouched, and neither relied on nor contradicted.
+Counsel review remains deferred and not completed (E2D3 item 14). **No
+legal advice, licence, permission, fair use, ownership, endorsement, or
+legal clearance is given or implied by this entry or by the draft it
+describes.**
+
+**No Gate 2 checkbox changed.** Gate 2 line 152 ("Draft the Terms of Use.")
+confirmed still `- [ ]` before and after this session; no other Gate 2
+checkbox was touched.
+
+**Verification run this session.** Read the complete revised Terms draft end
+to end, and this complete E2G4 entry in context, plus `AGENTS.md` in full,
+and the E2G2/E2G2A/E2G3 entries and Gate 2 legal-drafts checklist for
+baseline context. `git diff --check` clean (exit 0); zero trailing-whitespace
+lines and zero tab characters in `terms-of-use-draft.md`; `git status
+--short` shows exactly the pre-existing dirty set (`HANDOFF.md` modified,
+`launch-page-design-prototypes.md` modified, the ten other `docs/planning/`
+files untracked, including `terms-of-use-draft.md` and
+`terms-of-use-review.md` as at session start) with `HANDOFF.md` the only
+tracked file this session modified; `git diff --cached --stat` empty
+(nothing staged); HEAD and `origin/main` both confirmed at
+`65bcddb43145d2fcffaeafb4d97d0e1a2737c35f` before and after editing.
+`docs/planning/terms-of-use-review.md` sha256 confirmed identical to the
+E2G2/E2G2A/E2G3 hash
+(`becb43efac383aee2bef66f9bf6138c38d92c826de320a27c1411018adfa5f61`); every
+other planning document was confirmed unchanged this session. The Gate 1/
+Gate 2 checklist block of `HANDOFF.md` (the 95 checklist lines referenced by
+this task) was diffed against `git show HEAD:HANDOFF.md` and found
+byte-identical, and the Gate 2 "Draft the Terms of Use" checkbox is
+confirmed `- [ ]` in both. Forbidden-phrase checks against the public Terms
+text confirm zero occurrences of "please do not use the site", "beyond what
+is stated in these Terms", and `alerts@boogeymen.app`; "sort" appears only
+inside the internal E2G4 provenance narration describing its removal, not
+in the public indexing paragraph. Confirmed "Normal search-engine indexing
+is permitted" is preserved, "gamertags and related identifiers" is present
+in section 2, and section 9 now contains "…see section 14." Confirmed no
+public section points into the internal section, and that no arbitration,
+exclusive-venue, indemnity, jury-waiver, liquidated-damages, liability-cap,
+invented age threshold, route, ownership, permission, or clearance claim was
+added anywhere in the public text (the pre-existing "under-13" language in
+blocker 11 is unchanged internal guardrail text, not a new public
+threshold).
+
+**Status.** **No Gate 2 checkbox changed. E2 remains IN PROGRESS.** The
+Terms draft carries all applicable optional E2G2 findings (T-12 through
+T-21) resolved — eight applied as edits (T-13, T-15 through T-21), one
+confirmed already complete without re-edit (T-12), and one reviewed and
+accepted without edit (T-14) — and remains **accepted as a drafting-quality
+checkpoint only**, not legally reviewed and not publishable. Fourteen
+publication blockers remain open, counsel review remains deferred and not
+completed (E2D3 item 14), and Cloudflare Web Analytics remains enabled and
+undone (E2B3 decision 1). Tunnel reopening remains separately unauthorized.
+
+**Recommended next session.** A fresh Stage E2 reconciliation/status-review
+session: with all four Gate 2 legal drafts (Data Collection Policy, Privacy
+Policy, attribution notice, Terms of Use) now through their respective
+independent-review-and-polish passes, the next session should take stock of
+E2 as a whole — current blocker counts across all four documents, the
+outstanding operator questions (routing, response timing, AI/TDM posture),
+and what remains before counsel review — rather than opening new drafting
+work on any single document. Do not combine it with resolving Q-E2G-1/
+Q-E2G-3, with Gate 3 routing work, or with reopening the tunnel.
+
 ### 🟢 E1K FINAL OPERATOR DECISIONS RECORDED — E1 COMPLETE; E2 requires a fresh Codex session (2026-09-08)
 
 A read-only audit session (this one's immediate predecessor) reviewed the two
@@ -3583,7 +7038,22 @@ the time this paragraph was written (2026-09-06). **Update 2026-09-08: E1 is
 now ✅ COMPLETE (E1A-E1K) — see "## Operational V1 Terminal Roadmap" → "### E1"
 and the "E1K FINAL OPERATOR DECISIONS RECORDED" Active State entry. The next
 actionable substage is now E2, which per operator instruction must begin in a
-fresh Codex session; E2 remains NOT STARTED.**
+fresh Codex session. Update 2026-09-08 (E2A): E2 is now **IN PROGRESS** —
+fourteen operator policy decisions were recorded (see the "E2A OPERATOR
+DECISIONS RECORDED" Active State entry) — but **none of the four Gate 2 legal
+drafts (privacy policy, data-collection policy, EA/NHL attribution notice,
+Terms of Use) has been written yet.** Update 2026-09-08 (E2B2): operator-
+supplied Cloudflare/Proton dashboard evidence was recorded, and it surfaced
+an unresolved conflict between Cloudflare Web Analytics being enabled and
+the approved no-analytics launch decision — see the "E2B2 CLOUDFLARE/PROTON
+PROVIDER SETTINGS RECORDED" Active State entry. Update 2026-09-08 (E2B3): the
+operator resolved that conflict (E1's no-analytics decision stands; Cloudflare
+Web Analytics is enabled today and must be verified off before publication —
+not yet done) and set a tiered contact-email retention target (30 days spam,
+12 months routine, 24 months privacy/security), recorded as operator policy,
+not automated Proton enforcement — see the "E2B3 ANALYTICS AND
+EMAIL-RETENTION DECISIONS RECORDED" Active State entry. **E2 remains IN
+PROGRESS; still none of the four legal drafts is written.**
 Finishing E0-E6 is not itself permission to reopen the tunnel, which remains
 its own separate, later authorization — see "Tunnel reopening" below. The
 order remains load-bearing: exposure must stay verified before anything is
@@ -3762,8 +7232,12 @@ entry below. **E1 is now complete: every bullet below is a closed decision,
 not an open one.** Completing E1 does **not** complete Gate 2 (other Gate 2
 items — product-readiness audits, etc. — remain unchecked) and does not
 launch the site; it only closes the operator-decision phase. The next phase,
-E2, is **NOT STARTED** and, per operator instruction, must begin in a fresh
-Codex session rather than continuing this one.
+E2, was **NOT STARTED** at the time this entry was written, and per operator
+instruction was to begin in a fresh Codex session rather than continuing this
+one. **Update 2026-09-08 (E2A, that fresh session): E2 is now IN PROGRESS —
+fourteen operator policy decisions were recorded, but none of the four Gate 2
+legal drafts has been written.** See the "E2A OPERATOR DECISIONS RECORDED"
+Active State entry and the "### E2." subsection below.
 
 - Domain owner, registrar, renewal date, billing owner, recovery contact, and
   MFA status — **documented 2026-09-07**, from operator-supplied Cloudflare
@@ -3907,12 +7381,38 @@ Codex session rather than continuing this one.
   implementation work. See the "E1K FINAL OPERATOR DECISIONS RECORDED"
   Active State entry for full evidence.
 
-### E2. Gate 2 legal drafts, plus optional early Gate 3 web work — NOT STARTED
+### E2. Gate 2 legal drafts, plus optional early Gate 3 web work — IN PROGRESS
 
 Requires: the relevant E1 decisions (at minimum the privacy/data-use
-disclosures).
+disclosures) — **satisfied, E1 is complete.** **Update 2026-09-08 (E2A):** the
+operator recorded the fourteen outstanding policy decisions this phase needed
+(public identity, governing law/venue, children/age posture, reuse terms,
+request verification/outcomes, recordings, GitHub disclosure, asset
+provenance, Cloudflare/Proton conditional wording, effective date, revision
+notice, contacts, and the player-name operator-attestation) — see the "E2A
+OPERATOR DECISIONS RECORDED" Active State entry. **This moves E2 from NOT
+STARTED to IN PROGRESS. None of the four Gate 2 legal drafts below has been
+written** — E2A recorded decisions to inform the drafts, it did not draft,
+review, or approve any of them. **Update 2026-09-08 (E2B2):** operator-
+supplied Cloudflare and Proton dashboard settings were recorded as evidence
+for decision 10's conditional wording — see the "E2B2 CLOUDFLARE/PROTON
+PROVIDER SETTINGS RECORDED" Active State entry. That entry surfaced an
+unresolved conflict (Cloudflare Web Analytics is enabled on the zone, which
+contradicts the approved no-analytics launch decision) and an open question
+(contact-email retention policy) that must be settled by the operator before
+the privacy policy and data-collection policy drafts can be finalized. **This
+does not add a fifth Gate 2 draft or check any checkbox; the same four drafts
+below remain unwritten.** **Update 2026-09-08 (E2B3):** the operator resolved
+both open questions — see the "E2B3 ANALYTICS AND EMAIL-RETENTION DECISIONS
+RECORDED" Active State entry. The E1 no-analytics decision is preserved;
+Cloudflare Web Analytics remains enabled today and must be verified off
+before publication (not yet done, and not performed by that session). A
+tiered contact-email retention target (30 days spam, 12 months routine, 24
+months privacy/security) was adopted as operator policy, not as an automated
+Proton control. **Still no fifth Gate 2 draft, no checked checkbox; the same
+four drafts below remain unwritten.**
 
-**Gate 2 requires only drafts**, informed by E1:
+**Gate 2 requires only drafts**, informed by E1 (and now E2A/E2B2):
 
 - privacy policy draft;
 - data-collection policy draft (gamertags, statistics, accounts, server/IP
