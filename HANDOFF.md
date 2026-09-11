@@ -409,6 +409,74 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E3H MAIN-PC `pass`/GPG CREDENTIAL-STORE FOUNDATION INSTALLED — no Proton credential, unlock persistence untested, E3 still unactivated (2026-09-11)
+
+Narrowly scoped, separately authorized **mutating** session acting on §17.6's
+provisional recommendation and on §17.7's operator inputs — inputs 1-3
+**implemented and setup-tested**, input 4 (Proton account label and plan tier)
+**separately recorded as operator-supplied**, without authenticating or
+contacting Proton: built the minimum `pass`/GnuPG foundation for the
+still-unauthorized §10 scratch experiment, on the main PC (`Sierra-November`)
+only. **Three authorized mutation groups:** installed
+`pass` **1.7.4-6** plus its strict `Depends:` `tree` **2.1.1-2ubuntu3.24.04.2**
+via the existing apt config with `--no-install-recommends` (`0 upgraded, 2
+newly installed, 0 to remove and 37 not upgraded` — real transaction matched
+the preflight simulation exactly; no index update, no general upgrade,
+`git`/`qrencode`/`xclip`/`wl-clipboard` correctly excluded); generated **one**
+dedicated passphrase-protected GPG key — UID exactly `EANHL Proton Drive
+scratch credential store` with no email and no comment, `future-default` →
+`ed25519` primary `[SC]` fingerprint
+`6FE53745252DE62F3306F5A297CF8A451B68AEED`, **expires 2027-09-11**, with a
+`cv25519` `[E]` encryption subkey (`88C2731EAAF3F27F381F0229C6E5FD61DA904A2E`,
+capability `e`, no independent expiry of its own); and ran `pass init` against
+that fingerprint, creating `~/.password-store` (0700) whose `.gpg-id` (0600)
+holds that one fingerprint and nothing else. Encryption capability was
+verified before `pass init`. The store was provably absent immediately before
+creation, so it is session-created and project-exclusive.
+
+**The operator personally typed both the `sudo` password and the GPG
+passphrase at an interactive prompt in their own terminal.** No batch mode,
+loopback pinentry, env var, file, or command argument was used, and no
+passphrase-less key was created; the agent never requested, received, printed,
+recorded, or transcribed either secret. Carry forward: the agent's shell has
+no controlling TTY and this host has only `pinentry-curses`, so these two
+steps cannot be agent-driven and must be split out of any future session.
+
+**Zero entries exist and no Proton credential exists** — no test secret was
+inserted, nothing was decrypted, exported, or displayed. No shell profile,
+`gpg.conf`, `gpg-agent.conf`, cache-TTL tuning, systemd unit, automatic
+unlock, persistent Proton environment variable, or private-key export/backup
+was created. **No `proton-drive` command was executed** and no Proton account
+was contacted. GnuPG's own automatic revocation certificate at
+`~/.gnupg/openpgp-revocs.d/6FE5…AEED.rev` is recorded as a side effect (not
+read) and belongs to the rollback surface.
+
+**Unlock persistence remains entirely untested** across terminal closure,
+idle, logout, or reboot, and **U1 remains open** — U1 is about Hotel-Echo
+unattended reboot persistence and no Hotel-Echo access occurred. Proton
+account: the **primary Proton account**; **current plan Proton Unlimited**;
+Mail Plus is **only being considered, not selected**, and no plan change is
+authorized or decided. With that recorded, **all four §17.7 operator inputs
+are now satisfied for the current account and current plan** — recording input
+4 verified nothing about the account, which was never contacted, and **any
+future plan change would require restating and revalidating the plan-tier and
+capacity preconditions.** **Any downgrade requires remeasuring available quota
+and recalculating E1D's conservative ~350 GiB model (C3/R3) before approval**,
+since plan tier also changes A5's version limits per §10.1. Full preflight
+table, apt transaction, key metadata, store verification, rollback
+implications, and evidence classification:
+[`docs/planning/proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md)
+§18.
+
+**Only two files changed:** this entry and that memo. `E3 remains unactivated;
+the §10 scratch experiment remains separately unauthorized and unstarted; this
+is not the production Hotel-Echo credential-backend decision.` No database,
+backup, encryption, deployment, scheduling, retention, restore, or tunnel
+action occurred. No Gate checkbox changed. `HEAD`/`origin/main` unchanged at
+`6b7b8c7b61fc1b42d031526ba2265b622e3b8dbd`. Working tree and index were clean
+at session start; the index remained empty throughout. Nothing was staged,
+committed, or pushed.
+
 ### 🟡 E3F MAIN-PC CREDENTIAL-STORE FEASIBILITY REVIEWED, READ-ONLY — E3 still unactivated (2026-09-11)
 
 Read-only, separately authorized feasibility review (no installs, no config,

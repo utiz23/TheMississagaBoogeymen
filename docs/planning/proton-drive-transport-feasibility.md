@@ -1390,3 +1390,245 @@ this memo and the `HANDOFF.md` E3F Active State entry. Nothing was staged,
 committed, or pushed. `E3 remains unactivated; the §10 scratch experiment's
 authorization status is unchanged and it has not started.` No Gate checkbox
 changed. `HEAD`/`origin/main` unchanged at `e655c1301179bec664322664d395be8398635046`.**
+
+## 18. E3H update (2026-09-11, mutating session): main-PC `pass`/GPG credential-store foundation installed and initialized, no Proton contact
+
+A narrowly scoped, separately authorized **mutating** session that built the
+minimum `pass`/GnuPG foundation §17.4 identified, on this host only. It acts
+on §17.6's provisional recommendation and on §17.7's operator inputs: inputs
+1-3 were **implemented and setup-tested** on this host, and input 4 — the
+Proton account label and plan tier — was **separately recorded as
+operator-supplied** (§18.8). Recording input 4 is a documentation act only: it
+did **not** authenticate Proton, contact Proton, or verify the account, and no
+Proton credential was created. The §10 scratch experiment remains separately
+unauthorized and unstarted, and this is still not the production Hotel-Echo
+credential-backend decision.
+
+**Host identity.** Main PC (`Sierra-November`) only, same host as §15-§17.
+Repository baseline at session start: `main`, working tree clean, index empty,
+`HEAD` = `origin/main` = `6b7b8c7b61fc1b42d031526ba2265b622e3b8dbd`.
+
+**18.1 Preflight, read-only, before any mutation.** All seven checks passed and
+no stop condition was triggered.
+
+| # | Check | Result |
+| --- | --- | --- |
+| 1 | Repository baseline | `main`; `HEAD` = `origin/main` = `6b7b8c7`; `git status --short` empty; index empty. |
+| 2 | Host | `hostname` and `/etc/hostname` both `Sierra-November`. |
+| 3 | `pass` absent | Not on `PATH`; `dpkg -s pass` → "not installed and no information is available". Confirms §17.2 still held. |
+| 4 | `~/.password-store` absent | `ls -ld` → "No such file or directory"; `PASSWORD_STORE_DIR` unset, so the default path applied. |
+| 5 | UID collision | The keyring was **completely empty** — `gpg --list-keys` and `gpg --list-secret-keys` both returned nothing, and `gpg --list-keys "EANHL Proton Drive scratch credential store"` returned "error reading key: No public key". A collision was therefore impossible. Only metadata was listed; **no key material was read or exported** (consistent with §17.2's 32-byte empty `pubring.kbx`). |
+| 6 | apt simulation | `apt-get install --no-install-recommends -s pass` reviewed in full (§18.2). |
+| 7 | Stop conditions | **None present** — no removals, no downgrades, no unrelated upgrades, nothing beyond `pass` and its strict dependency. |
+
+**18.2 Authorized mutation 1 — package installation.** The existing apt
+configuration was used unchanged; the package index was **not** updated and no
+general upgrade was run. The real transaction matched the simulation exactly:
+
+```
+The following NEW packages will be installed:
+  pass tree
+0 upgraded, 2 newly installed, 0 to remove and 37 not upgraded.
+Need to get 81.9 kB of archives.
+After this operation, 242 kB of additional disk space will be used.
+```
+
+- `pass` **1.7.4-6** (`noble/universe`, `all`) — `dpkg -S /usr/bin/pass` → `pass`;
+  `pass --version` reports `v1.7.4`.
+- `tree` **2.1.1-2ubuntu3.24.04.2** (`noble-updates/universe`, `amd64`) — pulled
+  in as a strict `Depends:` of `pass` (`Depends: gnupg, tree`), **not** a
+  recommend. `gnupg` was already satisfied by the existing GnuPG 2.4.4.
+- Recommends were correctly excluded by `--no-install-recommends`: `git`,
+  `qrencode`, `xclip`, `wl-clipboard`. Suggests were not installed.
+- The **37 held-back upgrades were left untouched**; no unrelated package
+  changed state.
+- A cosmetic `debconf: unable to initialize frontend: Dialog … falling back to
+  frontend: Readline` notice appeared (terminal too small); it affected
+  presentation only, and both packages report `install ok installed`.
+
+**18.3 Authorized mutation 2 — one dedicated GPG key.** Generated with
+`gpg --quick-generate-key "EANHL Proton Drive scratch credential store"
+future-default default 1y`. Passing `future-default` for algo **and**
+`default` for usage is the documented way to obtain a primary key *and* an
+encryption subkey while still specifying an expiry — supplying an algo or
+usage in any other combination creates a primary key with no subkey, which
+would have failed the encryption-capability requirement. Non-secret metadata
+only:
+
+| Item | Value |
+| --- | --- |
+| UID | `EANHL Proton Drive scratch credential store` — exact, **no email address, no comment** |
+| Primary fingerprint | `6FE53745252DE62F3306F5A297CF8A451B68AEED` |
+| Primary algorithm | `ed25519` (`future-default` on GnuPG 2.4.4) |
+| Primary capabilities | `[SC]` — sign + certify (colon field `scESC`; the uppercase `ESC` is the whole-key rollup including the subkey's `E`) |
+| Created | 2026-09-11 18:20:09 UTC |
+| **Expires** | **2027-09-11 18:20:09 UTC** (1 year, as authorized) |
+| Encryption subkey | `cv25519`, `[E]`, fingerprint `88C2731EAAF3F27F381F0229C6E5FD61DA904A2E`, colon capability field `e` |
+| Subkey expiration | **None of its own** — the colon `expires` field is empty. The subkey carries no independent expiration timestamp; the 1-year bound is enforced by the primary key's 2027-09-11 expiry. This is stock `--quick-generate-key` behaviour, recorded as observed rather than "corrected" — no second key was improvised. |
+| Keyring totals after generation | exactly **1** primary public key and **1** secret key; no other key exists on this host |
+| Owner trust | `[ultimate]` (automatic for a locally generated key); `trustdb` was created/checked by GnuPG itself, next check due 2027-09-11 |
+
+**Encryption capability verified** before `pass init`: the subkey reports
+capability `e` in `--with-colons` output and `[E]` in human-readable output.
+The stop condition in the authorization ("if it does not, stop; do not
+improvise another key") was therefore not reached. No test encryption or
+decryption was performed — the capability flags are authoritative.
+
+**Passphrase handling.** The key is passphrase-protected. **The operator typed
+the passphrase directly at the interactive `pinentry` prompt.** No batch mode,
+no `--pinentry-mode loopback`, no `--passphrase`/`--passphrase-fd`/
+`--passphrase-file`, no environment variable, no file, no command argument,
+and no passphrase-less key. The agent never requested, received, printed,
+recorded, or transcribed it. The same applies to the `sudo` password in §18.2.
+
+**Side effect recorded for completeness:** GnuPG automatically created
+`~/.gnupg/openpgp-revocs.d/` and stored a revocation certificate at
+`~/.gnupg/openpgp-revocs.d/6FE53745252DE62F3306F5A297CF8A451B68AEED.rev`. This
+is stock GnuPG behaviour on key creation, not a deliberate act of this session;
+the file was **not read, opened, copied, or exported**. It is secret-adjacent
+(it can revoke the key) and belongs to the rollback surface in §18.7.
+
+**18.4 Authorized mutation 3 — password-store initialization.**
+`pass init 6FE53745252DE62F3306F5A297CF8A451B68AEED` → `mkdir: created
+directory '/home/michal/.password-store/'` and `Password store initialized for
+6FE53745252DE62F3306F5A297CF8A451B68AEED` (exit 0). The store was confirmed
+absent immediately before the call, so it is provably session-created and
+project-exclusive — which is the precondition §17.4's rollback note required.
+
+| Item | Verified state |
+| --- | --- |
+| Path | `~/.password-store` (default; `PASSWORD_STORE_DIR` unset) |
+| Directory mode/owner | `drwx------` (0700), `michal:michal` |
+| `.gpg-id` | mode `-rw-------` (0600), **one line**, containing exactly `6FE53745252DE62F3306F5A297CF8A451B68AEED` and nothing else |
+| Entries | **Zero.** `pass ls` prints only the `Password Store` header; `find ~/.password-store -name '*.gpg'` returns 0 files. |
+| `pass git` | Not initialized — no `.git` directory in the store. |
+
+**No entry of any kind exists, and no Proton credential exists.** No test
+secret was inserted, no `pass insert`/`generate` was run, and nothing was
+decrypted, exported, or displayed.
+
+**18.5 Deliberately not done.** No shell profile, `.bashrc`, `.profile`,
+`gpg.conf`, or `gpg-agent.conf` was written or modified — in particular no
+`default-cache-ttl`/`max-cache-ttl` tuning and no `pinentry-program` line (both
+files remain absent). `GPG_TTY` was exported inline in the operator's own
+interactive shell for the single key-generation command only; it was **not**
+persisted anywhere. No systemd unit, no automatic-unlock mechanism, no
+persistent Proton environment variable (including
+`PROTON_DRIVE_CREDENTIALS_STORE`), and no GPG private-key export or backup.
+No `proton-drive` command was executed — not `auth`, not `filesystem`, not
+`version`, not `help`.
+
+**18.6 What this does and does not settle.**
+
+- **Settled:** the `pass` backend's *installability and initialization* on this
+  host — §17.4's "missing packages/components" gap is now closed, the
+  key-generation UX is demonstrated, and `pass init` works against a dedicated
+  encryption-capable key. §17.7 operator inputs 1-3 are satisfied by this
+  session's implementation and setup test, and input 4 is satisfied by the
+  operator-supplied account label and plan tier recorded in §18.8 — so **all
+  four §17.7 operator inputs are now satisfied for the current account and
+  current plan.** That satisfaction is scoped to the account and plan as
+  stated: it rests on the operator's statement, not on any verification
+  against Proton.
+- **Not settled — unlock persistence remains completely untested.** Nothing in
+  this session exercised `gpg-agent` cache behaviour across terminal closure,
+  idle, logout, or reboot, on this host or any other. §17.4's cache-TTL
+  discussion remains reasoned-from-documentation, not measured. **U1 remains
+  open**, and this session does not narrow it beyond §17's narrowing: U1 is
+  about *Hotel-Echo* unattended reboot persistence, and no Hotel-Echo access
+  occurred here.
+- **Not settled:** a `PROTON_DRIVE_CREDENTIALS_STORE=pass` round-trip through
+  the CLI, which requires Proton authentication and is unauthorized.
+- **Conditional, not permanent:** a future plan change would require
+  restating and revalidating the plan-tier and capacity preconditions before
+  the §10 experiment could proceed on the new plan — see §18.8. Mail Plus
+  remains **only under consideration**, not selected.
+
+**18.7 Rollback implications (stated, not performed).** Nothing was rolled
+back and no rollback is authorized by this memo. The surface this session
+created is:
+
+1. **Packages.** `apt remove pass` plus, separately, `tree`. `tree` is a
+   general-purpose utility that other software or the operator may want
+   independently, so it must not be removed reflexively with `pass`; both
+   removals need the dependency-impact review and separate authorization
+   §17.4 already required.
+2. **The password store.** `~/.password-store` is provably session-created,
+   project-exclusive, and empty apart from `.gpg-id` (§18.4), so it is the one
+   artifact §17.4's caveat clears for wholesale deletion — but only while that
+   remains true. Once any entry exists, the narrower rule reapplies.
+3. **The GPG key.** Deleting it
+   (`gpg --delete-secret-and-public-key 6FE53745252DE62F3306F5A297CF8A451B68AEED`)
+   still requires separate explicit authorization. The dedicated UID and the
+   provably empty prior keyring (§18.1 check 5) make "not used by anything
+   else" straightforward to establish here, which was not the case in §17.4.
+4. **The revocation certificate.** `~/.gnupg/openpgp-revocs.d/6FE5…AEED.rev`
+   would be orphaned by any key deletion and should be removed with it. It is
+   not stock-and-shared like the `gpg-agent` socket files — it is specific to
+   this key.
+5. **Nothing else.** `gpg-agent` socket-activation files, `~/.gnupg` itself,
+   and the trustdb are stock GnuPG and need no cleanup.
+
+**18.8 Proton account and plan — recorded, unchanged, and load-bearing.**
+
+- Account: the **primary Proton account** — the §10.1 / §17.7-input-4 account
+  label, now supplied by the operator and recorded here. Recording it
+  satisfies input 4 for this account; it **did not authenticate, contact, or
+  otherwise verify the Proton account**.
+- **Current plan: Proton Unlimited.**
+- The operator is **considering Mail Plus**, but **no plan change is authorized
+  or decided**, and nothing in this session assumes one. Mail Plus is a
+  candidate under evaluation, not a selection.
+- **A downgrade is not a neutral billing change for this work.** Any move off
+  Proton Unlimited would alter available Drive quota and therefore invalidate
+  the capacity arithmetic this transport design rests on. Before any such
+  downgrade is approved, the operator must (a) **remeasure the actual
+  available quota** on the resulting plan and (b) **recalculate E1D's
+  conservative ~350 GiB retained-capacity model** (§6's C3, upheld against the
+  rejected 140 GiB figure in R3, and referenced in §15's headroom comparison)
+  against that remeasured quota. Plan tier also changes A5's version limits
+  per §10.1, so the §10 experiment's own preconditions would need restating.
+  None of that has been done, and no plan change is being recommended here.
+
+**18.9 Evidence classification for this section.**
+
+- **Directly observed this session (command output):** every value in §18.1-
+  §18.4 — preflight state, the apt simulation and the real transaction,
+  `dpkg-query` versions, `pass --version`, `dpkg -S` ownership, all GPG
+  metadata via `--list-keys`/`--with-colons`/`--with-subkey-fingerprint`,
+  the `pass init` result, and the store's permissions, `.gpg-id` content, and
+  zero-entry state.
+- **Official primary source, consulted this session:** the local `gpg(1)`
+  manual page's `--quick-generate-key` text, which is why `future-default` +
+  `default` was used (§18.3).
+- **Operator-supplied, recorded not verified:** the Proton account label, the
+  current Proton Unlimited plan, and the Mail Plus consideration (§18.8). No
+  Proton account was contacted, so none of this was confirmed against Proton.
+- **Explicitly untested:** all unlock-persistence behaviour (§18.6); every
+  Proton CLI interaction; everything Hotel-Echo-specific.
+- **Operational fact worth carrying forward:** the agent's own shell has no
+  controlling TTY (`tty` → "not a tty"), and this host has only
+  `pinentry-curses` with no GUI pinentry installed. Both the `sudo` step and
+  the `pinentry` step therefore had to be run by the operator in their own
+  terminal and cannot be agent-driven under the standing passphrase rules.
+  Any future session touching this store must plan for that split.
+
+**Three authorized mutation groups occurred: `pass` (and its strict
+dependency `tree`) was installed; one dedicated passphrase-protected GPG key
+was generated, including GnuPG's documented subordinate side effects (the
+encryption subkey, the automatic revocation certificate, and the trustdb,
+each recorded in §18.3); and `~/.password-store` was initialized to that
+key's fingerprint. The package, keyring, and password-store side effects are
+itemized in §18.2-§18.4 and in the §18.7 rollback surface. No entry was
+inserted and no Proton credential exists. No passphrase or secret was
+requested, received, printed, recorded, transcribed, or placed in a command
+argument; nothing was decrypted, exported, or displayed. No Proton
+authentication and no Proton Drive operation occurred, and no `proton-drive`
+command was executed. No Hotel-Echo access occurred. No database, backup,
+encryption, deployment, scheduling, retention, restore, or tunnel action
+occurred. Unlock persistence remains untested and U1 remains open. Only two
+files changed: this memo and the `HANDOFF.md` E3H Active State entry. Nothing
+was staged, committed, or pushed. `E3 remains unactivated; the §10 scratch
+experiment remains separately unauthorized and unstarted.` No Gate checkbox
+changed. `HEAD`/`origin/main` unchanged at
+`6b7b8c7b61fc1b42d031526ba2265b622e3b8dbd`.**
