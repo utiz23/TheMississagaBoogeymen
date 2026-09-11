@@ -409,6 +409,64 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E3D MAIN-PC SECONDARY-STORAGE INSPECTED, READ-ONLY — U10 partially resolved; corrected same-day by E3D1; E3 still unactivated (2026-09-10)
+
+Read-only inspection session on the main PC (`Sierra-November`, confirmed via
+`hostname`, not Hotel-Echo). Measured `/`, `/var/tmp`, `/mnt/c`, and `/mnt/k`
+with `findmnt`/`df -B1`/`stat -f`/`/proc/mounts`, and the candidate destination
+path `/mnt/k/eanhl-backups/prod` and its ancestors with metadata-only `stat`
+(no listing or reading of any artifact contents; neither `eanhl-backups` nor
+`prod` exists). A same-day E3D1 correction pass fixed this entry's DrvFS
+ownership/permission claims against official Microsoft documentation and
+added independent Windows-side capacity corroboration; both sessions' record
+lives in one place. Full detail, tables, and evidence-classification
+breakdown:
+[`docs/planning/proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md)
+§15 (U10's row in §9 also updated).
+
+**Headline findings, corrected:** `/mnt/k` is an 8 TB 9p/drvfs mount over the
+Windows `K:` drive with ~1.46 TiB free. Its Linux `df` figures are now
+**independently corroborated** by a single authorized read-only Windows-side
+query (`Get-Volume -DriveLetter K`), which returned byte-for-byte identical
+total/available figures from a separate subsystem. Neither `/mnt/c` nor
+`/mnt/k` carries the WSL `metadata` mount option. Per Microsoft's documented
+DrvFS behavior, the `uid=1000;gid=1000` mount option is the **default**
+ownership applied to files that carry **no WSL metadata** — it does not
+unconditionally pin every path regardless of NTFS state. For a no-metadata
+file, removing all write bits with `chmod` sets the Windows read-only
+attribute; it does not otherwise create per-UID POSIX separation.
+Because the candidate path doesn't exist yet and the mount lacks `metadata`,
+any path created **under the current configuration** would get that
+no-metadata/default-ownership behavior — which does not demonstrate the
+distinct transport/acceptor ownership `backup-acceptance.md` §6.1 requires.
+That is a narrower, documentation-grounded conclusion than "the mount forever
+forecloses ownership separation": **at least two remedies exist, neither
+approved or tested here** — (a) remount/configure DrvFS with `metadata`,
+deploy distinct Linux identities, and run an authorized cross-identity
+write/permission test, or (b) use a native Linux filesystem/private ownership
+layout. The acceptor's own code remains potentially reusable per C13; no
+acceptable main-PC destination deployment has been selected or proven.
+`/mnt/k`'s free capacity is ~299× the explicitly non-production 5 GiB example
+ceiling and ~4.3× E1D's conservative ~350 GiB estimate — an arithmetic
+comparison only, **not** a production ceiling approval (U5 remains separately
+open).
+
+**U10 status: PARTIALLY RESOLVED, unchanged by the correction** — capacity is
+now measured and independently corroborated; destination-directory selection,
+an ownership-separation deployment (either remedy above), Unix permission
+enforcement (unproven for both without an authorized write test), and a
+production capacity ceiling all remain open.
+
+**Only two files changed, across both sessions:** this memo and this entry.
+No code, configuration, example JSON, test, or dependency changed; no
+directory or file was created on any candidate volume; no Proton, Hotel-Echo,
+or tunnel action occurred; no sudo, install, mount, permission, ownership, or
+WSL-setting change occurred; the one authorized read-only Windows-side query
+made no change; nothing was staged, committed, or pushed; no Gate checkbox
+changed. `HEAD`/`origin/main` unchanged at
+`cc99d3dbe368b27bc4088b096f6d52d3958e5f9f`. **E3 remains verified in isolation
+only and unactivated.**
+
 ### 🟡 E3C2 EXPLICIT PRODUCER CIPHERTEXT CEILING IMPLEMENTED — locally verified in isolation only; E3 still unactivated (2026-09-10)
 
 Implementation session, following E3C1B's contract-shape decision. Added a

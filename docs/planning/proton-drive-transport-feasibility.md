@@ -461,7 +461,7 @@ Ranked by how much each blocks a defensible E3 transport design. All are
 | U7 | **Large-file upload behaviour**: resumability, interruption handling, partial-object visibility, and whether a reader can distinguish "mid-upload" from "complete" (the cloud analogue of `backup-producer.md` §2.5 completion) | Determines whether partial-arrival handling is even expressible against Proton | §10 steps 4, 6 |
 | U8 | **Name-collision semantics** at Proton for an identical remote name with different content (`--conflict-strategy`), against `backup-producer.md` §7 requirements 4-5 | Determines whether the destination collision rule can be honoured remotely | §10 step 7 |
 | U9 | Whether **quota reporting is available to the CLI** in a machine-readable form | Continuous capacity monitoring (an explicit E3 requirement) depends on it | §10 steps 3, 9-11 |
-| U10 | Main-PC secondary storage: **actual backing-volume capacity and filesystem properties** (C8) — *settleable without Proton* | Decides whether the existing acceptor is reusable there | A read-only main-PC inspection session, separately authorized **[REPO]** |
+| U10 | Main-PC secondary storage: **actual backing-volume capacity and filesystem properties** (C8) — *settleable without Proton* | Decides whether the existing acceptor is reusable there | **Partially resolved by E3D (§15):** capacity and filesystem identity are now measured — `/mnt/k` is a 9p/drvfs mount reporting real physical NTFS free space. Destination-directory selection, ownership separation, Unix permission enforcement, and a production capacity ceiling remain open. **[REPO]** |
 | U11 | Official-CLI maturity and change risk: how the CLI tracks Proton's announced end-2026/early-2027 cryptographic-model migration, and what a forced-upgrade window looks like in practice (constraint 11) | A client left on the previous cryptography stops interoperating after the migration; the CLI itself is not pre-release, but this trajectory is unproven | Mandatory ongoing monitoring of Proton's CLI release notes/changelog **[OFFICIAL]** |
 
 ---
@@ -676,3 +676,264 @@ authentication, key generation, deployment, scheduling, retention/pruning,
 restore drill, or tunnel action occurred; nothing was committed or pushed; no
 Gate checkbox changed. See `HANDOFF.md`'s E3C2 Active State entry for the full
 verification record.
+
+---
+
+## 15. E3D update (2026-09-10, later same-day session, corrected same-day by E3D1): main-PC secondary-storage inspection, U10 partially resolved
+
+A read-only inspection session, separately authorized, executed the U10
+protocol this memo asked for (§9). **This update does not reopen or redo the
+research above; it records read-only measurements taken on the main PC
+afterward, and is intentionally narrow.** Documentation edits were made only
+to this memo and to `HANDOFF.md`. No code, configuration, example JSON, test,
+or dependency changed; no directory or file was created on any candidate
+volume; no sudo, install, mount, permission, or ownership change occurred; no
+Proton, Hotel-Echo, or tunnel action occurred.
+
+**E3D1 correction note.** A same-day follow-up session corrected this
+section's DrvFS ownership/permission claims against official Microsoft
+documentation (source below) and added independent Windows-side capacity
+corroboration. All measurements below are unchanged; §15.5 and §15.6 were
+rewritten, §15.3 was narrowed to remove an unsourced explanation, and §15.2
+gained the Windows-side corroboration. The correction is folded into this
+section rather than appended as a new one, per the operator instruction that
+authorized it.
+
+**Official source for this section.** [Microsoft Learn — "File Permissions
+for WSL"](https://learn.microsoft.com/en-us/windows/wsl/file-permissions),
+retrieved 2026-09-10. This is a separate citation from §12, which lists only
+the Proton sources E3B/E3B2 used; it is not retroactively added to that list
+or claimed as part of E3B's original source set.
+
+**Host identity.** Confirmed on the main PC (`hostname`: `Sierra-November`),
+not Hotel-Echo. `uname`: `Linux Sierra-November 6.6.87.2-microsoft-standard-WSL2
+... x86_64`.
+
+**15.1 Mount facts, measured 2026-09-10 (all read-only: `findmnt`, `df -B1`,
+`stat -f`, `/proc/mounts`).**
+
+| Path | Mount point | Source | fstype | Key options |
+| --- | --- | --- | --- | --- |
+| `/` | `/` | `/dev/sdd` | `ext4` | `rw,relatime,discard,errors=remount-ro,data=ordered` |
+| `/var/tmp` | `/` (same mount as above — no separate mount point) | `/dev/sdd` | `ext4` | same as `/` |
+| `/mnt/c` | `/mnt/c` | `C:\` | `9p` | `rw,noatime,aname=drvfs;path=C:\;uid=1000;gid=1000;...` |
+| `/mnt/k` | `/mnt/k` | `K:\` | `9p` | `rw,noatime,aname=drvfs;path=K:\;uid=1000;gid=1000;...` |
+
+`/proc/mounts` corroborates all four rows verbatim. `/mnt` itself (device
+`8,48`) is on the same ext4 root as `/` — `/mnt/k` (device `0,75`) is a
+distinct mount starting exactly at `/mnt/k`. **Neither mount carries the
+`metadata` option** — significant for §15.5/§15.6 below.
+
+**15.2 Capacity, `df -B1` (byte-exact), independently corroborated from
+Windows:**
+
+| Path | Total | Used | Available |
+| --- | --- | --- | --- |
+| `/` and `/var/tmp` | 1,081,101,176,832 B (~1.08 TB) | 80,890,929,152 B | 945,217,892,352 B (~945 GB) |
+| `/mnt/c` | 998,610,300,928 B | 973,909,393,408 B | 24,700,907,520 B (~24.7 GB) |
+| `/mnt/k` | 8,001,545,039,872 B (~8.00 TB) | 6,395,760,930,816 B | 1,605,784,109,056 B (~1,495.7 GiB / ~1.46 TiB) |
+
+This reproduces the known WSL trap: `/` reports ~945 GB free on the ext4 root,
+while `/mnt/c` independently reports only ~24.7 GB free. **The claim that the
+ext4 root is backed by a sparse VHDX located on the `/mnt/c` NTFS volume is
+prior repository-derived evidence** (`backup-producer.md` §2.7, measured
+2026-09-05 at 21.08 GB free on `/mnt/c`), **not independently re-verified by
+this E3D session** — this session did not inspect the VHDX file itself or its
+location. The two `/mnt/c` free-space readings (21.08 GB then, 24.7 GB now)
+are consistent with ordinary disk-usage fluctuation over five days, not a
+re-proof of the VHDX claim.
+
+**`/mnt/k` capacity was independently corroborated from the Windows side.**
+A single read-only PowerShell query, authorized for this correction pass —
+`Get-Volume -DriveLetter K | Select-Object DriveLetter,FileSystemType,Size,SizeRemaining`
+— returned `FileSystemType: NTFS`, `Size: 8001545039872`,
+`SizeRemaining: 1605784109056`. **These figures are byte-for-byte identical**
+to the Linux `df -B1` total and available figures above. No Windows setting,
+mount, file, or configuration was read, changed, or created beyond this one
+query. This upgrades the capacity claim for `/mnt/k` from "consistent with a
+prior documented finding" to **independently corroborated by two separate
+subsystems (Linux 9p/drvfs client and Windows Storage Management)
+agreeing exactly** — still not proof of anything about ownership,
+permissions, or long-term stability, which are separate questions addressed
+below.
+
+**15.3 `stat -f` (filesystem-level).** `/` and `/var/tmp` report `Type:
+ext2/ext3` (ext4's family) with the same filesystem ID
+(`f301562d842a3e8b`), confirming they are the same backing filesystem. `/mnt/c`
+and `/mnt/k` both report `Type: v9fs` with **`Inodes: Total: 999  Free:
+1000000`** (`files=999`, `ffree=1000000` in `statvfs` terms) — free exceeds
+total, which is internally incoherent and not usable for any capacity or
+inode-exhaustion decision. **This is the full factual observation.** The
+prior E3D draft additionally asserted that these are "protocol placeholder"
+values returned because 9p/drvfs "does not expose genuine POSIX `statvfs`
+inode semantics" — that explanation is not supported by the Microsoft source
+consulted for this correction pass (§15's citation covers file permissions,
+not `statvfs` inode reporting) and is **removed** rather than kept as an
+unsourced inference. The only claim this memo now makes is that the reported
+figures are incoherent and must not be used for capacity decisions; §15.2's
+byte-level `df`/`Get-Volume` figures are the capacity evidence, not this
+table.
+
+**15.4 Candidate path metadata — `/mnt/k/eanhl-backups/prod` and ancestors.**
+Only `/mnt/k` exists; `/mnt/k/eanhl-backups` and
+`/mnt/k/eanhl-backups/prod` do not exist (consistent with the example
+config's `destination.dir` being proposed, not deployed). No directory or
+file was created to check this. Two read-only `stat` observations of
+`/mnt/k`, 3 seconds apart, returned identical `Device: 0,75`,
+`Inode: 1407374883553287`, and mode `0777 (drwxrwxrwx)`, `Uid/Gid: 1000/1000
+(michal)`. **This is a limited point-in-time indication that `st_dev`/`st_ino`
+did not change across one short interval — it does not demonstrate stability
+across a reboot, a remount, drvfs cache eviction, or a Windows-side change to
+`K:\`, and is not claimed as such.**
+
+**15.5 Whether `/mnt/k` enforces the Unix permission semantics
+`backup-acceptance.md` §6.1/§6.7 requires: UNPROVEN for the current
+configuration, corrected against Microsoft's documented DrvFS behavior.**
+The prior draft claimed the `uid=1000;gid=1000` mount option "pins every
+path" on `/mnt/k` unconditionally. **That overstates it.** Per Microsoft's
+"File Permissions for WSL": DrvFS determines a file's UID/GID/mode from one
+of two sources — (a) if the file carries no WSL metadata, DrvFS translates
+the mounting Windows user's *effective* access into identical `r/w/x` bits
+for user, group and other, and sets UID/GID to the mount's default (here,
+1000/1000, from the `uid=`/`gid=` mount options), or (b) if the file *does*
+carry WSL metadata (four NTFS extended attributes: `$LXUID`, `$LXGID`,
+`$LXMOD`, `$LXDEV`), DrvFS reads the stored UID/GID/mode from that metadata
+instead. Metadata storage and interpretation require the `metadata` mount
+option, which §15.1 shows **is absent from the current `/mnt/k` mount**.
+
+Applied to this specific candidate: `/mnt/k/eanhl-backups` and
+`/mnt/k/eanhl-backups/prod` **do not exist yet** (§15.4), so there is no
+existing metadata to inherit either way. Because the current mount lacks
+`metadata`, any path created under the **current configuration** — right now,
+without a remount — would receive the no-metadata/default-ownership
+behavior: uniform effective-permission bits and the mount's default uid/gid,
+not a distinguishable per-file owner. **The current configuration therefore
+does not demonstrate the distinct Linux transport/acceptor ownership model
+`backup-acceptance.md` §6.1 requires** — not because the mount option
+"pins" ownership in some absolute sense, but because nothing in the present
+mount configuration would produce differentiated ownership for newly created
+paths. Whether enabling `metadata` and deploying distinct Linux identities
+would produce that differentiation is addressed in §15.6 as an unproven
+candidate, not settled here.
+
+**Mode-bit language, corrected.** Per the same source, for a no-metadata
+file: displayed permissions are *derived from* the Windows user's effective
+access (not stored per-file), and `chmod` has only one documented effect —
+removing all write bits sets the Windows "read only" attribute; it does not
+otherwise grant or restrict access, and does not create per-UID separation.
+(With metadata enabled, `chmod` can change stored metadata, but Microsoft
+documents that actual access is still bounded by the real Windows user's
+permissions underneath — "you cannot give yourself more access than what you
+have on Windows, even if the metadata says that is the case.") **The current
+mount therefore provides no evidence, in either direction, of the per-UID
+POSIX write separation §6.1 requires for newly created no-metadata paths.**
+This is a documented-behavior conclusion, not a write test, and it does not
+by itself prove or disprove what a *metadata-enabled, redeployed* mount would
+do — that remains a separately authorized, actually-performed cross-identity
+write/permission test (§15.6), consistent with this session's prohibition on
+performing one.
+
+**15.6 Acceptor reusability on `/mnt/k`, per §8 constraint 12 / C13,
+corrected.** The prior draft concluded a native Linux filesystem was the only
+remedy. **At least two candidates exist, neither approved here, both
+requiring separate authorization and empirical deployment proof:**
+
+a. **Remount/reconfigure DrvFS with the `metadata` mount option, deploy
+   distinct Linux transport/acceptor identities with differentiated
+   permissions on the resulting paths, and run an actual cross-identity
+   write/permission enforcement test.** Per §15.5, metadata storage would let
+   DrvFS report distinguishable per-path UID/GID/mode, but Microsoft's
+   documented interoperability constraint (metadata cannot grant more access
+   than the underlying Windows user actually has) means this candidate's
+   real enforcement behavior is unproven until deployed and tested — it is
+   not automatically equivalent to native Linux permission enforcement.
+b. **Use a native Linux filesystem/private ownership layout** (e.g., an
+   ext4-formatted disk or partition exposed directly to WSL, not a
+   `drvfs`/9p mount of the Windows `K:` drive) — the candidate the prior
+   draft named.
+
+Neither candidate is approved, chosen, or deployed by this memo. What is
+established is narrower: **the `/mnt/k` mount *as currently configured* (no
+`metadata` option, nothing deployed) does not demonstrate the ownership
+separation §6.1 requires**, independent of which remedy is eventually chosen.
+This is a statement about the current mount, not about the acceptor's own
+code — `backup-acceptance.md`'s destination acceptor component itself
+remains, per C13, potentially reusable once *some* deployment (either
+candidate above) demonstrates the required filesystem and permission
+properties. No such deployment has been selected or proven yet.
+
+**15.7 Capacity arithmetic — comparison only, no production ceiling
+approved.** `/mnt/k` available (~1,495.7 GiB, independently corroborated by
+§15.2) is:
+
+- **~299×** the explicitly non-production 5 GiB (`5368709120`) example
+  ceiling recorded in E3C2/§14.
+- **~4.3×** E1D's conservative ~350 GiB retained-capacity estimate.
+
+This is an arithmetic comparison of measured free space against two existing
+figures. **It does not approve a production `staging.maxCiphertextBytes` /
+`acceptance.maxCiphertextBytes` value** — that remains U5's open half (§14),
+unrelated to main-PC capacity and requiring a measured production dump
+series, a growth allowance, Proton-side headroom, and competing-quota
+accounting.
+
+**15.8 Evidence classification for this section, corrected.**
+
+- **Factual measurements (E3D, 2026-09-10):** every `findmnt`, `df -B1`,
+  `stat -f`, `/proc/mounts`, and `stat` result in §15.1/§15.3/§15.4.
+- **Independently corroborated (E3D1, 2026-09-10):** `/mnt/k`'s capacity —
+  the Windows-side `Get-Volume -DriveLetter K` result matches the Linux
+  `df -B1` result byte-for-byte (§15.2).
+- **Repository-derived facts, not re-verified this session:** the WSL
+  ext4-root/VHDX `df` trap and the claim that the VHDX backing it lives on
+  `/mnt/c` (`backup-producer.md` §2.7, measured 2026-09-05); the §6.1/§6.7
+  deployment-assumption tables (`backup-acceptance.md`); the proposed
+  `destination.dir` path (`eanhl-backup.example.json`).
+- **Official documentation (E3D1):** DrvFS's no-metadata-vs-metadata
+  ownership/mode model and `chmod`'s documented limited effect without
+  metadata (Microsoft Learn, "File Permissions for WSL," cited above).
+- **Reasonable inferences:** that the current `/mnt/k` mount configuration
+  (no `metadata` option, nothing deployed) would not produce differentiated
+  per-path ownership for newly created files, applying the documented
+  no-metadata behavior to this specific, still-nonexistent candidate path.
+- **Properties still requiring a mutating deployment/permission test:**
+  whether a `metadata`-enabled remount plus deployed distinct Linux
+  identities actually enforces cross-identity write separation in practice;
+  rename atomicity and fsync semantics on `/mnt/k` (already flagged
+  unassertable in `backup-producer.md` §2.7); `st_dev`/`st_ino` stability
+  across a reboot, remount, or drvfs cache eviction; whether a native
+  Linux-filesystem deployment resolves the ownership-separation problem more
+  simply than a `metadata` remount would.
+
+**U10 status: PARTIALLY RESOLVED — unchanged by this correction.** The
+unknown as literally worded — "actual backing-volume capacity and filesystem
+properties" — is measured and, for capacity specifically, now independently
+corroborated from two subsystems (§15.2): `/mnt/k` is an 8 TB 9p/drvfs mount
+with ~1.46 TiB free. What the unknown's "why it blocks" column actually
+asks — **whether the existing acceptor is reusable there** — is **not**
+resolved: destination-directory selection, an ownership-separation deployment
+(either candidate in §15.6), Unix permission enforcement (unproven for both
+candidates without an authorized write test), and a production capacity
+ceiling all remain open. The acceptor's own code remains potentially
+reusable per C13; no acceptable main-PC destination deployment has been
+selected or proven.
+
+**Remaining decisions and tests, not performed here:** choose and create the
+actual candidate directory (mutating; not done); decide between the two
+§15.6 candidates — a `metadata`-enabled DrvFS remount with distinct Linux
+identities, or a native Linux filesystem/private ownership layout — or
+select a different main-PC volume entirely; perform the prohibited
+cross-identity write/permission test needed to settle enforcement, once a
+deployment target is chosen; a production ciphertext ceiling decision (U5,
+unrelated to this session); and, separately, Hotel-Echo-side transport work,
+which this session did not touch.
+
+**No Proton, Hotel-Echo, or tunnel action occurred. No database query, dump,
+restore, ciphertext, encryption, or key work occurred. No Docker/container
+mutation occurred. No directory or test file was created on any candidate
+volume. No permission, ownership, mount, filesystem, or WSL setting changed.
+No sudo, install, deployment, scheduling, retention, pruning, or activation
+occurred. The one authorized read-only Windows-side query (`Get-Volume`) made
+no change. Nothing was staged, committed, or pushed. `E3 remains verified in
+isolation only and unactivated.` No Gate checkbox changed. See `HANDOFF.md`'s
+E3D Active State entry for a pointer to this section.**
