@@ -409,6 +409,47 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E3F MAIN-PC CREDENTIAL-STORE FEASIBILITY REVIEWED, READ-ONLY — E3 still unactivated (2026-09-11)
+
+Read-only, separately authorized feasibility review (no installs, no config,
+no keys, no auth) comparing the Proton Drive CLI's `keychain` and `pass`
+credential-store backends for the still-unauthorized §10 scratch experiment,
+on the main PC only. Host confirmed as Ubuntu 24.04.4 LTS under WSL2 with
+`systemd=true` genuinely running (not just the bare kernel). Findings: no
+Secret Service provider is installed or registered for `keychain`
+(`gnome-keyring` is one available provider candidate; `libsecret-tools` is
+optional diagnostic/client tooling, not itself the required provider); for
+`pass`, only the `pass` package itself is missing (GnuPG 2.4.4 and
+`pinentry-curses` are already present); the session D-Bus bus is usable but
+no Secret Service provider is registered on it; `gpg-agent`'s
+socket-activation files exist, and the permitted metadata-only inspection
+found no evidence of a usable local GPG key (`pubring.kbx` is a 32-byte
+empty-keybox header, no identities listed) — a usable existing key was not
+established. Provisional recommendation, for the bounded main-PC scratch
+experiment only (not Hotel-Echo, not production): `pass`, narrowly favored
+on dependency gap and documented (if untested) unlock mechanics over
+`keychain`'s unproven auto-unlock story on a WSL2 host with no
+display-manager login. gpg-agent cache persistence across logout/reboot is
+reasoned, not tested: closing a terminal doesn't necessarily stop the agent,
+an in-memory cache can't survive a reboot, and logout behavior depends on
+untested user-manager/lingering/WSL-instance conditions. Full detail,
+per-candidate breakdown (missing components, unlock behavior, headless
+limitations, security risks, exact setup mutations, rollback, main-PC-vs-
+Hotel-Echo scope), and required operator inputs:
+[`docs/planning/proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md)
+§17 (§9's U1 row also updated, not resolved).
+
+**Only two files changed:** this memo and this entry. No package was
+installed, no key was generated, no password store was initialized, no
+credential-store backend was started or configured, no Proton command ran.
+`E3 remains unactivated; the §10 scratch experiment remains separately
+unauthorized and unstarted; this is not the production Hotel-Echo
+credential-backend decision.` No Gate checkbox changed. `HEAD`/`origin/main`
+unchanged at `e655c1301179bec664322664d395be8398635046`. Working tree and
+index were clean at session start; the index remained empty throughout.
+After documentation, the working tree contained only `HANDOFF.md` and
+`docs/planning/proton-drive-transport-feasibility.md`.
+
 ### 🟡 E3E OFFICIAL PROTON DRIVE CLI INSTALLED, NO AUTHENTICATION — E3 still unactivated (2026-09-10)
 
 Narrowly scoped host-change session, separately authorized: downloaded the

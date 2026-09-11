@@ -452,7 +452,7 @@ Ranked by how much each blocks a defensible E3 transport design. All are
 
 | # | Unknown | Why it blocks | Settled by |
 | --- | --- | --- | --- |
-| U1 | Whether the CLI can run **unattended across reboots** on Hotel-Echo — which credential backend survives, for how long, what triggers re-auth, and what a headless Linux service sees | Without this there is no 6-hourly automated Proton path at all; every other design choice is downstream | **Only partially informed, not settled, by §10** — the scratch protocol (step 8) can test non-interactive reuse of an already-authenticated session only on the machine used for that experiment, which is not necessarily Hotel-Echo and exercises no Hotel-Echo reboot. Hotel-Echo reboot persistence requires a separate, host-specific session with explicit authorization for Hotel-Echo access, CLI installation/configuration if applicable, credential-store work, reboot/idle observation, and operator-performed Proton authentication. |
+| U1 | Whether the CLI can run **unattended across reboots** on Hotel-Echo — which credential backend survives, for how long, what triggers re-auth, and what a headless Linux service sees | Without this there is no 6-hourly automated Proton path at all; every other design choice is downstream | **Only partially informed, not settled, by §10.** The scratch protocol (step 8) can test non-interactive reuse of an already-authenticated session only on the machine used for that experiment, which is not necessarily Hotel-Echo and exercises no Hotel-Echo reboot. Hotel-Echo reboot persistence requires a separate, host-specific session with explicit authorization for Hotel-Echo access, CLI installation/configuration if applicable, credential-store work, reboot/idle observation, and operator-performed Proton authentication. **§17 (2026-09-11) adds read-only main-PC credential-backend feasibility findings** (package/process gaps for both the `keychain` and `pass` backends, and their unlock-persistence behavior as documented, not tested) — this narrows what setup would require but settles nothing: no backend is installed, the permitted metadata-only inspection found no evidence of a usable local GPG key (an empty `pubring.kbx`, no identities listed), and U1 remains open. |
 | U2 | Whether a **full triple readback** through the CLI reproduces byte-exact content and both hash bindings (C2) | Cloud acceptance cannot be designed, let alone claimed, without it | §10 steps 4-6 |
 | U3 | **Permanent-delete / empty-trash / quota-release** behaviour end to end, including the three-hour lag and its residual (A4, A6) | Retention and pruning are blocked on it (C10); capacity monitoring is unreliable without it | §10 steps 9-11 |
 | U4 | **Version-history behaviour** on this account's plan, and whether unique-named artifacts avoid version accumulation entirely (A5) | Determines whether quota grows with rewrites; interacts with C12 | §10 steps 7, 11 |
@@ -1098,3 +1098,295 @@ staged, committed, or pushed. `E3 remains unactivated; the §10 scratch
 experiment remains separately unauthorized and has not started.` No Gate
 checkbox changed. See `HANDOFF.md`'s E3E Active State entry for a pointer to
 this section.**
+
+---
+
+## 17. E3F update (2026-09-11, read-only session): main-PC credential-store feasibility for the §10 scratch experiment
+
+A narrowly scoped, **read-only** session, separately authorized, evaluated
+which Proton Drive CLI credential-store backend (`keychain` or `pass`; not
+`unsafe_file`, which stays rejected) is more defensible for the still-
+unauthorized §10 scratch experiment, on this host only. **This session did
+not install, configure, initialize, authenticate, generate keys, or modify
+any host state.** No Proton command was executed, including `version`,
+`help`, `auth`, or `filesystem` — this update does not repeat or extend §16's
+smoke test. No existing personal GPG key was inspected, listed, or selected;
+`gpg --list-secret-keys` was never run; no password-store entry, key
+identity, fingerprint, UID, or recipient was listed. This is not the
+production Hotel-Echo credential-backend decision, and it claims no
+unattended-reboot persistence for either candidate.
+
+**Host identity.** Main PC (`Sierra-November`), same host as §15-§16, now
+confirmed as **Ubuntu 24.04.4 LTS** under WSL2, `x86_64`, with **`systemd=true`**
+in `/etc/wsl.conf` and `systemctl is-system-running` reporting `degraded`
+(some pre-existing unit failure, not investigated — out of scope) rather than
+`offline`, i.e. this WSL instance genuinely runs systemd as PID 1, not just
+the bare WSL2 kernel. Repository baseline unchanged at `e655c13`
+(`HEAD` = `origin/main`); the working tree and index were clean at session
+start, `HEAD` and `origin/main` remained unchanged throughout, and the index
+remained empty. After documentation, the working tree contained only
+`HANDOFF.md` and this memo.
+
+**17.1 Sources read this session** (in addition to §12 and §16.1, neither of
+which this retroactively joins):
+
+- https://proton.me/support/drive-cli — re-read for credential-store content;
+  confirms the browser-based `auth login` flow but does not itself enumerate
+  `PROTON_DRIVE_CREDENTIALS_STORE` values. **[OFFICIAL]**
+- https://raw.githubusercontent.com/ProtonDriveApps/sdk/main/cli/README.md —
+  fetched **raw** via direct HTTPS (not only through a summarizing pass) and
+  read in full (114 lines); this is the authoritative source for the table in
+  §17.2 below and is quoted verbatim where load-bearing. **[OFFICIAL]**
+- https://www.passwordstore.org/ — `pass` requires GnuPG and a GPG key;
+  `pass init "<Key ID>"` creates `~/.password-store`; entries are individual
+  GPG-encrypted files. Says nothing about non-interactive/headless decryption.
+  **[OFFICIAL]**
+- https://www.gnupg.org/documentation/manuals/gnupg/Invoking-GPG_002dAGENT.html
+  and .../Agent-Options.html — `gpg-agent` is started on demand by `gpg`/
+  `gpgconf`/etc., not manually; a proper `pinentry` program must be installed
+  or configured via `pinentry-program`; `GPG_TTY` must be exported and kept
+  current for terminal-based `pinentry` to work; default passphrase-cache
+  `--default-cache-ttl` is **600s** (resets on each access), default
+  `--max-cache-ttl` is **7200s / 2h** (hard ceiling regardless of activity).
+  Neither page documents cache behavior across terminal closure, logout, or
+  reboot. **[OFFICIAL]**
+- https://specifications.freedesktop.org/secret-service/latest/ — the Secret
+  Service is a D-Bus API (`org.freedesktop.Secret.Service`) implemented by a
+  provider such as GNOME Keyring or KWallet; the spec's own text says nothing
+  about headless/WSL-style sessions without a full desktop login. **[OFFICIAL]**
+- A web search surfaced (not officially authoritative, community reports,
+  **[INFER]**-adjacent, cited for the specific claim only):
+  https://github.com/microsoft/WSL/issues/10205 — reports that with
+  `guiApplications=true` (WSLg) enabled, some WSL2/Ubuntu configurations wipe
+  `/run/user/<uid>` (destroying systemd/D-Bus user-session sockets) on login;
+  workaround reported is `guiApplications=false`. This host has WSLg active
+  (see §17.2); this report was **not reproduced or tested** here — read-only
+  scope forbids it — and is recorded as an unresolved risk, not a confirmed
+  fact about this host.
+
+**17.2 Host findings, read-only, this session:**
+
+| Item | Finding |
+| --- | --- |
+| `secret-tool` / libsecret | Not on `PATH`; no `libsecret*` package installed (`dpkg -l`). Candidate `libsecret-tools` **0.21.4-1build3** is available from the existing local apt index (`noble/universe`) — install not attempted, index not updated. |
+| Secret Service provider | No `gnome-keyring`, `kwallet`, `keepassxc`, or `seahorse` package installed; `gnome-keyring-daemon` not on `PATH`. Candidate `gnome-keyring` **46.1-2ubuntu0.2** available from the existing local index (`noble-updates/main`). |
+| Session D-Bus | **Usable.** `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus`; `systemd --user` reports `State: running`, 202 units, 0 failed, up 3 days; `dbus-user-session` **1.14.10-4ubuntu4.1** already installed. A read-only `dbus-send … ListNames` against the session bus succeeded and returned only `org.freedesktop.DBus` and `org.freedesktop.systemd1` — **no Secret Service name (`org.freedesktop.secrets`) is currently registered**, consistent with no provider being installed. Nothing was started, unlocked, or modified to obtain this. |
+| System D-Bus | `/var/run/dbus/system_bus_socket` present; `dbus`/`dbus-user-session`/`systemd` **255.4-1ubuntu8.17** installed. |
+| WSLg (graphical layer) | Active on this host — `/run/user/1000/wayland-0` is a live symlink into `/mnt/wslg/runtime-dir/`. WSLg is one potentially relevant condition described by the WSL#10205 community report (§17.1); the report's other triggering conditions were not matched, and the report was not reproduced on this host. |
+| `pass` | Not on `PATH`; no `pass` package installed. Candidate **1.7.4-6** available from the existing local index (`noble/universe`). |
+| `gpg` | Present, unchanged from §16: **2.4.4** (`libgcrypt 1.10.3`). |
+| `gpg-agent` | Binary present (`/usr/bin/gpg-agent`); **no `gpg-agent` process currently running** (`pgrep` empty). Its systemd-socket-activation files already exist under `/run/user/1000/gnupg/` (`S.gpg-agent`, `S.gpg-agent.ssh`, `S.gpg-agent.extra`, `S.gpg-agent.browser`, `S.dirmngr`, `S.keyboxd`) — a first connection would auto-spawn it; nothing was connected to these sockets this session. |
+| pinentry | Only implementation registered via `update-alternatives` is **`pinentry-curses`** (`1.2.1-3ubuntu5`, TTY/curses-based). No GUI pinentry (`pinentry-gnome3`, `pinentry-qt`) is installed; both are available from the existing local index if ever wanted. |
+| `~/.gnupg` | Exists, mode `0700`, owner `michal:michal`, created 2026-09-03. Top-level listing only: `pubring.kbx` (32 bytes — an empty keybox header) and `trustdb.gpg`. **No key material was read, and no `gpg --list-secret-keys` or equivalent was run**; this listing is directory metadata, per scope. |
+| `~/.password-store` | Does not exist (`stat`: No such file or directory). |
+
+**17.3 Candidate A — `keychain` (libsecret / Secret Service).**
+
+- **Missing packages/components:** no Secret Service provider is installed
+  or registered on this host (§17.2). `gnome-keyring` is one available
+  provider candidate (the natural Ubuntu choice, not the only possible one —
+  `kwallet` and `keepassxc` are also viable Secret Service implementations
+  and were not ruled out, merely not installed either). `libsecret-tools` is
+  optional diagnostic/client tooling for the agent's own use (`secret-tool`
+  CLI); it is not itself the provider required by Proton's `keychain`
+  backend and is not a substitute for one. The session-bus prerequisite
+  (`dbus-user-session`, a running `systemd --user`) is **already satisfied**
+  — only the provider daemon itself is the gap.
+- **Required persistent process/session service:** a Secret Service provider
+  process registered on the session D-Bus as `org.freedesktop.secrets`, for
+  as long as the CLI needs to read the stored session. Nothing currently
+  provides that name (§17.2).
+- **Unlock behavior — UNKNOWN on this host, not tested.** GNOME Keyring's
+  usual "auto-unlock on login" path is driven by PAM integration with a
+  display-manager graphical login, which WSL2 does not provide by default
+  even with WSLg active; whether an equivalent unlock trigger exists or must
+  be arranged separately on this host is undemonstrated. Behavior across
+  terminal closure, idle, logout, and reboot is therefore unknown here, not
+  merely undocumented — it depends on a component (the provider daemon) that
+  isn't installed. The WSL#10205 `/run/user` wipe report (§17.1) is an
+  unreproduced community-reported risk, potentially relevant because WSLg is
+  enabled on this host, but it is not evidence that this host suffers the
+  defect.
+- **Browser auth without exposing the session to the agent:** yes,
+  structurally, and backend-independent — per the CLI README, `auth login`
+  opens a browser and "the CLI stores the session in the OS secret store"
+  itself; the agent driving the CLI process never receives the credential.
+  This is unverified end-to-end (no login has occurred) but is a property of
+  the CLI's own design, not of which Secret Service provider is installed.
+- **Headless/non-interactive limitations:** `secret-tool`/libsecret calls
+  need no TTY themselves, but they do need a *running, unlocked* collection
+  reachable over the session bus — achieving that without an interactive
+  unlock step, with no display-manager login on this host, is exactly the
+  open part above.
+- **Security risks:** standard Secret Service exposure (any process running
+  as the same Linux user with access to the session bus can query the
+  collection while unlocked) — no different in kind from any other Secret
+  Service consumer; the WSLg `/run/user` wipe report is a reliability risk
+  more than a confidentiality one, but an unexpectedly-recreated runtime
+  directory could also change which session bus a later process attaches to.
+- **Exact separately authorized mutations needed for setup:** `apt install
+  gnome-keyring` (and `libsecret-tools` if not pulled in transitively) via
+  `sudo`; then deciding and configuring how the provider daemon actually
+  starts and reaches "unlocked" state on this headless-login host (e.g. a
+  `systemd --user` autostart unit) — not scoped or approved here.
+- **Rollback/removal (implication, not executable authorization):** package
+  removal (`gnome-keyring` and, if installed, `libsecret-tools`) requires a
+  dependency-impact review — other installed software may share either
+  package — and separate authorization; it is not a bare `apt remove`. Any
+  keyring-file cleanup must target only a project-specific entry or keyring
+  provably created exclusively for this experiment; wholesale deletion of
+  `~/.local/share/keyrings/` is not recommended and is not scoped here.
+- **Main PC vs Hotel-Echo:** the main PC can prove the packages install and
+  an isolated `secret-tool store`/`lookup` round-trip works interactively
+  once a provider is running. It cannot prove unattended reboot/idle
+  persistence, and it cannot speak to Hotel-Echo's own systemd/D-Bus/WSLg
+  characteristics (unknown, out of scope, a distinct host per the task
+  framing).
+
+**17.4 Candidate B — `pass` (GnuPG-backed).**
+
+- **Missing packages/components:** only `pass` itself (**1.7.4-6**,
+  available, not installed). GnuPG (**2.4.4**) and a pinentry
+  (`pinentry-curses`) are already present — no GnuPG-side install gap.
+- **Required persistent process/session service:** `gpg-agent`, which is not
+  a manually-managed daemon here — its socket-activation files already exist
+  (§17.2) so a first `gpg`/`pass` invocation auto-spawns it; `pass` itself is
+  not a daemon, it shells out to `gpg` per call.
+- **Unlock behavior — documented cache mechanics, cross-boundary behavior
+  UNTESTED here.** Per the GnuPG manual (§17.1): `--default-cache-ttl` 600s
+  (resets per access), `--max-cache-ttl` 7200s/2h (hard ceiling). Neither
+  source documents what happens across terminal closure, logout, or reboot.
+  Reasoning from the mechanism (not verified this session): the cache lives
+  in the running `gpg-agent` process, so closing one terminal does not
+  necessarily stop it — a `gpg-agent` process launched independently of a
+  given terminal need not die with it. Cache entries are held in memory and
+  therefore cannot survive a machine reboot, which would require a fresh
+  interactive unlock. Whether a *logout* tears down the cache depends on
+  whether the user's `systemd --user` manager instance remains alive across
+  that logout — behavior that itself depends on factors such as lingering
+  configuration, session accounting, and WSL-instance lifecycle, none of
+  which this session inspected or tested. This reasoning is **not** the same
+  as a tested result, and logout behavior and the need/timing for a fresh
+  unlock remain unknown here.
+- **Browser auth without exposing the session to the agent:** same
+  backend-independent property as §17.3 — `auth login` is unchanged; the
+  `pass` backend only changes *where* the CLI writes the resulting session
+  (a GPG-encrypted `pass` entry instead of a keyring). Writing that entry
+  would itself trigger a `pinentry` passphrase prompt unless the key is
+  already cached.
+- **Headless/non-interactive limitations:** `pinentry-curses` is TTY-bound —
+  it needs `GPG_TTY` set and an attached terminal to prompt. A later
+  unattended (no-TTY) invocation can only succeed while `gpg-agent`'s live
+  cache still holds the passphrase (bounded by the TTLs above); a
+  non-interactive unlock method such as `--pinentry-mode loopback` with a
+  supplied passphrase is the standard alternative and is explicitly out of
+  scope/forbidden for this session.
+- **Security risks:** a real step up from `unsafe_file` — secrets are
+  GPG-encrypted at rest under `~/.password-store` — but decrypted material
+  still passes through `gpg`'s process memory and the `gpg-agent` cache
+  window; a compromised session during that window is the same general
+  exposure class as any local secret manager. The permitted metadata-only
+  inspection found no evidence of a usable existing key for this purpose:
+  `~/.gnupg`'s `pubring.kbx` is a 32-byte empty-keybox header, and no key
+  identities, fingerprints, UIDs, recipients, or secret keys were listed
+  (none were queried, per scope). A usable existing key was therefore not
+  established — this is not a claim that no key exists anywhere. Per the
+  task's own framing: a **new, dedicated, passphrase-protected**
+  encryption-capable key is preferable to any existing personal key for this
+  store; this review does not select or create one.
+- **Exact separately authorized mutations needed for setup:** `apt install
+  pass` (`sudo`); generation of a new dedicated GPG key (separately
+  authorized, operator-performed, passphrase never handled by the agent);
+  `pass init <new-key-id>` to create `~/.password-store`.
+- **Rollback/removal (implication, not executable authorization):** `apt
+  remove pass` requires the same dependency-impact review and separate
+  authorization as any package removal. Deleting all of `~/.password-store`
+  is not recommended unless it is proven session-created, project-exclusive,
+  and free of unrelated entries at deletion time; otherwise only the
+  project-specific Proton entry and any `.gpg-id` changes attributable to
+  this work should be removed. Deleting a GPG secret or public key
+  (`gpg --delete-secret-and-public-key`) requires separate explicit
+  authorization and proof that the dedicated key is not used by anything
+  else — it is not implied by this memo. `gpg-agent`'s socket-activation
+  files are stock GnuPG, not something this setup uniquely introduces, and
+  need no separate cleanup.
+- **Main PC vs Hotel-Echo:** the main PC can prove the package installs, the
+  key-generation UX, `pass init`, and a `PROTON_DRIVE_CREDENTIALS_STORE=pass`
+  round-trip, plus the interactive-unlock/cache-TTL behavior as it actually
+  presents (not just as documented). It cannot prove Hotel-Echo's own
+  systemd/session characteristics, whether Hotel-Echo will have any TTY/
+  pinentry path available for its eventual production role, or true
+  unattended-reboot persistence there — a distinct, separately authorized,
+  host-specific problem per the task framing and per U1.
+
+**17.5 Candidate C — `unsafe_file`.** Unchanged: remains rejected. The
+CLI's own README independently labels it "do not use, for testing only" —
+consistent with, not dependent on, the standing project prohibition.
+
+**17.6 Comparison and provisional recommendation.** Neither candidate can be
+exercised without an install mutation this session was not authorized to
+perform, so nothing here is a working setup. Between the two, for the
+**bounded main-PC scratch experiment only** (not Hotel-Echo, not
+production, not this session): **`pass` is the more defensible provisional
+choice.** Its package gap is narrower (only `pass`; GnuPG/pinentry already
+present), its unlock mechanics are at least officially documented (even if
+untested across the boundaries above), and it does not depend on a
+desktop-oriented keyring daemon whose auto-unlock story is unproven on a
+WSL2 host with no display-manager login, plus a secondary, unreproduced
+community report (WSL#10205) describing `/run/user` session-state loss in
+some WSLg-enabled configurations — potentially relevant since this host has
+WSLg enabled, but not evidence that this host suffers the defect, since the
+report's other triggering conditions were not matched or reproduced here.
+This is a provisional, main-PC-scoped judgment call, not a Hotel-Echo or
+production recommendation, and it claims no unattended-reboot persistence
+for `pass` either — that remains open per U1.
+
+**17.7 Operator inputs required before any setup:**
+
+1. Approval of the backend (this memo provisionally recommends `pass`, for
+   the bounded main-PC scratch experiment only).
+2. Whether a **new, dedicated** credential-store GPG key may be generated
+   (recommended over reusing any existing personal key; key creation itself
+   remains a separately authorized, operator-assisted step not performed
+   here).
+3. Operator-controlled passphrase entry/unlock — the operator, not the
+   agent, types the passphrase at the `pinentry-curses` prompt; the agent
+   must never receive, record, or transcribe it.
+4. The Proton account label and plan tier for the later §10 scratch
+   experiment (§10.1 already requires this and it is still unstated).
+
+**17.8 Evidence classification for this section.**
+
+- **Directly observed this session (command output, read-only):** every row
+  of §17.2 — package/binary presence and versions, D-Bus session state and
+  `ListNames` result, `gpg-agent` socket files, pinentry alternative,
+  `~/.gnupg`/`~/.password-store` metadata, OS/WSL/systemd identity.
+- **Official primary source, retrieved this session:** the CLI README's
+  environment-variable and credential-storage tables (§17.1, quoted in
+  §17.2-17.4); the GnuPG manual's cache-TTL defaults; the Secret Service
+  D-Bus spec's provider model; `passwordstore.org`'s `pass`/GnuPG dependency
+  description.
+- **Community report, not independently reproduced, cited narrowly for one
+  claim:** the WSL#10205 `/run/user` wipe behavior under `guiApplications=
+  true` — flagged as an open risk, not a confirmed fact about this host.
+- **Reasoned inference, not tested:** cache-persistence-across-logout/reboot
+  behavior for `gpg-agent` (§17.4) and the PAM/display-manager gap for
+  GNOME Keyring auto-unlock on WSL2 (§17.3) — both follow from documented
+  mechanisms but were not exercised.
+- **Explicitly unresolved, out of scope for this session:** actual
+  installation of either backend; actual unlock-persistence testing across
+  terminal closure, idle, logout, or reboot on any host; anything
+  Hotel-Echo-specific; every §10/§11 scratch-experiment unknown other than
+  the narrowing recorded above.
+
+**No package was installed or updated. No key was generated, imported, or
+exported. No password store was initialized. No keychain, Secret Service, or
+GPG-agent process was started, unlocked, or configured. No passphrase,
+credential, token, session, account, or recovery-code was handled. No Proton
+command was executed and no Proton account was contacted. No Hotel-Echo
+access occurred. No database, backup, encryption, deployment, scheduling,
+retention, restore, or tunnel action occurred. Only two files changed:
+this memo and the `HANDOFF.md` E3F Active State entry. Nothing was staged,
+committed, or pushed. `E3 remains unactivated; the §10 scratch experiment's
+authorization status is unchanged and it has not started.` No Gate checkbox
+changed. `HEAD`/`origin/main` unchanged at `e655c1301179bec664322664d395be8398635046`.**
