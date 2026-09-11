@@ -937,3 +937,164 @@ occurred. The one authorized read-only Windows-side query (`Get-Volume`) made
 no change. Nothing was staged, committed, or pushed. `E3 remains verified in
 isolation only and unactivated.` No Gate checkbox changed. See `HANDOFF.md`'s
 E3D Active State entry for a pointer to this section.**
+
+---
+
+## 16. E3E update (2026-09-10, later same-day session): official Proton Drive CLI installed and verified, no authentication
+
+A narrowly scoped host-change session, separately authorized, installed the
+official Proton Drive CLI standalone executable on the main PC and ran two
+local, non-authenticating smoke commands against it. **This update does not
+reopen or redo the research above; it records an install/verification action
+and is intentionally narrow.** Documentation edits were made only to this
+memo and to `HANDOFF.md`. No Proton account was contacted, authenticated, or
+accessed; no browser was opened; no credential, token, session, or account
+identifier was requested, received, printed, stored, or handled; no
+credential-store backend was configured; no key was generated; no Drive
+object was uploaded, downloaded, listed, created, trashed, deleted, shared,
+or inspected; the §10 scratch experiment was not started and remains
+separately unauthorized.
+
+**Host identity.** Main PC (`Sierra-November`, WSL2, `x86_64`), same host as
+§15. CPU: AMD Ryzen 5 3600X (`/proc/cpuinfo` reports `avx2`), so the official
+`linux/x64` artifact was selected over `linux/x64-baseline` per Proton's own
+selection guidance (baseline is only for AVX2-absent or `Illegal instruction`
+cases).
+
+**16.1 Official sources read this session, retrieved 2026-09-10** (in
+addition to §12's list, which this does not retroactively join):
+
+- https://proton.me/support/drive-cli — general usage documentation; does not
+  itself list version/artifact/checksum data.
+- https://proton.me/download/drive/cli/index.html — the authoritative
+  machine-readable release index. Fetched **twice**: once via an
+  intermediate summarization model (for a first orientation pass) and once
+  as **raw HTML via direct HTTPS** (`curl`), because a 128-hex-character
+  SHA-512 string is exactly the kind of value a summarization pass could
+  silently transcribe wrong, and only the raw fetch is treated as evidence
+  for the checksum used in verification. The two agreed byte-for-byte on the
+  `linux/x64` row.
+- https://github.com/ProtonDriveApps/sdk/tree/main/cli — read via the
+  summarization path only (no checksum-bearing content there); reports the
+  CLI is built with Bun from the Drive SDK, official releases are published
+  at `proton.me/download/drive/cli`, and documents the credential-related
+  environment variables in §16.5 below. **This paraphrase, unlike the raw
+  index fetch, is not independently re-verified byte-for-byte and should be
+  confirmed directly before being relied on.**
+
+**16.2 Published release, from the raw index fetch.** Version **0.8.0**,
+release date **2026-08-13** (`<title>Proton Drive CLI 0.8.0</title>`,
+`Last-Modified: Thu, 13 Aug 2026 05:43:40 GMT` on the index page itself).
+Selected artifact:
+
+| Platform | URL | SHA-512 |
+| --- | --- | --- |
+| `linux/x64` | `https://proton.me/download/drive/cli/0.8.0/linux-x64/proton-drive` | `cf61c2688c45e1055d8add6221d9471a5a5b64bf3bcdb86460f5cb18414596cc4df3cdb6627c9097c94bec32a3c9915ada3211ef2ae5be33c46ebbc996ccaa28` |
+
+(`linux/x64-baseline`, `linux/arm64`, `linux/arm64-musl`, `linux/x64-musl`,
+`macos/arm64`, `macos/x64`, `windows/arm64`, and `windows/x64` rows were also
+present on the index and read, but not selected or downloaded.)
+
+**16.3 Download and verification, in a single-use temp directory
+(`/tmp/proton-drive-e3e.<random>`, created this session, removed after
+successful install).** `curl -fSL` to the exact URL above returned a single
+direct `HTTP/2 200` from `proton.me` — no redirect hop, so provenance is the
+first-party host itself. Downloaded size: **117,946,496 bytes**
+(`Content-Length` matched actual bytes received). `sha512sum` of the
+downloaded file matched the table above **exactly**. `file` reported: `ELF
+64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked,
+interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, ... not
+stripped` — consistent with a genuine native Linux x64 executable, not a
+script, archive, or foreign-architecture binary. Only after this exact match
+was the temp copy marked executable.
+
+**16.4 Isolated smoke test, before install.** With `PROTON_DRIVE_CACHE_DIR`
+pointed at a fresh subdirectory of the same temp directory (so no state could
+land in the operator's home directories), the temp binary ran:
+
+- `proton-drive version` → `Proton Drive CLI cli-drive@0.8.0+06e8c605` /
+  `Proton Drive SDK js@0.21.0+06e8c605` / `You are running the latest
+  version.` — exit 0.
+- `proton-drive help` → printed the full command usage table (`auth`,
+  `filesystem`, `sharing`, `invitation`, `album`, `photo` subcommands) — exit
+  0.
+
+Neither command requested authentication, opened a browser, or contacted
+account state. The isolated cache directory was empty both before and after
+running both commands.
+
+**16.5 Install.** The verified temp binary was copied to a same-directory
+staging path, `chmod 0755`'d, and `mv`'d into place with a non-clobbering
+move (`mv -n`) — installed atomically to
+`/home/michal/.local/bin/proton-drive`, owner `michal:michal`, mode `0755`.
+No `sudo` was used; no package manager, shell profile, PATH, environment
+variable, mount, WSL setting, or repository code/config/test was touched.
+
+**16.6 Post-install reconfirmation.**
+
+- `command -v proton-drive` resolves to `/home/michal/.local/bin/proton-drive`
+  exactly (`~/.local/bin` was already on this shell's `PATH` beforehand — no
+  profile edit was made to achieve this).
+- `sha512sum` of the installed file equals the temp-binary hash and the
+  published checksum, all three identical.
+- With a second, separately created isolated `PROTON_DRIVE_CACHE_DIR`, the
+  **installed** binary's `version` and `help` output matched §16.4 exactly.
+- `find` over `~/.cache`, `~/.local/share`, `~/.local/state`, and `~/.config`
+  for any Proton/drive-SDK-named path returned nothing in all four locations
+  — no authentication or session state exists anywhere outside the isolated
+  temp cache directories used above.
+
+**16.7 Credential-store prerequisites — presence/version only, nothing
+configured or selected.** Per the GitHub SDK page's paraphrased description
+(§16.1), the default credential store is the OS keychain/secret-store
+(service id `ch.proton.drive/drive-sdk-cli`), with `pass` as a documented
+alternative and an explicitly unsafe plaintext-file mode this session was
+told never to use. Read-only findings on this host:
+
+| Tool | Result |
+| --- | --- |
+| `secret-tool` / libsecret | not found on `PATH`; no matching `dpkg` package |
+| `pass` | not found on `PATH` |
+| `gpg` | found, `gpg (GnuPG) 2.4.4` |
+
+No credential backend was initialized, configured, or selected as a result
+of this observation.
+
+**16.8 Cleanup.** The exact temp directory created in §16.3 was validated as
+a path matching `/tmp/proton-drive-e3e.*` before removal, then removed. No
+other path was deleted.
+
+**16.9 Evidence classification for this section.**
+
+- **Directly verified this session (byte-exact):** the `linux/x64` download
+  URL, size, and SHA-512, matched independently against a raw (non-summarized)
+  fetch of Proton's own release index; the installed file's hash against
+  both of those.
+- **Directly observed this session (command output):** `version`/`help`
+  output, `file` type, `command -v` resolution, absence of Proton state in
+  home cache/data/state/config directories, presence/version of
+  `secret-tool`/`pass`/`gpg`.
+- **Paraphrased secondary source, not independently re-verified byte-for-byte:**
+  the GitHub SDK page's description of Bun-based builds and the default
+  credential-store mechanism (§16.1, §16.7) — treat as orientation, confirm
+  directly (e.g. against the CLI's own `--help` output for the relevant
+  subcommand, or the SDK README) before depending on it.
+- **Explicitly unresolved, out of scope for this session:** authentication
+  behavior of any kind, session persistence, credential-store selection or
+  configuration, and every §10/§11 scratch-experiment unknown. Installing and
+  smoke-testing the CLI answers none of those; they remain exactly as open as
+  §10/§11 left them.
+
+**No Proton account was accessed, authenticated, or contacted. No Drive
+object was uploaded, downloaded, listed, created, trashed, deleted, shared,
+or inspected. No credential, token, session, or account identifier was
+requested, received, printed, stored, or handled. No credential-store
+backend was configured. No key was generated. No database, backup artifact,
+ciphertext, deployment, timer, retention, restore, or tunnel action occurred.
+No Hotel-Echo access occurred. No sudo, package-manager install, Bun install,
+or source build occurred. No shell profile, environment variable, mount, WSL
+setting, service, or repository code/config/test was modified. Nothing was
+staged, committed, or pushed. `E3 remains unactivated; the §10 scratch
+experiment remains separately unauthorized and has not started.` No Gate
+checkbox changed. See `HANDOFF.md`'s E3E Active State entry for a pointer to
+this section.**

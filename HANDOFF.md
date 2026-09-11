@@ -409,6 +409,36 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E3E OFFICIAL PROTON DRIVE CLI INSTALLED, NO AUTHENTICATION — E3 still unactivated (2026-09-10)
+
+Narrowly scoped host-change session, separately authorized: downloaded the
+official Proton Drive CLI **0.8.0** (`linux/x64`, released 2026-08-13) from
+`proton.me`'s own release index over a single direct HTTPS `200` (no
+redirect), verified its SHA-512 against a **raw** (non-summarized) fetch of
+that index — `cf61c268...ccaa28`, exact match — checked its size
+(117,946,496 B) and `file` type (genuine x86-64 ELF), then ran only
+`version`/`help` against it with an isolated temp `PROTON_DRIVE_CACHE_DIR`
+before installing. Installed atomically to
+`/home/michal/.local/bin/proton-drive` (mode `0755`, owner `michal`); hash,
+`command -v` resolution, and isolated smoke output reconfirmed post-install.
+No Proton account was contacted, authenticated, or accessed; no browser
+opened; no credential/token/session/account identifier was requested,
+received, or handled; no credential-store backend configured; no key
+generated; no Drive object touched. `secret-tool`/libsecret and `pass` were
+absent, `gpg` present (2.4.4) — presence/version only, nothing configured.
+Full detail and evidence classification:
+[`docs/planning/proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md)
+§16.
+
+**Only two files changed:** this memo and this entry. No code, configuration,
+test, or dependency changed; no sudo, package-manager install, Bun install,
+or source build occurred; no shell profile, PATH, mount, or WSL setting
+changed; the one-off temp directory used for download/verification was
+removed after successful install. Nothing was staged, committed, or pushed.
+`E3 remains unactivated; the §10 scratch experiment remains separately
+unauthorized and unstarted.` No Gate checkbox changed. `HEAD`/`origin/main`
+unchanged at `3d45ea2974aa78ab2bd62ddfaa8b2d7cb557b5f7`.
+
 ### 🟡 E3D MAIN-PC SECONDARY-STORAGE INSPECTED, READ-ONLY — U10 partially resolved; corrected same-day by E3D1; E3 still unactivated (2026-09-10)
 
 Read-only inspection session on the main PC (`Sierra-November`, confirmed via
