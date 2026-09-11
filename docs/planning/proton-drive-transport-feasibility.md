@@ -575,7 +575,7 @@ None of these should be decided now; each depends on an unknown above.
 | The remote retention/pruning design, and where pruning runs given `backup-producer.md` §7 requirement 8 | U3, U4 |
 | Whether a dedicated uploader identity is adopted, and the blast-radius model if not | U6 |
 | The remote naming scheme and folder layout | U4, U7, U8 |
-| The real production `maxPlaintextBytes` / `maxStagingBytes`, whether to add an explicit ciphertext ceiling, and the acceptor's `maxCiphertextBytes` | U5 |
+| The real production `staging.maxPlaintextBytes` / `staging.maxStagingBytes` / `staging.maxCiphertextBytes` / `acceptance.maxCiphertextBytes` numeric values — E3C2 (§14) resolved only the explicit ciphertext field/contract shape; the production numeric staging and artifact envelope remains undecided | U5 |
 | The main-PC secondary storage location and filesystem, and whether the existing acceptor is reused there | U10 |
 | The capacity-monitoring design and its alert thresholds | U3, U9 |
 | The CLI artefact and upgrade policy given the announced crypto change | U11 |

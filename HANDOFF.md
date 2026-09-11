@@ -8123,13 +8123,24 @@ policy decision:**
   headroom, and add continuous capacity monitoring — none of this exists yet,
   and the E1D provisional-sufficiency conclusion above does not substitute
   for it;
-- Proton Drive integration and account authentication — not started. The
-  2026-09-05 Active State record reported that `age` was absent and no
-  keypair existed on either host, and that no Proton integration had been
-  implemented in the repository. E1A performed no installation,
-  authentication, or key generation, but it also did not recheck either
-  host — current host installation state was not reverified during this
-  local-only, documentation-only session;
+- Proton Drive account authentication and integration — not started. No E3
+  agent or session has authenticated the Proton CLI or performed a project
+  Proton Drive operation, and no E3 backup or scratch object has been
+  uploaded, downloaded, listed, shared, trashed, or deleted. (E1D's 510 GB
+  free-space figure was operator-supplied account evidence only — not agent
+  access, CLI authentication, integration verification, or an E3 capacity
+  proof.) The official Proton Drive CLI (0.8.0) is now installed and
+  verified on the main PC (see the "E3E OFFICIAL PROTON DRIVE CLI INSTALLED,
+  NO AUTHENTICATION" Active State entry, 2026-09-10), but it is not
+  authenticated and no credential-store backend is configured — a read-only
+  feasibility comparison of the `keychain` and `pass` backends (see "E3F
+  MAIN-PC CREDENTIAL-STORE FEASIBILITY REVIEWED, READ-ONLY", 2026-09-11)
+  provisionally favors `pass` for a bounded main-PC scratch experiment only;
+  this is not a production or Hotel-Echo decision. Hotel-Echo CLI
+  installation and key generation remain untouched. The 2026-09-05 Active
+  State record reported that `age` was absent and no keypair existed on
+  either host, and E1A (2026-09-07) performed no installation,
+  authentication, or key generation on either host;
 - scheduling/activation: the producer has a CLI (`ops/backup/eanhl-backup.mjs`);
   the destination acceptor has no CLI/entry point; neither side has a
   deployed systemd unit or timer, and nothing is installed, configured, or
