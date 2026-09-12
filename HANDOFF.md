@@ -409,6 +409,234 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E3I §10 BOUNDED PROTON SCRATCH EXPERIMENT — OBSERVATION WINDOW CLOSED BY E3I3 (2026-09-12); protocol completed to the extent supported by Proton Drive CLI 0.8.0, with quota/account-residual work blocked; E3 still unactivated
+
+Separately authorized **mutating, Proton-contacting** session on the main PC
+(`Sierra-November`) executing the **authorized bounded §10 scratch experiment,
+to the extent supported by Proton Drive CLI 0.8.0**, against the **primary
+Proton account** (plan **Proton Unlimited**, unchanged throughout; the
+plan-freeze window has now passed). The +1 h observation was **missed**; the
++24 h observation **was completed late by E3I3** on 2026-09-12; the CLI exposes
+**no account-quota operation**, so the quota/A6 portion of §10 **cannot be
+completed** under the CLI-only protocol. **E3I is therefore closed only as
+*protocol completed to the extent supported by Proton Drive CLI 0.8.0, with
+quota/account-residual work blocked* — not as a successful quota experiment,
+and not as E3 activation.** Full evidence record:
+[`docs/planning/proton-drive-scratch-experiment.md`](docs/planning/proton-drive-scratch-experiment.md).
+
+**Preflight passed on all eight checks** with no stop condition triggered —
+clean tree at `5c2c7e3`, CLI SHA-512 an exact baseline match
+(`cli-drive@0.8.0`), `pass` 1.7.4, sole expected `.gpg-id`, **zero** store
+entries pre-auth. **The operator personally performed browser authentication
+and GPG passphrase entry**; authentication succeeded 2026-09-11T19:23:39Z. The
+agent never requested, received or recorded any credential, token, passphrase
+or account identifier, and all CLI output was redaction-filtered before
+leaving the mode-0700 `/tmp` experiment directory.
+
+**Executed:** one scratch folder `/my-files/eanhl-e3-scratch-20260911T192651Z`;
+four logical items as six physical synthetic random-byte files (373.0 MiB);
+full download and byte-exact SHA-256 readback; one collision test; targeted
+trash and targeted permanent deletion; complete cleanup. **Cumulative uploaded
+392,168,683 B = 374.0 MiB, under the 512 MiB ceiling.** No production data, no
+age key, no real artifact.
+
+**Disclosed boundary deviation (corrected by E3I2).** An earlier version of this
+entry claimed no pre-existing Drive object was touched. That was too broad. The
+U9 quota probe at 19:26:23Z ran `filesystem info /my-files --json`, and
+`/my-files` is a **pre-existing parent node**. Precisely: one pre-existing node
+received a **metadata-only `info` read**; **its children were never listed or
+inspected**; **no pre-existing child or trash object** was listed, read,
+downloaded, renamed, shared, trashed or deleted; **`/trash` was never
+enumerated**; **`empty-trash` was never run**; **no pre-existing object was
+mutated**. This is a **narrow read-only deviation from the literal
+authorization boundary, disclosed as such — not described as compliant**.
+
+**Findings.** **U2 SETTLED positive** — all six files byte-exact; both triple
+bindings re-established on the downloaded copy via the repository's own
+`verifyArtifactCompletion()` (`complete: true`). **U8 SETTLED positive** — a
+same-name/different-content upload with no strategy **fails closed**
+(`ValidationError`, exit 1, zero bytes): no hang, no silent overwrite or
+rename. **U4** — `create-new-revision` keeps one node and creates no duplicate
+name, but the **superseded revision remained represented in the node's storage
+metadata** and that node's reported `totalStorageSize` **doubled**
+(1,048,723 → 2,097,446). **Account-level quota charging was not measured**;
+unique per-run artifact names stay justified as avoiding this observed revision
+accumulation, and argue against any fixed "latest" name. **U7 PARTIALLY
+INFORMED** — the in-flight node was **absent from three listings sampled during
+this one 300 MiB upload** and appeared complete afterwards, which is
+encouraging evidence **for the tested case only**; atomic visibility across
+failures, interruptions, other sizes and other versions remains **unproven**.
+300 MiB up in 104 s, 373 MiB down in 164 s; **resumability is neither claimed
+by the CLI nor tested**. **U3** — targeted trash and targeted permanent delete
+both work per object; the trashed node **retained its reported per-node storage
+metadata**; targeted permanent deletion made the node **unresolvable** and the
+scratch per-node total fell by exactly that amount. **Account-level quota
+charging and release were not measured** and cannot be inferred from those
+per-node observations. **U1 partially informed** — the
+`pass`-stored session **is** reusable by a no-TTY, no-browser process with a
+brand-new empty cache, but only because `gpg-agent` was already unlocked by a
+human minutes earlier; unprimed, the backend **fails closed**. The single
+T+3 h 54 m main-PC observation found the cached key state **absent**; the
+exact disappearance time, continuous behavior during the interval, and
+whether idle TTL, agent restart, WSL lifecycle or another process event was
+the cause were **not measured**; terminal-closure-as-a-controlled-variable,
+logout, reboot and Hotel-Echo remain **untested**, so **U1 remains open**.
+
+**U9 RESOLVED NEGATIVE for CLI 0.8.0.** The question U9 asks — whether
+machine-readable quota reporting is available *through the CLI* — is answered:
+0.8.0 exposes **no quota/storage/usage/account operation**, and
+`filesystem info /my-files --json` carries **no account quota fields**. The
+capability is absent, and that absence is the finding. **Separate, still-open
+downstream matters:** account-level quota monitoring has **no CLI-based
+design**; **no pre-experiment quota baseline exists**; account-level quota
+release and the three-hour residual **cannot be measured** under the authorized
+CLI-only protocol, so the §10 quota-residual measurement cannot be performed as
+written; **A6 remains unanswered**; and any alternative provider/API/dashboard
+monitoring source requires **separate research and authorization**.
+
+**Cleanup verified** at +0 against only the 14 exact paths this session created
+— every tested exact path returned `Node not found` / `Trashed node not found`,
+so **no synthetic object remained addressable through the exact tested
+active/trash CLI paths**. That scope does **not** establish physical server
+erasure, hidden-revision erasure, account-quota release, or absence from any
+provider-internal retention layer. **E3I3 re-ran that same 14-path check at
+~25 h and got the same 14/14 not-found result**, with the identical
+limitation. Each observation was a **separate** session; no timer/cron/systemd/at
+job was ever created.
+
+**Observation schedule (final, after E3I3):**
+
+- **+1 h — 2026-09-11T20:44:25Z: MISSED.** Not run; **no evidence exists** and
+  none may be reconstructed or backfilled.
+- **+3 h — nominal 2026-09-11T22:44:25Z: attempted late, at
+  2026-09-11T23:38:38Z — BLOCKED.** Read-only session, CLI 0.8.0,
+  `PROTON_DRIVE_CREDENTIALS_STORE=pass`, fresh empty mode-0700 cache, no TTY,
+  `DISPLAY`/`WAYLAND_DISPLAY`/`GPG_TTY` unset, no reauthentication, no GPG
+  priming. `filesystem info /my-files/eanhl-e3-scratch-20260911T192651Z --json`
+  **failed closed, exit 1**: `Failed to load session in pass: gpg: public key
+  decryption failed`. A read-only `gpg-connect-agent 'keyinfo --list'` — a
+  **credential-agent/key-cache metadata query**, not a credential mutation —
+  then showed **no cached key state**, and no custom `~/.gnupg/gpg-agent.conf`
+  existed. So the cached key state was **absent by the T+3:54 observation**,
+  which is consistent with the documented default TTL and/or agent lifecycle;
+  **the exact time the cached state disappeared, the specific cause (idle TTL,
+  agent restart, WSL lifecycle or another process-lifecycle event), and its
+  continuous survival or non-survival across the interval were not measured.**
+  **The exact-path residual check could therefore not be performed**, and no
+  provider mutation occurred. The check remains available to the operator from
+  their own TTY with that same single command. **Bearing on U1:** the current
+  main-PC `pass` configuration is **insufficient for unattended six-hour
+  operation** unless the key is made available again, so production needs a
+  **separately designed service-compatible credential-access mechanism or a
+  different backend**. It is **not** established that `pass` will be the
+  Hotel-Echo backend, that Hotel-Echo specifically requires an
+  unlock-at-boot/idle implementation, or that any one particular remediation is
+  mandatory. **Hotel-Echo remains completely untested and U1 remains open.**
+- **+24 h — nominal 2026-09-12T19:44:25Z: observed late, at
+  2026-09-12T20:55:52Z (T+25 h 11 m 27 s from the anchor) — COMPLETED.**
+  Read-only session, CLI 0.8.0 SHA-512 an exact baseline match with the version
+  banner read **inside an isolated network namespace** (no network reachable).
+  **Unaided non-interactive credential test: NEGATIVE, exit 1** — no TTY, stdin
+  `/dev/null`, `DISPLAY`/`WAYLAND_DISPLAY`/`GPG_TTY` unset, fresh empty
+  mode-0700 cache; output **byte-identical** to the +3 h failure, and a
+  read-only `keyinfo --list` showed the secret keys present but **not cached**.
+  The observed terminal failure was a local GPG credential-decryption failure
+  (`gpg: public key decryption failed`, matching the +3 h output); the CLI
+  log contained **no HTTP/API/request indicator**, and **no provider request
+  was observed**. This **supports** that execution stopped during local
+  credential loading; because **no packet capture or equivalent network
+  trace was taken** for this attempt, **absolute absence of network contact
+  was not independently proven**. **Recorded separately — operator-assisted
+  unlock: POSITIVE.** The operator, in their own terminal, made the key
+  available and ran the same exact-path command, which returned `Node not
+  found`. **Disclosed method deviation:** the operator ran
+  `pass show <entry> > /dev/null`, priming `gpg-agent`, rather than answering
+  a `pinentry` prompt raised by `proton-drive` itself — a deviation from the
+  prescribed pinentry-triggered method. `pass` necessarily **decrypted the
+  stored entry** and **emitted it into a pipe directed to `/dev/null`**.
+  **The agent never ran `pass show`** and never received its output; the
+  plaintext was **not** displayed, transcribed, logged or recorded in the
+  repository or report. **No browser
+  authentication, reauthentication, session renewal or `auth login` occurred**
+  — the pre-existing session was accepted as-is ~25 h after creation. With the
+  agent warm, all **14 exact paths** were queried one at a time: **7 `Node not
+  found` + 7 `Trashed node not found` = 14/14 not-found; no path resolved**, so
+  no discrepancy branch was entered. **`/my-files`, `/trash` and every parent's
+  children were never enumerated, and no pre-existing node was addressed at
+  all** — unlike E3I1, this session has **no pre-existing-node deviation**.
+  **Disclosed network deviation.** An earlier `proton-drive --version` run
+  **outside** the isolated network namespace additionally printed `You are
+  running the latest version.`; that line was **absent** when the same
+  command ran **inside** the isolated network namespace (no network
+  reachable). This proves the extra output is **network-dependent** and is
+  **consistent with** an attempted update/version check on `--version`. **No
+  packet capture, destination/endpoint evidence, or payload evidence was
+  collected** for that invocation, so **the exact endpoint, whether any
+  request completed, and what — if anything — was exchanged were not
+  established**. Treat the outside-namespace invocation as **unintended
+  possible provider-adjacent network access**, disclosed as such — **not** as
+  a proven authenticated operation or Drive-object access. The authoritative
+  local CLI identity evidence remains the matching SHA-512 plus the version
+  banner obtained **inside** the isolated network namespace. **This proves only exact-path non-addressability
+  through the tested CLI paths at the actual observation time** — **not**
+  physical erasure, hidden-revision erasure, account-quota release, or absence
+  from any provider-internal retention layer. The one validated mode-0700
+  `/tmp` cache created by this session was removed and its absence confirmed;
+  one operator-created cache (`/tmp/e3i3-op-…`) was **left for the operator**.
+  A subsequent, explicitly authorized closure-hygiene session (**E3I4**,
+  2026-09-12) validated that path **by metadata only**, **did not inspect its
+  contents**, removed exactly that directory, and confirmed it no longer
+  exists.
+  **Provider command categories used: exactly one — read-only `filesystem
+  info`** (15 invocations: 14 agent, 1 operator), plus the unauthenticated
+  `--version` check. **Not done:** upload, create-folder, rename, copy, move,
+  restore, trash, delete, empty-trash, share, list/enumerate, download,
+  `auth login`/`auth logout`, reauthentication, credential removal, key
+  mutation, plan change.
+
+Because CLI 0.8.0 exposes **no account quota operation**, this was a
+**post-cleanup observation window**, not a quota observation window. The +24 h
+check tested **exact-path addressability and credential usability only**; it
+**did not complete A6 or measure quota release**, and could not, unless a
+non-CLI quota source is separately authorized — no browser, dashboard or
+undocumented API substitute was used. **E3I is therefore closed as *protocol
+completed to the extent supported by Proton Drive CLI 0.8.0, with
+quota/account-residual work blocked* — not as a successful quota experiment.**
+Standing dispositions after E3I3: **U1 only partially informed, Hotel-Echo
+completely untested**; **U3 partially informed** — account quota, physical
+erasure, hidden revisions and provider retention all **unmeasured**; **U9
+RESOLVED NEGATIVE for CLI 0.8.0**; **A6 unanswered**.
+
+**Local state deliberately left for a later explicit decision:** the encrypted
+Proton credential `ch.proton.drive/drive-sdk-cli/auth-session` (one `pass`
+entry) and the live Proton session — **no logout or revocation was performed**,
+as that is outside §10 — plus the GPG key, revocation certificate, store, CLI
+and packages. Disclosed contained incident: the operator pasted the one-time
+login-handshake URL into the session transcript; it was already consumed,
+carries no account identifier, and was kept out of the memo, repository and
+report. **Replayability was not tested and must not be tested** — treat the
+disclosed URL as sensitive session material, and the operator should clear that
+transcript/scrollback. **The +24 h observation has now completed, so
+logout/revocation, credential removal, key removal and package removal are
+now live — and still separate — operator decisions.** E3I3 preserved all of
+that local state deliberately.
+
+**Files changed by E3I1:** exactly two — this entry and that memo. **E3I2**
+(the +3 h observation and the corrections above) changed exactly three: this
+entry, that memo, and §9 of
+[`docs/planning/proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md),
+whose ranked-unknowns table was refreshed to stop presenting pre-E3H/E3I state
+as current. **E3I3** (the +24 h observation and this closure) changed the same
+three files and nothing else. **E3 remains unactivated**; this claims no production readiness, Hotel-Echo persistence,
+retention correctness or recoverability. No database, backup, encryption,
+deployment, scheduling, restore or tunnel action occurred. No Gate checkbox
+changed. `HEAD`/`origin/main` unchanged at
+`5c2c7e36af4cedd48b62f9fa891f3ffe6957907f` across all three sessions. E3I1
+began from a clean tree; **E3I2 and E3I3 began from the tree carrying the
+preceding session's unstaged E3I work, which they preserved**. The index was
+empty throughout all three. Nothing was staged, committed or pushed — the whole
+E3I record is still uncommitted working-tree state.
+
 ### 🟡 E3H MAIN-PC `pass`/GPG CREDENTIAL-STORE FOUNDATION INSTALLED — no Proton credential, unlock persistence untested, E3 still unactivated (2026-09-11)
 
 Narrowly scoped, separately authorized **mutating** session acting on §17.6's
