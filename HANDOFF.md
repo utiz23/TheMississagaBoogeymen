@@ -409,6 +409,101 @@ launch scope and it is not allowed to hold the terminal gate hostage.
 
 ## Active State
 
+### 🟡 E3J1 PROTON CLOUD TRANSPORT + ATTESTATION ARCHITECTURE MEMO WRITTEN — design and analysis only, nothing implemented; corrected same-day by E3J1A and E3J1B; E3 still unactivated (2026-09-12)
+
+Documentation-only session. Re-performed the cloud-transport architecture
+analysis from scratch against the repository at `b9197f1` — producer, acceptor,
+config validators, boundaries, all five test files, both ops docs, and the E1/E3
+lineage in this file — and recorded the corrected result in
+[`docs/planning/proton-drive-cloud-transport-architecture.md`](docs/planning/proton-drive-cloud-transport-architecture.md).
+An earlier informal pass on this subject exists only as a conversation; it was
+never committed, is not a repository source, and is not cited by the memo.
+
+The memo covers the twelve required design areas: the shared artifact contract
+(it recommends a **separate,
+behaviour-preserving extraction before any uploader code**, because the uploader
+would be the third consumer and the three published suffixes are already spelled
+in three places); subprocess-boundary secrecy with field-by-field allowlists for
+`info`/`create-folder`/`upload`/`download`; bounded readback; attempt-scoped
+append-only attestation identity and retry lifecycle; freshness versus
+independent monitoring; CLI identity preflight; the final E3I3/E3I4 credential
+state; the transport protocol; the attestation schema; the configuration
+boundary; a local test plan; and a session sequence ending in a **GO** verdict
+for **E3J2 — behaviour-preserving extraction of the shared artifact contract
+into `ops/backup/lib/backup-artifact-contract.mjs`**.
+
+**Surfaced as blocking, not buried:** no pure-userspace mechanism reproduces the
+acceptor's "stop before the crossing byte" bound for a CLI-owned download, so a
+**proven hard-containment mechanism (verified `RLIMIT_FSIZE` against the real
+binary, or a quota-backed mount) is a deployment prerequisite before production
+activation**; `cli.expectedSha512` must be REQUIRED, not optional, and a pinned
+hash — not an unrestricted `--version` — is the primary identity evidence, since
+E3I3 proved `--version` produces network-dependent output; monitoring does not
+exist and must not be described as existing until an external watcher and a
+received test notification exist; and `docs/operations/backup-producer.md` §8
+still carries superseded PROPOSED thresholds (WARN > 7 h 30 m / ALARM > 9 h)
+that contradict E1A's approved **8-hour warning / 24-hour critical on verified
+Proton copies**. The §8 table is still marked PROPOSED; E1A's 8-hour
+warning / 24-hour critical thresholds for verified Proton copies are the
+authoritative current decision; `docs/operations/backup-producer.md` itself
+still needs a separate correction, not performed in this session. Four
+additional implementation/deployment unknowns are registered as **U12-U15** —
+readback byte ceilings and hard-containment mechanism selection/proof (U12);
+uploader timeouts, cancellation grace, retry limits and backoff (U13); the
+remote root and namespace/layout decision (U14); and off-host signal transport,
+independent watcher location, notification channel, and received-notification
+proof (U15) — added to the canonical ranked-unknowns table in
+`proton-drive-transport-feasibility.md` §9 by the same-day E3J1A correction
+pass; U1-U11 there are unchanged.
+
+Verification: `node ops/backup/run-suite.mjs` ran as a local repository test
+against disposable temporary filesystem and process-double state — it
+contacted no provider, host, database, or credential store, and left tracked
+repository content unchanged — **179/179 pass, 0 fail** (config 17, producer
+66, boundaries 9, acceptance 56, lifecycle 31).
+
+A same-day **E3J1A** correction pass fixed this entry and the memo: the
+U12-U15 classification (four implementation/deployment unknowns, not "all
+numerics") now lives only in the canonical §9 table above, the test-suite
+wording above replaces the earlier "read-only" claim, the E3J2 extraction
+scope (§1.3 of the memo) now names one exact plan — resolving `BackupError`'s
+ownership (moved into the new contract module, re-exported from
+`backup-producer.mjs`) and deferring `publishedTripleNames()` and any other new
+uploader-oriented helper to E3J3 — and the "twelve sections" wording above was
+corrected to "twelve required design areas" (the memo has numbered sections
+0-14). No code, test, configuration, example JSON, dependency, or Gate
+checkbox changed in either session.
+
+A further same-day **E3J1B** correction pass fixed the memo only (this entry
+was not edited during that pass): the single `readback.maxBytesPerObject`
+byte ceiling was replaced with three required, no-default, per-role ceilings
+(`readback.maxCiphertextBytes`, `readback.maxManifestBytes`,
+`readback.maxSidecarBytes`); U13's dependencies were corrected to separate
+size-dependent timeout calibration (blocked on measured production transfer
+behaviour) from cancellation grace (local-then-real-host) and from retry
+counts/backoff (an operator policy decision); the single production-measurement
+session was split into **E3J11** (production size/ciphertext measurement,
+closing U5's numeric portion and U12's byte values — does not settle U13) and
+**E3J12** (production transfer/timing calibration, closing U13's timeout
+portion); and the retention and restore sessions were renumbered **E3J13** and
+**E3J14**. No code, test, configuration, example JSON, dependency, or Gate
+checkbox changed.
+
+**Files changed (across E3J1, the same-day E3J1A correction pass, and the
+same-day E3J1B correction pass):**
+exactly three — this entry, the cloud-transport memo, and
+`proton-drive-transport-feasibility.md` §9 (U12-U15 rows only; U1-U11
+unchanged). No code, test, configuration, example JSON or dependency changed.
+**No Proton account was
+accessed, authenticated or contacted; no CLI command was run; no Drive object
+was touched; no credential, key, host, database, Docker, deployment,
+scheduling, retention, restore or tunnel action occurred.** `HEAD`/`origin/main`
+unchanged at `b9197f19dea443b3a0ffa7a2227f8ed1bccb0632`; the tree was clean at
+session start and the index remained empty. Nothing was staged, committed or
+pushed. **E3 remains unactivated** — the uploader, the attestation writer, the
+freshness evaluator, the watcher and the alert channel do not exist. No Gate
+checkbox changed.
+
 ### 🟡 E3I §10 BOUNDED PROTON SCRATCH EXPERIMENT — OBSERVATION WINDOW CLOSED BY E3I3 (2026-09-12); protocol completed to the extent supported by Proton Drive CLI 0.8.0, with quota/account-residual work blocked; E3 still unactivated
 
 Separately authorized **mutating, Proton-contacting** session on the main PC
