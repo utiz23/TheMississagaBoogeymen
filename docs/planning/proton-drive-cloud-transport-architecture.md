@@ -5,17 +5,34 @@ same day) — see the U12-U15 classification (§10.4), the test-suite
 mutation-semantics wording (§14), and the E3J2 extraction scope (§1.3);
 further corrected by **E3J1B** (2026-09-12, same day) — see the U12 per-role
 readback ceilings (§3.3, §10.2, §10.4), the U13 timeout/cancellation/retry
-split (§10.4), and the E3J11/E3J12 session-sequence correction (§12) ·
+split (§10.4), and the E3J11/E3J12 session-sequence correction (§12); further
+corrected by **E3J2** (2026-09-13) — the extraction described in §1.3 is now
+implemented, and the dependency-graph claim in §1.3's "Dependency
+implications" paragraph is narrowed: it overstated that no edge would remain
+between the consumers, when the acceptor's pre-existing, non-contract
+`checkCapacity()` dependency on `backup-producer.mjs` was never in scope to
+remove and still exists ·
 **Status:**
-**DESIGN AND ANALYSIS ONLY — NOTHING IS IMPLEMENTED, NOTHING IS APPROVED FOR
-ACTIVATION.**
+**DESIGN AND ANALYSIS FOR CLOUD TRANSPORT AND ATTESTATION — NOT ACTIVATED.**
+The **E3J2** shared artifact-contract extraction (§1.3, §12, §13) is
+implemented locally and behaviour-preserving; it is local repository
+refactoring of existing producer/acceptor code, not a Proton Drive uploader or
+any other cloud behaviour. Everything else this memo designs — the Proton
+Drive uploader, transport, readback, attestation, monitoring, credential
+handling, deployment, scheduling, retention, and restore work — remains
+unimplemented and unactivated. **NOTHING BEYOND THAT ONE LOCAL EXTRACTION IS
+APPROVED FOR ACTIVATION.**
 
 This memo defines the proposed architecture for the component that pushes
 producer-generated backup artifacts from Hotel-Echo to Proton Drive through the
 official Proton Drive CLI, and for the **cloud attestation** record that
-source-side freshness monitoring would later consume. It writes no code, changes
-no configuration, contacts no provider, touches no host, and closes no E3 item.
-**E3 remains unactivated.**
+source-side freshness monitoring would later consume. The E3J1 design session
+that authored this memo wrote no code, changed no configuration, contacted no
+provider, touched no host, and closed no E3 item. Its prerequisite extraction,
+**E3J2**, was carried out afterward in a separate local session (§12, §13):
+that session touched only `ops/backup/lib/`, moved existing local code
+behaviour-preservingly, and involved no provider, host, credential, or
+activation action. **E3 remains unactivated.**
 
 ---
 
@@ -180,8 +197,21 @@ nothing from `backup-producer.mjs`, `backup-acceptance.mjs` or
 `backup-boundaries.mjs`; it would take its filesystem and hashing access through
 the same injected `deps` bundle those modules already use
 (`makeRealDeps()`, `backup-boundaries.mjs:997-1049`). The dependency graph
-becomes producer → contract, acceptor → contract, uploader → contract, with no
-edge between the three consumers. Today the graph is acceptor → producer.
+becomes producer → contract, acceptor → contract, uploader → contract for the
+artifact-contract surface specifically. Today that surface's edge is
+acceptor → producer.
+
+**[CORRECTED BY E3J2]** The paragraph above, as originally written, claimed
+this would leave "no edge between the three consumers." That is too broad.
+`backup-acceptance.mjs` also imports `checkCapacity()` from
+`backup-producer.mjs` (`backup-acceptance.mjs:1179,1442`), and `checkCapacity()`
+is not part of the artifact contract — it was never proposed for extraction in
+the list above, and E3J2 does not move it (§12, §13). So after E3J2 the
+acceptor → producer edge is narrowed, not eliminated: the artifact-contract
+dependency it carried is gone, but the pre-existing, unrelated
+`checkCapacity()` dependency remains. The corrected graph is producer →
+contract, acceptor → contract, acceptor → producer (`checkCapacity()` only),
+uploader → contract (once E3J3 exists).
 
 **Regression-test implications.** The extraction is covered by the suite that
 exists, and that is the reason to do it *before* the uploader rather than
@@ -1243,7 +1273,7 @@ sessions need no provider, no host, and no credential.
 
 | Session | Scope | Touches a provider or host? |
 | --- | --- | --- |
-| **E3J2** | **Shared artifact-contract extraction** (§1.3, §1.4). Behaviour-preserving move into `backup-artifact-contract.mjs` — including `BackupError`, re-exported from `backup-producer.mjs` for import-path compatibility; producer and acceptor import from it; no new exported function (`publishedTripleNames()` deferred to E3J3); acceptance criterion is 179/179 with no assertion text changed | no |
+| **E3J2** | **Shared artifact-contract extraction** (§1.3, §1.4). **DONE (2026-09-13).** Behaviour-preserving move into `backup-artifact-contract.mjs` — including `BackupError`, re-exported from `backup-producer.mjs` for import-path compatibility; producer and acceptor import from it; no new exported function (`publishedTripleNames()` deferred to E3J3); acceptance criterion is 179/179 with no assertion text changed — met exactly. See the §1.3 dependency-graph correction: the acceptor's non-contract `checkCapacity()` dependency on the producer was out of scope and remains | no |
 | **E3J3** | **Naming, remote paths, and the cloud config surface.** `backup-cloud-config.mjs`, the example JSON, the safe-path/namespace construction, plus T1-T2, T22-T23 | no |
 | **E3J4** | **Subprocess boundary and the fake CLI.** argv construction, the allowlisting projector, the error-code enum, the sanitiser, plus T3-T9 | no |
 | **E3J5** | **Uploader orchestration.** Preflight, create-folder, ordered uploads, partial-failure handling, cancellation, plus T10-T12, T19-T20 | no |
@@ -1270,6 +1300,22 @@ in §1.3 (as corrected by E3J1A): the symbols listed there move, including the
 explicit `BackupError` resolution, and nothing else.**
 
 **Verdict: GO — narrowed to that exact extraction, and to nothing broader.**
+
+**Implementation status: DONE (2026-09-13).** The extraction happened exactly
+as scoped: `ops/backup/lib/backup-artifact-contract.mjs` now holds
+`BackupError`, `MANIFEST_SCHEMA_VERSION`, `ARTIFACT_SUFFIXES`,
+`SNAPSHOT_STAMP_PATTERN`, `formatSnapshotStamp()`, `buildArtifactNames()`,
+`formatChecksumSidecar()`, `parseChecksumSidecar()`, and
+`verifyArtifactCompletion()`. `backup-producer.mjs` imports and re-exports all
+of them (so `eanhl-backup.mjs`'s `import { BackupError } from
+'./lib/backup-producer.mjs'` and its `instanceof` checks keep resolving to the
+same class); `backup-config.mjs` re-exports `MANIFEST_SCHEMA_VERSION`;
+`backup-acceptance.mjs` drops its own `ROLE_SUFFIX`/`STAMP` and imports
+`ARTIFACT_SUFFIXES`/`SNAPSHOT_STAMP_PATTERN` directly from the contract module,
+keeping only its pre-existing, non-contract `checkCapacity()` import from
+`backup-producer.mjs` (§1.3 correction above). `pnpm test:backup-producer`:
+**179/179 pass, 0 fail, no assertion text changed.** `checkCapacity()` was not
+moved — it was never in scope (§1.3, §12).
 
 Why this specific session, and why now:
 

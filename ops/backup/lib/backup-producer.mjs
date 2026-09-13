@@ -47,16 +47,29 @@
  * or production data.
  */
 
-import { MANIFEST_SCHEMA_VERSION } from './backup-config.mjs'
+import {
+  BackupError,
+  MANIFEST_SCHEMA_VERSION,
+  buildArtifactNames,
+  formatChecksumSidecar,
+  formatSnapshotStamp,
+  parseChecksumSidecar,
+  verifyArtifactCompletion,
+} from './backup-artifact-contract.mjs'
 
-/** Error raised by every producer rejection. Carries a machine-readable `code`. */
-export class BackupError extends Error {
-  constructor(code, message, cause) {
-    super(message)
-    this.name = 'BackupError'
-    this.code = code
-    if (cause !== undefined) this.cause = cause
-  }
+// Re-exported for compatibility. These now live in the shared artifact
+// contract (backup-artifact-contract.mjs) — see that module for the
+// documentation of each. `BackupError` in particular must stay a re-export of
+// the SAME class object: eanhl-backup.mjs's `import { BackupError } from
+// './lib/backup-producer.mjs'` and its `instanceof BackupError` checks rely on
+// class identity, not just the name.
+export {
+  BackupError,
+  buildArtifactNames,
+  formatChecksumSidecar,
+  formatSnapshotStamp,
+  parseChecksumSidecar,
+  verifyArtifactCompletion,
 }
 
 /** A sane upper bound on how much of the ciphertext we read to check its header. */
@@ -66,37 +79,6 @@ const HEADER_PROBE_BYTES = 64
 // Pure helpers — the parts of the contract a reader should be able to check by
 // eye, and a test can pin without any environment at all.
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * `2026-09-04T18:00:07Z` → `20260904T180007Z`.
- *
- * Second granularity is deliberate: the stamp is the recovery point, and it is
- * the artifact's human-facing identity. Sub-second uniqueness is provided by
- * the run id and enforced by the destination collision check, not by making
- * filenames unreadable.
- */
-export function formatSnapshotStamp(iso) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/.exec(String(iso))
-  if (!m) {
-    throw new BackupError(
-      'snapshot_timestamp_malformed',
-      `snapshot timestamp is not an ISO-8601 UTC instant: ${JSON.stringify(iso)}`,
-    )
-  }
-  return `${m[1]}${m[2]}${m[3]}T${m[4]}${m[5]}${m[6]}Z`
-}
-
-/** The four names a run owns. `base` is the artifact identity. */
-export function buildArtifactNames(prefix, stamp) {
-  const base = `${prefix}-${stamp}`
-  return Object.freeze({
-    base,
-    ciphertext: `${base}.dump.age`,
-    checksum: `${base}.dump.age.sha256`,
-    manifest: `${base}.manifest.json`,
-    plaintext: `${base}.dump`,
-  })
-}
 
 /**
  * The exact argv used to invoke the encryption tool.
@@ -139,29 +121,6 @@ export function buildCountsQuery(tables) {
 }
 
 /**
- * Parse `sha256sum`-style sidecar text: `<64 hex>  <filename>`.
- * Returns `{ hash, filename }` or throws.
- */
-export function parseChecksumSidecar(text, path = '<sidecar>') {
-  const line = String(text)
-    .split('\n')
-    .find((l) => l.trim() !== '')
-  const m = line ? /^([0-9a-f]{64})\s+\*?(.+?)\s*$/.exec(line.trim()) : null
-  if (!m) {
-    throw new BackupError(
-      'checksum_sidecar_malformed',
-      `${path} is not a "<sha256>  <filename>" line.`,
-    )
-  }
-  return { hash: m[1], filename: m[2] }
-}
-
-/** The sidecar text this producer writes. */
-export function formatChecksumSidecar(hash, filename) {
-  return `${hash}  ${filename}\n`
-}
-
-/**
  * The effective ciphertext budget for one run, and which configured ceiling is
  * binding.
  *
@@ -198,93 +157,6 @@ export function describeCiphertextBinding({ binding, maxCiphertextBytes, staging
     `both staging.maxCiphertextBytes (${maxCiphertextBytes}) and the remaining staging budget ` +
     `(${stagingRemainder}), which are equal`
   )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Artifact completion — the definition, and the checker that decides it.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * An artifact is COMPLETE at a location if and only if all of the following
- * hold. Nothing weaker counts, and in particular the *presence* of the three
- * files does not: the destination may be a drvfs mount where rename atomicity
- * is not assertable, so a partially-copied file can appear under its final
- * name. The hash equality, not the rename, is what makes that harmless.
- *
- *   1. all three files exist: ciphertext, `.sha256` sidecar, manifest;
- *   2. the manifest parses, and its `schema_version` is recognised;
- *   3. `manifest.artifact` names the ciphertext file;
- *   4. the sidecar names the ciphertext file;
- *   5. sha256(ciphertext) equals the sidecar hash;
- *   6. sha256(ciphertext) equals `manifest.ciphertext.sha256`;
- *   7. the ciphertext's byte length equals `manifest.ciphertext.bytes`.
- *
- * Returns `{ complete, failures: string[], manifest|null }` — it never throws
- * for an incomplete artifact, because "incomplete" is an ordinary answer that
- * transport and acceptance will need to act on.
- */
-export function verifyArtifactCompletion({ dir, base, deps }) {
-  const files = {
-    ciphertext: `${dir}/${base}.dump.age`,
-    checksum: `${dir}/${base}.dump.age.sha256`,
-    manifest: `${dir}/${base}.manifest.json`,
-  }
-  const failures = []
-  for (const [label, path] of Object.entries(files)) {
-    if (!deps.fs.existsSync(path)) failures.push(`missing ${label}: ${path}`)
-  }
-  if (failures.length > 0) return { complete: false, failures, manifest: null }
-
-  let manifest = null
-  try {
-    manifest = JSON.parse(deps.fs.readFileSync(files.manifest, 'utf8'))
-  } catch (err) {
-    failures.push(`manifest is not valid JSON: ${err?.message ?? String(err)}`)
-    return { complete: false, failures, manifest: null }
-  }
-  if (manifest?.schema_version !== MANIFEST_SCHEMA_VERSION) {
-    failures.push(
-      `manifest schema_version ${JSON.stringify(manifest?.schema_version)} is not the expected ${MANIFEST_SCHEMA_VERSION}`,
-    )
-  }
-  if (manifest?.artifact !== `${base}.dump.age`) {
-    failures.push(
-      `manifest.artifact ${JSON.stringify(manifest?.artifact)} does not name ${base}.dump.age`,
-    )
-  }
-
-  let sidecar = null
-  try {
-    sidecar = parseChecksumSidecar(deps.fs.readFileSync(files.checksum, 'utf8'), files.checksum)
-  } catch (err) {
-    failures.push(err.message)
-  }
-  if (sidecar && sidecar.filename !== `${base}.dump.age`) {
-    failures.push(`sidecar names ${sidecar.filename}, expected ${base}.dump.age`)
-  }
-
-  let actualHash = null
-  let actualBytes = null
-  try {
-    actualHash = deps.sha256File(files.ciphertext)
-    actualBytes = deps.fs.statSync(files.ciphertext).size
-  } catch (err) {
-    failures.push(`could not read ciphertext: ${err?.message ?? String(err)}`)
-  }
-  if (sidecar && actualHash && sidecar.hash !== actualHash) {
-    failures.push(`ciphertext sha256 ${actualHash} does not match sidecar ${sidecar.hash}`)
-  }
-  if (actualHash && manifest?.ciphertext?.sha256 !== actualHash) {
-    failures.push(
-      `ciphertext sha256 ${actualHash} does not match manifest ${JSON.stringify(manifest?.ciphertext?.sha256)}`,
-    )
-  }
-  if (actualBytes !== null && manifest?.ciphertext?.bytes !== actualBytes) {
-    failures.push(
-      `ciphertext is ${actualBytes} bytes, manifest says ${JSON.stringify(manifest?.ciphertext?.bytes)}`,
-    )
-  }
-  return { complete: failures.length === 0, failures, manifest }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

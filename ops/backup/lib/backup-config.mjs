@@ -33,8 +33,10 @@ export class ConfigError extends Error {
   }
 }
 
-/** Manifest schema version. Bump whenever a consumer-visible field changes. */
-export const MANIFEST_SCHEMA_VERSION = 1
+// Re-exported for compatibility: MANIFEST_SCHEMA_VERSION now lives in the
+// shared artifact contract (backup-artifact-contract.mjs), alongside the rest
+// of the manifest/artifact shape it versions.
+export { MANIFEST_SCHEMA_VERSION } from './backup-artifact-contract.mjs'
 
 /** `schema.table`, both plain lowercase identifiers. */
 const QUALIFIED_TABLE = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/

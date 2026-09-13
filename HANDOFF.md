@@ -26,17 +26,22 @@ in the roadmap doc, not here.
 
 ## Latest Verified Checkpoint
 
-**2026-09-13 — workflow/docs cleanup reviewed for local checkpoint.**
-`HANDOFF.md` compacted and size-capped; byte-identical archive preserved;
-roadmap extracted; `docs/journal/` introduced. Independent review passed:
-12 hook fixtures (including symlink containment), live-link checks, and
-roadmap preservation. See `docs/journal/2026-09.md` for verification and
-checkpoint scope; no push was requested.
+**2026-09-13 — E3J2 (shared artifact-contract extraction) done, uncommitted.**
+`ops/backup/lib/backup-artifact-contract.mjs` created; `BackupError`,
+`MANIFEST_SCHEMA_VERSION`, the three artifact suffixes, the snapshot-stamp
+regex, `formatSnapshotStamp()`, `buildArtifactNames()`,
+`formatChecksumSidecar()`/`parseChecksumSidecar()`, and
+`verifyArtifactCompletion()` moved there behaviour-preserving; producer and
+config re-export for compatibility; acceptor drops its duplicate
+`ROLE_SUFFIX`/`STAMP` and imports the contract directly, keeping only its
+unrelated `checkCapacity()` import from the producer. `pnpm
+test:backup-producer`: 179/179, 0 fail, no assertion text changed. Nothing
+staged or committed this session (working tree has these edits only).
 
-Before that: E3I (Proton scratch experiment) closed 2026-09-12 — protocol
-completed to the extent CLI 0.8.0 supports, quota measurement not possible;
-E3J1 architecture memo issued a GO for E3J2 (extraction). Full detail in the
-archive.
+Before that: workflow/docs cleanup reviewed 2026-09-13 (HANDOFF compaction,
+archive, roadmap extraction); E3I (Proton scratch experiment) closed
+2026-09-12. Full detail in the archive and
+`docs/journal/2026-09.md`.
 
 ## Essential Operational Constraints
 
@@ -74,8 +79,9 @@ archive.
 
 - **E3 (Proton cloud backup) unactivated.** No uploader/attestation/watcher
   exist. Open: a proven hard-containment mechanism, real monitoring, and
-  unattended credential persistence (Hotel-Echo untested). Next step: E3J2
-  extraction. Detail:
+  unattended credential persistence (Hotel-Echo untested). E3J2 (artifact-
+  contract extraction) is done; next step is E3J3 (naming/remote-paths/cloud
+  config surface). Detail:
   [`docs/planning/proton-drive-cloud-transport-architecture.md`](docs/planning/proton-drive-cloud-transport-architecture.md),
   [`docs/planning/proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md),
   [`docs/planning/proton-drive-scratch-experiment.md`](docs/planning/proton-drive-scratch-experiment.md).
@@ -96,9 +102,9 @@ archive.
 
 ## Next 1-3 Actions
 
-1. If continuing backup work: **E3J2** — extract the shared artifact
-   contract into `ops/backup/lib/backup-artifact-contract.mjs`
-   (behaviour-preserving only).
+1. If continuing backup work: **E3J3** — naming, remote paths, and the cloud
+   config surface (`backup-cloud-config.mjs`), per
+   `docs/planning/proton-drive-cloud-transport-architecture.md` §12.
 2. Gate 2 reliability items: automated backups, restore drill, alerting,
    log retention, rollback docs — all unstarted and blocking Gate 2.
 3. Disable and verify Cloudflare Web Analytics.

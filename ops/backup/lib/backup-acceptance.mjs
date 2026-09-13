@@ -66,8 +66,14 @@
  */
 
 import { RECEIPT_SCHEMA_VERSION, isInside } from './backup-acceptance-config.mjs'
-import { MANIFEST_SCHEMA_VERSION } from './backup-config.mjs'
-import { checkCapacity, formatSnapshotStamp, verifyArtifactCompletion } from './backup-producer.mjs'
+import {
+  ARTIFACT_SUFFIXES,
+  MANIFEST_SCHEMA_VERSION,
+  SNAPSHOT_STAMP_PATTERN,
+  formatSnapshotStamp,
+  verifyArtifactCompletion,
+} from './backup-artifact-contract.mjs'
+import { checkCapacity } from './backup-producer.mjs'
 
 /** Error raised by every sweep-level rejection. Carries a machine-readable `code`. */
 export class AcceptanceError extends Error {
@@ -78,16 +84,6 @@ export class AcceptanceError extends Error {
     if (cause !== undefined) this.cause = cause
   }
 }
-
-/** The three roles a file can have in an artifact triple, and their suffixes. */
-const ROLE_SUFFIX = Object.freeze({
-  ciphertext: '.dump.age',
-  checksum: '.dump.age.sha256',
-  manifest: '.manifest.json',
-})
-
-/** A compacted UTC snapshot stamp, `YYYYMMDDTHHMMSSZ`. */
-const STAMP = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Names. Everything that becomes a path component goes through here first.
@@ -143,9 +139,9 @@ export function parseArtifactEntryName(name, prefix) {
   const re = new RegExp(`^(${escapeRegExp(prefix)}-(\\d{8}T\\d{6}Z))(${suffixes})$`)
   const m = re.exec(name)
   if (!m) return null
-  const role = Object.entries(ROLE_SUFFIX).find(([, suffix]) => suffix === m[3])?.[0]
+  const role = Object.entries(ARTIFACT_SUFFIXES).find(([, suffix]) => suffix === m[3])?.[0]
   if (!role) return null
-  if (!STAMP.test(m[2])) return null
+  if (!SNAPSHOT_STAMP_PATTERN.test(m[2])) return null
   return { base: m[1], stamp: m[2], role }
 }
 
@@ -156,9 +152,9 @@ function escapeRegExp(s) {
 /** The three file names an artifact base owns. */
 export function artifactFileNames(base) {
   return Object.freeze({
-    ciphertext: `${base}${ROLE_SUFFIX.ciphertext}`,
-    checksum: `${base}${ROLE_SUFFIX.checksum}`,
-    manifest: `${base}${ROLE_SUFFIX.manifest}`,
+    ciphertext: `${base}${ARTIFACT_SUFFIXES.ciphertext}`,
+    checksum: `${base}${ARTIFACT_SUFFIXES.checksum}`,
+    manifest: `${base}${ARTIFACT_SUFFIXES.manifest}`,
   })
 }
 
