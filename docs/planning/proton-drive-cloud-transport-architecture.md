@@ -11,16 +11,44 @@ implemented, and the dependency-graph claim in §1.3's "Dependency
 implications" paragraph is narrowed: it overstated that no edge would remain
 between the consumers, when the acceptor's pre-existing, non-contract
 `checkCapacity()` dependency on `backup-producer.mjs` was never in scope to
-remove and still exists ·
+remove and still exists; further corrected by **E3J3** (2026-09-13, same
+day) — `publishedTripleNames()` and `ARTIFACT_PREFIX_PATTERN` (§1.3), the
+naming/remote-path module and the cloud config surface (§4, §8.1, §10) are
+now implemented; and the T22 test intention (§11.1) is split: E3J3 proves
+the pin is required and well-formed and that the pure comparison guard
+rejects a mismatch, while the integration assertion that hash verification
+runs before provider-command construction is deferred to E3J4, because no
+provider-command constructor exists yet; further corrected by **E3J3B**
+(2026-09-13, same day, independent review) — four boundary defects found in
+the E3J3 implementation are fixed: (1) cloud-config local paths were
+accepted, then containment-compared, WITHOUT first requiring them to be
+canonical, so a dot-segment or repeated-separator alias
+(`/data/x/../artifacts/readback`) bypassed the textual separation check —
+every local path field, including `capacity.backingVolume.mountPoint`, is
+now REQUIRED to already be canonical POSIX form before use or comparison
+(§1.3, §10.2, this correction is LEXICAL only — see the caveat added there);
+(2) `buildPublishedObjectPaths()` accepted any safe-looking string as an
+`artifactBase` and `formatAttemptId()` could return a malformed attemptId if
+the injected `randomToken` boundary misbehaved — both now validate the
+constructed identity's exact shape before use (§4, new
+`assertValidArtifactBase()`); (3) the secret-shaped-key rejection message
+echoed the untrusted key name itself — it is now fully generic; (4) a
+non-null `capacity.backingVolume` result was nested inside a frozen object
+without itself being frozen — it is now frozen too. All four are covered by
+new regression tests; the corrected session total is **235/235 passing** (56
+new tests over the 179-test E3J2 baseline: 5 artifact-contract + 19 naming +
+32 config) ·
 **Status:**
 **DESIGN AND ANALYSIS FOR CLOUD TRANSPORT AND ATTESTATION — NOT ACTIVATED.**
-The **E3J2** shared artifact-contract extraction (§1.3, §12, §13) is
-implemented locally and behaviour-preserving; it is local repository
-refactoring of existing producer/acceptor code, not a Proton Drive uploader or
+The **E3J2** shared artifact-contract extraction (§1.3, §12, §13) and the
+**E3J3** naming/remote-path/cloud-config surface (§1.3, §4, §8.1, §10, §12),
+as corrected by **E3J3B**, are implemented locally and behaviour-preserving
+or additive-only; both are local repository code — pure naming/path helpers
+and a fail-closed configuration validator — not a Proton Drive uploader or
 any other cloud behaviour. Everything else this memo designs — the Proton
 Drive uploader, transport, readback, attestation, monitoring, credential
 handling, deployment, scheduling, retention, and restore work — remains
-unimplemented and unactivated. **NOTHING BEYOND THAT ONE LOCAL EXTRACTION IS
+unimplemented and unactivated. **NOTHING BEYOND THOSE LOCAL SESSIONS IS
 APPROVED FOR ACTIVATION.**
 
 This memo defines the proposed architecture for the component that pushes
@@ -29,9 +57,13 @@ official Proton Drive CLI, and for the **cloud attestation** record that
 source-side freshness monitoring would later consume. The E3J1 design session
 that authored this memo wrote no code, changed no configuration, contacted no
 provider, touched no host, and closed no E3 item. Its prerequisite extraction,
-**E3J2**, was carried out afterward in a separate local session (§12, §13):
-that session touched only `ops/backup/lib/`, moved existing local code
-behaviour-preservingly, and involved no provider, host, credential, or
+**E3J2**, and the naming/config session that followed it, **E3J3** (corrected
+same-day by **E3J3B** after independent review), were both carried out
+afterward in separate local sessions (§12, §13). Their combined footprint is
+local repository code and documentation only: `ops/backup/lib/` (including
+`ops/backup/lib/*.test.mjs`), `ops/backup/*.example.json`,
+`ops/backup/run-suite.mjs` (registering the new test files), and this memo,
+`HANDOFF.md`, and the dated journal — no provider, host, credential, or
 activation action. **E3 remains unactivated.**
 
 ---
@@ -191,6 +223,38 @@ exported functions — every symbol above already exists today in one of the
 three current modules; only its module of residence changes, plus, for the
 suffix and stamp literals, the collapse of an identical duplicate definition
 onto one constant.
+
+**[IMPLEMENTED BY E3J3, 2026-09-13].** `publishedTripleNames(base)` now
+exists in `backup-artifact-contract.mjs`, returning exactly the three
+published roles (`ciphertext`, `checksum`, `manifest`) with no key that could
+carry the plaintext name — the structural guarantee §1.4 point 2 asked for.
+`ARTIFACT_PREFIX_PATTERN` was additionally centralized onto this module from
+the identical literal `backup-config.mjs` and `backup-acceptance-config.mjs`
+each carried separately, with no accepted or rejected input change at either
+site. Neither addition touches a provider, a host, or a credential; both are
+pure functions/constants covered by
+`backup-artifact-contract.test.mjs`.
+
+**[CORRECTED BY E3J3B, 2026-09-13].** The first E3J3 implementation let
+`backup-cloud-naming.mjs`'s `buildPublishedObjectPaths()` accept any
+ordinary-safe-looking string as an `artifactBase` — `"not-a-stamped-artifact"`
+passed, because ordinary-component safety (no `..`, no separator) is a
+weaker property than "this is actually a `<prefix>-<stamp>` identity." New
+`assertValidArtifactBase()` in `backup-cloud-naming.mjs` closes that gap: it
+requires the exact shape `<artifactPrefix>-<YYYYMMDDTHHMMSSZ>`, the prefix
+checked against `ARTIFACT_PREFIX_PATTERN` and the stamp against
+`SNAPSHOT_STAMP_PATTERN` (both from this module), correctly handling a
+prefix that itself ends in a hyphen (permitted by `ARTIFACT_PREFIX_PATTERN`,
+which produces a base like `eanhl--20260904T180007Z`). `buildAttemptNamespace()`,
+`buildPublishedObjectPaths()`, and `buildAttestationFileName()` all now call
+it, in addition to (not instead of) the existing ordinary-component check.
+Separately, `formatAttemptId()` now validates its own constructed result
+before returning it, so an injected `randomToken` double that returns
+anything other than exactly eight lowercase hex characters — a path-
+traversal shape, uppercase, wrong length — is rejected rather than silently
+producing a malformed `attemptId`. Neither change touches
+`backup-producer.mjs`'s own `runId` construction, which this correction does
+not import from, export to, or modify.
 
 **Dependency implications.** `backup-artifact-contract.mjs` would import
 nothing from `backup-producer.mjs`, `backup-acceptance.mjs` or
@@ -1163,12 +1227,42 @@ Path-separation rules are validated the way
 `backup-acceptance-config.mjs:150-206` validates its own: no directory inside
 another, all distinct, all absolute.
 
+**[CORRECTED BY E3J3B, 2026-09-13] — absolute is not enough; canonical is
+required, and the guarantee is lexical only.** The first E3J3 implementation
+required every local path to be absolute and then compared containment
+textually, but never required the path to already be in canonical form. That
+let a dot-segment or repeated-separator alias — `readback.dir =
+"/data/x/../artifacts/readback"` with `artifact.sourceDir = "/data/artifacts"`
+— pass the separation check while textually resolving inside the directory it
+was supposed to be kept out of. Every local path field in this table,
+including `capacity.backingVolume.mountPoint` when non-null, is now REQUIRED
+to already be canonical POSIX form (no repeated separators, no trailing
+separator, no `.`/`..` segment) before it is used or compared; a
+non-canonical value is a hard configuration-validation failure, never
+silently normalized. **This is a LEXICAL guarantee only.** It proves the
+configured string, as written, does not resolve elsewhere via `.`/`..`/
+repeated separators. It proves nothing about symlinks, bind mounts, hard
+links, filesystem ownership, or any other runtime aliasing — that remains
+exactly the deployment-time proof §3.3 already requires for hard readback
+containment, and this configuration-time lexical check does not substitute
+for it.
+
 **(c) Secret/session material — never in configuration at all.** No passphrase,
 no token, no session file path, no account identifier, no e-mail, no unlock
 command, no `PROTON_DRIVE_CREDENTIALS_STORE` *value beyond the backend
 selector*. The uploader consumes an already-unlocked context (§7.2). The
 validator should refuse any key whose name matches a secret-shaped pattern, so a
 well-meaning operator cannot add one.
+
+**[CORRECTED BY E3J3B, 2026-09-13]** The first E3J3 implementation refused
+such a key but then included the offending key name — untrusted, operator-
+supplied text — in the thrown `ConfigError` message. The key name itself may
+BE the sensitive material (an operator who accidentally pastes a real token
+as a key name, say), so echoing it back defeated the point of rejecting it.
+The rejection message is now fully generic: a stable error code
+(`config_secret_shaped_key`) plus a locally authored diagnostic, with no key
+name, value, or accumulated path built from untrusted key names anywhere in
+the thrown error's properties.
 
 **(d) Production values and pending decisions — unresolved.** See §10.4.
 
@@ -1240,6 +1334,28 @@ injected fakes. **[REPO]**
 | T22 | `cli.expectedSha512` is required by the validator; a missing, malformed, or mismatched value refuses before any provider command is constructed |
 | T23 | The config validator rejects `credentials.backend: "unsafe_file"`, rejects any secret-shaped key, and enforces the path-separation rules of §10.2 |
 
+**[CORRECTED BY E3J3, 2026-09-13] — T22 is split across two sessions, not one.**
+As originally written, T22's second half ("refuses before any provider command
+is constructed") implies an integration test against a provider-command
+constructor. No such constructor exists yet — building one is E3J4's job
+(§12), not E3J3's. What E3J3 actually implements and tests is:
+
+- `validateCloudConfig()` requires `cli.expectedSha512` and rejects it if
+  missing, empty, wrong length, containing uppercase or non-hex characters —
+  covered by `backup-cloud-config.test.mjs`;
+- `verifyCliHashPin({expectedSha512, observedSha512})`, a **pure local
+  comparison** with no CLI, subprocess, or provider access of any kind: it
+  accepts an exact match, and fails closed with a distinct machine-readable
+  code (`cli_hash_pin_malformed`, `cli_hash_observed_malformed`,
+  `cli_hash_mismatch`) on a malformed pin, a malformed observed value, or a
+  mismatch — also covered by `backup-cloud-config.test.mjs`.
+
+The assertion that this comparison actually **runs before** a provider
+command is constructed is an integration property of a boundary that does
+not exist in this repository yet. It is **E3J4's** test to write, once the
+subprocess boundary and its provider-command constructor exist — not
+something E3J3 can prove or claims to prove.
+
 ### 11.2 What a fake CLI proves, and what it cannot
 
 **Can prove:** argv construction and the absence of forbidden flags; ordering;
@@ -1274,7 +1390,7 @@ sessions need no provider, no host, and no credential.
 | Session | Scope | Touches a provider or host? |
 | --- | --- | --- |
 | **E3J2** | **Shared artifact-contract extraction** (§1.3, §1.4). **DONE (2026-09-13).** Behaviour-preserving move into `backup-artifact-contract.mjs` — including `BackupError`, re-exported from `backup-producer.mjs` for import-path compatibility; producer and acceptor import from it; no new exported function (`publishedTripleNames()` deferred to E3J3); acceptance criterion is 179/179 with no assertion text changed — met exactly. See the §1.3 dependency-graph correction: the acceptor's non-contract `checkCapacity()` dependency on the producer was out of scope and remains | no |
-| **E3J3** | **Naming, remote paths, and the cloud config surface.** `backup-cloud-config.mjs`, the example JSON, the safe-path/namespace construction, plus T1-T2, T22-T23 | no |
+| **E3J3** | **Naming, remote paths, and the cloud config surface.** **DONE (2026-09-13), corrected same-day by E3J3B after independent review.** `publishedTripleNames()`/`ARTIFACT_PREFIX_PATTERN` (§1.3); new `backup-cloud-naming.mjs` (safe remote-component validation, canonical-remote-root validation, `assertValidArtifactBase()` identity-shape validation, self-validating `attemptId` construction, the attempt namespace, the three published object paths, the attestation filename — §4, §8.1); new `backup-cloud-config.mjs` (fail-closed cloud config validator/loader with LEXICAL canonical-path enforcement before containment comparison, a generic secret-key rejection message, a frozen `backingVolume` result, `verifyCliHashPin()`) and `eanhl-backup-cloud.example.json` (§10); T1, T2, the E3J3 portion of T22 (corrected above), and T23 — **56 new tests over the 179-test baseline (5 artifact-contract + 19 naming + 32 config), full suite 235/235, 0 fail.** No Proton CLI argv, subprocess, upload, download, or attestation writer — those remain E3J4 onward | no |
 | **E3J4** | **Subprocess boundary and the fake CLI.** argv construction, the allowlisting projector, the error-code enum, the sanitiser, plus T3-T9 | no |
 | **E3J5** | **Uploader orchestration.** Preflight, create-folder, ordered uploads, partial-failure handling, cancellation, plus T10-T12, T19-T20 | no |
 | **E3J6** | **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T18 | no |

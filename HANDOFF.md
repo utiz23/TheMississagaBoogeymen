@@ -26,19 +26,47 @@ in the roadmap doc, not here.
 
 ## Latest Verified Checkpoint
 
-**2026-09-13 — E3J2 (shared artifact-contract extraction) done, uncommitted.**
-`ops/backup/lib/backup-artifact-contract.mjs` created; `BackupError`,
-`MANIFEST_SCHEMA_VERSION`, the three artifact suffixes, the snapshot-stamp
-regex, `formatSnapshotStamp()`, `buildArtifactNames()`,
-`formatChecksumSidecar()`/`parseChecksumSidecar()`, and
-`verifyArtifactCompletion()` moved there behaviour-preserving; producer and
-config re-export for compatibility; acceptor drops its duplicate
-`ROLE_SUFFIX`/`STAMP` and imports the contract directly, keeping only its
-unrelated `checkCapacity()` import from the producer. `pnpm
-test:backup-producer`: 179/179, 0 fail, no assertion text changed. Nothing
-staged or committed this session (working tree has these edits only).
+**2026-09-13 — E3J3 (naming, remote paths, cloud config surface) done,
+corrected same-day by E3J3B after independent review, uncommitted.** New
+`ops/backup/lib/backup-cloud-naming.mjs`: safe remote-component validation,
+canonical-remote-root validation, `assertValidArtifactBase()` (the exact
+`<prefix>-<YYYYMMDDTHHMMSSZ>` identity shape, not just ordinary-component
+safety), a self-validating `attemptId` construction/validation, the
+immutable attempt namespace, the three published object paths, and the
+attempt-scoped attestation filename — all pure, no
+subprocess/network/filesystem. New `ops/backup/lib/backup-cloud-config.mjs`:
+fail-closed cloud-transport config validator/loader (reusing
+`backup-config.mjs`'s primitives), `verifyCliHashPin()` (a pure local
+SHA-512 comparison guard), and now **canonical-path enforcement**: every
+local path field must already be lexically canonical (no dot segments, no
+repeated/trailing separators) before it is used or containment-compared —
+lexical only, no claim about symlink/mount/filesystem-level aliasing. New,
+explicitly non-production `ops/backup/eanhl-backup-cloud.example.json`.
+`backup-artifact-contract.mjs` gained `publishedTripleNames()`
+(plaintext-excluding accessor) and `ARTIFACT_PREFIX_PATTERN` (centralized
+from the producer/acceptor configs' identical duplicate literal,
+behaviour-preserving at both sites). Corrected the E3J1 memo's T22 test
+intention: E3J3 proves the hash pin is required, well-formed, and compared
+fail-closed; the assertion that verification runs before provider-command
+construction is E3J4's, once that constructor exists.
 
-Before that: workflow/docs cleanup reviewed 2026-09-13 (HANDOFF compaction,
+**E3J3B (independent-review correction pass, same day) fixed four boundary
+defects** before any of this was considered complete: (1) non-canonical
+local paths (`../`, `//`) could alias into a directory the separation check
+was supposed to keep separate — now rejected outright, never normalized;
+(2) `buildPublishedObjectPaths()`/`buildAttestationFileName()` accepted an
+arbitrary safe-looking `artifactBase`, and `formatAttemptId()` could return
+a malformed id if its injected `randomToken` boundary misbehaved — both now
+validate the constructed identity's exact shape; (3) the secret-shaped-key
+rejection message echoed the untrusted key name — now fully generic; (4) a
+non-null `capacity.backingVolume` result was nested inside a frozen object
+without itself being frozen — now frozen. `pnpm test:backup-producer`:
+**235/235, 0 fail** (179 E3J2 baseline + 56 new: 5 artifact-contract + 19
+naming + 32 config), no existing assertion weakened. Nothing staged or
+committed this session.
+
+Before that: E3J2 (shared artifact-contract extraction) done 2026-09-13,
+179/179; workflow/docs cleanup reviewed 2026-09-13 (HANDOFF compaction,
 archive, roadmap extraction); E3I (Proton scratch experiment) closed
 2026-09-12. Full detail in the archive and
 `docs/journal/2026-09.md`.
@@ -80,8 +108,10 @@ archive, roadmap extraction); E3I (Proton scratch experiment) closed
 - **E3 (Proton cloud backup) unactivated.** No uploader/attestation/watcher
   exist. Open: a proven hard-containment mechanism, real monitoring, and
   unattended credential persistence (Hotel-Echo untested). E3J2 (artifact-
-  contract extraction) is done; next step is E3J3 (naming/remote-paths/cloud
-  config surface). Detail:
+  contract extraction) and E3J3 (naming/remote-paths/cloud config surface)
+  are done; next step is E3J4 (subprocess boundary and fake CLI). U12-U15
+  (readback ceilings/containment proof, timeouts/retry, remote-root/account
+  namespace, independent-watcher design) remain unresolved. Detail:
   [`docs/planning/proton-drive-cloud-transport-architecture.md`](docs/planning/proton-drive-cloud-transport-architecture.md),
   [`docs/planning/proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md),
   [`docs/planning/proton-drive-scratch-experiment.md`](docs/planning/proton-drive-scratch-experiment.md).
@@ -102,8 +132,9 @@ archive, roadmap extraction); E3I (Proton scratch experiment) closed
 
 ## Next 1-3 Actions
 
-1. If continuing backup work: **E3J3** — naming, remote paths, and the cloud
-   config surface (`backup-cloud-config.mjs`), per
+1. If continuing backup work: **E3J4** — the subprocess boundary and a fake
+   CLI (argv construction, the allowlisting projector, the error-code enum,
+   the sanitiser, T3-T9), per
    `docs/planning/proton-drive-cloud-transport-architecture.md` §12.
 2. Gate 2 reliability items: automated backups, restore drill, alerting,
    log retention, rollback docs — all unstarted and blocking Gate 2.

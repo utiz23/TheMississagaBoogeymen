@@ -70,6 +70,9 @@ const RUN_PREFIX = 'eanhl-backup-suite-'
 
 const DEFAULT_FILES = [
   'backup-config.test.mjs',
+  'backup-artifact-contract.test.mjs',
+  'backup-cloud-naming.test.mjs',
+  'backup-cloud-config.test.mjs',
   'backup-producer.test.mjs',
   'backup-boundaries.test.mjs',
   'backup-acceptance.test.mjs',

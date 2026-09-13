@@ -33,6 +33,7 @@
  * This module performs no I/O of its own beyond the injected `readFile`.
  */
 
+import { ARTIFACT_PREFIX_PATTERN } from './backup-artifact-contract.mjs'
 import {
   ConfigError,
   fail,
@@ -45,9 +46,6 @@ import {
 
 /** Receipt schema version. Bump whenever a consumer-visible receipt field changes. */
 export const RECEIPT_SCHEMA_VERSION = 1
-
-/** Same rule as the producer's `run.artifactPrefix`: it becomes a filename. */
-const ARTIFACT_PREFIX = /^[a-z0-9][a-z0-9-]*$/
 
 /** `true` when `child` is `parent` or lies beneath it, comparing whole path components. */
 export function isInside(child, parent) {
@@ -139,7 +137,7 @@ export function validateAcceptanceConfig(raw, sourcePath = '<acceptance-config>'
     // never interrupts a publish.
     sweepDeadlineMs: requirePositiveInt(acc, 'sweepDeadlineMs', `${sourcePath}.acceptance`),
   }
-  if (!ARTIFACT_PREFIX.test(acceptance.artifactPrefix)) {
+  if (!ARTIFACT_PREFIX_PATTERN.test(acceptance.artifactPrefix)) {
     fail(
       'config_field_invalid',
       `${sourcePath}.acceptance.artifactPrefix must match /^[a-z0-9][a-z0-9-]*$/ (it becomes part ` +

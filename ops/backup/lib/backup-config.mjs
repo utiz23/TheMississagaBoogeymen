@@ -24,6 +24,13 @@
  * This module performs no I/O of its own beyond the injected `readFile`.
  */
 
+import { ARTIFACT_PREFIX_PATTERN } from './backup-artifact-contract.mjs'
+
+// Re-exported for compatibility: MANIFEST_SCHEMA_VERSION now lives in the
+// shared artifact contract (backup-artifact-contract.mjs), alongside the rest
+// of the manifest/artifact shape it versions.
+export { MANIFEST_SCHEMA_VERSION } from './backup-artifact-contract.mjs'
+
 /** Error raised by every configuration rejection. Carries a machine-readable `code`. */
 export class ConfigError extends Error {
   constructor(code, message) {
@@ -32,11 +39,6 @@ export class ConfigError extends Error {
     this.code = code
   }
 }
-
-// Re-exported for compatibility: MANIFEST_SCHEMA_VERSION now lives in the
-// shared artifact contract (backup-artifact-contract.mjs), alongside the rest
-// of the manifest/artifact shape it versions.
-export { MANIFEST_SCHEMA_VERSION } from './backup-artifact-contract.mjs'
 
 /** `schema.table`, both plain lowercase identifiers. */
 const QUALIFIED_TABLE = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/
@@ -329,7 +331,7 @@ export function validateConfig(raw, sourcePath = '<config>') {
         `after an operation has already been given its full budget.`,
     )
   }
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(runCfg.artifactPrefix)) {
+  if (!ARTIFACT_PREFIX_PATTERN.test(runCfg.artifactPrefix)) {
     fail(
       'config_field_invalid',
       `${sourcePath}.run.artifactPrefix must match /^[a-z0-9][a-z0-9-]*$/ (it becomes a filename).`,

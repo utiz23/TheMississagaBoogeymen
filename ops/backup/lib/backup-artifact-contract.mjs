@@ -20,6 +20,21 @@
  * input, or rejected input changed as part of this move. See
  * `docs/planning/proton-drive-cloud-transport-architecture.md` §1.3.
  *
+ * **E3J3 addition:** `publishedTripleNames()` and `ARTIFACT_PREFIX_PATTERN`.
+ * `publishedTripleNames()` is the accessor §1.2 point 3 of the memo asked
+ * for: it hands a caller (the eventual uploader) the three *published* names
+ * derived from `ARTIFACT_SUFFIXES` and cannot structurally return the
+ * plaintext `.dump` name the way `buildArtifactNames()` does, because there
+ * is no key on its return object that could carry it. `ARTIFACT_PREFIX_PATTERN`
+ * collapses the identical `/^[a-z0-9][a-z0-9-]*$/` literal that was
+ * duplicated in `backup-config.mjs` (`run.artifactPrefix`) and
+ * `backup-acceptance-config.mjs` (`acceptance.artifactPrefix`) onto one
+ * constant, for the same reason `ARTIFACT_SUFFIXES` did in E3J2: leaving it
+ * duplicated in exactly two places is how it would end up duplicated in a
+ * third the next time a config surface needs to validate an artifact-prefix
+ * shaped string. No accepted or rejected input changes for either existing
+ * site.
+ *
  * BOUNDARIES
  * ----------
  * This module imports nothing from `backup-producer.mjs`, `backup-acceptance.mjs`,
@@ -51,6 +66,14 @@ export const ARTIFACT_SUFFIXES = Object.freeze({
 
 /** A compacted UTC snapshot stamp, `YYYYMMDDTHHMMSSZ`. */
 export const SNAPSHOT_STAMP_PATTERN = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/
+
+/**
+ * The producer's `run.artifactPrefix` and the acceptor's
+ * `acceptance.artifactPrefix` rule: it becomes part of a filename, so it is
+ * constrained to plain lowercase-and-hyphen identifiers. Centralized here
+ * (E3J3) from the identical literal each config module carried separately.
+ */
+export const ARTIFACT_PREFIX_PATTERN = /^[a-z0-9][a-z0-9-]*$/
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pure helpers — the parts of the contract a reader should be able to check by
@@ -85,6 +108,27 @@ export function buildArtifactNames(prefix, stamp) {
     checksum: `${base}${ARTIFACT_SUFFIXES.checksum}`,
     manifest: `${base}${ARTIFACT_SUFFIXES.manifest}`,
     plaintext: `${base}.dump`,
+  })
+}
+
+/**
+ * The three names a *published* artifact triple owns — deliberately never
+ * the plaintext dump.
+ *
+ * `buildArtifactNames()` returns a `plaintext` key because the producer's
+ * staging directory legitimately holds that file before encryption; a
+ * consumer that only ever deals with published objects (the acceptor's
+ * inbox/archive, and the eventual cloud uploader) should not have to remember
+ * to ignore it. This accessor's return object has no key that could carry the
+ * plaintext name, so a caller cannot pass it into a remote or transport path
+ * by mistake — the guarantee lives in the function's shape, not in a
+ * reviewer's attention (§1.4 point 2 of the E3J1 memo).
+ */
+export function publishedTripleNames(base) {
+  return Object.freeze({
+    ciphertext: `${base}${ARTIFACT_SUFFIXES.ciphertext}`,
+    checksum: `${base}${ARTIFACT_SUFFIXES.checksum}`,
+    manifest: `${base}${ARTIFACT_SUFFIXES.manifest}`,
   })
 }
 
