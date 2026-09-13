@@ -1,63 +1,63 @@
 # Session Playbook
 
-Use short, single-purpose sessions. Default pattern:
+The full workflow policy lives in
+[`docs/operations/agent-manager-workflow.md`](operations/agent-manager-workflow.md).
+This page only holds copy-paste prompt templates that build on that policy —
+it does not restate it.
 
-1. Session 1: inspect and define scope
-2. Session 2: implement
-3. Session 3: verify and polish
-4. Session 4: review or handoff if needed
+## Default pattern
 
-## Rules
+One coherent objective per conversation: inspection, implementation,
+verification, self-review, in-scope corrections, and authorized
+checkpointing normally stay together. Split into a fresh conversation when
+the objective itself changes, not because a phase or a commit happened.
 
-- One task per session.
-- Prefer one main agent.
-- Use subagents only when there are at least two clearly independent workstreams and the reliability benefit is concrete.
-- Do not use heavyweight planning unless the task will likely take more than 45 minutes or spans multiple systems.
-- Do not use TDD-heavy workflows unless the bug is subtle, regression-prone, or otherwise high risk.
+- Prefer one main agent; do discovery yourself by default.
+- Delegate to a subagent only when independent, parallelizable work gives a
+  concrete reliability or time benefit.
+- Use Plan Mode when the risk or ambiguity of the change warrants reviewing
+  an approach first — there's no fixed time threshold.
+- Use TDD-heavy workflows when the bug is subtle, regression-prone, or
+  otherwise high risk — not by default.
 - Keep durable state in repo files, not chat history.
-- If the thread is getting bloated, long, or phase-mixed, compact or start a fresh session.
+- If the thread is getting bloated, long, or is drifting onto an unrelated
+  objective, compact or start a fresh conversation (see
+  `agent-manager-workflow.md` §8).
 
-## Session 1 Prompt
+## Single-Objective Task Prompt
+
+Use this as the default way to hand Claude a task that doesn't need a
+separate planning pass first.
 
 ```text
-Session 1: inspect and define scope.
+Objective: <one sentence>.
 
-Inspect the relevant area of this repo, explain what is currently happening, identify constraints and risks, and define the exact change needed.
+Inspect what's needed, implement it, verify it with the smallest relevant
+checks, self-review your diff for defects before reporting, and fix in-scope
+issues you find rather than handing them off. Escalate instead of deciding
+silently if you hit a material design decision outside this scope, an
+unresolved blocker, or a conflicting edit in the working tree.
 
-Do not implement yet unless the scope is trivial.
-Avoid subagents unless there are at least two clearly independent workstreams.
-Keep this lean and recommend the exact next Session 2 objective at the end.
+Report: outcome, checkout/branch/baseline, changed files, checks run and
+results, remaining issues, and actual Git state.
 ```
 
-## Session 2 Prompt
+## Plan-First Task Prompt
+
+Use this when the change carries enough uncertainty, unfamiliar consequential
+code, or design risk that reviewing an approach first is worth the pause.
 
 ```text
-Session 2: implement.
+Objective: <one sentence>.
 
-Implement the agreed change in the smallest clean way. Stay within the scoped files unless you find a real dependency that requires expansion.
+Use Plan Mode: inspect the relevant area, identify constraints and risks, and
+propose an approach sized to the actual decision before making changes.
 
-Avoid broad refactors, avoid subagents unless there are at least two clearly independent workstreams, and keep the session focused on shipping the change.
-At the end, summarize what changed and state the exact Session 3 verification step.
-```
+Once the plan is approved, implement, verify with the smallest relevant
+checks, self-review your diff, and fix in-scope issues before reporting.
 
-## Session 3 Prompt
-
-```text
-Session 3: verify and polish.
-
-Run the smallest relevant checks for the completed change, fix any issues found, and tighten rough edges without expanding scope.
-
-Report verification results clearly, note any residual risk, and recommend whether Session 4 is needed.
-```
-
-## Session 4 Prompt
-
-```text
-Session 4: review or handoff if needed.
-
-Review the completed work, explain what changed in plain language, call out risks or missing verification, and update HANDOFF.md if project state changed.
-
-Keep the summary concise, prefer durable notes over chat-heavy recap, and recommend the next task only if there is a clear follow-up.
+Report: outcome, checkout/branch/baseline, changed files, checks run and
+results, remaining issues, and actual Git state.
 ```
 
 ## Management / Review Prompt
@@ -65,9 +65,12 @@ Keep the summary concise, prefer durable notes over chat-heavy recap, and recomm
 ```text
 Act as the management/review layer for this repo.
 
-Explain what Claude appears to have done, identify weak assumptions, missing verification, and workflow drift, then recommend the next session explicitly.
-
-Prioritize reliability over speed, keep reminders concise, and call out when the thread should be split into a fresh session.
+Treat Claude's report as a claim: inspect the repository and relevant
+verification evidence, and independently decide whether the checkpoint
+passes, needs correction, or is blocked. Explain what Claude appears to have
+done, identify weak assumptions or missing verification, and recommend the
+next scoped unit of work — state the recommended Claude model, effort level,
+and starting mode immediately before any copy-paste prompt.
 ```
 
 ## Anti-Bloat Prompt
@@ -76,7 +79,8 @@ Prioritize reliability over speed, keep reminders concise, and call out when the
 This thread is getting long.
 
 Summarize only:
-- current objective
+- the active objective and decisions made toward it, with rationale
+- authorization boundaries already granted
 - files that matter
 - latest verification result
 - unresolved blockers or assumptions
@@ -85,12 +89,14 @@ Summarize only:
 Do not preserve long transcript history that no longer matters.
 ```
 
-## Fresh Session Trigger Prompt
+## Fresh Conversation Trigger Prompt
 
 ```text
-This thread is now too mixed or too long for reliable work.
+This thread is now covering an unrelated objective, or is too long/confused
+for reliable work.
 
-State which session we are ending, summarize the active state briefly, note the exact next session objective, and move any durable state into HANDOFF.md or another repo file if needed.
-
-Do not continue implementation in this thread after that summary.
+Summarize the active state briefly (objective, decisions, changed files,
+verification state, next action), move any durable state into HANDOFF.md or
+another repo file if needed, and stop here rather than continuing
+implementation in this thread.
 ```

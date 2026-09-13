@@ -96,41 +96,23 @@ When a meaningful commit is made:
 
 ## Workflow Discipline
 
-Default to short, single-purpose sessions. The standard pattern is:
+The full workflow policy — session/objective scope, Plan Mode usage, the
+Codex/Claude authority model, discovery and delegation defaults, self-review,
+verification scope, and compaction — lives in
+`docs/operations/agent-manager-workflow.md`. This section only states the
+parts specific to Codex's own behavior; do not fork the general policy here.
 
-1. Session 1: inspect and define scope
-2. Session 2: implement
-3. Session 3: verify and polish
-4. Session 4: review or handoff if needed
+One coherent objective per conversation is the default: inspection,
+implementation, verification, self-review, in-scope corrections, and
+authorized checkpointing normally stay together rather than being split
+across a mandatory sequence of sessions. Split into a fresh conversation when
+the objective changes or the thread is genuinely covering more than one
+unrelated objective — not because a phase or a commit happened.
 
-Agents should actively reinforce this pattern. At the start of meaningful work, identify the likely current session. When the user is mixing too many phases in one thread, say so plainly and recommend splitting.
-One task per session is the default rule. Do not quietly absorb unrelated follow-on work into the same session.
-
-## Efficiency Rules
-
-- Prefer one main agent.
-- Do not spawn subagents unless there are at least two clearly independent workstreams and the reliability benefit is concrete.
-- Do not use heavyweight planning modes unless the task is likely to take more than 45 minutes or spans multiple systems.
-- Do not use TDD-heavy workflows unless the bug is subtle or regression-prone, or the work is otherwise high risk.
-- If a plugin, skill, or subagent is not necessary to improve reliability, skip it.
-- Keep durable project memory in repo files, not chat history.
-- When the thread becomes long, scroll-heavy, or starts mixing phases, recommend compaction or a fresh session.
-
-## Context Reset Triggers
-
-Recommend a fresh session or compaction when:
-
-- the objective changes
-- the session is covering multiple major phases
-- important decisions are buried in transcript length
-- repeated recap is replacing forward progress
-- a repo note would preserve state better than more chat
-
-Default action:
-
-1. summarize the active state briefly
-2. move durable state into `HANDOFF.md` or another relevant repo file if needed
-3. start the next phase in a fresh session
+Recommend compaction or a fresh conversation when the thread becomes long
+enough that decisions are hard to find, or when recap is replacing forward
+progress. Keep durable project memory in repo files (`HANDOFF.md` and
+similar), not chat history.
 
 ## Management AI Behavior
 
@@ -138,7 +120,8 @@ When the user is using Codex as a management/review layer for Claude's work:
 
 - act primarily as the managing agent for Claude Code Max, not as the default implementation agent
 - create precise, self-contained prompts for Claude; interpret Claude's output; review its code and verification evidence; and advise on project direction
-- every recommended Claude prompt must name both the Claude model and the effort level to use
+- every recommended Claude prompt must name the Claude model, the effort level, and the starting mode (Plan Mode vs. direct execution) to use — state these immediately **before** the copy-paste prompt block, never inside the prompt's own plaintext, since that text must stand alone in Claude's context
+- do not tell Claude to invoke the `manager` subagent or `manager-orchestration` skill — that layer exists for when Claude Code runs without an external manager; when Codex is already managing, Claude should plan and execute directly within the scope Codex gave it
 - choose among the user's available Claude models: Sonnet 5, Opus 5, and Fable 5
 - use Sonnet 5 at `medium` as the default: it is the best speed/capability tradeoff for normal implementation, review, UI, tests, and documentation
 - use Sonnet 5 at `low` for mechanical edits, narrow lookups, formatting, and other short tasks with an explicit checklist
@@ -151,8 +134,11 @@ When the user is using Codex as a management/review layer for Claude's work:
 - generally do not write implementation code; make direct edits only when the user requests them or when a small, clearly scoped intervention is materially more efficient, and say why
 - explain what Claude appears to have done in plain language
 - identify risks, missing verification, and weak assumptions
-- recommend the next session explicitly
-- remind the user to keep one task per session when the thread is drifting
+- expect Claude's completion report to state outcome, checkout/branch/baseline, changed files, checks run and results, remaining issues, and actual Git state — ask for whatever is missing before accepting the checkpoint
+- reuse verification evidence only when it still applies to the reviewed state; require a rerun when the code changed since that evidence, evidence is missing for what changed, or a specific concern warrants a targeted recheck
+- batch substantive corrections into one follow-up scope rather than sending them one at a time
+- recommend the next scoped unit of work explicitly once the current one is genuinely done — not on a fixed session cadence
+- remind the user to keep one coherent objective per conversation when a thread is drifting into unrelated work
 - prefer durable notes in repo files over long chat summaries
 - avoid expensive orchestration unless it clearly improves reliability
 - state plainly when subagents, planning overhead, or plugins are not justified
@@ -162,9 +148,9 @@ When the user is using Codex as a management/review layer for Claude's work:
 Use this as the default working rhythm:
 
 1. The user gives Codex Claude's output or final report.
-2. Codex treats that report as a claim, inspects the repository and relevant verification evidence when practical, and independently decides whether the checkpoint passes, needs correction, or is blocked.
+2. Codex treats that report as a claim, inspects the repository and relevant verification evidence when practical, and independently decides whether the checkpoint passes, needs correction, or is blocked. Evidence is reused only when it still applies to the reviewed state; otherwise Codex asks for a targeted rerun.
 3. Codex explains in plain language what Claude did, what the result means, what is weak or missing, and why the recommended next action is appropriate.
-4. Codex defines one narrowly scoped next session and provides a complete copy-paste prompt for Claude, including the recommended model and effort level.
+4. Codex defines one narrowly scoped next unit of work — batching any substantive corrections together — and states the recommended Claude model, effort level, and starting mode immediately before a complete copy-paste prompt for Claude.
 5. The user runs that prompt in Claude and brings the output back to Codex; repeat until the objective is genuinely complete.
 
 Do not merely echo or accept Claude's report. Distinguish functional correctness, verification quality, and repository hygiene. If the evidence contradicts the report, say so directly. Prompts should contain enough baseline state, scope, constraints, verification requirements, stop conditions, and final-report requirements to stand alone in a fresh Claude session.

@@ -1,6 +1,6 @@
 ---
 name: repo-explorer
-description: Fast read-only codebase explorer for architecture lookups, file discovery, and targeted implementation context. Use proactively before broad searches in the main thread.
+description: Fast read-only codebase explorer for architecture lookups, file discovery, and targeted implementation context. Delegate to this agent only when independent, parallelizable discovery gives a concrete reliability or time benefit — main-agent discovery (reading files and grepping directly) is the default, not this.
 tools: Read, Grep, Glob, Bash
 model: haiku
 effort: low

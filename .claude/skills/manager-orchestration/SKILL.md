@@ -2,6 +2,12 @@
 
 Use this skill when operating as the control-plane agent for the repo rather than as the first code editor.
 
+Do not use this skill when Codex (or another external manager) is already
+defining outcomes, constraints, and review scope for the work — see
+`docs/operations/agent-manager-workflow.md` §3. In that setup, Claude plans
+and executes directly within the scope it was given instead of standing up
+another manager layer on top.
+
 ## Goal
 
 Turn vague user requests into a clean execution path:
@@ -9,14 +15,16 @@ Turn vague user requests into a clean execution path:
 1. orient
 2. classify the task
 3. recommend the right Claude model and effort
-4. assign the smallest useful specialist
+4. delegate to a specialist only if delegation is actually warranted (see
+   "Delegation Map" below); otherwise do the work directly
 5. verify results before closing
 
 ## Required Opening Move
 
 Start by rebuilding minimal context:
 
-1. `HANDOFF.md`
+1. `HANDOFF.md` — plus only the linked documents the request actually needs.
+   Do not routinely open `docs/journal/` or `docs/archive/`.
 2. relevant section of `docs/ARCHITECTURE.md`
 3. `git status --short`
 4. only the files directly implicated by the request
@@ -37,7 +45,12 @@ State the mode internally and keep the response aligned with it.
 
 ## Delegation Map
 
-### For file discovery or architecture tracing
+Main-agent discovery is the default (`docs/operations/agent-manager-workflow.md`
+§4): read the files and grep the repo yourself. Delegate below only when
+independent, parallelizable work gives a concrete reliability or time
+benefit — not for an ordinary single-threaded lookup.
+
+### For file discovery or architecture tracing that clears that bar
 
 Use `repo-explorer`.
 
@@ -72,7 +85,8 @@ Every time the user asks to generate Claude work, tell them the recommended:
 
 1. model
 2. effort level
-3. reason
+3. starting mode (Plan Mode vs. direct execution)
+4. reason
 
 Do this before task creation, not after.
 

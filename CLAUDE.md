@@ -149,74 +149,54 @@ Always-dark theme. Red accents, sharp/aggressive esports aesthetic. No light mod
 
 ## Handoff Protocol
 
-`HANDOFF.md` is the session continuity file. Update it:
+`HANDOFF.md` is a short, current-state index — not a log. Update it at
+natural stopping points — not mid-task — after a significant architectural
+decision or schema change, or when a conversation ends with meaningful work
+done.
 
-- After completing any plan phase
-- After any significant architectural decision or schema change
-- When a session ends with meaningful work done (user says goodbye, wraps up, or asks to commit)
+**100-150 lines is the target; 200 lines and 12KB are hard ceilings that
+must not be exceeded.** It holds the current objective/status, the latest
+verified checkpoint, essential operational constraints (summarized
+directly, not reproduced), immediate blockers, links to the active
+documents that carry the detail, and the next 1-3 actions. Update the
+relevant section **in place** — never append a new dated entry on top of
+the old one; that append pattern is exactly what grows this file back into
+an unusable log.
 
-What to keep current in `HANDOFF.md`:
+Durable detail has exactly one authoritative home each, never duplicated
+into `HANDOFF.md` itself:
 
-- **Current Status** — which phase, what's ready to start
-- **What Was Done** — bullet summary of the session's work (add, don't replace previous entries unless they're superseded)
-- **What's Next** — the immediate next steps with enough detail to orient a cold start
-- **Open Decisions / Blockers** — anything unresolved that the next session needs to know
+- `docs/journal/YYYY-MM.md` — concise dated work diary (create the current
+  month's file as needed).
+- `docs/planning/` — active plans and roadmaps, in their existing topical
+  locations.
+- `docs/archive/` — historical handoff snapshots and retired/superseded
+  material, copied byte-for-byte before anything is reworded, each marked
+  with its status and, if superseded, a link to the replacement.
 
-Do not update `HANDOFF.md` mid-task. Update it at natural stopping points only.
+Check the size every time you touch this file — it's part of the normal
+update, not a separate cleanup session. Crossing 150 lines doesn't by
+itself force a relocation — condensing an active blocker to a concise
+summary is fine as long as its substance survives; relocate only when
+condensing alone won't keep the file under the 200-line/12KB ceiling, or
+the material is no longer current. Age alone never justifies dropping a
+still-open blocker or decision. Full detail:
+`.claude/skills/handoff-update/SKILL.md`.
 
-## Session Workflow
+## Workflow Policy
 
-Default to short, single-purpose sessions. The standard operating pattern is:
+The full workflow policy — session/objective scope, when to use Plan Mode,
+the Codex/Claude authority model, discovery and delegation defaults,
+self-review expectations, verification scope, compaction, and the completion
+report format — lives in `docs/operations/agent-manager-workflow.md`. That
+document is the canonical reference; do not restate or fork it here.
 
-1. **Session 1: Inspect and define scope** — understand the problem, inspect the repo, identify constraints, and define the exact change.
-2. **Session 2: Implement** — make the code or docs change without dragging the discovery transcript forward.
-3. **Session 3: Verify and polish** — run the smallest relevant checks, fix defects, and tighten the result.
-4. **Session 4: Review or handoff if needed** — summarize what changed, explain risks, and update `HANDOFF.md` if the session changed project state.
-
-The assistant should actively steer work back to this pattern. At the start of meaningful tasks, remind the user which session they are in and what should happen in that session. If a session is trying to do too many phases at once, call that out and recommend splitting.
-One task per session is the default rule. Do not quietly let a session expand into multiple unrelated objectives.
-
-## Efficiency Protocol
-
-Reliability matters more than conversational continuity. Optimize for correctness and bounded scope, not giant all-in-one threads.
-
-- Prefer one main agent.
-- Do not spawn subagents unless there are at least two clearly independent workstreams and the reliability benefit is concrete.
-- Do not use heavyweight planning skills unless the task is likely to take more than 45 minutes or spans multiple systems.
-- Do not use TDD-heavy skills unless the bug is subtle, the regression risk is high, or the work is safety-critical inside this project.
-- Treat long context as a problem. When the transcript becomes long, scroll-heavy, or mixes completed phases with new work, recommend compaction or a fresh session immediately.
-- Keep durable state in repo files, especially `HANDOFF.md`, not in chat history.
-- Avoid heavyweight planning or orchestration modes unless the task genuinely spans multiple independent phases or systems.
-- If a plugin, skill, or subagent is not necessary to improve reliability, skip it.
-
-### Context Reset Triggers
-
-Recommend a fresh session or compaction when any of these are true:
-
-- the task objective changes
-- the current session is trying to cover more than one major phase
-- the transcript is large enough that important decisions are hard to find
-- the assistant is restating prior context more than advancing the work
-- a handoff note in a repo file would preserve the useful state more cleanly
-
-Default action:
-
-1. summarize the active state briefly
-2. move durable state into `HANDOFF.md` or another relevant repo file if needed
-3. start the next phase in a fresh session
-
-### Reminder Behavior
-
-When acting as the management/review agent, be proactive about workflow discipline:
-
-- remind the user to keep one task per session
-- suggest the next session explicitly after finishing the current one
-- warn when the current thread is accumulating too much context
-- prefer file-based handoff notes over long conversational summaries
-- explain Claude/Codex work in plain terms before recommending next actions
-- state plainly when subagents, plugins, or planning overhead are not justified
-
-Use concise reminders. Do not turn every response into a lecture, but do not stay silent when the workflow is drifting into expensive or unreliable patterns.
+In short: keep one coherent objective per conversation (inspection,
+implementation, verification, self-review, and authorized checkpointing
+normally stay together), use Plan Mode when the risk or ambiguity of a
+change actually warrants it rather than on a time threshold, default to
+doing discovery yourself instead of proactively delegating, and self-review
+your own diff before reporting work as done.
 
 ## Commit Protocol
 
@@ -298,7 +278,8 @@ Direct commits to `main` are acceptable only when:
 
 When compacting or resuming, preserve only:
 
-- current phase and immediate objective
+- the active objective and any decisions made toward it, with rationale
+- authorization boundaries already granted (e.g. approved edits, commit/push scope)
 - files changed in the current workstream
 - latest verification results
 - unresolved assumptions or blockers
