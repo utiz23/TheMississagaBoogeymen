@@ -138,8 +138,13 @@ function assertNoSecretShapedKeys(value) {
  * normalizes. See the module docblock's "LOCAL PATH CANONICALITY" section
  * for why normalization-before-comparison is exactly the bug this exists to
  * close, and for the limits of what a lexical check can prove.
+ *
+ * Exported (E3J4A) so `backup-cloud-cli.mjs`'s local-path argv operand
+ * validation reuses this exact rule rather than duplicating it with weaker
+ * behaviour — throws `ConfigError`; that module wraps the call and rethrows
+ * as its own `BackupError` for type consistency with its other errors.
  */
-function assertCanonicalAbsolutePath(value, what) {
+export function assertCanonicalAbsolutePath(value, what) {
   if (value === '/') return value
   if (value.endsWith('/')) {
     fail(

@@ -26,50 +26,53 @@ in the roadmap doc, not here.
 
 ## Latest Verified Checkpoint
 
-**2026-09-13 — E3J3 (naming, remote paths, cloud config surface) done,
-corrected same-day by E3J3B after independent review, uncommitted.** New
-`ops/backup/lib/backup-cloud-naming.mjs`: safe remote-component validation,
-canonical-remote-root validation, `assertValidArtifactBase()` (the exact
-`<prefix>-<YYYYMMDDTHHMMSSZ>` identity shape, not just ordinary-component
-safety), a self-validating `attemptId` construction/validation, the
-immutable attempt namespace, the three published object paths, and the
-attempt-scoped attestation filename — all pure, no
-subprocess/network/filesystem. New `ops/backup/lib/backup-cloud-config.mjs`:
-fail-closed cloud-transport config validator/loader (reusing
-`backup-config.mjs`'s primitives), `verifyCliHashPin()` (a pure local
-SHA-512 comparison guard), and now **canonical-path enforcement**: every
-local path field must already be lexically canonical (no dot segments, no
-repeated/trailing separators) before it is used or containment-compared —
-lexical only, no claim about symlink/mount/filesystem-level aliasing. New,
-explicitly non-production `ops/backup/eanhl-backup-cloud.example.json`.
-`backup-artifact-contract.mjs` gained `publishedTripleNames()`
-(plaintext-excluding accessor) and `ARTIFACT_PREFIX_PATTERN` (centralized
-from the producer/acceptor configs' identical duplicate literal,
-behaviour-preserving at both sites). Corrected the E3J1 memo's T22 test
-intention: E3J3 proves the hash pin is required, well-formed, and compared
-fail-closed; the assertion that verification runs before provider-command
-construction is E3J4's, once that constructor exists.
+**2026-09-14 — E3J4: the Proton Drive CLI subprocess boundary is implemented
+in the working tree, hardened by three same-day independent security review
+passes (E3J4A/B/C). Baseline commit: `a3681b0` (E3J3).**
 
-**E3J3B (independent-review correction pass, same day) fixed four boundary
-defects** before any of this was considered complete: (1) non-canonical
-local paths (`../`, `//`) could alias into a directory the separation check
-was supposed to keep separate — now rejected outright, never normalized;
-(2) `buildPublishedObjectPaths()`/`buildAttestationFileName()` accepted an
-arbitrary safe-looking `artifactBase`, and `formatAttemptId()` could return
-a malformed id if its injected `randomToken` boundary misbehaved — both now
-validate the constructed identity's exact shape; (3) the secret-shaped-key
-rejection message echoed the untrusted key name — now fully generic; (4) a
-non-null `capacity.backingVolume` result was nested inside a frozen object
-without itself being frozen — now frozen. `pnpm test:backup-producer`:
-**235/235, 0 fail** (179 E3J2 baseline + 56 new: 5 artifact-contract + 19
-naming + 32 config), no existing assertion weakened. Nothing staged or
-committed this session.
+`ops/backup/lib/backup-cloud-cli.mjs` is a thin production API over
+`internal/backup-cloud-cli-core.mjs`, with `testdoubles/fake-proton-drive.mjs`
+and `backup-cloud-cli.test.mjs`. What it guarantees today:
 
-Before that: E3J2 (shared artifact-contract extraction) done 2026-09-13,
-179/179; workflow/docs cleanup reviewed 2026-09-13 (HANDOFF compaction,
-archive, roadmap extraction); E3I (Proton scratch experiment) closed
-2026-09-12. Full detail in the archive and
-`docs/journal/2026-09.md`.
+- a closed ten-name export surface; four fixed operations only — no arbitrary
+  operation name, argv builder, or command string anywhere;
+- **no dependency injection on any production route** — the four operations
+  accept no hash, spawn, environment, stat, or capture-bound override, and a
+  `deps` property handed to one is inert. The injectable factory is an
+  internal test seam, not an access-control boundary; a static regression
+  blocks any other `ops/**` importer;
+- ordering: local inputs and cancellation, then the real SHA-512 hash gate,
+  then operands/argv/spawn;
+- every operand a validated canonical path or component (no `-`-leading value
+  reaches the CLI's parser), rejected with generic non-echoing errors;
+  `shell:false` no-TTY capture over a POSITIVE environment allowlist; stream
+  failures terminate through the same bounded path as timeout/overflow;
+- anchored classification bound to the queried path's / uploaded file's own
+  identity — never a substring match, never an unrelated identity;
+- upload cross-checks the provider byte count against caller-supplied
+  `expectedLocalSizeBytes` and never promotes a skipped item to success;
+  download binds its evidence to the immediate child of `localDir` named by
+  the queried remote basename, proves it absent before spawning, and accepts
+  only a regular file afterwards (`lstat`, never `stat`);
+- every provider-derived byte count validated as a SAFE integer; results are
+  frozen, from a closed error-code enum, carrying no provider-authored text.
+
+Verification: `pnpm test:backup-producer` **354/354, 0 fail** (235 E3J3B
+baseline + 119 cloud-CLI); no existing assertion weakened or deleted.
+
+**Known-unclosed, by design:** the raw provider-response schemas are design
+contracts, not verified real-CLI behaviour (needs a separately authorized
+provider session); the post-hash executable-replacement TOCTOU gap; local-file
+TOCTOU around upload's caller-supplied size (E3J5 owes its safe derivation for
+all three artifacts); and the gap between download's absence check and its
+readback, plus hard containment, descriptor ownership, and content
+verification (E3J6). Full correction history and itemized defect lists: the
+architecture memo, linked under Immediate Blockers; dated milestones:
+[`docs/journal/2026-09.md`](docs/journal/2026-09.md).
+
+Before that: E3J3 (naming/paths/cloud config, corrected by E3J3B) 2026-09-13,
+**235/235**, committed as `a3681b0`; E3J2 (artifact contract) 2026-09-13,
+179/179; E3I (Proton scratch) closed 2026-09-12.
 
 ## Essential Operational Constraints
 
@@ -108,8 +111,10 @@ archive, roadmap extraction); E3I (Proton scratch experiment) closed
 - **E3 (Proton cloud backup) unactivated.** No uploader/attestation/watcher
   exist. Open: a proven hard-containment mechanism, real monitoring, and
   unattended credential persistence (Hotel-Echo untested). E3J2 (artifact-
-  contract extraction) and E3J3 (naming/remote-paths/cloud config surface)
-  are done; next step is E3J4 (subprocess boundary and fake CLI). U12-U15
+  contract extraction), E3J3 (naming/remote-paths/cloud config surface), and
+  E3J4 (subprocess boundary and fake CLI) are done; next step is E3J5
+  (uploader orchestration: preflight, create-folder, ordered uploads,
+  partial-failure handling, cancellation, T10-T12/T19-T20). U12-U15
   (readback ceilings/containment proof, timeouts/retry, remote-root/account
   namespace, independent-watcher design) remain unresolved. Detail:
   [`docs/planning/proton-drive-cloud-transport-architecture.md`](docs/planning/proton-drive-cloud-transport-architecture.md),
@@ -132,9 +137,9 @@ archive, roadmap extraction); E3I (Proton scratch experiment) closed
 
 ## Next 1-3 Actions
 
-1. If continuing backup work: **E3J4** — the subprocess boundary and a fake
-   CLI (argv construction, the allowlisting projector, the error-code enum,
-   the sanitiser, T3-T9), per
+1. If continuing backup work: **E3J5** — uploader orchestration (preflight
+   collision checks, create-folder, the ordered ciphertext→sidecar→manifest
+   upload, partial-failure handling, cancellation, T10-T12/T19-T20), per
    `docs/planning/proton-drive-cloud-transport-architecture.md` §12.
 2. Gate 2 reliability items: automated backups, restore drill, alerting,
    log retention, rollback docs — all unstarted and blocking Gate 2.

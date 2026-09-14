@@ -73,6 +73,7 @@ const DEFAULT_FILES = [
   'backup-artifact-contract.test.mjs',
   'backup-cloud-naming.test.mjs',
   'backup-cloud-config.test.mjs',
+  'backup-cloud-cli.test.mjs',
   'backup-producer.test.mjs',
   'backup-boundaries.test.mjs',
   'backup-acceptance.test.mjs',

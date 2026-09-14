@@ -37,19 +37,274 @@ non-null `capacity.backingVolume` result was nested inside a frozen object
 without itself being frozen — it is now frozen too. All four are covered by
 new regression tests; the corrected session total is **235/235 passing** (56
 new tests over the 179-test E3J2 baseline: 5 artifact-contract + 19 naming +
-32 config) ·
+32 config); further corrected by **E3J4** (2026-09-14) — the Proton Drive CLI
+subprocess boundary now exists: new `ops/backup/lib/backup-cloud-cli.mjs`
+implements argv construction for exactly the four operations of §8.3
+(`filesystem info/create-folder/upload/download`, each single-file/single-path,
+`--json` always present — evidenced verbatim for `info`/`upload`/`download` in
+`proton-drive-scratch-experiment.md` §5/§7; `create-folder`'s `--json` is this
+session's own inference, disclosed in the module's docblock, made because
+`folderUid` is otherwise unobtainable), the local SHA-512 hash-gate integration
+(closing the T22 split E3J3 opened: `assertCliIdentity()` runs strictly before
+any argv builder or spawn — as originally proved with injected
+`buildArgv`/`spawn` spies, an arrangement **superseded by E3J4B and E3J4C**;
+see §11.1's T22 entry for the ordering and the proof as they stand now), strict parse/validate/project-or-drop for each operation's response
+against the exact allowlisted shape of §2.3, and a closed, machine-readable
+`CLOUD_CLI_ERROR_CODES` enum with no provider-authored text ever attached to a
+returned or thrown value. New `ops/backup/lib/testdoubles/fake-proton-drive.mjs`
+(a disposable local test double, not the real CLI) and new
+`ops/backup/lib/backup-cloud-cli.test.mjs` cover T3-T9 and the T22 remainder —
+**44 new tests, corrected session total 279/279 passing, 0 fail, no existing
+assertion weakened.** Two implementation defects found and fixed during this
+same session's self-review, before being considered complete: a
+temporal-dead-zone reference to an uninitialized timer that crashed the
+spawn-failure path, and a listener-registration-order race in which a plain
+`close` handler could win over the intended timeout/overflow/cancellation
+outcome and misreport it as an ordinary (and misclassified) exit — both fixed
+and covered by the lifecycle tests that caught them. **T8 scope correction:**
+because no attestation writer exists until E3J6, E3J4 proves only the
+subprocess-boundary half of T8 — that no injected secret-shaped marker
+appears in this module's returned results, thrown errors, or logs (it writes
+none). The full T8 assertion that a *written attestation* contains no such
+marker remains E3J6's, once an attestation writer exists to test against; this
+memo previously left that split implicit and now states it explicitly (§11.1,
+§12). No provider-command surface, orchestration (attempt workflow, collision
+preflight, ordered triple upload, retry, lock ownership — E3J5), or readback
+containment/attestation (E3J6) was implemented or is claimed. Session detail:
+`docs/journal/2026-09.md`; further corrected by **E3J4A** (2026-09-14, same
+day, independent security review) — independent review reproduced the E3J4
+session's own claimed 44/44 as **41/44**, with an intermittent failure traced
+to `fake-proton-drive.mjs` calling `process.exit()` immediately after writing
+to piped stdout/stderr, before the write was guaranteed to have reached the
+OS; fixed by awaiting each write's own completion callback and, on the
+expected exit path, setting `process.exitCode` and returning naturally
+instead of calling `process.exit()`. The same review found and fixed eleven
+boundary defects in `backup-cloud-cli.mjs` itself: (1) `credential_unavailable`
+and info's not-found classification used `String.includes()` — a substring
+match, not an anchor — now an exact match of the fully evidenced shape on the
+expected stream with the other stream empty; (2) a zero exit with nonempty,
+unrecognised stderr was treated as success for all four operations — now
+`provider_stderr_on_success`, checked everywhere before any success; (3)
+`runDownload()` ignored stdout entirely and accepted ANY exit-0 invocation as
+success if the local file merely existed, including malformed or malicious
+JSON — download's terminal summary is now validated against the same
+evidenced shape as upload's, and a reported byte count is cross-checked
+against the local file size (`download_size_mismatch` on disagreement); (4)
+the evidence-boundary disclosure for info/create-folder's raw key spelling,
+create-folder's `--json` placement, and now download's terminal-summary
+reuse is strengthened throughout the module's docblock as an acknowledged
+design hypothesis, not verified real-CLI compatibility — real-schema
+compatibility remains activation-blocking, requiring a separately authorized
+provider session (E3J10+); (5) argv operands accepted any nonempty string,
+so a value could itself be `--conflict-strategy`, `-f`, or `--version` —
+every operand is now a validated canonical absolute path (reusing E3J3's
+`assertCanonicalAbsolutePath()`/`validateRemoteRoot()` rather than
+duplicating them) or a validated safe component, and no component may begin
+with `-`; (6) `deps.buildArgv` let any caller of the four production entry
+points replace the closed command surface — each was changed to call its fixed
+real constructor directly, never sourced from `deps`, with a separately named
+`runOperationForTests()` test-only seam for the ordering proof. **Both halves
+of that fix were themselves insufficient and are superseded:** E3J4B removed
+`runOperationForTests()` entirely (it was still a production-reachable
+arbitrary-argv path), and E3J4C removed the remaining `deps` parameter from
+the production signatures altogether; (7) `shell` was never passed explicitly and the composed environment
+inherited every variable of the parent process, including several that can
+turn an unattended run into an interactive prompt — `shell: false` is now
+explicit and `GPG_TTY`/`DISPLAY`/`WAYLAND_DISPLAY`/`SSH_ASKPASS`/
+`GIT_ASKPASS`/`BROWSER` are stripped before the credentials-backend selector
+is added, with `credentials.backend` re-validated at this boundary as
+exactly `pass` or `keychain`; (8) result objects were mutable — every
+returned result, including array-valued fields, is now frozen, and
+`deps.maxStdoutBytes`/`maxStderrBytes` overrides are now validated as
+positive safe integers under a hard ceiling so a caller cannot disable
+bounding with `Infinity`, `0`, a negative number, or an absurd one; (9) a
+missing/unreadable CLI executable let the native `fs` error escape — every
+hash/open/read/stat failure and every malformed `cli`/`credentials`/
+`timeouts`/capture-limit/`signal`/operand input now maps to one stable,
+locally authored `BackupError` with no native text, `cause`, or echoed
+value (the post-hash executable-replacement TOCTOU limitation is
+unchanged and is explicitly documented as unclosed); (10) an already-aborted
+signal was not checked until after hashing and argv construction — every
+production entry point now checks `signal.aborted` first, and the
+subprocess boundary rechecks immediately before the actual spawn call; (11)
+the T8 interpretation is corrected in comments throughout: an allowlisted,
+pattern-validated opaque provider identifier surviving in a result is
+expected provider metadata, not evidence of "secret sanitization" — T8
+proves only that an unexpected key, value shape, or provider-authored free
+text cannot escape. **31 tests were added (44 → 75), full corrected suite
+310/310 passing, 0 fail, no existing assertion weakened or deleted to
+pass.** Session detail: `docs/journal/2026-09.md`; further corrected by
+**E3J4B** (2026-09-14, same day, a further independent review pass) — ten
+more findings, all fixed: (1) the credential-failure anchor used THIS
+memo's own shortened paraphrase rather than the scratch experiment's
+authoritative raw text, which actually ends each line with `: No such file
+or directory` — corrected to the exact byte-identical two-line text from
+`proton-drive-scratch-experiment.md` §8.2/§8.3; (2) not-found
+classification accepted `Node not found: <anything>`, so a stale or
+unrelated response naming a DIFFERENT node could be misread as "the queried
+path is absent" — the sentinel's name is now bound to the queried path's
+own basename, and `Trashed node not found` (never templated with a name in
+any captured evidence) is accepted only for a query that itself targeted
+`/trash`; (3) upload's name-conflict rejection did not require stderr to be
+empty and did not bind the failure entry's `name` or the quoted name in its
+error text to the file actually being uploaded — both are now required to
+match the basename of the caller-supplied `localFilePath`, so identity is
+never derived from provider text alone; (4) the E3J4A "test-only"
+`runOperationForTests()` seam is REMOVED entirely — it was still a
+production-reachable way to construct and spawn arbitrary argv; T22's
+ordering proof now uses a deliberately invalid operand paired with a
+mismatched hash (the hash error must appear, never the operand error,
+because the operand is never inspected until after the hash gate) with no
+injectable builder anywhere in the module; (5) the environment was built by
+copying the entire parent environment and deleting six prompt-related keys
+— still forwarding unrelated credentials/tokens, `LD_PRELOAD` (capable of
+injecting code into the very binary the hash gate just verified),
+`NODE_OPTIONS`, any inherited `PROTON_DRIVE_*` variable, and other ambient
+secrets — replaced with a small POSITIVE allowlist (`PATH`; `HOME` and the
+`XDG_*` locations; `GNUPGHOME`/`GPG_AGENT_INFO`/`PASSWORD_STORE_DIR`/
+`DBUS_SESSION_BUS_ADDRESS` for an already-running credential agent;
+`LANG`/`LC_ALL`/`LC_CTYPE`/`TMPDIR`); (6) operand-validation error messages
+echoed the invalid value — every such error is now one fixed, locally
+authored message naming only the field identity, never the value, an
+imported message, or a `cause`; (7) `signal?.aborted` was checked before
+`assertValidSignal()`, so a plain object like `{aborted: true}` was accepted
+as a real cancellation without validation — signal validation now runs
+first, unconditionally; (8) capture-stream `error` events were silently
+swallowed — both streams now route through the same bounded-termination
+path as timeout/overflow, yielding a new closed code
+`provider_stream_failed` with no native error text; (9) `timeouts` accepted
+any finite positive number (including non-integers) and did not enforce
+that cancel grace stays below the operation timeout — now requires positive
+safe integers and the same coherence rule `backup-cloud-config.mjs` already
+enforces for the producer config, and download's local `stat` evidence is
+now validated defensively (`isFile` callable and exactly `true`, `size` a
+non-negative safe integer) before being trusted; (10) adversarial
+re-enumeration of every returned code and thrown preflight code, confirmed
+against the closed enum, confirmed frozen, confirmed leak-free, and
+confirmed that no provider command beyond the fixed four can be constructed
+through any export — proved directly by a closed-export-surface test.
+**18 tests were added (75 → 93), full corrected suite 328/328 passing, 0
+fail, no existing assertion weakened or deleted to pass.** The exit-before-
+drain fake-CLI race E3J4A fixed was independently re-verified stable across
+10 consecutive direct runs. Session detail: `docs/journal/2026-09.md`;
+further corrected by **E3J4C** (2026-09-14, same day, a third independent
+review pass) — seven findings, all fixed:
+
+(1) **The production dependency seam was still open.** Removing E3J4A's
+`runOperationForTests()` closed only the arbitrary-ARGV half. All four
+production operations still accepted a caller-supplied `deps` object merged
+over module defaults, able to replace `sha512File` (bypassing the real
+executable hash), `spawn` (substituting the process implementation), `env`
+(redirecting credential/environment state), `statSync` (fabricating local
+filesystem evidence), and `maxStdoutBytes`/`maxStderrBytes` (disabling
+output bounding) — all through the public call signature. The boundary
+logic moved to `ops/backup/lib/internal/backup-cloud-cli-core.mjs`, whose
+`makeCloudCliOperations(deps)` builds the SAME fixed four operations (no
+operation name, argv builder, or command string is accepted anywhere — this
+is not a renamed command/spawn seam) against a supplied dependency set.
+`ops/backup/lib/backup-cloud-cli.mjs` is now a thin production API that
+binds `REAL_CLI_DEPS` once at module load and exposes the same ten exports,
+with four operation signatures that name no dependency at all; a `deps`
+property handed to one of them is inert. Stated precisely: the production
+exports accept and forward no dependency overrides; the wrapper binds only
+`REAL_CLI_DEPS`; `makeCloudCliOperations()` is an explicitly internal TEST
+SEAM and **not** a cryptographic or runtime access-control boundary; a
+static regression fails if any other `ops/**` module imports it; and
+malicious local repository code is **outside this boundary's threat
+model**, since code able to add an import already has arbitrary execution.
+The defended property is that an ordinary production caller cannot, through
+the call signature, substitute the hash, the process, the environment, the
+local evidence, or the bounds — proved by a regression per operation that
+poisons all five at once and observes the real ones being used.
+
+(2) **Upload trusted the provider summary.** This memo said `transferredBytes`
+was cross-checked against a locally known file size; `projectUpload()` did no
+such comparison. `runUpload()` now REQUIRES `expectedLocalSizeBytes`,
+validated as a non-negative safe integer, and an actual one-file transfer
+whose reported count differs is `upload_size_mismatch`, never success. That
+value is **caller-supplied local evidence**: this boundary validates and
+compares it, and proves nothing about whether the caller measured the correct
+inode, nothing about its correspondence to `localFilePath`, and nothing about
+local-file TOCTOU or filesystem immutability. The artifact contract records
+`manifest.ciphertext.bytes` but no authoritative sidecar or manifest size, so
+**E3J5 owes safe derivation and validation of that value for all three local
+artifacts** before calling this boundary. Separately, an unexplained
+`skippedItems: 1` response is no longer promoted to transport success —
+without independently proven skip semantics and skipped-object identity it
+fails closed as `upload_skipped_unverified`.
+
+(3) **Download evidence was not bound to the requested destination** — see the
+itemized correction under §2.3, which also retracts this memo's false claim
+that E3J4 obtained the download size from an `fstat` on a descriptor the
+uploader opened. `expectedLocalPath` is now the canonical immediate child of
+`localDir` named by the queried remote basename, checked before any spawn; the
+bound path must be proven ABSENT by a non-symlink-following `lstat` before the
+command runs (`download_destination_exists` / `local_preflight_failed`
+otherwise, with nothing spawned); and the post-command readback uses `lstat`
+and accepts only a regular file (`local_readback_not_regular_file` for a
+symlink, directory, or socket) of safe-integer size matching the provider's
+count. E3J6's hard byte containment, descriptor ownership, content
+verification, and race closure remain explicitly unclosed.
+
+(4) **`Number.isInteger` was used where values can exceed 2^53-1** — a count
+above `Number.MAX_SAFE_INTEGER` cannot be represented exactly by `JSON.parse`,
+so comparing or echoing one compares a rounded value. `info.claimedSize` and
+transfer-summary `transferredBytes` now use `Number.isSafeInteger`, with
+boundary tests at `Number.MAX_SAFE_INTEGER` and immediately above it for info,
+upload, and download.
+
+(5) **T22's documented ordering was wrong**, and its final proof was described
+as using an injected `buildArgv` spy that no longer exists. Both corrected —
+see §11.1's restated T22 entry.
+
+(6) **The environment claim was unbounded** — corrected in §7.2: the allowlist
+bounds key NAMES, and allowlisted inherited VALUES remain
+deployment-controlled inputs awaiting E3J9/E3J10 proof.
+
+(7) **Durable-documentation hygiene** — the three E3J4/E3J4A/E3J4B journal
+entries ran to 312 lines against `agent-manager-workflow.md`'s 5-10-bullet
+milestone standard, and `HANDOFF.md` retold the same three defect catalogues.
+Both condensed; the complete itemized correction history lives here, in this
+memo, which is its one authoritative home.
+
+Self-review before checkpointing found one further defect in the same
+download-evidence path, fixed in place as part of this stage:
+`validateLocalStat()` read `stat.size` three times (twice to validate, once to
+return), so an accessor that throws escaped the function with its native
+message intact, and a stateful accessor could report a valid size during
+validation and a different value on the way out. Both `isFile()` and `size`
+are now observed exactly once, each inside its own `try`, with every later
+check and the returned value using the captured local.
+
+**26 tests were added (93 → 119), full corrected suite 354/354 passing, 0
+fail, no existing assertion weakened or deleted to pass.** Session detail:
+`docs/journal/2026-09.md`.
 **Status:**
 **DESIGN AND ANALYSIS FOR CLOUD TRANSPORT AND ATTESTATION — NOT ACTIVATED.**
-The **E3J2** shared artifact-contract extraction (§1.3, §12, §13) and the
-**E3J3** naming/remote-path/cloud-config surface (§1.3, §4, §8.1, §10, §12),
-as corrected by **E3J3B**, are implemented locally and behaviour-preserving
-or additive-only; both are local repository code — pure naming/path helpers
-and a fail-closed configuration validator — not a Proton Drive uploader or
-any other cloud behaviour. Everything else this memo designs — the Proton
-Drive uploader, transport, readback, attestation, monitoring, credential
-handling, deployment, scheduling, retention, and restore work — remains
-unimplemented and unactivated. **NOTHING BEYOND THOSE LOCAL SESSIONS IS
-APPROVED FOR ACTIVATION.**
+The **E3J2** shared artifact-contract extraction (§1.3, §12, §13), the
+**E3J3** naming/remote-path/cloud-config surface (§1.3, §4, §8.1, §10, §12,
+as corrected by **E3J3B**), and the **E3J4** subprocess boundary (§2, §6-8,
+§10-12, as corrected by **E3J4A**, **E3J4B**, and **E3J4C** after three
+independent security review passes) are implemented locally and are either
+behaviour-preserving, additive-only, or a narrowly scoped new local
+boundary; all three are local repository code with no provider, host, or
+credential access of their own — pure naming/path helpers, a fail-closed
+configuration validator, and a subprocess boundary that has so far been
+exercised only against a disposable local fake CLI, never the real Proton
+Drive binary. The raw provider-response shapes it validates against
+(info/create-folder success, download's terminal summary) remain
+acknowledged design hypotheses, not verified real-CLI compatibility — see
+E3J4A's correction 4, restated in E3J4B's own correction list. The
+post-hash executable-replacement TOCTOU gap remains explicitly unclosed, as
+do local-file TOCTOU around upload's caller-supplied
+`expectedLocalSizeBytes` (E3J5 owes its safe derivation) and the gap between
+download's pre-spawn absence check and its readback (E3J6).
+Everything else this memo
+designs — the uploader's own orchestration (attempt workflow, collision
+preflight, ordered triple upload, retry, lock ownership), readback,
+attestation, monitoring, credential handling, deployment, scheduling,
+retention, and restore work — remains unimplemented and unactivated.
+**NOTHING BEYOND THOSE LOCAL SESSIONS IS APPROVED FOR ACTIVATION.**
 
 This memo defines the proposed architecture for the component that pushes
 producer-generated backup artifacts from Hotel-Echo to Proton Drive through the
@@ -57,11 +312,15 @@ official Proton Drive CLI, and for the **cloud attestation** record that
 source-side freshness monitoring would later consume. The E3J1 design session
 that authored this memo wrote no code, changed no configuration, contacted no
 provider, touched no host, and closed no E3 item. Its prerequisite extraction,
-**E3J2**, and the naming/config session that followed it, **E3J3** (corrected
-same-day by **E3J3B** after independent review), were both carried out
-afterward in separate local sessions (§12, §13). Their combined footprint is
+**E3J2**, the naming/config session that followed it, **E3J3** (corrected
+same-day by **E3J3B** after independent review), and the subprocess-boundary
+session that followed that, **E3J4** (corrected same-day by **E3J4A**,
+**E3J4B**, and **E3J4C**), were all carried out afterward in
+separate local sessions (§12, §13). Their combined footprint is
 local repository code and documentation only: `ops/backup/lib/` (including
-`ops/backup/lib/*.test.mjs`), `ops/backup/*.example.json`,
+`ops/backup/lib/*.test.mjs`, `ops/backup/lib/internal/`, and
+`ops/backup/lib/testdoubles/`),
+`ops/backup/*.example.json`,
 `ops/backup/run-suite.mjs` (registering the new test files), and this memo,
 `HANDOFF.md`, and the dated journal — no provider, host, credential, or
 activation action. **E3 remains unactivated.**
@@ -405,8 +664,8 @@ indeterminate.
 | Field | Type | Trust |
 | --- | --- | --- |
 | `transferredItems` | `0 \| 1` | trusted |
-| `transferredBytes` | non-negative integer | **untrusted** — cross-checked against the local file size the uploader measured itself |
-| `skippedItems` | `0 \| 1` | trusted |
+| `transferredBytes` | non-negative **safe** integer | **untrusted** — on a one-file transfer it must equal the caller-supplied `expectedLocalSizeBytes`, else `upload_size_mismatch` **[E3J4C]** |
+| `skippedItems` | `0 \| 1` | **untrusted** — `skippedItems: 1` is never promoted to transport success; it is `upload_skipped_unverified` **[E3J4C]** |
 | `failedItems` | `0 \| 1` | trusted |
 | `failureCodes` | `string[]` drawn from the closed enum | trusted |
 
@@ -419,13 +678,48 @@ mapped codes survive.
 
 | Field | Type | Trust |
 | --- | --- | --- |
-| `localPath` | `string` | trusted — it is the path the uploader chose, echoed back, never parsed from provider output |
-| `bytesWritten` | non-negative integer | trusted — obtained from a local `fstat` on the descriptor the uploader opened, **not** from provider output |
+| `localPath` | `string` | trusted — it is the BOUND destination (see below), never parsed from provider output |
+| `bytesWritten` | non-negative **safe** integer | trusted only as far as a local `lstat` of that bound path goes — see the correction below |
 | `completed` | `true` | trusted |
 
 **The `download` result deliberately carries no provider-derived field.** Its
 only job is to say that a local file now exists; everything that matters about
 that file is computed locally afterwards.
+
+**[CORRECTION, E3J4C, 2026-09-14]** An earlier revision of the row above
+claimed `bytesWritten` is "obtained from a local `fstat` on the descriptor the
+uploader opened". **That was false.** E3J4 opened no descriptor and performed
+no `fstat`; it called `fs.statSync()` on a caller-supplied `expectedLocalPath`
+that could be any canonical local path at all. The guarantee actually
+implemented, as of E3J4C, is weaker and is stated here exactly:
+
+1. `expectedLocalPath` must be the canonical **immediate child** of `localDir`
+   whose basename equals the queried remote path's basename. A mismatched
+   basename, a sibling, a deeper descendant, or any path outside `localDir` is
+   refused before argv is built or a child is spawned.
+2. That bound path is `lstat`ed **before** the provider command runs. Only a
+   definite `ENOENT` permits the spawn; an existing node of any kind —
+   including a directory or a dangling symlink — is `download_destination_exists`
+   with nothing spawned, and any other inability to establish absence is
+   `local_preflight_failed` with nothing spawned. This is what rejects a
+   pre-existing unrelated file sitting at the bound path, which binding alone
+   cannot do.
+3. After a clean response the same bound path is `lstat`ed again — never
+   `stat`, so a symlink is reported as a symlink and refused
+   (`local_readback_not_regular_file`) rather than silently resolved. It must
+   be a regular file whose size is a non-negative safe integer, and the
+   provider's own reported count must equal that size, else
+   `download_size_mismatch`.
+
+Only an error's `code` property is ever consulted; no native message, path, or
+errno text is surfaced.
+
+**What this still does NOT establish (E3J6, unchanged):** the absence check and
+the readback are two separate observations, so the race between them is **not**
+closed; nothing is contained by a byte ceiling during the transfer; no file
+descriptor is owned across the operation; and the downloaded file's **content**
+is not verified. This is identity/evidence binding plus destination-cleanliness
+preflight, and must never be described as hard containment or acceptance.
 
 ---
 
@@ -883,6 +1177,27 @@ scope.** The uploader:
 - runs with no controlling TTY as a *design assumption*, so that a build which
   accidentally depends on an interactive prompt fails closed in testing rather
   than in production.
+
+**[E3J4C] What the environment allowlist bounds, and what it does not.**
+`backup-cloud-cli-core.mjs`'s `ENV_ALLOWLIST` is a POSITIVE allowlist of
+environment variable **key names**: `PATH`; `HOME` and the `XDG_*` locations;
+`GNUPGHOME`, `GPG_AGENT_INFO`, `PASSWORD_STORE_DIR`, and
+`DBUS_SESSION_BUS_ADDRESS`; `LANG`, `LC_ALL`, `LC_CTYPE`, and `TMPDIR`. Its
+entire guarantee is that a variable whose name is **not** on that list is
+excluded from the child environment. E3J4 proves that exclusion and nothing
+more.
+
+An allowlisted variable's **inherited value is not trusted merely because its
+name is allowed.** Every one of them is a deployment-controlled input: `PATH`
+decides what a bare-name helper binary resolves to; `HOME`/`XDG_*`,
+`GNUPGHOME`, and `PASSWORD_STORE_DIR` decide which credential store is opened;
+`GPG_AGENT_INFO` and `DBUS_SESSION_BUS_ADDRESS` name agent sockets; `TMPDIR`
+decides where intermediate files land; the locale variables can change parsed
+text. **Who owns those paths and sockets, what their canonical values must be,
+and how they behave under a service-mode (non-login, non-interactive, possibly
+near-empty-environment) run are E3J9/E3J10 questions with no proof in this
+repository yet.** Until that proof exists, the allowlist must be described as
+ambient-variable exclusion, never as a trusted-environment guarantee.
 
 The consequence is that the credential mechanism is its **own** session (§12,
 E3J9) and its own unknown (U1), and that the uploader can be designed, built and
@@ -1356,10 +1671,58 @@ not exist in this repository yet. It is **E3J4's** test to write, once the
 subprocess boundary and its provider-command constructor exist — not
 something E3J3 can prove or claims to prove.
 
+**[CLOSED BY E3J4, 2026-09-14; ORDERING AND PROOF RESTATED BY E3J4C]** The
+subprocess boundary and its four provider-command constructors now exist
+(`ops/backup/lib/backup-cloud-cli.mjs`, over
+`ops/backup/lib/internal/backup-cloud-cli-core.mjs`). Each of the four
+exported operations (`runInfo`, `runCreateFolder`, `runUpload`, `runDownload`)
+performs, in this order and no other:
+
+1. **validate the local call inputs and the cancellation state** — `signal`
+   first, before anything reads `.aborted`, then `credentials`, `timeouts`,
+   the capture limits, and any operation-specific local input such as upload's
+   `expectedLocalSizeBytes`;
+2. **compute the executable's real SHA-512 and verify the configured pin** via
+   `verifyCliHashPin()`;
+3. **only then** validate the operation's own operands, build the fixed argv,
+   and spawn.
+
+Hashing is therefore **not** the literal first action — step 1 precedes it, and
+any earlier wording in this memo saying otherwise is superseded. What the
+ordering guarantees, and what T22 actually asserts, is that **no operand is
+inspected, no argv is constructed, and no child is spawned until the hash gate
+has passed.**
+
+The proof in `backup-cloud-cli.test.mjs` uses **no injected `buildArgv` spy and
+no injectable builder of any kind** — E3J4A's `runOperationForTests()` seam was
+removed in E3J4B, and E3J4C removed the remaining `deps` seam from the
+production signatures entirely. The final proof is: the SAME deliberately
+invalid operand yields the **hash** error under a mismatched (or malformed) pin
+and the **operand** error under a matching one, with spawn observed not to be
+reached in the mismatch case. Any earlier wording in this memo describing an
+injected-`buildArgv`-spy proof is historical provenance only.
+
+T22 is fully closed across E3J3 and E3J4; no further session owns any part of
+it. **Hashing still proves only that the file read at hash time had the pinned
+content** — the post-hash executable-replacement TOCTOU window remains open and
+is not closed by any control in that module.
+
+**[CORRECTION, E3J4, 2026-09-14] — the T8 assertion is also split, not one
+piece.** §9's schema note and §11.1's T8 row read as though one test could
+assert secret non-leakage end to end, but no attestation writer exists until
+E3J6 — there is nothing yet to write a marker INTO an attestation file. E3J4's
+T8 tests therefore assert the half that is actually buildable now: no injected
+secret-shaped marker survives into this subprocess boundary's own returned
+results, thrown errors, or logs (it writes none). The remaining half — that a
+WRITTEN attestation file contains no such marker — is E3J6's to prove, once an
+attestation writer exists to test against. Until then, "T8 is covered" means
+the subprocess-boundary half only.
+
 ### 11.2 What a fake CLI proves, and what it cannot
 
 **Can prove:** argv construction and the absence of forbidden flags; ordering;
-allowlisting and secret containment; error classification; verdict logic;
+allowlisting and secret containment (of this module's own returned/thrown
+values — see the T8 split above); error classification; verdict logic;
 attestation immutability and content; retry behaviour; freshness arithmetic;
 configuration fail-closure. In short, **everything that is this repository's own
 logic.**
@@ -1391,7 +1754,7 @@ sessions need no provider, no host, and no credential.
 | --- | --- | --- |
 | **E3J2** | **Shared artifact-contract extraction** (§1.3, §1.4). **DONE (2026-09-13).** Behaviour-preserving move into `backup-artifact-contract.mjs` — including `BackupError`, re-exported from `backup-producer.mjs` for import-path compatibility; producer and acceptor import from it; no new exported function (`publishedTripleNames()` deferred to E3J3); acceptance criterion is 179/179 with no assertion text changed — met exactly. See the §1.3 dependency-graph correction: the acceptor's non-contract `checkCapacity()` dependency on the producer was out of scope and remains | no |
 | **E3J3** | **Naming, remote paths, and the cloud config surface.** **DONE (2026-09-13), corrected same-day by E3J3B after independent review.** `publishedTripleNames()`/`ARTIFACT_PREFIX_PATTERN` (§1.3); new `backup-cloud-naming.mjs` (safe remote-component validation, canonical-remote-root validation, `assertValidArtifactBase()` identity-shape validation, self-validating `attemptId` construction, the attempt namespace, the three published object paths, the attestation filename — §4, §8.1); new `backup-cloud-config.mjs` (fail-closed cloud config validator/loader with LEXICAL canonical-path enforcement before containment comparison, a generic secret-key rejection message, a frozen `backingVolume` result, `verifyCliHashPin()`) and `eanhl-backup-cloud.example.json` (§10); T1, T2, the E3J3 portion of T22 (corrected above), and T23 — **56 new tests over the 179-test baseline (5 artifact-contract + 19 naming + 32 config), full suite 235/235, 0 fail.** No Proton CLI argv, subprocess, upload, download, or attestation writer — those remain E3J4 onward | no |
-| **E3J4** | **Subprocess boundary and the fake CLI.** argv construction, the allowlisting projector, the error-code enum, the sanitiser, plus T3-T9 | no |
+| **E3J4** | **Subprocess boundary and the fake CLI.** **DONE (2026-09-14), corrected same-day by E3J4A, then E3J4B, then E3J4C, each after its own independent security review pass.** `backup-cloud-cli.mjs` now: constructs argv for the four operations (§8.3) with option-injection-safe operand validation and generic (non-echoing) rejection errors; runs the hash gate closing T22 (§11.1) strictly before argv/spawn, with no injectable builder anywhere in the module; spawns with `shell:false` explicit and a POSITIVE environment allowlist (not a copy-and-strip); classifies credential-unavailable/not-found/name-conflict text with EXACT anchors bound to the actual queried path or uploaded file identity (never a substring match, never accepted on an unrelated identity); treats a capture-stream failure the same as a timeout/overflow (`provider_stream_failed`); validates timeouts as positive safe integers with the grace-below-timeout coherence rule; validates download's local evidence defensively; and returns only frozen results from a closed `CLOUD_CLI_ERROR_CODES` enum, through a closed ten-name export surface. **E3J4C** then moved the boundary logic to `internal/backup-cloud-cli-core.mjs` so the production operations accept NO dependency override at all (the remaining `deps` seam), made upload cross-check the provider byte count against caller-supplied `expectedLocalSizeBytes` and stop promoting `skippedItems: 1` to success, bound download's local evidence to the exact immediate child of `localDir` named by the queried remote basename with a pre-spawn non-symlink-following absence check and a regular-file-only readback, switched every provider-derived byte count to `Number.isSafeInteger`, and made `validateLocalStat()` observe `isFile()` and `size` exactly once each inside their own `try`. New `testdoubles/fake-proton-drive.mjs` (disposable local double; its own exit-before-drain race, fixed in E3J4A, re-verified stable across 10 consecutive runs in E3J4B; records environment KEY NAMES only, never values) and `backup-cloud-cli.test.mjs` — **119 tests total (44 E3J4 + 31 E3J4A + 18 E3J4B + 26 E3J4C), full suite 354/354**. Independent review first reproduced the E3J4 session's own claimed 44/44 as 41/44, then — after E3J4A's fix — found ten further boundary-logic defects, then seven more in E3J4C (see the correction entries at the top of this memo for the itemized lists). No orchestration (attempt workflow, collision preflight, ordered triple upload, retry, lock ownership — E3J5) or readback containment/attestation (E3J6) | no |
 | **E3J5** | **Uploader orchestration.** Preflight, create-folder, ordered uploads, partial-failure handling, cancellation, plus T10-T12, T19-T20 | no |
 | **E3J6** | **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T18 | no |
 | **E3J7** | **Freshness export and evaluation.** The attestation reader, `validateCloudAttestationBinding()`, the freshness number, the minimal exported health signal, plus T21 | no |
