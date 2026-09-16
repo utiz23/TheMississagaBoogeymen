@@ -191,7 +191,34 @@ export function assertValidArtifactBase(base) {
 }
 
 /**
- * The immutable per-attempt remote namespace: `<remoteRoot>/<artifactBase>/<attemptId>`.
+ * The ONE remote folder name an attempt creates: `<artifactBase>.<attemptId>`
+ * (E3J5 layout).
+ *
+ * E3J3 nested the attempt under a per-artifact folder
+ * (`<remoteRoot>/<artifactBase>/<attemptId>`). That shape needs a shared
+ * `<artifactBase>` parent which some attempt must first create and every later
+ * attempt must reuse — a folder that can never be retired after an
+ * indeterminate create, whose first-creation race depends on unevidenced
+ * duplicate-create semantics, and under which an absence query could not be
+ * trusted while the parent itself might be missing. The flat layout makes each
+ * attempt create exactly one folder, directly beneath the pre-provisioned
+ * root. See `docs/planning/proton-drive-cloud-transport-architecture.md` §4.2
+ * and §8.2.
+ *
+ * The `.` separator mirrors the attestation filename's
+ * `<base>.<attemptId>.` convention. Both halves are validated fixed shapes,
+ * the result is one safe component, and it can never begin with `.` or `-`
+ * (`ARTIFACT_PREFIX_PATTERN` requires a leading `[a-z0-9]`).
+ */
+export function buildAttemptFolderName({ artifactBase, attemptId }) {
+  assertSafeRemoteComponent(artifactBase, 'artifactBase')
+  assertValidArtifactBase(artifactBase)
+  assertValidAttemptId(attemptId)
+  return assertSafeRemoteComponent(`${artifactBase}.${attemptId}`, 'attempt folder name')
+}
+
+/**
+ * The immutable per-attempt remote namespace: `<remoteRoot>/<artifactBase>.<attemptId>`.
  *
  * Every argument is validated before interpolation. No caller of this
  * function can construct a namespace outside the configured root: `remoteRoot`
@@ -205,22 +232,22 @@ export function assertValidArtifactBase(base) {
  */
 export function buildAttemptNamespace({ remoteRoot, artifactBase, attemptId }) {
   const { root } = validateRemoteRoot(remoteRoot)
-  assertSafeRemoteComponent(artifactBase, 'artifactBase')
-  assertValidArtifactBase(artifactBase)
-  assertValidAttemptId(attemptId)
-  return `${root}/${artifactBase}/${attemptId}`
+  return `${root}/${buildAttemptFolderName({ artifactBase, attemptId })}`
 }
 
 /**
  * The exact three published object paths beneath one attempt's namespace,
  * derived from `publishedTripleNames()` — never the plaintext dump.
  *
- * Returns a frozen `{ namespace, ciphertextPath, checksumPath, manifestPath }`.
+ * Returns a frozen `{ root, attemptFolderName, namespace, ciphertextPath,
+ * checksumPath, manifestPath }`.
  */
 export function buildPublishedObjectPaths({ remoteRoot, artifactBase, attemptId }) {
   const namespace = buildAttemptNamespace({ remoteRoot, artifactBase, attemptId })
   const triple = publishedTripleNames(artifactBase)
   return Object.freeze({
+    root: remoteRoot,
+    attemptFolderName: buildAttemptFolderName({ artifactBase, attemptId }),
     namespace,
     ciphertextPath: `${namespace}/${triple.ciphertext}`,
     checksumPath: `${namespace}/${triple.checksum}`,

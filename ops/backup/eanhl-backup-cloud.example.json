@@ -2,9 +2,10 @@
   "_comment": [
     "ILLUSTRATIVE, EXPLICITLY NON-PRODUCTION cloud-transport configuration — NOT ACTIVATED,",
     "NOT DEPLOYED, and no path below is claimed to exist on any host. Nothing in this",
-    "repository reads this file automatically; no uploader, subprocess boundary, or entry",
-    "point exists yet (E3J3 stops at naming, remote-path construction and this config",
-    "surface — see docs/planning/proton-drive-cloud-transport-architecture.md §12).",
+    "repository reads this file automatically, and no entry point exists. A local subprocess",
+    "boundary (E3J4) and a local single-attempt upload library (E3J5) exist but are called by",
+    "no executable, have only been exercised against local fakes, and are not activated —",
+    "see docs/planning/proton-drive-cloud-transport-architecture.md §12.",
     "There are no defaults: every key below is required, and a missing key is a hard error.",
     "Every path, size, timeout, retry count, containment selector and remote-root value in",
     "this file is a made-up, non-production placeholder for shape-validation only.",
@@ -81,7 +82,9 @@
   "run": {
     "_comment": [
       "Illustrative, non-production timings (U13). cancelGraceMs must be smaller than",
-      "operationTimeoutMs; the values below satisfy that shape rule and nothing more."
+      "operationTimeoutMs; the values below satisfy that shape rule and nothing more.",
+      "lockFile is validated but RESERVED: no code takes this lock yet. It belongs to the",
+      "first entrypoint session, whose lock must span upload, readback and attestation."
     ],
     "lockFile": "/example-non-production/cloud-run/uploader.lock",
     "operationTimeoutMs": 1800000,
@@ -91,7 +94,9 @@
   "retry": {
     "_comment": [
       "Illustrative, non-production retry policy (U13) — an operator reliability and",
-      "debris-accumulation decision, not something this example resolves."
+      "debris-accumulation decision, not something this example resolves.",
+      "RESERVED: validated but consumed by no code. The E3J5 uploader makes exactly one",
+      "attempt; bounded retry waits for the attestation writer (one attestation per attempt)."
     ],
     "maxAttemptsPerArtifactPerRun": 3,
     "backoffMs": 30000,

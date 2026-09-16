@@ -57,6 +57,21 @@
  * containment discussion (§3) already states for hard containment. See
  * `assertCanonicalAbsolutePath()`.
  *
+ * WHICH FIELDS ARE CONSUMED TODAY (E3J5)
+ * ---------------------------------------
+ * Every field below is validated, but not every field is used yet. The E3J5
+ * single-attempt uploader (`backup-cloud-upload.mjs`) reads only `cli`,
+ * `credentials`, `remote.root`, `artifact.sourceDir`,
+ * `run.operationTimeoutMs`, and `run.cancelGraceMs`. The rest are RESERVED —
+ * validated so a host config is complete, but consumed by no code:
+ *
+ *   - `run.lockFile` — reserved for the first executable-entrypoint session,
+ *     whose lock must span upload, readback, and attestation write together;
+ *     E3J5 takes no lock and has no entrypoint;
+ *   - `retry.*` — reserved until the attestation writer exists (every retry
+ *     must have its own attestation); E3J5 makes exactly one attempt;
+ *   - `attestation.dir`, `readback.*`, `capacity.*` — E3J6 onward.
+ *
  * This module performs no I/O of its own beyond the injected `readFile`.
  */
 

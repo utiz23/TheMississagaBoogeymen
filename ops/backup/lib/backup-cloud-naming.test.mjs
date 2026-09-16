@@ -15,6 +15,7 @@ import {
   assertSafeRemoteComponent,
   assertValidArtifactBase,
   assertValidAttemptId,
+  buildAttemptFolderName,
   buildAttemptNamespace,
   buildAttestationFileName,
   buildPublishedObjectPaths,
@@ -113,7 +114,8 @@ test('T1: no constructed path can escape the configured root or attempt namespac
     attemptId,
   })
   for (const p of [paths.ciphertextPath, paths.checksumPath, paths.manifestPath]) {
-    assert.ok(p.startsWith(`${remoteRoot}/eanhl-prod-20260904T180007Z/${attemptId}/`))
+    // E3J5 layout: one attempt folder, `<artifactBase>.<attemptId>`, directly under the root.
+    assert.ok(p.startsWith(`${remoteRoot}/eanhl-prod-20260904T180007Z.${attemptId}/`))
     assert.equal(p.includes('..'), false)
     assert.equal(p.includes('//'), false)
   }
@@ -152,7 +154,8 @@ test('T2: the attempt namespace and object paths are constructed exactly as spec
   const artifactBase = 'eanhl-prod-20260904T180007Z'
   const attemptId = formatAttemptId(fixedDeps)
   const namespace = buildAttemptNamespace({ remoteRoot, artifactBase, attemptId })
-  assert.equal(namespace, `${remoteRoot}/${artifactBase}/${attemptId}`)
+  // E3J5 layout (was `${remoteRoot}/${artifactBase}/${attemptId}` in E3J3).
+  assert.equal(namespace, `${remoteRoot}/${artifactBase}.${attemptId}`)
 
   const paths = buildPublishedObjectPaths({ remoteRoot, artifactBase, attemptId })
   assert.equal(paths.namespace, namespace)
@@ -238,7 +241,7 @@ test('T2 correction: a valid artifact prefix that itself ends in a hyphen still 
   const paths = buildPublishedObjectPaths({ remoteRoot, artifactBase: built.base, attemptId })
   assert.equal(
     paths.ciphertextPath,
-    `${remoteRoot}/${built.base}/${attemptId}/${built.base}.dump.age`,
+    `${remoteRoot}/${built.base}.${attemptId}/${built.base}.dump.age`, // E3J5 layout
   )
 })
 
@@ -309,4 +312,50 @@ test('T2: two distinct attempts of the same artifact produce two distinct namesp
     buildAttestationFileName({ artifactBase, attemptId: attemptA }),
     buildAttestationFileName({ artifactBase, attemptId: attemptB }),
   )
+})
+
+// ── E3J5: the flat per-attempt layout ───────────────────────────────────────
+
+test('E3J5: the attempt folder name is exactly <artifactBase>.<attemptId>, one safe component', () => {
+  const artifactBase = 'eanhl-prod-20260904T180007Z'
+  const attemptId = formatAttemptId(fixedDeps)
+  const name = buildAttemptFolderName({ artifactBase, attemptId })
+  assert.equal(name, 'eanhl-prod-20260904T180007Z.20260904T180007Z-deadbeef')
+  assert.equal(assertSafeRemoteComponent(name, 'x'), name)
+  assert.equal(name.startsWith('-') || name.startsWith('.'), false)
+})
+
+test('E3J5: buildAttemptFolderName validates both identities before joining them', () => {
+  const attemptId = formatAttemptId(fixedDeps)
+  for (const artifactBase of ['not-a-stamped-artifact', '../x', '', 'a/b', '-x-20260904T180007Z']) {
+    assert.throws(() => buildAttemptFolderName({ artifactBase, attemptId }), BackupError)
+  }
+  for (const bad of ['', '../x', '20260904T180007Z-DEADBEEF', 'x']) {
+    assert.throws(
+      () => buildAttemptFolderName({ artifactBase: 'eanhl-prod-20260904T180007Z', attemptId: bad }),
+      (err) => err instanceof BackupError && err.code === 'attempt_id_malformed',
+    )
+  }
+})
+
+test('E3J5: buildPublishedObjectPaths exposes the root and the single attempt folder with an exact key set', () => {
+  const remoteRoot = '/proton/backups'
+  const artifactBase = 'eanhl-prod-20260904T180007Z'
+  const attemptId = formatAttemptId(fixedDeps)
+  const paths = buildPublishedObjectPaths({ remoteRoot, artifactBase, attemptId })
+  assert.deepEqual(Object.keys(paths).sort(), [
+    'attemptFolderName',
+    'checksumPath',
+    'ciphertextPath',
+    'manifestPath',
+    'namespace',
+    'root',
+  ])
+  assert.equal(paths.root, remoteRoot)
+  assert.equal(paths.attemptFolderName, `${artifactBase}.${attemptId}`)
+  assert.equal(paths.namespace, `${remoteRoot}/${paths.attemptFolderName}`)
+  // Exactly one segment between the root and each object — no nested artifact folder.
+  for (const p of [paths.ciphertextPath, paths.checksumPath, paths.manifestPath]) {
+    assert.equal(p.slice(remoteRoot.length + 1).split('/').length, 2)
+  }
 })

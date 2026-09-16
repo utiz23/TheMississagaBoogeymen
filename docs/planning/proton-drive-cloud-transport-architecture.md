@@ -278,32 +278,76 @@ check and the returned value using the captured local.
 
 **26 tests were added (93 → 119), full corrected suite 354/354 passing, 0
 fail, no existing assertion weakened or deleted to pass.** Session detail:
-`docs/journal/2026-09.md`.
+`docs/journal/2026-09.md`; further corrected by **E3J5** (2026-09-16) — the
+single-attempt upload orchestration now exists as a local library
+(`ops/backup/lib/backup-cloud-upload.mjs` over
+`internal/backup-cloud-upload-core.mjs`), and four design points are corrected
+here rather than papered over in code:
+
+(1) **Remote layout flattened** to `<remoteRoot>/<artifactBase>.<attemptId>/`
+(§4.2, §8.1). The E3J3 nesting needed a shared `<artifactBase>` folder that
+some attempt must create and later attempts must reuse — unretirable after an
+indeterminate create, racing on unevidenced duplicate-create semantics, and
+forcing absence queries under a parent that might not exist. Each attempt now
+creates exactly one folder beneath a pre-provisioned root. `remote.root`
+itself remains **U14**, and this layout still needs operator ratification
+under U14.
+
+(2) **§8.2's preflight order was wrong** and is rewritten in place: the three
+object paths cannot be meaningfully checked before the attempt folder exists,
+because the not-found sentinel was only ever captured for a path whose parent
+existed. The namespace collision check still precedes the namespace-folder
+write, and all three object collision checks still precede any artifact
+upload — but folder creation and confirmation now come between them.
+
+(3) **T11 and T18 are split / deferred** (§11.1, §12): E3J5 proves the
+non-verified in-memory outcome; E3J6 proves the attestation is actually
+written. Bounded automatic retry (§4.5, T18) is deferred until the attestation
+writer exists, because every attempt must have its own attestation.
+
+(4) **Lock and retry configuration are RESERVED** (§10.2): `run.lockFile` and
+`retry.*` are validated but consumed by no code. E3J5 has no entrypoint and
+takes no lock; the lock belongs to the first entrypoint session and must span
+upload, readback, and attestation write.
+
+E3J5's outcome is **evidence, not a verdict**: `verification:
+'not_performed'`, no `verdict` field, `transferState` only
+`definitely_zero | unknown` (a boundary-reported upload success is still
+`unknown` until readback), and call-evidence fields
+(`providerBoundaryCallMade`, `writeBoundaryCallMade`, `boundaryCalls`) that
+record which public E3J4 operations were called — never that a child was
+spawned, a provider was contacted, or a remote write was attempted. E3J6
+consumes that evidence, performs readback, and derives its verdict
+independently. **56 new tests plus 3 new naming tests (three existing naming
+path-shape assertions deliberately updated to the new layout), full suite
+413/413 passing.** Session detail: `docs/journal/2026-09.md`.
 **Status:**
 **DESIGN AND ANALYSIS FOR CLOUD TRANSPORT AND ATTESTATION — NOT ACTIVATED.**
 The **E3J2** shared artifact-contract extraction (§1.3, §12, §13), the
 **E3J3** naming/remote-path/cloud-config surface (§1.3, §4, §8.1, §10, §12,
-as corrected by **E3J3B**), and the **E3J4** subprocess boundary (§2, §6-8,
+as corrected by **E3J3B**), the **E3J4** subprocess boundary (§2, §6-8,
 §10-12, as corrected by **E3J4A**, **E3J4B**, and **E3J4C** after three
-independent security review passes) are implemented locally and are either
-behaviour-preserving, additive-only, or a narrowly scoped new local
-boundary; all three are local repository code with no provider, host, or
-credential access of their own — pure naming/path helpers, a fail-closed
-configuration validator, and a subprocess boundary that has so far been
-exercised only against a disposable local fake CLI, never the real Proton
-Drive binary. The raw provider-response shapes it validates against
+independent security review passes), and the **E3J5** single-attempt upload
+orchestration (§4, §8, §11-12, with the layout change above) are implemented
+locally and are either behaviour-preserving, additive-only, or a narrowly
+scoped new local boundary; all four are local repository code with no
+provider, host, or credential access of their own — pure naming/path helpers,
+a fail-closed configuration validator, a subprocess boundary, and an
+orchestration library, exercised only against disposable local fakes, never
+the real Proton Drive binary, and called by no executable entrypoint. The raw provider-response shapes it validates against
 (info/create-folder success, download's terminal summary) remain
 acknowledged design hypotheses, not verified real-CLI compatibility — see
 E3J4A's correction 4, restated in E3J4B's own correction list. The
 post-hash executable-replacement TOCTOU gap remains explicitly unclosed, as
-do local-file TOCTOU around upload's caller-supplied
-`expectedLocalSizeBytes` (E3J5 owes its safe derivation) and the gap between
-download's pre-spawn absence check and its readback (E3J6).
+do local-file TOCTOU around upload's local source files (E3J5 now derives
+`expectedLocalSizeBytes` safely and re-observes file identity, which DETECTS
+some replacements but does not close the window — a same-size replacement is
+only caught by E3J6 readback) and the gap between download's pre-spawn
+absence check and its readback (E3J6).
 Everything else this memo
-designs — the uploader's own orchestration (attempt workflow, collision
-preflight, ordered triple upload, retry, lock ownership), readback,
-attestation, monitoring, credential handling, deployment, scheduling,
-retention, and restore work — remains unimplemented and unactivated.
+designs — retry, lock ownership, an entrypoint, readback, attestation,
+monitoring, credential handling, deployment, scheduling, retention, and
+restore work — remains unimplemented and unactivated.
 **NOTHING BEYOND THOSE LOCAL SESSIONS IS APPROVED FOR ACTIVATION.**
 
 This memo defines the proposed architecture for the component that pushes
@@ -315,8 +359,8 @@ provider, touched no host, and closed no E3 item. Its prerequisite extraction,
 **E3J2**, the naming/config session that followed it, **E3J3** (corrected
 same-day by **E3J3B** after independent review), and the subprocess-boundary
 session that followed that, **E3J4** (corrected same-day by **E3J4A**,
-**E3J4B**, and **E3J4C**), were all carried out afterward in
-separate local sessions (§12, §13). Their combined footprint is
+**E3J4B**, and **E3J4C**), and the orchestration session after it, **E3J5**,
+were all carried out afterward in separate local sessions (§12, §13). Their combined footprint is
 local repository code and documentation only: `ops/backup/lib/` (including
 `ops/backup/lib/*.test.mjs`, `ops/backup/lib/internal/`, and
 `ops/backup/lib/testdoubles/`),
@@ -850,19 +894,29 @@ acceptor for `sweepId` (`backup-acceptance.mjs:797-800`). Reusing the shape
 means one parser and one review rule.
 
 **Remote namespace per attempt.** Every attempt uploads into its own remote
-folder, created by that attempt:
+folder, requested by that attempt directly beneath the pre-provisioned root
+(**[CORRECTED BY E3J5]** — flattened from the E3J3
+`<remoteRoot>/<artifactBase>/<attemptId>/` nesting; see the E3J5 correction
+entry at the top of this memo and §8.2):
 
 ```
-<remoteRoot>/<artifactBase>/<attemptId>/<base>.dump.age
-<remoteRoot>/<artifactBase>/<attemptId>/<base>.dump.age.sha256
-<remoteRoot>/<artifactBase>/<attemptId>/<base>.manifest.json
+<remoteRoot>/<artifactBase>.<attemptId>/<base>.dump.age
+<remoteRoot>/<artifactBase>.<attemptId>/<base>.dump.age.sha256
+<remoteRoot>/<artifactBase>.<attemptId>/<base>.manifest.json
 ```
 
 `<artifactBase>` and every name inside it come from the shared contract module
-(§1) and are validated as single path components before use — the same rule
-`assertSafeComponent()` enforces today (`backup-acceptance.mjs:104-127`). The
-`<attemptId>` segment is what makes every remote write target a path that has
-never existed, which is what lets the collision precheck in §8.2 be meaningful.
+(§1) and are validated before use — the same single-component rule
+`assertSafeComponent()` enforces (`backup-acceptance.mjs:104-127`) plus the
+artifact-identity shape. The folder name `<artifactBase>.<attemptId>`
+(`buildAttemptFolderName()`) is one safe component that can never begin with
+`.` or `-`, mirroring the attestation filename below. The `<attemptId>` part is
+what makes each remote write target a path that should never have existed,
+which is what makes the collision checks in §8.2 meaningful. It is **not** a
+guarantee of uniqueness: real cryptographic randomness makes an accidental
+same-second 32-bit-token collision unlikely, not impossible, and a defective or
+injected random source can make one deterministic. An observed collision fails
+closed at the §8.2 checks.
 
 **Attestation filenames, append-only and attempt-scoped.**
 
@@ -904,16 +958,20 @@ property of an individual attestation, not of the artifact.
 ### 4.4 Why an indeterminate remote namespace is never reused
 
 If an attempt ends `indeterminate`, the uploader does not know what is in
-`<remoteRoot>/<base>/<attemptId>/`. It may be empty; it may hold a truncated
+`<remoteRoot>/<base>.<attemptId>/`. It may be empty; it may hold a truncated
 object; it may hold a complete object the CLI failed to report. Re-uploading
 into that namespace means either a name collision (which E3I1 §7.4 proved fails
 closed, **[E3I]**) or — worse, if a conflict strategy were ever passed — a
 silent revision or replacement of an object of unknown content.
 
 **An indeterminate namespace is therefore retired permanently and automatically
-by construction:** the next attempt gets a new `attemptId`, so it targets a path
-that has never existed. No code ever computes "the previous attempt's path" for
-a write. Cleaning the retired namespace is a **manual** operator action (§4.6).
+by construction:** the next attempt gets a new `attemptId`, so it targets a
+different path. No code ever computes "the previous attempt's path" for a
+write. Cleaning the retired namespace is a **manual** operator action (§4.6).
+**[E3J5]** Under the flat layout exactly one folder, `<root>/<base>.<attemptId>`,
+and whatever is beneath it is retired by a non-success outcome; the
+pre-provisioned root is never retired, and an attempt that stopped before any
+write boundary call retires nothing remote.
 
 ### 4.5 Bounded retry
 
@@ -936,6 +994,13 @@ Bounds:
   is what keeps retries from being silent: debris on the provider is always
   matched one-to-one by a local record naming the exact remote paths that
   attempt used.
+
+**[E3J5] Retry is not implemented yet, deliberately.** Because the attestation
+writer is E3J6's, an automatic retry loop in E3J5 would create attempts with no
+attestation. E3J5 therefore performs exactly one attempt per call, and bounded
+retry (T18) is deferred until the attestation writer is integrated. The U13
+retry values are not consumed; `retry.*` is validated configuration only
+(§10.2).
 
 ### 4.6 Cleanup is manual, and that is deliberate
 
@@ -1210,12 +1275,16 @@ tested against a fake CLI without it.
 ### 8.1 Remote layout
 
 ```
-<remoteRoot>/<artifactBase>/<attemptId>/{ciphertext, sidecar, manifest}
+<remoteRoot>/<artifactBase>.<attemptId>/{ciphertext, sidecar, manifest}
 ```
 
-`<remoteRoot>` is configuration (§10) and is **unresolved, U14**. Every segment
-below it is derived from the artifact identity and the attempt id, validated as
-a single safe path component before use.
+`<remoteRoot>` is configuration (§10) and is **unresolved, U14**. It must
+already exist as an **active folder**: the uploader never creates, modifies, or
+lists it, and a root at or beneath `/trash` is refused as invalid input. The one
+segment below it is derived from the artifact identity and the attempt id,
+validated as a single safe path component before use (**[CORRECTED BY E3J5]** —
+formerly two nested segments; the flat layout is subject to operator
+ratification under U14).
 
 **No mutable remote pointer of any kind is uploaded** — no `latest.json`, no
 fixed artifact name, no rewriting of any remote name. C12 rejects it on identity
@@ -1228,16 +1297,60 @@ part of the triple and is never uploaded.
 
 ### 8.2 Preflight collision checks
 
-Before any write, `filesystem info` is run **on each exact path this attempt
-intends to create** — the attempt folder and the three object paths — and each
-must report not-found. Any path that resolves is a hard refusal
-(`remote_namespace_occupied`), never an overwrite, mirroring the producer's
-local identity-collision refusal (`backup-producer.mjs:1167-1174`) and the
-acceptor's archive-conflict rule (`backup-acceptance.mjs:1305-1328`).
+**[REWRITTEN BY E3J5, 2026-09-16].** An earlier revision said that before any
+write, all four paths — the attempt folder and the three object paths — are
+checked. That order is not achievable with the evidence available: the
+`Node not found: <name>` sentinel was captured verbatim only for a path whose
+**parent existed** (`proton-drive-scratch-experiment.md` §8.3), and E3J4B binds
+the sentinel to the queried basename, so an absence report for a child of a
+possibly-missing parent is not evidence of anything. The protocol is therefore,
+in this order, stopping at the first non-success:
 
-This is exactly the access pattern E3I3 demonstrated: **14 exact paths queried
-one at a time with `filesystem info --json`, with `/my-files`, `/trash` and
-every parent's children never enumerated.** **[E3I]**
+1. `info(<remoteRoot>)` — must be an **active folder**. Absent →
+   `remote_root_absent`; a file or a trashed node →
+   `remote_root_not_active_folder`; both are definite refusals with no write.
+2. `info(<namespace>)` — must report **absent**. This is the namespace
+   collision check, and it runs **before the namespace-folder write**. Any
+   present node (folder, file, or trashed) → `remote_path_occupied`.
+3. `create-folder(<remoteRoot>, <artifactBase>.<attemptId>)` — the only
+   root-level write an attempt ever requests; no ancestor is ever created.
+4. `info(<namespace>)` — must be an active folder whose `nodeUid` equals the
+   create result's `folderUid`; anything else → `created_folder_unconfirmed`
+   (indeterminate). This establishes only that the exact path was observed as
+   an active folder with matching opaque handles after the create call —
+   **not who created it** (an idempotent real create-folder, or a concurrent
+   actor, cannot be excluded). Both handle fields are unverified design
+   hypotheses about the real CLI; a mismatch fails safe.
+5. `info()` on **each of the three object paths**, under the now-confirmed
+   parent — all three must report absent (`remote_path_occupied` otherwise)
+   **before any artifact upload** is requested.
+6. Only then the ordered uploads of §8.4.
+
+So: the namespace collision check precedes the namespace-folder write; all
+three object collision checks precede every artifact upload; and folder
+creation necessarily sits between them. Every refusal is a refusal, never an
+overwrite, mirroring the producer's local identity-collision refusal
+(`backup-producer.mjs:1167-1174`) and the acceptor's archive-conflict rule
+(`backup-acceptance.mjs:1305-1328`).
+
+**Races, disclosed.** A path may still be created by someone else after its
+check. Between steps 2 and 3, the create may then be reported indeterminate
+(namespace evidence `unknown`, attempt stops) or step 4 may fail. After step 5,
+an object may still appear before its upload; the upload boundary passes no
+conflict strategy (§8.7), so that case fails closed there (`name_conflict`, or
+indeterminate). Nothing is overwritten, renamed, revised, deleted, or listed on
+any path.
+
+**Concurrency, disclosed.** E3J5 takes no run lock (§10.2). Two direct calls
+for the same artifact would normally use different namespaces and could both
+receive boundary-reported upload success — the §4.3 anomaly. No executable
+entrypoint exists in E3J5, and the lock the entrypoint session adds must cover
+upload, readback, and attestation, so this library state must never be
+presented as an activated concurrent workflow.
+
+This remains the access pattern E3I3 demonstrated: **exact paths queried one at
+a time with `filesystem info --json`, with `/my-files`, `/trash` and every
+parent's children never enumerated.** **[E3I]**
 
 ### 8.3 Is a `filesystem list` enumeration required at all?
 
@@ -1394,7 +1507,7 @@ read-back-and-confirm pattern `writeFileVerified()` already uses
   // ── the exact remote paths this attempt used (locally constructed) ──────
   "remote": {
     "root": "<configured remoteRoot>",
-    "namespace": "<remoteRoot>/<base>/<attempt_id>",
+    "namespace": "<remoteRoot>/<base>.<attempt_id>",
     "ciphertext_path": "<namespace>/<base>.dump.age",
     "checksum_path": "<namespace>/<base>.dump.age.sha256",
     "manifest_path": "<namespace>/<base>.manifest.json"
@@ -1453,6 +1566,15 @@ read-back-and-confirm pattern `writeFileVerified()` already uses
 
 Notes on specific fields:
 
+- **[E3J5] The upload attempt's in-memory outcome is an INPUT to this record,
+  not this record.** `runUploadAttempt()` returns a frozen evidence object —
+  artifact and attempt identities, every intended remote path, each boundary
+  call made (`boundaryCalls`), `furthestUploadSuccessReportedRole`, a closed
+  status/code, `transferState` (`definitely_zero` or `unknown` only),
+  `namespaceState` (`no_namespace_write_evidence`, `active_folder_confirmed`,
+  or `unknown`), and `verification: 'not_performed'` with no verdict. E3J6
+  consumes it, performs readback, and derives `verdict` independently; it must
+  never copy a status into `verdict`.
 - **`verdict` has exactly three values.** No `partial`, no `pending`, no
   `warning`. Anything that is not a proven success or a proven refusal is
   `indeterminate`.
@@ -1534,8 +1656,8 @@ on a host.
 | `readback.maxManifestBytes` | **U12** — required positive integer, no default; much smaller than the ciphertext ceiling but still requires its own explicit production configuration |
 | `readback.maxSidecarBytes` | **U12** — required positive integer, no default; much smaller than the ciphertext ceiling but still requires its own explicit production configuration |
 | `readback.containment` | `'rlimit_fsize' \| 'quota_mount'` — declares which proven mechanism is deployed (§3.3); required, no default; enforces the applicable per-role ceiling above for each one-file-per-process download |
-| `run.lockFile`, `run.operationTimeoutMs`, `run.cancelGraceMs` | same discipline as `backup-config.mjs` `run.*` |
-| `retry.*` | **U13** |
+| `run.lockFile`, `run.operationTimeoutMs`, `run.cancelGraceMs` | same discipline as `backup-config.mjs` `run.*`. **[E3J5]** the two timeouts are consumed by the upload attempt; `run.lockFile` is validated but **RESERVED** — no code takes the lock until the entrypoint session, whose lock must span upload, readback, and attestation |
+| `retry.*` | **U13**. **[E3J5]** validated but **RESERVED** — no code retries until the attestation writer exists |
 | `capacity.minFreeBytes`, `capacity.backingVolume` | reused wholesale, including the required-but-nullable `backingVolume` rule (`backup-config.mjs:99-123`) |
 
 Path-separation rules are validated the way
@@ -1635,16 +1757,16 @@ injected fakes. **[REPO]**
 | T8 | **Recursive secret containment (property/fuzz style):** inject secret-shaped keys and values (`token`, `session`, `password`, `passphrase`, `cookie`, `recovery`, `email`, `@`-bearing strings, `https://…auth…` URLs) at every nesting depth of a synthetic provider response, and assert that no allowlisted result, no error message, no log line and no written attestation contains any injected marker |
 | T9 | Malformed JSON, truncated JSON, empty stdout, and stdout that is valid JSON of the wrong shape each produce `indeterminate` |
 | T10 | Upload order is strictly ciphertext → sidecar → manifest; a recorded invocation log asserts the sequence, and a failure at step *n* means steps *n+1…* never ran |
-| T11 | Partial success — ciphertext uploaded, sidecar failed — produces a non-`verified` verdict, writes an attestation naming all three intended paths, and issues no deletion |
-| T12 | A timeout and an explicit cancellation each produce `indeterminate` with `transfer_state: "unknown"`, and no produced text claims the remote write was stopped |
+| T11 | Partial success — ciphertext uploaded, sidecar failed — produces a non-`verified` verdict, writes an attestation naming all three intended paths, and issues no deletion (**split, see below**: E3J5 proves the in-memory half, E3J6 the written attestation) |
+| T12 | A timeout and an explicit cancellation each produce `indeterminate` with `transfer_state: "unknown"`, and no produced text claims the remote write was stopped (E3J5 proves this for the in-memory outcome; E3J6 for the written attestation) |
 | T13 | A valid readback of a correct triple produces `verified`, with `local_recompute` values computed from the downloaded bytes |
 | T14 | An oversized readback is contained: with the tripwire configured, the download is stopped and the verdict is `indeterminate`; the test asserts the *mechanism invoked*, and explicitly documents that it does **not** prove a kernel-level bound (§3) |
 | T15 | A corrupt triple (any one of the seven completion rules broken) produces `rejected`, never `verified` |
 | T16 | A valid-but-different triple — internally consistent, correct-looking, but not the artifact the producer made — produces `rejected` via the source-hash check of §8.5 step 4 |
 | T17 | Attestations are attempt-scoped and immutable: a second write to the same attempt path fails `EEXIST` and does not modify the existing file; two attempts for one base produce two files |
-| T18 | After a definite zero-transfer rejection the bounded retry runs and uses a **new** `attemptId` and a **new** remote namespace; after an indeterminate failure no automatic retry occurs in-run |
+| T18 | After a definite zero-transfer rejection the bounded retry runs and uses a **new** `attemptId` and a **new** remote namespace; after an indeterminate failure no automatic retry occurs in-run (**deferred until the attestation writer is integrated** — §4.5) |
 | T19 | No automatic deletion occurs on any path, including every failure path — assert across the whole invocation log of a run that exercised every failure mode |
-| T20 | No write is ever directed at a remote path outside `<remoteRoot>/<base>/<attemptId>/` — assert the full set of paths passed to `create-folder` and `upload` across a run |
+| T20 | No write is ever directed at a remote path outside `<remoteRoot>/<base>.<attemptId>/`, and the only root-level write is the single `create-folder(<remoteRoot>, <base>.<attemptId>)` — assert the full set of paths passed to `create-folder` and `upload` across a run |
 | T21 | Freshness advances only from attestations that are `verdict: "verified"` **and** binding-valid; a rejected, indeterminate, schema-mismatched, or non-binding attestation never moves the number, and a re-delivered older artifact never raises it |
 | T22 | `cli.expectedSha512` is required by the validator; a missing, malformed, or mismatched value refuses before any provider command is constructed |
 | T23 | The config validator rejects `credentials.backend: "unsafe_file"`, rejects any secret-shaped key, and enforces the path-separation rules of §10.2 |
@@ -1718,6 +1840,30 @@ WRITTEN attestation file contains no such marker — is E3J6's to prove, once an
 attestation writer exists to test against. Until then, "T8 is covered" means
 the subprocess-boundary half only.
 
+**[E3J5, 2026-09-16] — T10-T12, T18-T20 ownership.** E3J5
+(`backup-cloud-upload.test.mjs`) proves, against an in-memory fake of the three
+operations and, for the production route, the real E3J4 boundary spawning the
+local fake CLI:
+
+- **T10** in full: strict ciphertext → checksum → manifest order; after a
+  failure at upload step _n_ no later upload is requested — a ciphertext or
+  checksum failure means no manifest upload, and a manifest failure means the
+  manifest upload was requested and nothing follows it.
+- **T11, E3J5 half:** partial success yields a non-verified in-memory outcome
+  (`transferState: 'unknown'`, the furthest boundary-reported role) naming all
+  intended paths, with no deletion. **E3J6 owes the other half: that an
+  immutable attestation carrying this is actually written.**
+- **T12, E3J5 half:** timeout and cancellation are `indeterminate` with
+  `transferState: 'unknown'` whenever an upload call was made, and the outcome
+  carries no free text at all. E3J6 owes the same property for the written
+  attestation.
+- **T19** in full for this module: only `info`, `create-folder`, and `upload`
+  are ever called, on every failure path; the bound dependency set has no
+  deletion, write, download, or process capability; local source files are
+  byte-identical afterwards.
+- **T20** in full under the corrected layout.
+- **T18 is not started** — deferred until the attestation writer exists.
+
 ### 11.2 What a fake CLI proves, and what it cannot
 
 **Can prove:** argv construction and the absence of forbidden flags; ordering;
@@ -1755,8 +1901,8 @@ sessions need no provider, no host, and no credential.
 | **E3J2** | **Shared artifact-contract extraction** (§1.3, §1.4). **DONE (2026-09-13).** Behaviour-preserving move into `backup-artifact-contract.mjs` — including `BackupError`, re-exported from `backup-producer.mjs` for import-path compatibility; producer and acceptor import from it; no new exported function (`publishedTripleNames()` deferred to E3J3); acceptance criterion is 179/179 with no assertion text changed — met exactly. See the §1.3 dependency-graph correction: the acceptor's non-contract `checkCapacity()` dependency on the producer was out of scope and remains | no |
 | **E3J3** | **Naming, remote paths, and the cloud config surface.** **DONE (2026-09-13), corrected same-day by E3J3B after independent review.** `publishedTripleNames()`/`ARTIFACT_PREFIX_PATTERN` (§1.3); new `backup-cloud-naming.mjs` (safe remote-component validation, canonical-remote-root validation, `assertValidArtifactBase()` identity-shape validation, self-validating `attemptId` construction, the attempt namespace, the three published object paths, the attestation filename — §4, §8.1); new `backup-cloud-config.mjs` (fail-closed cloud config validator/loader with LEXICAL canonical-path enforcement before containment comparison, a generic secret-key rejection message, a frozen `backingVolume` result, `verifyCliHashPin()`) and `eanhl-backup-cloud.example.json` (§10); T1, T2, the E3J3 portion of T22 (corrected above), and T23 — **56 new tests over the 179-test baseline (5 artifact-contract + 19 naming + 32 config), full suite 235/235, 0 fail.** No Proton CLI argv, subprocess, upload, download, or attestation writer — those remain E3J4 onward | no |
 | **E3J4** | **Subprocess boundary and the fake CLI.** **DONE (2026-09-14), corrected same-day by E3J4A, then E3J4B, then E3J4C, each after its own independent security review pass.** `backup-cloud-cli.mjs` now: constructs argv for the four operations (§8.3) with option-injection-safe operand validation and generic (non-echoing) rejection errors; runs the hash gate closing T22 (§11.1) strictly before argv/spawn, with no injectable builder anywhere in the module; spawns with `shell:false` explicit and a POSITIVE environment allowlist (not a copy-and-strip); classifies credential-unavailable/not-found/name-conflict text with EXACT anchors bound to the actual queried path or uploaded file identity (never a substring match, never accepted on an unrelated identity); treats a capture-stream failure the same as a timeout/overflow (`provider_stream_failed`); validates timeouts as positive safe integers with the grace-below-timeout coherence rule; validates download's local evidence defensively; and returns only frozen results from a closed `CLOUD_CLI_ERROR_CODES` enum, through a closed ten-name export surface. **E3J4C** then moved the boundary logic to `internal/backup-cloud-cli-core.mjs` so the production operations accept NO dependency override at all (the remaining `deps` seam), made upload cross-check the provider byte count against caller-supplied `expectedLocalSizeBytes` and stop promoting `skippedItems: 1` to success, bound download's local evidence to the exact immediate child of `localDir` named by the queried remote basename with a pre-spawn non-symlink-following absence check and a regular-file-only readback, switched every provider-derived byte count to `Number.isSafeInteger`, and made `validateLocalStat()` observe `isFile()` and `size` exactly once each inside their own `try`. New `testdoubles/fake-proton-drive.mjs` (disposable local double; its own exit-before-drain race, fixed in E3J4A, re-verified stable across 10 consecutive runs in E3J4B; records environment KEY NAMES only, never values) and `backup-cloud-cli.test.mjs` — **119 tests total (44 E3J4 + 31 E3J4A + 18 E3J4B + 26 E3J4C), full suite 354/354**. Independent review first reproduced the E3J4 session's own claimed 44/44 as 41/44, then — after E3J4A's fix — found ten further boundary-logic defects, then seven more in E3J4C (see the correction entries at the top of this memo for the itemized lists). No orchestration (attempt workflow, collision preflight, ordered triple upload, retry, lock ownership — E3J5) or readback containment/attestation (E3J6) | no |
-| **E3J5** | **Uploader orchestration.** Preflight, create-folder, ordered uploads, partial-failure handling, cancellation, plus T10-T12, T19-T20 | no |
-| **E3J6** | **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T18 | no |
+| **E3J5** | **Uploader orchestration.** **DONE (2026-09-16).** New `backup-cloud-upload.mjs` (thin production API, one export `runUploadAttempt({config, artifactBase, signal})` plus five frozen vocabularies) over `internal/backup-cloud-upload-core.mjs` (internal test seam, static importer regression). One explicit artifact base, no scanning; local triple validated (non-empty regular files via `lstat`, safe-integer sizes, `verifyArtifactCompletion()` with its text discarded, identity re-observed around every upload); flat layout (§4.2, §8.1) and the rewritten §8.2 order; uploads stop at the first non-success; a frozen evidence outcome with no verdict. Minimal read-only real dependencies, not `makeRealDeps()`. T10, T19, T20 in full; the E3J5 halves of T11 and T12 (§11.1). `fake-proton-drive.mjs` gained an additive `sequence` / `notFoundForQueriedBasename` mode. **56 new tests + 3 naming tests; full suite 413/413.** No retry (T18 deferred), no lock, no entrypoint, no readback, no attestation | no |
+| **E3J6** | **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T17, the E3J6 halves of T8, T11, and T12, and — once the writer exists — bounded retry (T18). Consumes the E3J5 evidence outcome and derives its verdict independently. The first executable entrypoint, wherever it lands, owns `run.lockFile`, with a lock spanning upload, readback, and attestation | no |
 | **E3J7** | **Freshness export and evaluation.** The attestation reader, `validateCloudAttestationBinding()`, the freshness number, the minimal exported health signal, plus T21 | no |
 | **E3J8** | **Independent alerting.** Watcher host, channel, and a received test notification. Until this closes, nothing is monitored | yes — operator decision D1, **U15** |
 | **E3J9** | **Credential mechanism.** A service-compatible credential-access design for Hotel-Echo, closing U1's remainder | yes — separate authorization |

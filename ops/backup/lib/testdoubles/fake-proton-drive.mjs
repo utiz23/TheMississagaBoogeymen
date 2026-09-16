@@ -80,8 +80,24 @@
  *       "text": "A",          // exercising a byte-ceiling overflow with
  *       "count": 0,           // output too large to build as one JSON string
  *       "intervalMs": 5
- *     }
+ *     },
+ *     "notFoundForQueriedBasename": false  // (E3J5) see below
  *   }
+ *
+ * MULTI-STEP SEQUENCES (E3J5, ADDITIVE)
+ * ---------------------------------------
+ * The E3J5 upload-attempt tests drive several invocations through ONE
+ * launcher. If `response.json` is instead `{"sequence": [spec, spec, …]}`,
+ * the Nth invocation (0-based, counted in `<controlDir>/invocation-count`)
+ * uses `sequence[N]`; running past the end is a hard double error (exit 64).
+ * A spec without `sequence` behaves exactly as before.
+ *
+ * `notFoundForQueriedBasename: true` replaces `stdout`/`stderr`/`exitCode`
+ * with the evidenced not-found shape for the path this invocation actually
+ * queried — stderr `Node not found: <basename of the queried path operand>`,
+ * exit 1 — because the attempt folder name contains a random token a test
+ * cannot know in advance. It is only meaningful for
+ * `filesystem info <path> --json`.
  */
 
 import fs from 'node:fs'
@@ -122,6 +138,33 @@ async function main() {
     )
     process.exitCode = 64
     return
+  }
+
+  if (Array.isArray(spec?.sequence)) {
+    const counterPath = path.join(controlDir, 'invocation-count')
+    let index = 0
+    try {
+      index = Number(fs.readFileSync(counterPath, 'utf8')) || 0
+    } catch {
+      index = 0
+    }
+    fs.writeFileSync(counterPath, String(index + 1))
+    if (index >= spec.sequence.length) {
+      await writeAndDrain(process.stderr, `fake-proton-drive: sequence exhausted at ${index}\n`)
+      process.exitCode = 64
+      return
+    }
+    spec = spec.sequence[index]
+  }
+
+  if (spec?.notFoundForQueriedBasename) {
+    const queried = String(process.argv[4] ?? '')
+    spec = {
+      ...spec,
+      stdout: '',
+      stderr: `Node not found: ${path.posix.basename(queried)}\n`,
+      exitCode: 1,
+    }
   }
 
   try {
