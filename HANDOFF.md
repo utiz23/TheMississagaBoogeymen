@@ -26,47 +26,48 @@ in the roadmap doc, not here.
 
 ## Latest Verified Checkpoint
 
-**2026-09-16 — E3J5: single-attempt upload orchestration is implemented in
-the working tree (uncommitted). Baseline commit: `0fc9678` (E3J4, pushed).**
+**2026-09-16 — E3J6A (first of three E3J6 substeps) is implemented in the
+working tree, unstaged and uncommitted, awaiting review. Baseline: `eea6ace`
+(E3J5, committed and pushed).**
 
-`ops/backup/lib/backup-cloud-upload.mjs` is a thin production API
-(`runUploadAttempt({config, artifactBase, signal})`) over
-`internal/backup-cloud-upload-core.mjs`, bound once to minimal read-only
-dependencies plus the public E3J4 `runInfo`/`runCreateFolder`/`runUpload`.
-What it guarantees today:
+E3J6A adds boundary extensions only — no readback workflow, attestation, lock,
+retry, or entrypoint:
 
-- one explicit artifact base, no scanning; the local triple must be non-empty
-  regular files (bigint `lstat`) that pass `verifyArtifactCompletion()` (its
-  text is never exposed); each role's measured size goes to its upload;
-- flat remote layout `<remoteRoot>/<artifactBase>.<attemptId>/`, with a
-  pre-provisioned active root. Order: root → namespace absent → create →
-  confirm (active folder, matching uid) → three object paths absent →
-  ciphertext → sidecar → manifest. It stops at the first non-success;
-- no retry, lock, entrypoint, readback, attestation, deletion, or listing;
-  `run.lockFile` and `retry.*` are documented as reserved;
-- a frozen evidence outcome with no verdict: `transferState` is only
-  `definitely_zero | unknown`, the call-evidence fields never imply spawn,
-  contact, or remote write, and `active_folder_confirmed` never implies who
-  created the folder.
+- `backup-cloud-cli.mjs`: the uncontained `runDownload` is removed (11
+  exports). `runContainedDownload` hash-gates the CLI, then the pinned
+  `readback.rlimitWrapper`, and runs `prlimit --fsize=C:C --` with C the exact
+  inclusive role ceiling. A killed child counts as ended only when `close`
+  is observed (a known exit status is not enough); otherwise the result is
+  `provider_termination_unconfirmed`.
+- `backup-cloud-containment.mjs`: a fixed-purpose canary. It checks the
+  readback directory's trust itself, uses an empty environment, and requires
+  a probe of exactly L, confirmed termination, and identity-checked cleanup.
+  Proofs are unforgeable and bound to the config and the directory's identity.
+  `quota_mount` is refused at runtime, as are configs that can't be canaried
+  (an unrepresentable overshoot, or a path argv refuses): a closed refusal
+  with nothing created.
+- `backup-cloud-upload.mjs`: one-shot `prepareUploadAttempt` /
+  `executeUploadAttempt`. No-follow descriptor SHA-256 and byte evidence is
+  captured for all three roles before any boundary call. Identity outcomes are
+  closed, and the outcome is v2.
 
-Verification: `pnpm test:backup-producer` **413/413, 0 fail** (354 baseline +
-56 upload + 3 naming; three naming path-shape assertions deliberately updated
-to the new layout); 5 consecutive stable runs.
+Verification: `pnpm test:backup-producer` **495/495, 0 fail, 0 skipped**
+(413 + 82). The real-`prlimit` tests ran against disposable local Node probes
+only. All 8 mutation checks were caught, and the 6 regressions from the
+in-place review corrections failed before those fixes.
 
-**Known-unclosed, by design:**
-
-- real-CLI response schemas (including create-folder `--json` and the
-  `folderUid`/`nodeUid` match) are hypotheses;
-- local-file TOCTOU is detected, not closed;
-- the post-hash executable-replacement gap remains;
-- E3J6 owes readback, containment, the attestation writer, T13-T18, the
-  written-attestation halves of T8/T11/T12, and the entrypoint lock.
+**Known-unclosed, by design:** real-CLI schemas are hypotheses; the path-based
+upload TOCTOU is detected, not closed (an in-place same-size rewrite is left to
+readback); the post-hash executable replacement is open; the canary proves
+nothing about the Proton CLI or Hotel-Echo. E3J6B owes readback, the verdict,
+intents for every attempt identity, and attestations (T13-T17 plus the written
+halves of T8/T11/T12). E3J6C owes the lock, retry (T18), and the entrypoint.
 
 Full correction history: the architecture memo (linked under Immediate
 Blockers). Milestones: [`docs/journal/2026-09.md`](docs/journal/2026-09.md).
 
-Before that: E3J4 (CLI subprocess boundary, corrected E3J4A/B/C) 2026-09-14,
-**354/354**, committed as `0fc9678`; E3J3 2026-09-13, 235/235 (`a3681b0`);
+Before that: E3J5 (single-attempt upload) 2026-09-16, **413/413** (`eea6ace`);
+E3J4 2026-09-14, 354/354 (`0fc9678`); E3J3 2026-09-13, 235/235 (`a3681b0`);
 E3J2 2026-09-13, 179/179; E3I (Proton scratch) closed 2026-09-12.
 
 ## Essential Operational Constraints
@@ -106,9 +107,10 @@ E3J2 2026-09-13, 179/179; E3I (Proton scratch) closed 2026-09-12.
 - **E3 (Proton cloud backup) unactivated.** No attestation writer, entrypoint,
   or watcher exists. Open: a proven hard-containment mechanism, real
   monitoring, and unattended credential persistence (Hotel-Echo untested).
-  E3J2-E3J4 are committed. E3J5 (local single-attempt upload library) is done
-  in the working tree. Next is E3J6: readback containment, the attestation
-  writer, T13-T18, and the entrypoint lock. U12-U15 remain unresolved
+  E3J2-E3J5 are committed; E3J6A (contained download, canary, one-shot
+  prepare with source evidence) is in the working tree awaiting review. Next
+  are E3J6B (readback, verdict, intent/attestation) and E3J6C (lock, retry,
+  entrypoint). U12-U15 remain unresolved
   (readback ceilings/containment proof, timeouts/retry, remote root and the
   flat layout's ratification, independent-watcher design). Detail:
   [`docs/planning/proton-drive-cloud-transport-architecture.md`](docs/planning/proton-drive-cloud-transport-architecture.md),
@@ -131,10 +133,11 @@ E3J2 2026-09-13, 179/179; E3I (Proton scratch) closed 2026-09-12.
 
 ## Next 1-3 Actions
 
-1. If continuing backup work: review and checkpoint E3J5, then **E3J6** —
-   readback containment and the attestation writer (consuming the E3J5
-   outcome and deriving its verdict independently), then bounded retry (T18),
-   per `docs/planning/proton-drive-cloud-transport-architecture.md` §12.
+1. If continuing backup work: review and (if authorized) checkpoint
+   **E3J6A**, then **E3J6B**: readback, independent verdict, and
+   intent/attestation, consuming `verifyContainmentProof` and the v2
+   `sourceEvidence`. Then **E3J6C**: lock, R1-only retry, and entrypoint.
+   See `docs/planning/proton-drive-cloud-transport-architecture.md` §12.
 2. Gate 2 reliability items: automated backups, restore drill, alerting,
    log retention, rollback docs — all unstarted and blocking Gate 2.
 3. Disable and verify Cloudflare Web Analytics.

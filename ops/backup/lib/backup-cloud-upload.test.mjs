@@ -60,6 +60,8 @@ import {
   rejectedResult,
 } from './testdoubles/fake-cloud-operations.mjs'
 
+import { REAL_EVIDENCE_READER } from './internal/backup-cloud-source-evidence.mjs'
+
 import { installTestWatchdog } from './test-diagnostics.mjs'
 
 installTestWatchdog({ label: 'cloud-upload', warnAfterMs: 6_000, intervalMs: 4_000 })
@@ -79,6 +81,9 @@ const SUFFIX = { ciphertext: '.dump.age', checksum: '.dump.age.sha256', manifest
 const OBJECT = Object.fromEntries(ROLES.map((r) => [r, `${NAMESPACE}/${BASE}${SUFFIX[r]}`]))
 const HASH_A = '0123456789abcdef'.repeat(8)
 const MARKER = 'SECRET-MARKER-e3j5-7f3a'
+const SOURCE_RUN_ID = '20260904T180001Z-0a1b2c3d'
+const SNAPSHOT_TS = '2026-09-04T18:00:07Z'
+const HASH_B = 'fedcba9876543210'.repeat(8)
 
 const OUTCOME_KEYS = [
   'artifact',
@@ -93,6 +98,7 @@ const OUTCOME_KEYS = [
   'providerBoundaryCallMade',
   'remote',
   'schemaVersion',
+  'sourceEvidence',
   'status',
   'transferState',
   'verification',
@@ -142,6 +148,9 @@ function sandbox({ ciphertext = Buffer.alloc(1000, 7), manifestExtra = {} } = {}
     JSON.stringify({
       schema_version: MANIFEST_SCHEMA_VERSION,
       artifact: `${BASE}.dump.age`,
+      // E3J6A: prepare validates these identity fields from the captured bytes.
+      run_id: SOURCE_RUN_ID,
+      snapshot_ts: SNAPSHOT_TS,
       ciphertext: { sha256: hash, bytes: ciphertext.length },
       ...manifestExtra,
     }),
@@ -162,6 +171,7 @@ function configFor(sb, overrides = {}) {
       maxManifestBytes: 65_536,
       maxSidecarBytes: 4096,
       containment: 'rlimit_fsize',
+      rlimitWrapper: { executable: '/usr/bin/prlimit', expectedSha512: HASH_B },
     },
     run: {
       lockFile: path.join(sb.dir, 'run', 'uploader.lock'),
@@ -207,7 +217,7 @@ function assertOutcomeShape(o, sb) {
   assert.deepEqual(Object.keys(o).sort(), OUTCOME_KEYS)
   assertDeepFrozen(o)
   assert.equal(o.kind, 'eanhl.cloud-upload-attempt-outcome')
-  assert.equal(o.schemaVersion, 1)
+  assert.equal(o.schemaVersion, 2) // E3J6A: v2 adds sourceEvidence
   assert.equal(o.verification, 'not_performed')
   assert.ok(CLOUD_UPLOAD_STATUSES.includes(o.status))
   assert.ok(CLOUD_UPLOAD_TRANSFER_STATES.includes(o.transferState))
@@ -251,6 +261,26 @@ function assertOutcomeShape(o, sb) {
     checksumPath: `${ROOT}/${folder}/${BASE}.dump.age.sha256`,
     manifestPath: `${ROOT}/${folder}/${BASE}.manifest.json`,
   })
+  // E3J6A: evidence is all-or-nothing, and present exactly when the local
+  // triple passed (which is exactly when expectedBytes were recorded).
+  const hasBytes = ROLES.every((r) => o.local[r].expectedBytes !== null)
+  assert.equal(o.sourceEvidence !== null, hasBytes)
+  if (o.status === 'upload_success_reported_pending_readback') assert.ok(o.sourceEvidence)
+  if (o.sourceEvidence !== null) {
+    assert.deepEqual(Object.keys(o.sourceEvidence).sort(), [
+      'checksum',
+      'ciphertext',
+      'manifest',
+      'runId',
+      'snapshotTs',
+    ])
+    for (const role of ROLES) {
+      assert.deepEqual(Object.keys(o.sourceEvidence[role]).sort(), ['bytes', 'sha256'])
+      assert.match(o.sourceEvidence[role].sha256, /^[0-9a-f]{64}$/)
+      assert.equal(o.sourceEvidence[role].bytes, o.local[role].expectedBytes)
+      if (sb) assert.equal(o.sourceEvidence[role].sha256, sha256(fs.readFileSync(sb.files[role])))
+    }
+  }
   assert.ok(Array.isArray(o.boundaryCalls))
   for (const c of o.boundaryCalls) {
     assert.deepEqual(Object.keys(c).sort(), CALL_KEYS)
@@ -1308,9 +1338,17 @@ test('T19: the real dependency bundle is deep-frozen, minimal, and has no write/
   assert.deepEqual(Object.keys(REAL_UPLOAD_DEPS).sort(), [
     'cloud',
     'completionDeps',
+    'evidence', // E3J6A: the read-only no-follow descriptor reader
     'lstat',
     'now',
     'randomToken',
+  ])
+  assert.equal(REAL_UPLOAD_DEPS.evidence, REAL_EVIDENCE_READER)
+  assert.deepEqual(Object.keys(REAL_UPLOAD_DEPS.evidence).sort(), [
+    'close',
+    'fstat',
+    'open',
+    'read',
   ])
   assert.deepEqual(Object.keys(REAL_UPLOAD_DEPS.completionDeps).sort(), ['fs', 'sha256File'])
   assert.deepEqual(Object.keys(REAL_UPLOAD_DEPS.completionDeps.fs).sort(), [
@@ -1377,16 +1415,19 @@ test('E3J5: no ops/** module other than backup-cloud-upload.mjs and this suite i
 })
 
 test('production API: the closed export surface', () => {
+  // E3J6A: prepareUploadAttempt and executeUploadAttempt added.
   assert.deepEqual(Object.keys(production).sort(), [
     'CLOUD_UPLOAD_NAMESPACE_STATES',
     'CLOUD_UPLOAD_OUTCOME_CODES',
     'CLOUD_UPLOAD_STATUSES',
     'CLOUD_UPLOAD_STEPS',
     'CLOUD_UPLOAD_TRANSFER_STATES',
+    'executeUploadAttempt',
+    'prepareUploadAttempt',
     'runUploadAttempt',
   ])
   for (const name of Object.keys(production)) {
-    if (name !== 'runUploadAttempt') assert.ok(Object.isFrozen(production[name]))
+    if (typeof production[name] !== 'function') assert.ok(Object.isFrozen(production[name]))
   }
 })
 
@@ -1573,4 +1614,576 @@ test('production route: invalid input throws before any spawn', async () => {
     )
   }
   assert.equal(shell.argvLog(), null)
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+// E3J6A — one-shot preparation, and source evidence captured before any
+// boundary call. Descriptor evidence makes a later readback comparable with
+// PRE-UPLOAD bytes; it does not close the CLI's path-based upload TOCTOU.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const PREPARED_KEYS = [
+  'artifact',
+  'attempt',
+  'disposition',
+  'kind',
+  'local',
+  'refusal',
+  'remote',
+  'schemaVersion',
+  'sourceEvidence',
+]
+
+function assertPreparedShape(p, sb) {
+  assert.deepEqual(Object.keys(p).sort(), PREPARED_KEYS)
+  assertDeepFrozen(p, 'prepared')
+  assert.equal(p.kind, 'eanhl.cloud-upload-prepared')
+  assert.equal(p.schemaVersion, 1)
+  assert.ok(['ready', 'refused'].includes(p.disposition))
+  assert.deepEqual(Object.keys(p.attempt).sort(), ['attemptId', 'startedAt'])
+  assert.deepEqual(Object.keys(p.local).sort(), [
+    'checksumPath',
+    'ciphertextPath',
+    'manifestPath',
+    'sourceDir',
+  ])
+  if (sb) for (const r of ROLES) assert.equal(p.local[`${r}Path`], sb.files[r])
+  assert.equal(p.remote.namespace, `${ROOT}/${BASE}.${p.attempt.attemptId}`)
+  if (p.disposition === 'ready') {
+    assert.equal(p.refusal, null)
+    assert.ok(p.sourceEvidence !== null)
+  } else {
+    assert.deepEqual(Object.keys(p.refusal).sort(), ['code', 'step'])
+    assert.equal(p.refusal.step, 'local_validation')
+    assert.ok(CLOUD_UPLOAD_OUTCOME_CODES.includes(p.refusal.code))
+    // Partial evidence never escapes a refusal: no digest anywhere.
+    assert.equal(p.sourceEvidence, null)
+    assert.equal(/[0-9a-f]{64}/.test(JSON.stringify(p)), false)
+  }
+  assert.equal(JSON.stringify(p).includes(MARKER), false)
+}
+
+function prepareWith(sb, { cloud = makeFakeCloud(), deps = {}, config } = {}) {
+  const runner = makeRunner(cloud, deps)
+  const prepared = runner.prepareUploadAttempt({
+    config: config ?? configFor(sb),
+    artifactBase: BASE,
+  })
+  return { runner, prepared, cloud }
+}
+
+test('E3J6A prepare: local only — a ready object with exact evidence and no boundary call', () => {
+  const sb = sandbox()
+  const { prepared, cloud } = prepareWith(sb)
+  assertPreparedShape(prepared, sb)
+  assert.equal(prepared.disposition, 'ready')
+  assert.equal(cloud.log.length, 0)
+  assert.deepEqual(prepared.sourceEvidence, {
+    ciphertext: {
+      sha256: sha256(fs.readFileSync(sb.files.ciphertext)),
+      bytes: fs.statSync(sb.files.ciphertext).size,
+    },
+    checksum: {
+      sha256: sha256(fs.readFileSync(sb.files.checksum)),
+      bytes: fs.statSync(sb.files.checksum).size,
+    },
+    manifest: {
+      sha256: sha256(fs.readFileSync(sb.files.manifest)),
+      bytes: fs.statSync(sb.files.manifest).size,
+    },
+    snapshotTs: SNAPSHOT_TS,
+    runId: SOURCE_RUN_ID,
+  })
+  assert.equal(prepared.attempt.attemptId, ATTEMPT_ID)
+})
+
+test('E3J6A prepare: every evidence read happens before the first boundary call, and the outcome carries it', async () => {
+  const sb = sandbox()
+  const events = []
+  const evidence = {
+    ...REAL_EVIDENCE_READER,
+    open: (p) => {
+      events.push(`open:${path.basename(p)}`)
+      return REAL_EVIDENCE_READER.open(p)
+    },
+  }
+  const cloud = makeFakeCloud({
+    respond: (call) => {
+      events.push(`call:${call.operation}`)
+      return undefined
+    },
+  })
+  const { outcome } = await attempt({ sb, cloud, deps: { evidence } })
+  assert.equal(outcome.status, 'upload_success_reported_pending_readback')
+  const firstCall = events.findIndex((e) => e.startsWith('call:'))
+  const opens = events.filter((e) => e.startsWith('open:'))
+  assert.equal(opens.length, 3)
+  assert.ok(events.lastIndexOf(opens.at(-1)) < firstCall, JSON.stringify(events))
+  assert.deepEqual(outcome.sourceEvidence, {
+    ciphertext: { sha256: sha256(fs.readFileSync(sb.files.ciphertext)), bytes: 1000 },
+    checksum: {
+      sha256: sha256(fs.readFileSync(sb.files.checksum)),
+      bytes: fs.statSync(sb.files.checksum).size,
+    },
+    manifest: {
+      sha256: sha256(fs.readFileSync(sb.files.manifest)),
+      bytes: fs.statSync(sb.files.manifest).size,
+    },
+    snapshotTs: SNAPSHOT_TS,
+    runId: SOURCE_RUN_ID,
+  })
+})
+
+test('E3J6A prepare: evidence is the PRE-UPLOAD content — a same-size rewrite after preparation neither changes it nor gets uploaded', async () => {
+  const sb = sandbox()
+  const original = sha256(fs.readFileSync(sb.files.ciphertext))
+  const { runner, prepared, cloud } = prepareWith(sb)
+  // Replace the ciphertext with different bytes of the same size, as a NEW
+  // inode. (An in-place same-size rewrite inside the filesystem's timestamp
+  // granularity keeps dev/ino/size/mtime/ctime identical and is NOT
+  // detectable here — that case is what E3J6B's readback hash comparison
+  // against this pre-upload evidence exists to catch.)
+  const replacement = `${sb.files.ciphertext}.replacement`
+  fs.writeFileSync(replacement, Buffer.alloc(1000, 9))
+  fs.renameSync(replacement, sb.files.ciphertext)
+  const outcome = await runner.executeUploadAttempt({ prepared })
+  assert.equal(outcome.sourceEvidence.ciphertext.sha256, original)
+  assert.notEqual(sha256(fs.readFileSync(sb.files.ciphertext)), original)
+  assert.equal(outcome.code, 'local_triple_changed')
+  assert.equal(outcome.failedStep, 'upload_ciphertext')
+  assert.equal(uploads(cloud).length, 0, 'the changed file was never handed to the boundary')
+})
+
+test('E3J6A ceilings: each role is accepted at EXACTLY its ceiling (inclusive)', async () => {
+  const sb = sandbox()
+  const size = (r) => fs.statSync(sb.files[r]).size
+  const config = configFor(sb, {
+    readback: {
+      ...configFor(sb).readback,
+      maxCiphertextBytes: size('ciphertext'),
+      maxSidecarBytes: size('checksum'),
+      maxManifestBytes: size('manifest'),
+    },
+  })
+  const { prepared } = prepareWith(sb, { config })
+  assertPreparedShape(prepared, sb)
+  assert.equal(prepared.disposition, 'ready')
+  const outcome = await makeRunner(makeFakeCloud()).runUploadAttempt({ config, artifactBase: BASE })
+  assert.equal(outcome.status, 'upload_success_reported_pending_readback')
+})
+
+test('E3J6A ceilings: one byte over any role ceiling is local_exceeds_readback_ceiling, before any content read', () => {
+  for (const [role, key] of [
+    ['ciphertext', 'maxCiphertextBytes'],
+    ['checksum', 'maxSidecarBytes'],
+    ['manifest', 'maxManifestBytes'],
+  ]) {
+    const sb = sandbox()
+    const opens = []
+    const completionReads = []
+    const config = configFor(sb, {
+      readback: { ...configFor(sb).readback, [key]: fs.statSync(sb.files[role]).size - 1 },
+    })
+    const { prepared, cloud } = prepareWith(sb, {
+      config,
+      deps: {
+        evidence: {
+          ...REAL_EVIDENCE_READER,
+          open: (p) => (opens.push(p), REAL_EVIDENCE_READER.open(p)),
+        },
+        completionDeps: {
+          ...REAL_UPLOAD_DEPS.completionDeps,
+          fs: {
+            ...REAL_UPLOAD_DEPS.completionDeps.fs,
+            readFileSync: (...a) => (completionReads.push(a[0]), fs.readFileSync(...a)),
+          },
+        },
+      },
+    })
+    assertPreparedShape(prepared, sb)
+    assert.equal(prepared.refusal.code, 'local_exceeds_readback_ceiling', role)
+    assert.deepEqual(opens, [])
+    assert.deepEqual(completionReads, [])
+    assert.equal(cloud.log.length, 0)
+  }
+})
+
+test('E3J6A identity: triples that pass completion but not the strict identity checks are local_manifest_identity_invalid, with nothing leaked', async () => {
+  const cases = [
+    (sb) => rewriteManifest(sb, (m) => delete m.run_id),
+    (sb) => rewriteManifest(sb, (m) => (m.run_id = SOURCE_RUN_ID.toUpperCase())),
+    (sb) => rewriteManifest(sb, (m) => (m.run_id = `${MARKER}`)),
+    (sb) => rewriteManifest(sb, (m) => delete m.snapshot_ts),
+    (sb) => rewriteManifest(sb, (m) => (m.snapshot_ts = 42)),
+    (sb) => rewriteManifest(sb, (m) => (m.snapshot_ts = '2026-09-04T18:00:08Z')), // stamp mismatch
+    (sb) => rewriteManifest(sb, (m) => (m.snapshot_ts = `${MARKER}`)),
+    (sb) => {
+      // Accepted by the lenient sidecar parser, but not the producer's exact line.
+      const hash = sha256(fs.readFileSync(sb.files.ciphertext))
+      fs.writeFileSync(sb.files.checksum, `${hash} *${BASE}.dump.age\n`)
+    },
+    (sb) => {
+      const hash = sha256(fs.readFileSync(sb.files.ciphertext))
+      fs.writeFileSync(sb.files.checksum, `${hash}  ${BASE}.dump.age`) // no newline
+    },
+    (sb) => {
+      const hash = sha256(fs.readFileSync(sb.files.ciphertext))
+      fs.writeFileSync(sb.files.checksum, `${hash}  ${BASE}.dump.age\n${MARKER}\n`)
+    },
+    (sb) => {
+      // Invalid UTF-8 inside a JSON string: completion's lenient decode passes it.
+      const text = fs.readFileSync(sb.files.manifest, 'utf8')
+      const marked = text.replace('"schema_version"', '"x":"�","schema_version"')
+      const bytes = Buffer.from(marked, 'utf8')
+      const at = bytes.indexOf(Buffer.from('�', 'utf8'))
+      fs.writeFileSync(
+        sb.files.manifest,
+        Buffer.concat([bytes.subarray(0, at), Buffer.from([0xff]), bytes.subarray(at + 3)]),
+      )
+    },
+  ]
+  for (const arrange of cases) {
+    const sb = sandbox()
+    arrange(sb)
+    const { prepared, cloud } = prepareWith(sb)
+    assertPreparedShape(prepared, sb)
+    assert.equal(prepared.disposition, 'refused')
+    assert.equal(prepared.refusal.code, 'local_manifest_identity_invalid', arrange.toString())
+    assert.equal(cloud.log.length, 0)
+  }
+})
+
+function rewriteManifest(sb, mutate) {
+  const m = JSON.parse(fs.readFileSync(sb.files.manifest, 'utf8'))
+  mutate(m)
+  fs.writeFileSync(sb.files.manifest, JSON.stringify(m))
+}
+
+test('E3J6A evidence: tampered or failing descriptor evidence refuses with a closed code and no native text', () => {
+  const real = REAL_EVIDENCE_READER
+  const bump = (st) =>
+    new Proxy(st, {
+      get: (t, k) => (k === 'ino' ? t.ino + 1n : typeof t[k] === 'function' ? t[k].bind(t) : t[k]),
+    })
+  const nativeError = (code) => Object.assign(new Error(`${code} ${MARKER}`), { code })
+  const cases = [
+    [
+      'local_triple_changed',
+      {
+        open: () => {
+          throw nativeError('ELOOP')
+        },
+      },
+    ],
+    [
+      'local_triple_changed',
+      {
+        open: () => {
+          throw nativeError('ENOENT')
+        },
+      },
+    ],
+    [
+      'local_file_unmeasurable',
+      {
+        open: () => {
+          throw nativeError('EACCES')
+        },
+      },
+    ],
+    [
+      'local_file_unmeasurable',
+      {
+        open: () => {
+          throw MARKER
+        },
+      },
+    ],
+    ['local_triple_changed', { fstat: (fd) => bump(real.fstat(fd)) }],
+    [
+      'local_triple_changed',
+      (() => {
+        let n = 0
+        return { fstat: (fd) => (++n === 2 ? bump(real.fstat(fd)) : real.fstat(fd)) }
+      })(),
+    ],
+    ['local_file_unmeasurable', { fstat: () => ({ isFile: () => false }) }],
+    [
+      'local_file_unmeasurable',
+      {
+        fstat: () => {
+          throw nativeError('EIO')
+        },
+      },
+    ],
+    [
+      'local_file_unmeasurable',
+      {
+        read: () => {
+          throw nativeError('EIO')
+        },
+      },
+    ],
+    ['local_file_unmeasurable', { read: () => -1 }],
+    ['local_file_unmeasurable', { read: () => Number.NaN }],
+    ['local_file_unmeasurable', { read: (fd, buf) => buf.length + 1 }],
+    ['local_triple_changed', { read: () => 0 }], // short read
+    [
+      'local_triple_changed',
+      (() => {
+        // reports one byte more than the file holds
+        let done = false
+        return {
+          read: (fd, buf) => {
+            const n = real.read(fd, buf)
+            if (n === 0 && !done) {
+              done = true
+              return 1
+            }
+            return n
+          },
+        }
+      })(),
+    ],
+  ]
+  for (const [code, override] of cases) {
+    const sb = sandbox()
+    const { prepared, cloud } = prepareWith(sb, { deps: { evidence: { ...real, ...override } } })
+    assertPreparedShape(prepared, sb)
+    assert.equal(prepared.refusal?.code, code, String(Object.values(override)[0]))
+    assert.equal(cloud.log.length, 0)
+  }
+})
+
+test('E3J6A evidence: a symlink swapped in between measurement and the descriptor open is refused by the kernel', () => {
+  const sb = sandbox()
+  const real = path.join(sb.dir, 'real-manifest')
+  const evidence = {
+    ...REAL_EVIDENCE_READER,
+    open: (p) => {
+      if (p === sb.files.manifest && !fs.lstatSync(p).isSymbolicLink()) {
+        fs.renameSync(p, real)
+        fs.symlinkSync(real, p)
+      }
+      return REAL_EVIDENCE_READER.open(p)
+    },
+  }
+  const { prepared } = prepareWith(sb, { deps: { evidence } })
+  assert.equal(prepared.refusal.code, 'local_triple_changed')
+  assert.equal(prepared.sourceEvidence, null)
+})
+
+test('E3J6A evidence: a failing close of a read-only descriptor does not change the result', () => {
+  const sb = sandbox()
+  const { prepared } = prepareWith(sb, {
+    deps: {
+      evidence: {
+        ...REAL_EVIDENCE_READER,
+        close: (fd) => {
+          REAL_EVIDENCE_READER.close(fd)
+          throw new Error(MARKER)
+        },
+      },
+    },
+  })
+  assertPreparedShape(prepared, sb)
+  assert.equal(prepared.disposition, 'ready')
+})
+
+test('E3J6A one-shot: a prepared attempt executes exactly once; reuse fails locally with no boundary call', async () => {
+  const sb = sandbox()
+  const { runner, prepared, cloud } = prepareWith(sb)
+  const first = await runner.executeUploadAttempt({ prepared })
+  assertOutcomeShape(first, sb)
+  assert.equal(first.status, 'upload_success_reported_pending_readback')
+  const callsAfterFirst = cloud.log.length
+  await expectThrow(
+    () => runner.executeUploadAttempt({ prepared }),
+    'cloud_upload_prepared_reused',
+    { log: cloud.log.slice(callsAfterFirst) },
+  )
+  assert.equal(cloud.log.length, callsAfterFirst)
+})
+
+test('E3J6A one-shot: of two CONCURRENT executions exactly one proceeds; the other fails before any boundary call', async () => {
+  const sb = sandbox()
+  const { runner, prepared, cloud } = prepareWith(sb)
+  const settled = await Promise.allSettled([
+    runner.executeUploadAttempt({ prepared }),
+    runner.executeUploadAttempt({ prepared }),
+  ])
+  const fulfilled = settled.filter((s) => s.status === 'fulfilled')
+  const rejected = settled.filter((s) => s.status === 'rejected')
+  assert.equal(fulfilled.length, 1)
+  assert.equal(rejected.length, 1)
+  assert.equal(rejected[0].reason.code, 'cloud_upload_prepared_reused')
+  assert.equal(fulfilled[0].value.status, 'upload_success_reported_pending_readback')
+  // Exactly ONE attempt's requests: root, namespace, create, confirm, 3 checks, 3 uploads.
+  assert.equal(cloud.log.length, 10)
+  assert.equal(uploads(cloud).length, 3)
+  assert.equal(cloud.log.filter((e) => e.operation === 'create-folder').length, 1)
+})
+
+test('E3J6A one-shot: forged copies and objects from another runner are refused, and a refusal does not consume the genuine object', async () => {
+  const sb = sandbox()
+  const { runner, prepared, cloud } = prepareWith(sb)
+  const other = makeRunner(cloud)
+  for (const forged of [
+    { ...prepared },
+    JSON.parse(JSON.stringify(prepared)),
+    Object.freeze({ ...prepared, disposition: 'ready' }),
+    null,
+    undefined,
+    'prepared',
+  ]) {
+    await expectThrow(
+      () => runner.executeUploadAttempt({ prepared: forged }),
+      'cloud_upload_prepared_invalid',
+      cloud,
+    )
+  }
+  await expectThrow(
+    () => other.executeUploadAttempt({ prepared }),
+    'cloud_upload_prepared_invalid',
+    cloud,
+  )
+  // An invalid signal is refused WITHOUT consuming the object.
+  await expectThrow(
+    () => runner.executeUploadAttempt({ prepared, signal: { aborted: true } }),
+    'cloud_upload_invalid_input',
+    cloud,
+  )
+  await expectThrow(() => runner.executeUploadAttempt(null), 'cloud_upload_invalid_input', cloud)
+  const outcome = await runner.executeUploadAttempt({ prepared })
+  assert.equal(outcome.status, 'upload_success_reported_pending_readback')
+})
+
+test('E3J6A one-shot: a refused preparation keeps its identity, is consumed once, and makes no boundary call', async () => {
+  const sb = sandbox()
+  fs.rmSync(sb.files.checksum)
+  const { runner, prepared, cloud } = prepareWith(sb)
+  assertPreparedShape(prepared, sb)
+  assert.equal(prepared.disposition, 'refused')
+  assert.equal(prepared.refusal.code, 'local_file_missing')
+  assert.equal(prepared.attempt.attemptId, ATTEMPT_ID)
+  const outcome = await runner.executeUploadAttempt({ prepared })
+  assertOutcomeShape(outcome)
+  assert.equal(outcome.code, 'local_file_missing')
+  assert.equal(outcome.failedStep, 'local_validation')
+  assert.equal(outcome.sourceEvidence, null)
+  assert.equal(outcome.attempt.attemptId, prepared.attempt.attemptId)
+  assert.equal(cloud.log.length, 0)
+  await expectThrow(
+    () => runner.executeUploadAttempt({ prepared }),
+    'cloud_upload_prepared_reused',
+    cloud,
+  )
+})
+
+test('E3J6A one-shot: execution uses the configuration captured at preparation; a config passed to execute is inert', async () => {
+  const sb = sandbox()
+  const { runner, prepared, cloud } = prepareWith(sb)
+  await runner.executeUploadAttempt({
+    prepared,
+    config: configFor(sb, { remote: { root: '/elsewhere' } }),
+  })
+  assert.ok(cloud.log.every((e) => !JSON.stringify(e).includes('/elsewhere')))
+  assert.equal(cloud.log[0].remotePath, ROOT)
+})
+
+test('E3J6A one-shot: a cancelled preparation is a refused attempt with its identity and no evidence', async () => {
+  const sb = sandbox()
+  const controller = new AbortController()
+  controller.abort()
+  const runner = makeRunner(makeFakeCloud())
+  const prepared = runner.prepareUploadAttempt({
+    config: configFor(sb),
+    artifactBase: BASE,
+    signal: controller.signal,
+  })
+  assertPreparedShape(prepared, sb)
+  assert.equal(prepared.refusal.code, 'attempt_cancelled')
+  const outcome = await runner.executeUploadAttempt({ prepared })
+  assert.equal(outcome.status, 'indeterminate')
+  assert.equal(outcome.transferState, 'definitely_zero')
+})
+
+test('E3J6A production: prepare/execute through the real module, and objects never cross module instances', async () => {
+  const shell = productionSandbox({ sequence: [] })
+  fs.writeFileSync(
+    path.join(shell.sb.dir, 'control', 'response.json'),
+    JSON.stringify({ sequence: happySequence(shell.sb) }),
+  )
+  const poison = () => {
+    throw new Error(`poisoned ${MARKER}`)
+  }
+  const prepared = production.prepareUploadAttempt({
+    config: shell.config,
+    artifactBase: BASE,
+    deps: { evidence: { open: poison, fstat: poison, read: poison, close: poison }, lstat: poison },
+  })
+  assertPreparedShape(prepared, shell.sb)
+  assert.equal(prepared.disposition, 'ready')
+  assert.equal(shell.argvLog(), null, 'preparation spawns nothing')
+
+  // A test-runner object is not executable by the production module, and vice versa.
+  const testPrepared = makeRunner(makeFakeCloud()).prepareUploadAttempt({
+    config: configFor(shell.sb),
+    artifactBase: BASE,
+  })
+  await assert.rejects(
+    () => production.executeUploadAttempt({ prepared: testPrepared }),
+    (err) => err.code === 'cloud_upload_prepared_invalid',
+  )
+  await assert.rejects(
+    () => makeRunner(makeFakeCloud()).executeUploadAttempt({ prepared }),
+    (err) => err.code === 'cloud_upload_prepared_invalid',
+  )
+  assert.equal(shell.argvLog(), null)
+
+  const outcome = await production.executeUploadAttempt({
+    prepared,
+    deps: { cloud: { runInfo: poison, runCreateFolder: poison, runUpload: poison } },
+  })
+  assertOutcomeShape(outcome, shell.sb)
+  assert.equal(outcome.status, 'upload_success_reported_pending_readback')
+  assert.equal(shell.argvLog().length, 10)
+  await assert.rejects(
+    () => production.executeUploadAttempt({ prepared }),
+    (err) => err.code === 'cloud_upload_prepared_reused',
+  )
+  assert.equal(shell.argvLog().length, 10)
+})
+
+test('E3J6A static: the evidence reader is read-only, no-follow, and the upload core itself still opens nothing', () => {
+  const src = fs.readFileSync(
+    path.join(HERE, 'internal', 'backup-cloud-source-evidence.mjs'),
+    'utf8',
+  )
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  assert.equal((code.match(/\bopenSync\(/g) ?? []).length, 1)
+  assert.match(
+    code,
+    /const READ_NO_FOLLOW = C\.O_RDONLY \| C\.O_NOFOLLOW \| \(C\.O_NONBLOCK \?\? 0\)/,
+  )
+  assert.match(code, /fs\.openSync\(p, READ_NO_FOLLOW\)/)
+  for (const forbidden of [
+    /O_WRONLY|O_RDWR|O_CREAT|O_TRUNC|O_APPEND/,
+    /\bwrite\w*\(/,
+    /\bunlink\w*\(|\brm\w*\(|\brename\w*\(|\btruncate\w*\(|\bmkdir\w*\(/,
+    /child_process|\bspawn\b/,
+  ]) {
+    assert.equal(forbidden.test(code), false, `forbidden construct ${forbidden}`)
+  }
+  const imports = [...code.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1])
+  assert.deepEqual(imports, ['node:fs'])
+  assert.ok(Object.isFrozen(REAL_EVIDENCE_READER))
+  // The read-only reader really refuses a symlink.
+  const sb = sandbox()
+  const link = path.join(sb.dir, 'link')
+  fs.symlinkSync(sb.files.manifest, link)
+  assert.throws(
+    () => REAL_EVIDENCE_READER.open(link),
+    (err) => err.code === 'ELOOP',
+  )
 })

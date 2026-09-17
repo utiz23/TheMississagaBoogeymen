@@ -320,7 +320,97 @@ spawned, a provider was contacted, or a remote write was attempted. E3J6
 consumes that evidence, performs readback, and derives its verdict
 independently. **56 new tests plus 3 new naming tests (three existing naming
 path-shape assertions deliberately updated to the new layout), full suite
-413/413 passing.** Session detail: `docs/journal/2026-09.md`.
+413/413 passing.** Session detail: `docs/journal/2026-09.md`; further corrected
+by **E3J6A** (2026-09-16, the first of three E3J6 substeps A/B/C; working
+tree, unstaged) — boundary extensions only, with no readback workflow,
+attestation, lock, or retry:
+
+(1) **Contained download; uncontained route removed.** `runDownload` is gone
+from `backup-cloud-cli.mjs` and from the core factory (11 public exports). The
+only download is `runContainedDownload`: CLI hash gate, then a hash gate for
+the pinned `readback.rlimitWrapper`, then
+`<wrapper> --fsize=C:C -- <cli> filesystem download --json …` with **C the exact
+configured per-role ceiling** (never C + 1). A SIGXFSZ close is
+`download_containment_tripped` (supporting evidence only — a Node child under
+`prlimit` exits with EFBIG and no signal); a clean report of a file larger
+than C is `download_containment_violated`; a clean report of exactly C is still
+success. **Ceilings are inclusive** — see (4).
+
+(2) **Termination evidence — confirmed only by `close`.** When this boundary
+kills a child (timeout, cancellation, overflow, stream failure, or a started
+child that emitted `error`), only a `close` event inside the bounded grace
+period confirms the end; otherwise every operation returns
+`provider_termination_unconfirmed`. **[Corrected in place during E3J6A
+review]** The first version delegated to the shared producer helper
+`cancelChild()`, which returns `exited` at once when `exitCode`/`signalCode`
+is already set — even though `close` (stdio closure) may not have happened
+and a descendant may still hold and write to the pipe. The cloud boundary now
+uses its own `terminateAwaitingClose()` (same SIGTERM, SIGKILL at half the
+grace, same bounded wait) that resolves confirmed only on an observed
+`close`; `cancelChild()` and the producer are unchanged. A never-started
+child (no pid) is still an immediate spawn failure. Descendants are not
+killed as a group.
+
+(3) **Fixed-purpose containment canary** (`backup-cloud-containment.mjs` over
+`makeContainmentCanary()` in the CLI core, beside the private bounded spawn —
+no generic runner exists). `proveReadbackContainment({config, runId, signal})`
+itself establishes that `readback.dir` is an existing, non-symlink directory
+owned by the effective uid with no group/world bits and a canonical real
+path, re-checking its `{dev, ino}` before every create/remove. It creates
+exactly `<readback.dir>/<runId>.containment-canary/probe.bin` (EEXIST refuses),
+runs `<wrapper> --fsize=L:L -- <node> --input-type=commonjs -e <module
+script> <probe> <L+65536>` with an **empty environment**, capped output, and
+the run timeouts (L = the smallest ceiling), and passes only if termination is
+confirmed, the writer did not report a clean complete write, the probe is
+**exactly** L bytes, and both canary paths were then removed after identity
+checks. Unconfirmed termination touches nothing. `quota_mount` is refused
+(`containment_unsupported`). **[Corrected in place during E3J6A review]** A
+validator-accepted configuration whose smallest ceiling makes `L + 65536` an
+unsafe integer, or whose paths the argv operand rules refuse (a segment
+beginning with `-`), no longer throws `cloud_cli_argv_invalid` through the
+public API: both are decided before anything is created and return
+`containment_unproven` with `cleanup: 'not_started'`, spawning nothing. The
+exact `--fsize=L:L` and the representable write beyond L are never relaxed. A proof is a frozen object registered in a
+factory-private WeakMap and bound to run id, directory identity, mechanism,
+wrapper path and pin, all three ceilings, and L; `verifyContainmentProof()`
+(E3J6B's validation route) accepts only that object while the binding still
+matches the configuration and the directory's current identity. The local
+`/usr/bin/prlimit` enforced L on disposable Node probes in the suite — **not**
+evidence about the Proton CLI, larger limits, CLI descendants, or Hotel-Echo.
+
+(4) **One-shot prepare/execute and pre-upload source evidence.**
+`prepareUploadAttempt()` is local-only: after the E3J5 checks it enforces
+inclusive ceilings (`bytes <= ceiling`, else `local_exceeds_readback_ceiling`,
+before any content read), then re-opens each role `O_RDONLY|O_NOFOLLOW|O_NONBLOCK`
+(`internal/backup-cloud-source-evidence.mjs`), brackets the read with `fstat`
+identity checks, and records SHA-256 and exact bytes for all three roles.
+The captured manifest/sidecar bytes are validated with closed outcomes only
+(`local_manifest_identity_invalid`: schema, artifact name, `snapshot_ts`
+compacting to the stamp, `run_id` shape, ciphertext hash/size, and the sidecar
+being exactly the producer's line). No completion-failure or JSON-parse text is
+read. It returns a frozen `ready` object (with `sourceEvidence`) or `refused`
+object (identity and paths kept, `sourceEvidence: null` — partial evidence
+never escapes). `executeUploadAttempt()` consumes a genuine object
+synchronously before its first `await`; reuse, concurrency, forgery, or a
+foreign runner fails locally with no boundary call. The outcome is **v2**
+(adds `sourceEvidence`). This does **not** close the CLI's path-based upload
+TOCTOU: an in-place same-size rewrite within timestamp granularity is
+invisible to identity checks and is left to E3J6B's readback comparison.
+
+(5) **Recorded for E3J6B, not implemented:** every attempt that has an
+identity — including a local refusal — must eventually have an intent record,
+so partial or failed attestations reconcile uniformly; and an attestation may
+record cleanup *policy/disposition* but can never claim cleanup succeeded,
+because cleanup happens only after the attestation is durable.
+
+**82 new tests (73 plus 9 from the in-place review corrections); full suite
+495/495, 0 skipped** (cli 141, containment 37, upload 73, config 36, naming
+24; the real-`prlimit` cases ran). Every correction regression was shown to
+fail against the pre-correction code (6 failures) before the fix. Deliberately updated assertions: the CLI export
+set (10 → 11), download tests moved to the contained route, the E3J5 outcome
+key set and version (v1 → v2), `REAL_UPLOAD_DEPS` gaining `evidence`, the
+upload export set, config fixtures gaining `rlimitWrapper`, and the CLI core's
+importer allowlist. Session detail: `docs/journal/2026-09.md`.
 **Status:**
 **DESIGN AND ANALYSIS FOR CLOUD TRANSPORT AND ATTESTATION — NOT ACTIVATED.**
 The **E3J2** shared artifact-contract extraction (§1.3, §12, §13), the
@@ -328,7 +418,9 @@ The **E3J2** shared artifact-contract extraction (§1.3, §12, §13), the
 as corrected by **E3J3B**), the **E3J4** subprocess boundary (§2, §6-8,
 §10-12, as corrected by **E3J4A**, **E3J4B**, and **E3J4C** after three
 independent security review passes), and the **E3J5** single-attempt upload
-orchestration (§4, §8, §11-12, with the layout change above) are implemented
+orchestration (§4, §8, §11-12, with the layout change above), and the
+**E3J6A** boundary extensions (contained download, termination evidence,
+containment canary, one-shot preparation with source evidence) are implemented
 locally and are either behaviour-preserving, additive-only, or a narrowly
 scoped new local boundary; all four are local repository code with no
 provider, host, or credential access of their own — pure naming/path helpers,
@@ -762,7 +854,16 @@ errno text is surfaced.
 the readback are two separate observations, so the race between them is **not**
 closed; nothing is contained by a byte ceiling during the transfer; no file
 descriptor is owned across the operation; and the downloaded file's **content**
-is not verified. This is identity/evidence binding plus destination-cleanliness
+is not verified.
+
+**[E3J6A, 2026-09-16]** The uncontained `download` operation was removed. The
+only route is `runContainedDownload` (the pinned wrapper with the exact
+per-role limit; see the E3J6A correction entry at the top). Its success result
+keeps exactly the three fields above. It adds three indeterminate codes:
+`download_containment_tripped`, `download_containment_violated`, and (for every
+operation) `provider_termination_unconfirmed`. The byte-ceiling sentence above
+is now: the kernel limit is **requested**; whether it is enforced is the
+canary's and E3J10's question, and content is still unverified here. This is identity/evidence binding plus destination-cleanliness
 preflight, and must never be described as hard containment or acceptance.
 
 ---
@@ -848,6 +949,19 @@ download.** Both are cheap and both should exist.
 
 Adopt **M1 + M5 always**, **M4 as a tripwire that produces `indeterminate`**,
 and require **M2 or M3, proven, before production activation.**
+
+**[E3J6A, 2026-09-16] M2 now exists as code plus a runtime canary; M3 is
+refused in code.** The limit applied is the configured role ceiling itself
+(inclusive: a legitimate object of exactly C bytes is acceptable, and C + 1 is
+never used). The canary proves, per run, only that the pinned wrapper and the
+kernel enforced the smallest ceiling on the readback filesystem for a Node
+child. Three consequences of RLIMIT_FSIZE are recorded here: it limits **each
+file** the process writes, not total bytes or the number of files; it also
+applies to the CLI's **own** cache/session writes, so whether the real CLI can
+run at all under the smallest role ceiling is part of the E3J10 host proof;
+and SIGXFSZ cannot be relied on (Node ignores it and sees EFBIG). `quota_mount`
+stays valid configuration shape and is refused at runtime until a
+verification for it is designed.
 
 > **DEPLOYMENT PREREQUISITE (blocking).** The uploader may not be activated in
 > production until one hard-containment mechanism is demonstrated on the host
@@ -1584,9 +1698,18 @@ Notes on specific fields:
   because the observations are useful for later diagnosis (for example, whether
   a revision uid ever changed under a path that should never have been
   rewritten), not because they support the verdict.
-- **`completion_failures` carries repository-authored strings** produced by
-  `verifyArtifactCompletion()` (`backup-producer.mjs:226-288`), which describe
-  local paths and hashes only. It never carries provider text.
+- ~~**`completion_failures` carries repository-authored strings**~~
+  **[CORRECTED BY E3J6A]** That claim is false and the field must not exist.
+  `verifyArtifactCompletion()` interpolates values read from the manifest
+  (`JSON.stringify(manifest?.artifact)`, the sidecar filename) and native error
+  messages into `failures`, and Node 22's `JSON.parse` error quotes an excerpt
+  of its input. E3J5/E3J6A read only the `complete` boolean; the attestation
+  (E3J6B) must use closed codes and booleans only.
+- **[E3J6A → E3J6B]** Every attempt with an identity, including a local
+  refusal, must eventually have an intent record, so partial or failed
+  attestations reconcile uniformly. An attestation may record cleanup
+  policy/disposition, never that cleanup succeeded: cleanup happens only after
+  the attestation is durable.
 - **`cli.version_evidence` is mandatory** and makes §6.2's distinction
   machine-readable.
 
@@ -1655,7 +1778,8 @@ on a host.
 | `readback.maxCiphertextBytes` | **U12** — required positive integer, no default; must ultimately align with the approved producer/acceptor production ciphertext envelope |
 | `readback.maxManifestBytes` | **U12** — required positive integer, no default; much smaller than the ciphertext ceiling but still requires its own explicit production configuration |
 | `readback.maxSidecarBytes` | **U12** — required positive integer, no default; much smaller than the ciphertext ceiling but still requires its own explicit production configuration |
-| `readback.containment` | `'rlimit_fsize' \| 'quota_mount'` — declares which proven mechanism is deployed (§3.3); required, no default; enforces the applicable per-role ceiling above for each one-file-per-process download |
+| `readback.containment` | `'rlimit_fsize' \| 'quota_mount'` — declares which proven mechanism is deployed (§3.3); required, no default; enforces the applicable per-role ceiling above for each one-file-per-process download. **[E3J6A]** `quota_mount` is refused at runtime |
+| `readback.rlimitWrapper` | **[E3J6A]** required-but-nullable: `{executable, expectedSha512}` for `rlimit_fsize` (canonical path, not the CLI, not in a data directory), exactly `null` for `quota_mount`; hash-gated like the CLI |
 | `run.lockFile`, `run.operationTimeoutMs`, `run.cancelGraceMs` | same discipline as `backup-config.mjs` `run.*`. **[E3J5]** the two timeouts are consumed by the upload attempt; `run.lockFile` is validated but **RESERVED** — no code takes the lock until the entrypoint session, whose lock must span upload, readback, and attestation |
 | `retry.*` | **U13**. **[E3J5]** validated but **RESERVED** — no code retries until the attestation writer exists |
 | `capacity.minFreeBytes`, `capacity.backingVolume` | reused wholesale, including the required-but-nullable `backingVolume` rule (`backup-config.mjs:99-123`) |
@@ -1864,6 +1988,22 @@ local fake CLI:
 - **T20** in full under the corrected layout.
 - **T18 is not started** — deferred until the attestation writer exists.
 
+**[E3J6A, 2026-09-16] — the containment and source-evidence portions of
+T8/T13-T17.** `backup-cloud-cli.test.mjs`, `backup-cloud-containment.test.mjs`
+and `backup-cloud-upload.test.mjs` prove: the exact contained argv and the
+CLI-then-wrapper hash-gate order; removal of the uncontained download; T14's
+mechanism half (a canary refused under a non-enforcing wrapper, a wrong
+wrapper pin, `quota_mount`, an untrusted directory, a collision, an
+unrepresentable overshoot or refused path, or an unconfirmed child — including
+one that has an exit status but no `close`); a real-`prlimit` cap at exactly C on disposable local
+probes; exact-C clean success; conservative exact-C non-clean handling);
+unforgeable proofs; one-shot preparation under concurrency; source evidence
+captured before any boundary call; inclusive ceilings; closed identity
+outcomes; and no leakage of injected markers, native text, or provider text
+from those boundaries. **E3J6B still owes** T13, T15-T17, the written
+attestation halves of T8/T11/T12, and the readback half of T14; **E3J6C** owes
+T18 and the lock.
+
 ### 11.2 What a fake CLI proves, and what it cannot
 
 **Can prove:** argv construction and the absence of forbidden flags; ordering;
@@ -1902,7 +2042,7 @@ sessions need no provider, no host, and no credential.
 | **E3J3** | **Naming, remote paths, and the cloud config surface.** **DONE (2026-09-13), corrected same-day by E3J3B after independent review.** `publishedTripleNames()`/`ARTIFACT_PREFIX_PATTERN` (§1.3); new `backup-cloud-naming.mjs` (safe remote-component validation, canonical-remote-root validation, `assertValidArtifactBase()` identity-shape validation, self-validating `attemptId` construction, the attempt namespace, the three published object paths, the attestation filename — §4, §8.1); new `backup-cloud-config.mjs` (fail-closed cloud config validator/loader with LEXICAL canonical-path enforcement before containment comparison, a generic secret-key rejection message, a frozen `backingVolume` result, `verifyCliHashPin()`) and `eanhl-backup-cloud.example.json` (§10); T1, T2, the E3J3 portion of T22 (corrected above), and T23 — **56 new tests over the 179-test baseline (5 artifact-contract + 19 naming + 32 config), full suite 235/235, 0 fail.** No Proton CLI argv, subprocess, upload, download, or attestation writer — those remain E3J4 onward | no |
 | **E3J4** | **Subprocess boundary and the fake CLI.** **DONE (2026-09-14), corrected same-day by E3J4A, then E3J4B, then E3J4C, each after its own independent security review pass.** `backup-cloud-cli.mjs` now: constructs argv for the four operations (§8.3) with option-injection-safe operand validation and generic (non-echoing) rejection errors; runs the hash gate closing T22 (§11.1) strictly before argv/spawn, with no injectable builder anywhere in the module; spawns with `shell:false` explicit and a POSITIVE environment allowlist (not a copy-and-strip); classifies credential-unavailable/not-found/name-conflict text with EXACT anchors bound to the actual queried path or uploaded file identity (never a substring match, never accepted on an unrelated identity); treats a capture-stream failure the same as a timeout/overflow (`provider_stream_failed`); validates timeouts as positive safe integers with the grace-below-timeout coherence rule; validates download's local evidence defensively; and returns only frozen results from a closed `CLOUD_CLI_ERROR_CODES` enum, through a closed ten-name export surface. **E3J4C** then moved the boundary logic to `internal/backup-cloud-cli-core.mjs` so the production operations accept NO dependency override at all (the remaining `deps` seam), made upload cross-check the provider byte count against caller-supplied `expectedLocalSizeBytes` and stop promoting `skippedItems: 1` to success, bound download's local evidence to the exact immediate child of `localDir` named by the queried remote basename with a pre-spawn non-symlink-following absence check and a regular-file-only readback, switched every provider-derived byte count to `Number.isSafeInteger`, and made `validateLocalStat()` observe `isFile()` and `size` exactly once each inside their own `try`. New `testdoubles/fake-proton-drive.mjs` (disposable local double; its own exit-before-drain race, fixed in E3J4A, re-verified stable across 10 consecutive runs in E3J4B; records environment KEY NAMES only, never values) and `backup-cloud-cli.test.mjs` — **119 tests total (44 E3J4 + 31 E3J4A + 18 E3J4B + 26 E3J4C), full suite 354/354**. Independent review first reproduced the E3J4 session's own claimed 44/44 as 41/44, then — after E3J4A's fix — found ten further boundary-logic defects, then seven more in E3J4C (see the correction entries at the top of this memo for the itemized lists). No orchestration (attempt workflow, collision preflight, ordered triple upload, retry, lock ownership — E3J5) or readback containment/attestation (E3J6) | no |
 | **E3J5** | **Uploader orchestration.** **DONE (2026-09-16).** New `backup-cloud-upload.mjs` (thin production API, one export `runUploadAttempt({config, artifactBase, signal})` plus five frozen vocabularies) over `internal/backup-cloud-upload-core.mjs` (internal test seam, static importer regression). One explicit artifact base, no scanning; local triple validated (non-empty regular files via `lstat`, safe-integer sizes, `verifyArtifactCompletion()` with its text discarded, identity re-observed around every upload); flat layout (§4.2, §8.1) and the rewritten §8.2 order; uploads stop at the first non-success; a frozen evidence outcome with no verdict. Minimal read-only real dependencies, not `makeRealDeps()`. T10, T19, T20 in full; the E3J5 halves of T11 and T12 (§11.1). `fake-proton-drive.mjs` gained an additive `sequence` / `notFoundForQueriedBasename` mode. **56 new tests + 3 naming tests; full suite 413/413.** No retry (T18 deferred), no lock, no entrypoint, no readback, no attestation | no |
-| **E3J6** | **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T17, the E3J6 halves of T8, T11, and T12, and — once the writer exists — bounded retry (T18). Consumes the E3J5 evidence outcome and derives its verdict independently. The first executable entrypoint, wherever it lands, owns `run.lockFile`, with a lock spanning upload, readback, and attestation | no |
+| **E3J6** | **[E3J6A DONE 2026-09-16, unstaged — see the correction entry at the top; E3J6B (readback, verdict, intent/attestation) and E3J6C (entrypoint, lock, retry) remain.]** **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T17, the E3J6 halves of T8, T11, and T12, and — once the writer exists — bounded retry (T18). Consumes the E3J5 evidence outcome and derives its verdict independently. The first executable entrypoint, wherever it lands, owns `run.lockFile`, with a lock spanning upload, readback, and attestation | no |
 | **E3J7** | **Freshness export and evaluation.** The attestation reader, `validateCloudAttestationBinding()`, the freshness number, the minimal exported health signal, plus T21 | no |
 | **E3J8** | **Independent alerting.** Watcher host, channel, and a received test notification. Until this closes, nothing is monitored | yes — operator decision D1, **U15** |
 | **E3J9** | **Credential mechanism.** A service-compatible credential-access design for Hotel-Echo, closing U1's remainder | yes — separate authorization |

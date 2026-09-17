@@ -57,20 +57,27 @@
  * containment discussion (§3) already states for hard containment. See
  * `assertCanonicalAbsolutePath()`.
  *
- * WHICH FIELDS ARE CONSUMED TODAY (E3J5)
- * ---------------------------------------
- * Every field below is validated, but not every field is used yet. The E3J5
- * single-attempt uploader (`backup-cloud-upload.mjs`) reads only `cli`,
- * `credentials`, `remote.root`, `artifact.sourceDir`,
- * `run.operationTimeoutMs`, and `run.cancelGraceMs`. The rest are RESERVED —
- * validated so a host config is complete, but consumed by no code:
+ * WHICH FIELDS ARE CONSUMED TODAY (E3J6A)
+ * ----------------------------------------
+ * Every field below is validated, but not every field is used yet. The
+ * upload attempt (`backup-cloud-upload.mjs`) reads `cli`, `credentials`,
+ * `remote.root`, `artifact.sourceDir`, `run.operationTimeoutMs`,
+ * `run.cancelGraceMs`, and (E3J6A) the three `readback.max*Bytes` ceilings,
+ * which bound each source role before anything is uploaded. The containment
+ * canary (`backup-cloud-containment.mjs`) reads `readback.dir`,
+ * `readback.containment`, `readback.rlimitWrapper`, the three ceilings, and
+ * the two `run` timings. The rest are RESERVED — validated so a host config
+ * is complete, but consumed by no code:
  *
- *   - `run.lockFile` — reserved for the first executable-entrypoint session,
- *     whose lock must span upload, readback, and attestation write together;
- *     E3J5 takes no lock and has no entrypoint;
- *   - `retry.*` — reserved until the attestation writer exists (every retry
- *     must have its own attestation); E3J5 makes exactly one attempt;
- *   - `attestation.dir`, `readback.*`, `capacity.*` — E3J6 onward.
+ *   - `run.lockFile` — reserved for the entrypoint session (E3J6C), whose
+ *     lock must span upload, readback, and attestation write together;
+ *   - `retry.*` — reserved until the attestation writer exists (E3J6B/C);
+ *   - `attestation.dir`, `capacity.*` — E3J6B onward.
+ *
+ * `readback.rlimitWrapper` (E3J6A) is required-but-nullable: a pinned
+ * `{executable, expectedSha512}` for `rlimit_fsize`, exactly `null` for
+ * `quota_mount`. `quota_mount` remains accepted configuration SHAPE only; the
+ * containment canary refuses it at runtime until it is verifiable.
  *
  * This module performs no I/O of its own beyond the injected `readFile`.
  */
@@ -301,6 +308,56 @@ export function validateCloudConfig(raw, sourcePath = '<cloud-config>') {
         `deployed — it does not itself prove kernel or filesystem enforcement (E3J1 memo §3.3).`,
     )
   }
+  // E3J6A: the pinned RLIMIT_FSIZE wrapper (`prlimit`). Required-but-nullable,
+  // in the same style as `capacity.backingVolume`: it must be an object for
+  // `rlimit_fsize` and exactly `null` for `quota_mount`. The wrapper sits in
+  // the exec chain in front of the CLI, so it is pinned by SHA-512 exactly as
+  // the CLI is. Naming it here proves nothing about enforcement; the runtime
+  // canary (`backup-cloud-containment.mjs`) and the E3J10 host proof do.
+  if (!Object.prototype.hasOwnProperty.call(readbackRaw, 'rlimitWrapper')) {
+    fail(
+      'config_field_missing',
+      `${sourcePath}.readback.rlimitWrapper must be present: an object ` +
+        `{"executable": "...", "expectedSha512": "..."} when containment is "rlimit_fsize", or ` +
+        `null when it is "quota_mount".`,
+    )
+  }
+  const wrapperRaw = readbackRaw.rlimitWrapper
+  if (readback.containment === 'rlimit_fsize') {
+    if (wrapperRaw === null) {
+      fail(
+        'config_field_invalid',
+        `${sourcePath}.readback.rlimitWrapper must not be null when containment is "rlimit_fsize".`,
+      )
+    }
+    requireObject(wrapperRaw, `${sourcePath}.readback.rlimitWrapper`)
+    readback.rlimitWrapper = Object.freeze({
+      executable: requireCanonicalAbsolutePath(
+        wrapperRaw,
+        'executable',
+        `${sourcePath}.readback.rlimitWrapper`,
+      ),
+      expectedSha512: requireSha512Hex(
+        wrapperRaw,
+        'expectedSha512',
+        `${sourcePath}.readback.rlimitWrapper`,
+      ),
+    })
+    if (readback.rlimitWrapper.executable === cli.executable) {
+      fail(
+        'config_field_invalid',
+        `${sourcePath}.readback.rlimitWrapper.executable must not be the same file as cli.executable.`,
+      )
+    }
+  } else {
+    if (wrapperRaw !== null) {
+      fail(
+        'config_field_invalid',
+        `${sourcePath}.readback.rlimitWrapper must be null when containment is "quota_mount".`,
+      )
+    }
+    readback.rlimitWrapper = null
+  }
 
   // ── run lifecycle ───────────────────────────────────────────────────────
   const runRaw = requireObject(raw.run, `${sourcePath}.run`)
@@ -393,6 +450,18 @@ export function validateCloudConfig(raw, sourcePath = '<cloud-config>') {
       'config_field_invalid',
       `${sourcePath}.run.lockFile (${run.lockFile}) is inside readback.dir (${readback.dir}).`,
     )
+  }
+  if (readback.rlimitWrapper !== null) {
+    for (const [label, dir] of owned) {
+      if (isInside(readback.rlimitWrapper.executable, dir)) {
+        fail(
+          'config_field_invalid',
+          `${sourcePath}.readback.rlimitWrapper.executable (${readback.rlimitWrapper.executable}) is ` +
+            `inside ${sourcePath}.${label} (${dir}); an executable in the exec chain must not live in ` +
+            `a data directory.`,
+        )
+      }
+    }
   }
   for (const [label, dir] of owned) {
     if (run.lockFile === dir) {

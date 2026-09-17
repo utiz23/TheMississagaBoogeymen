@@ -19,11 +19,18 @@
  *
  * EXPORTED SURFACE — CLOSED, NO EXCEPTIONS
  * --------------------------------------------
- * Exactly ten names: `CLOUD_CLI_ERROR_CODES`, `FORBIDDEN_ARGV_TOKENS`,
- * `buildInfoArgv`, `buildCreateFolderArgv`, `buildUploadArgv`,
- * `buildDownloadArgv`, `runInfo`, `runCreateFolder`, `runUpload`,
- * `runDownload`. Nothing here accepts an arbitrary operation name, an
- * alternate argv builder, or a dependency of any kind.
+ * Exactly eleven names (E3J6A): `CLOUD_CLI_ERROR_CODES`,
+ * `FORBIDDEN_ARGV_TOKENS`, `buildInfoArgv`, `buildCreateFolderArgv`,
+ * `buildUploadArgv`, `buildDownloadArgv`, `buildContainedDownloadArgv`,
+ * `runInfo`, `runCreateFolder`, `runUpload`, `runContainedDownload`.
+ * Nothing here accepts an arbitrary operation name, an alternate argv
+ * builder, or a dependency of any kind.
+ *
+ * E3J6A REMOVED the uncontained `runDownload`. The only download route is
+ * `runContainedDownload`, which executes the pinned RLIMIT_FSIZE wrapper in
+ * front of the pinned CLI with the exact per-role limit. `buildDownloadArgv`
+ * remains exported only as the pure inner argv the contained builder wraps;
+ * no exported function spawns it on its own.
  *
  * NO DEPENDENCY INJECTION ON ANY PRODUCTION ROUTE (E3J4C)
  * ----------------------------------------------------------
@@ -52,8 +59,8 @@
  *     SEAM, not a cryptographic or runtime access-control boundary, and is
  *     never described as one;
  *   - a static regression in `backup-cloud-cli.test.mjs` fails if any
- *     `ops/**` module other than this one and that test file imports the
- *     core;
+ *     `ops/**` module other than this one, `backup-cloud-containment.mjs`
+ *     (E3J6A), and their test files imports the core;
  *   - malicious local repository code is OUTSIDE this boundary's threat
  *     model — anything able to add an import already has arbitrary
  *     execution. The defended property is that an ordinary production
@@ -80,6 +87,7 @@ import {
   CLOUD_CLI_ERROR_CODES,
   FORBIDDEN_ARGV_TOKENS,
   REAL_CLI_DEPS,
+  buildContainedDownloadArgv,
   buildCreateFolderArgv,
   buildDownloadArgv,
   buildInfoArgv,
@@ -90,6 +98,7 @@ import {
 export {
   CLOUD_CLI_ERROR_CODES,
   FORBIDDEN_ARGV_TOKENS,
+  buildContainedDownloadArgv,
   buildCreateFolderArgv,
   buildDownloadArgv,
   buildInfoArgv,
@@ -139,26 +148,39 @@ export async function runUpload({
 }
 
 /**
- * `filesystem download --json <remotePath> <localDir>`.
+ * `<wrapper> --fsize=N:N -- <cli> filesystem download --json <remotePath> <localDir>` (E3J6A).
  *
- * `expectedLocalPath` must be the canonical immediate child of `localDir`
- * whose basename equals `remotePath`'s, must be proven absent (without
- * following a symlink) before the command runs, and must be a regular file
- * of the reported size afterwards.
+ * `maxFileBytes` is the applicable per-role readback ceiling, applied as both
+ * the soft and the hard RLIMIT_FSIZE. `wrapper` is `{executable,
+ * expectedSha512}` and is hash-gated after the CLI and before any operand is
+ * inspected. `expectedLocalPath` must be the canonical immediate child of
+ * `localDir` whose basename equals `remotePath`'s, must be proven absent
+ * (without following a symlink) before the command runs, and must be a
+ * regular file of the reported size afterwards.
+ *
+ * `provider_termination_unconfirmed` means the child may still exist — the
+ * caller must not touch `localDir`. `download_containment_tripped` (SIGXFSZ
+ * observed) and `download_containment_violated` (a clean report of a file
+ * larger than the limit) are indeterminate. A clean success of exactly
+ * `maxFileBytes` is still a success; this boundary does not verify content.
  */
-export async function runDownload({
+export async function runContainedDownload({
   remotePath,
   localDir,
   expectedLocalPath,
+  maxFileBytes,
+  wrapper,
   cli,
   credentials,
   timeouts,
   signal,
 }) {
-  return OPERATIONS.runDownload({
+  return OPERATIONS.runContainedDownload({
     remotePath,
     localDir,
     expectedLocalPath,
+    maxFileBytes,
+    wrapper,
     cli,
     credentials,
     timeouts,

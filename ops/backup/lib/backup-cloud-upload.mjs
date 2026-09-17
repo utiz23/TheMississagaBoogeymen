@@ -13,9 +13,21 @@
  * outcome's evidence semantics, and the limitations it does NOT close, and
  * `docs/planning/proton-drive-cloud-transport-architecture.md` §4, §8, §11-12.
  *
+ * ONE-SHOT PREPARE / EXECUTE (E3J6A)
+ * -------------------------------------
+ * `prepareUploadAttempt({config, artifactBase, signal})` performs every
+ * local step — including descriptor-based SHA-256 and byte evidence for all
+ * three roles and the inclusive readback-ceiling check — and makes no
+ * boundary call. It returns a frozen prepared object (`disposition: 'ready'`
+ * with `sourceEvidence`, or `'refused'` with `refusal` and no evidence).
+ * `executeUploadAttempt({prepared, signal})` consumes a prepared object from
+ * THIS module exactly once, synchronously before its first `await`; any
+ * reused, concurrent, forged, or foreign object fails locally with no
+ * boundary call. `runUploadAttempt()` is the two in sequence.
+ *
  * WHAT IT IS NOT
  * ---------------
- * Not a verifier: the outcome has `verification: 'not_performed'` and no
+ * Not a verifier: the outcome (schema v2) has `verification: 'not_performed'` and no
  * verdict. E3J6 consumes it, performs readback, and derives the attestation
  * verdict independently. Not a writer of anything local: no attestation file,
  * no lock (`run.lockFile` is reserved for the entrypoint session whose lock
@@ -59,7 +71,38 @@ export {
 const ATTEMPT_RUNNER = makeUploadAttemptRunner(REAL_UPLOAD_DEPS)
 
 /**
- * Run exactly one upload attempt.
+ * Prepare one attempt: local validation and source evidence only.
+ *
+ * @param {object} args
+ * @param {object} args.config
+ * @param {string} args.artifactBase
+ * @param {AbortSignal} [args.signal]
+ * @returns {object} the frozen prepared object (synchronous)
+ * @throws {BackupError} `cloud_upload_invalid_input` / `cloud_upload_attempt_id_failed`
+ */
+export function prepareUploadAttempt(args) {
+  if (args === null || typeof args !== 'object') return ATTEMPT_RUNNER.prepareUploadAttempt(args)
+  const { config, artifactBase, signal } = args
+  return ATTEMPT_RUNNER.prepareUploadAttempt({ config, artifactBase, signal })
+}
+
+/**
+ * Execute a prepared attempt exactly once.
+ *
+ * @param {object} args
+ * @param {object} args.prepared  from `prepareUploadAttempt()` of THIS module
+ * @param {AbortSignal} [args.signal]
+ * @throws {BackupError} `cloud_upload_prepared_invalid` / `cloud_upload_prepared_reused`
+ *   / `cloud_upload_invalid_input` — before any boundary call.
+ */
+export async function executeUploadAttempt(args) {
+  if (args === null || typeof args !== 'object') return ATTEMPT_RUNNER.executeUploadAttempt(args)
+  const { prepared, signal } = args
+  return ATTEMPT_RUNNER.executeUploadAttempt({ prepared, signal })
+}
+
+/**
+ * Run exactly one upload attempt (prepare, then execute).
  *
  * @param {object} args
  * @param {object} args.config        a cloud config; re-validated with `validateCloudConfig()`

@@ -3,8 +3,9 @@
     "ILLUSTRATIVE, EXPLICITLY NON-PRODUCTION cloud-transport configuration — NOT ACTIVATED,",
     "NOT DEPLOYED, and no path below is claimed to exist on any host. Nothing in this",
     "repository reads this file automatically, and no entry point exists. A local subprocess",
-    "boundary (E3J4) and a local single-attempt upload library (E3J5) exist but are called by",
-    "no executable, have only been exercised against local fakes, and are not activated —",
+    "boundary (E3J4), a local single-attempt upload library (E3J5) and a local containment",
+    "canary (E3J6A) exist but are called by no executable, have only been exercised against",
+    "local fakes and disposable local probes, and are not activated —",
     "see docs/planning/proton-drive-cloud-transport-architecture.md §12.",
     "There are no defaults: every key below is required, and a missing key is a hard error.",
     "Every path, size, timeout, retry count, containment selector and remote-root value in",
@@ -69,14 +70,25 @@
   "readback": {
     "_comment": [
       "Three SEPARATE, illustrative, non-production ceilings (U12) — never derived from one",
-      "another. containment is a declaration only (see the top-level _comment); neither value",
-      "below has been proven to enforce anything on any real host."
+      "another, each INCLUSIVE (a role of exactly its ceiling is acceptable). containment is a",
+      "declaration only (see the top-level _comment); neither value below has been proven to",
+      "enforce anything on any real host.",
+      "rlimitWrapper (E3J6A) is required for 'rlimit_fsize' and must be null for 'quota_mount'.",
+      "It names the RLIMIT_FSIZE wrapper (prlimit) that runs in front of the CLI with the exact",
+      "per-role ceiling as both soft and hard limit, pinned by SHA-512 like the CLI. The path",
+      "and pin below are illustrative placeholders, NOT the hash of any real binary. A runtime",
+      "canary refuses to proceed unless this wrapper demonstrably enforces the smallest ceiling",
+      "on this host; 'quota_mount' is accepted as shape only and refused at runtime."
     ],
     "dir": "/example-non-production/cloud-readback",
     "maxCiphertextBytes": 5368709120,
     "maxManifestBytes": 1048576,
     "maxSidecarBytes": 4096,
-    "containment": "rlimit_fsize"
+    "containment": "rlimit_fsize",
+    "rlimitWrapper": {
+      "executable": "/usr/bin/prlimit",
+      "expectedSha512": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+    }
   },
 
   "run": {

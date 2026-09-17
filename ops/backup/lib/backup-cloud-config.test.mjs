@@ -46,6 +46,10 @@ const VALID = {
     maxManifestBytes: 1_048_576,
     maxSidecarBytes: 4_096,
     containment: 'rlimit_fsize',
+    rlimitWrapper: {
+      executable: '/usr/bin/prlimit',
+      expectedSha512: HASH_B,
+    },
   },
   run: {
     lockFile: '/var/eanhl/cloud-run/uploader.lock',
@@ -375,6 +379,8 @@ test('T23: readback.containment accepts only "rlimit_fsize" or "quota_mount"', (
   for (const containment of ['rlimit_fsize', 'quota_mount']) {
     const cfg = clone()
     cfg.readback.containment = containment
+    // E3J6A: the wrapper is required for rlimit_fsize and must be null for quota_mount.
+    if (containment === 'quota_mount') cfg.readback.rlimitWrapper = null
     assert.equal(validateCloudConfig(cfg).readback.containment, containment)
   }
 })
@@ -453,4 +459,61 @@ test('T23: the checked-in example configuration loads and validates', () => {
   assert.equal(cfg.readback.containment, 'rlimit_fsize')
   assert.equal(cfg.run.cancelGraceMs < cfg.run.operationTimeoutMs, true)
   assert.equal(cfg.retry.maxTotalAttemptsPerRun >= cfg.retry.maxAttemptsPerArtifactPerRun, true)
+})
+
+// ── E3J6A: readback.rlimitWrapper ───────────────────────────────────────────
+
+test('E3J6A: readback.rlimitWrapper is required-but-nullable, and its shape follows the containment selector', () => {
+  rejects((c) => delete c.readback.rlimitWrapper, 'config_field_missing')
+  // rlimit_fsize requires a wrapper object.
+  rejects((c) => (c.readback.rlimitWrapper = null), 'config_field_invalid')
+  rejects((c) => (c.readback.rlimitWrapper = 'prlimit'), 'config_field_type')
+  // quota_mount requires exactly null.
+  rejects((c) => (c.readback.containment = 'quota_mount'), 'config_field_invalid')
+  const cfg = validateCloudConfig(clone())
+  assert.deepEqual(cfg.readback.rlimitWrapper, {
+    executable: '/usr/bin/prlimit',
+    expectedSha512: HASH_B,
+  })
+  assert.ok(Object.isFrozen(cfg.readback.rlimitWrapper))
+  const quota = clone()
+  quota.readback.containment = 'quota_mount'
+  quota.readback.rlimitWrapper = null
+  assert.equal(validateCloudConfig(quota).readback.rlimitWrapper, null)
+})
+
+test('E3J6A: the wrapper pin and path follow the same rules as the CLI pin and path', () => {
+  rejects((c) => (c.readback.rlimitWrapper.expectedSha512 = ''), 'config_field_missing')
+  for (const bad of [HASH_B.toUpperCase(), HASH_B.slice(1), `${HASH_B.slice(1)}g`]) {
+    rejects((c) => (c.readback.rlimitWrapper.expectedSha512 = bad), 'config_field_invalid')
+  }
+  rejects((c) => delete c.readback.rlimitWrapper.expectedSha512, 'config_field_missing')
+  rejects((c) => delete c.readback.rlimitWrapper.executable, 'config_field_missing')
+  rejects((c) => (c.readback.rlimitWrapper.executable = 'prlimit'), 'config_field_not_absolute')
+  rejects(
+    (c) => (c.readback.rlimitWrapper.executable = '/usr/bin/../bin/prlimit'),
+    'config_field_not_canonical',
+  )
+  rejects(
+    (c) => (c.readback.rlimitWrapper.executable = '/usr//bin/prlimit'),
+    'config_field_not_canonical',
+  )
+})
+
+test('E3J6A: the wrapper must not be the CLI itself and must not live in a data directory', () => {
+  rejects((c) => (c.readback.rlimitWrapper.executable = c.cli.executable), 'config_field_invalid')
+  for (const dir of ['artifact.sourceDir', 'attestation.dir', 'readback.dir']) {
+    rejects((c) => {
+      const [section, key] = dir.split('.')
+      c.readback.rlimitWrapper.executable = `${c[section][key]}/prlimit`
+    }, 'config_field_invalid')
+  }
+})
+
+test('E3J6A: the checked-in example names a pinned wrapper for its rlimit_fsize declaration', () => {
+  const p = new URL('../eanhl-backup-cloud.example.json', import.meta.url)
+  const cfg = validateCloudConfig(JSON.parse(fs.readFileSync(p, 'utf8')))
+  assert.match(cfg.readback.rlimitWrapper.executable, /^\//)
+  assert.match(cfg.readback.rlimitWrapper.expectedSha512, /^[0-9a-f]{128}$/)
+  assert.notEqual(cfg.readback.rlimitWrapper.expectedSha512, cfg.cli.expectedSha512)
 })

@@ -92,6 +92,28 @@
  * uses `sequence[N]`; running past the end is a hard double error (exit 64).
  * A spec without `sequence` behaves exactly as before.
  *
+ * DOWNLOAD FILE WRITING (E3J6A, ADDITIVE)
+ * -----------------------------------------
+ * `"downloadWrite": {"bytes": N, "byte": 90}` makes a `filesystem download
+ * --json <remote> <localDir>` invocation create `<localDir>/<basename of
+ * remote>` exclusively (mode 0600) and write N copies of `byte` into it in
+ * 64 KiB chunks, BEFORE anything is written to stdout/stderr. If a write is
+ * refused (for example EFBIG under a real `prlimit --fsize`), the double
+ * writes one fixed stderr line and exits 1 without writing the spec's
+ * stdout — a stand-in for a CLI that surfaces the error, which is NOT a
+ * claim about how the real CLI behaves. A spec without `downloadWrite`
+ * behaves exactly as before.
+ *
+ * GRANDCHILD HOLDING STDOUT (E3J6A, ADDITIVE)
+ * ---------------------------------------------
+ * `"grandchild": {"delayMs": D, "text": "B", "count": N, "intervalMs": I}`
+ * starts one unreferenced grandchild that INHERITS this process's stdout and
+ * stderr, waits D ms, writes `text` N times I ms apart to that inherited
+ * stdout, writes `<controlDir>/markers/grandchild.done`, and exits. This
+ * process then exits normally, so its exit status is known while its stdout
+ * pipe is still held open — the "exited, but no `close` yet" state. It is
+ * never used by the real CLI and proves nothing about it.
+ *
  * `notFoundForQueriedBasename: true` replaces `stdout`/`stderr`/`exitCode`
  * with the evidenced not-found shape for the path this invocation actually
  * queried — stderr `Node not found: <basename of the queried path operand>`,
@@ -100,6 +122,7 @@
  * `filesystem info <path> --json`.
  */
 
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -217,7 +240,59 @@ async function main() {
   process.stdout.on('error', () => process.exit(141))
   process.stderr.on('error', () => {})
 
+  if (spec.grandchild) {
+    const { delayMs = 0, text = 'B', count = 0, intervalMs = 10 } = spec.grandchild
+    const script = [
+      'const fs = require("fs")',
+      'const [delay, text, count, interval, done] = process.argv.slice(1)',
+      'const sleep = (ms) => new Promise((r) => setTimeout(r, ms))',
+      ';(async () => {',
+      '  await sleep(Number(delay))',
+      '  for (let i = 0; i < Number(count); i++) {',
+      '    try { fs.writeSync(1, text) } catch { break }',
+      '    await sleep(Number(interval))',
+      '  }',
+      '  try { fs.writeFileSync(done, "") } catch {}',
+      '})()',
+    ].join('\n')
+    const grandchild = spawn(
+      process.execPath,
+      [
+        '-e',
+        script,
+        String(delayMs),
+        String(text),
+        String(count),
+        String(intervalMs),
+        path.join(controlDir, 'markers', 'grandchild.done'),
+      ],
+      { stdio: ['ignore', 'inherit', 'inherit'] },
+    )
+    grandchild.unref()
+  }
   if (spec.delayMs) await new Promise((r) => setTimeout(r, spec.delayMs))
+  if (spec.downloadWrite && process.argv[3] === 'download') {
+    const remote = String(process.argv[5] ?? '')
+    const localDir = String(process.argv[6] ?? '')
+    const target = path.join(localDir, path.posix.basename(remote))
+    const total = Number(spec.downloadWrite.bytes)
+    const chunk = Buffer.alloc(65536, Number(spec.downloadWrite.byte ?? 90))
+    try {
+      const fd = fs.openSync(target, 'wx', 0o600)
+      try {
+        let written = 0
+        while (written < total) {
+          written += fs.writeSync(fd, chunk, 0, Math.min(chunk.length, total - written))
+        }
+      } finally {
+        fs.closeSync(fd)
+      }
+    } catch {
+      await writeAndDrain(process.stderr, 'fake-proton-drive: download write refused\n')
+      process.exitCode = 1
+      return
+    }
+  }
   await writeAndDrain(process.stdout, spec.stdout)
   await writeAndDrain(process.stderr, spec.stderr)
   if (spec.chunk) {

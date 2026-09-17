@@ -49,6 +49,13 @@ import {
 export const ATTEMPT_ID_PATTERN = /^\d{8}T\d{6}Z-[0-9a-f]{8}$/
 
 /**
+ * A run identity — the producer manifest's `run_id` and (E3J6A) the cloud
+ * run id that names a containment canary. The same fixed shape as an
+ * `attemptId`, stated separately so each use names what it validates.
+ */
+export const RUN_ID_PATTERN = /^\d{8}T\d{6}Z-[0-9a-f]{8}$/
+
+/**
  * `<artifactPrefix>-<compact stamp>`, split at the LAST hyphen that leaves a
  * 16-character `\d{8}T\d{6}Z` suffix. This is deliberate, not incidental:
  * `ARTIFACT_PREFIX_PATTERN` (`/^[a-z0-9][a-z0-9-]*$/`) permits a prefix that
@@ -253,6 +260,21 @@ export function buildPublishedObjectPaths({ remoteRoot, artifactBase, attemptId 
     checksumPath: `${namespace}/${triple.checksum}`,
     manifestPath: `${namespace}/${triple.manifest}`,
   })
+}
+
+/**
+ * The one directory a containment canary run may create directly beneath
+ * `readback.dir` (E3J6A): `<runId>.containment-canary`. A validated run id
+ * cannot begin with `.` or `-`, and the result is one safe component.
+ */
+export function buildContainmentCanaryDirName(runId) {
+  if (typeof runId !== 'string' || !RUN_ID_PATTERN.test(runId)) {
+    throw new BackupError(
+      'run_id_malformed',
+      'runId must match YYYYMMDDTHHMMSSZ-<8 lowercase hex>.',
+    )
+  }
+  return assertSafeRemoteComponent(`${runId}.containment-canary`, 'canary directory name')
 }
 
 /**

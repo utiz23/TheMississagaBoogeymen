@@ -98,12 +98,13 @@ import { BackupError } from './backup-artifact-contract.mjs'
 import {
   CLOUD_CLI_ERROR_CODES,
   FORBIDDEN_ARGV_TOKENS,
+  buildContainedDownloadArgv,
   buildCreateFolderArgv,
   buildDownloadArgv,
   buildInfoArgv,
   buildUploadArgv,
+  runContainedDownload as productionRunContainedDownload,
   runCreateFolder as productionRunCreateFolder,
-  runDownload as productionRunDownload,
   runInfo as productionRunInfo,
   runUpload as productionRunUpload,
 } from './backup-cloud-cli.mjs'
@@ -131,7 +132,7 @@ function boundOperation(name, { deps: depsOverride = {}, ...params }) {
 const runInfo = (params) => boundOperation('runInfo', params)
 const runCreateFolder = (params) => boundOperation('runCreateFolder', params)
 const runUpload = (params) => boundOperation('runUpload', params)
-const runDownload = (params) => boundOperation('runDownload', params)
+// (download helper defined after the fixed hashes below)
 
 installTestWatchdog({ label: 'cloud-cli', warnAfterMs: 6_000, intervalMs: 4_000 })
 
@@ -140,6 +141,19 @@ const DOUBLE = path.join(HERE, 'testdoubles', 'fake-proton-drive.mjs')
 
 const HASH_A = '0123456789abcdef'.repeat(8)
 const HASH_B = 'fedcba9876543210'.repeat(8)
+
+// E3J6A: the uncontained download no longer exists anywhere. Every download
+// test below drives the contained route; these defaults supply a wrapper pin
+// that the fixed test hasher (`HASH_A`) satisfies and a generous limit, and a
+// test that is ABOUT the wrapper or the limit passes its own.
+const TEST_WRAPPER = Object.freeze({ executable: '/usr/bin/prlimit', expectedSha512: HASH_A })
+const TEST_MAX_FILE_BYTES = 1 << 30
+const runContainedDownload = (params) =>
+  boundOperation('runContainedDownload', {
+    maxFileBytes: TEST_MAX_FILE_BYTES,
+    wrapper: TEST_WRAPPER,
+    ...params,
+  })
 
 const CLI = Object.freeze({
   executable: '/opt/eanhl-cloud/bin/proton-drive',
@@ -259,6 +273,35 @@ function realDeps(overrides = {}) {
 
 function cliFor(dir) {
   return { executable: path.join(dir, 'bin', 'proton-drive'), expectedSha512: HASH_A }
+}
+
+/**
+ * E3J6A: a PASS-THROUGH stand-in for `prlimit` — it checks the exact
+ * `--fsize=N:N --` prefix, records that prefix to `<dir>/wrapper.log`, and
+ * `exec`s the rest WITHOUT applying any limit. It exists so the real-process
+ * download path can run without the real wrapper; it proves nothing about
+ * containment (that is `backup-cloud-containment.test.mjs` and the real
+ * `prlimit` tests below). Pinned to its own real SHA-512.
+ */
+function passThroughWrapper(dir) {
+  const p = path.join(dir, 'bin', 'fake-prlimit')
+  fs.writeFileSync(
+    p,
+    [
+      '#!/bin/sh',
+      'case "$1" in --fsize=*) ;; *) exit 64 ;; esac',
+      '[ "$2" = "--" ] || exit 64',
+      `printf '%s\\n' "$1" >> ${shellQuote(path.join(dir, 'wrapper.log'))}`,
+      'shift 2',
+      'exec "$@"',
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  )
+  return {
+    executable: p,
+    expectedSha512: createHash('sha512').update(fs.readFileSync(p)).digest('hex'),
+  }
 }
 
 /**
@@ -722,7 +765,7 @@ test('T6: upload success key set is exact', async () => {
 test('T6: download success key set is exact, and no provider-derived field appears even from a well-formed report', async () => {
   const dir = sandbox()
   const localPath = makeLocalFile(dir, 42)
-  const result = await runDownload({
+  const result = await runContainedDownload({
     remotePath: '/a/downloaded.dump.age',
     localDir: dir,
     expectedLocalPath: localPath,
@@ -1341,7 +1384,7 @@ test('credential_unavailable is anchored and shared across all four operations',
         },
       }),
     () =>
-      runDownload({
+      runContainedDownload({
         remotePath: '/a/downloaded.dump.age',
         localDir: dir,
         expectedLocalPath: localPath,
@@ -1431,7 +1474,7 @@ test('nonempty stderr on success: upload — same rule', async () => {
 test('nonempty stderr on success: download — same rule', async () => {
   const dir = sandbox()
   const localPath = makeLocalFile(dir, 42)
-  const result = await runDownload({
+  const result = await runContainedDownload({
     remotePath: '/a/downloaded.dump.age',
     localDir: dir,
     expectedLocalPath: localPath,
@@ -1463,7 +1506,7 @@ test('nonempty stderr on success: download — same rule', async () => {
  * `fs.lstatSync` at the readback; `readbackStat` replaces only the readback.
  */
 async function downloadWith({ dir, localPath, stdout, stderr = '', code = 0, readbackStat }) {
-  return runDownload({
+  return runContainedDownload({
     remotePath: `/a/${localPath.split('/').pop()}`,
     localDir: dir,
     expectedLocalPath: localPath,
@@ -2436,17 +2479,29 @@ test('lifecycle: cooperative cancellation via AbortSignal yields indeterminate/p
 // arbitrary-operation or argv-builder seam.
 // ═════════════════════════════════════════════════════════════════════════════
 
-test('closed export surface: exactly the fixed four-operation API, no test-only argv-builder seam', async () => {
+test('closed export surface: exactly the fixed four-operation API (download contained), no test-only argv-builder seam', async () => {
   const mod = await import('./backup-cloud-cli.mjs')
+  // E3J6A: `runDownload` removed; `buildContainedDownloadArgv` and
+  // `runContainedDownload` added — eleven names.
   assert.deepEqual(Object.keys(mod).sort(), [
     'CLOUD_CLI_ERROR_CODES',
     'FORBIDDEN_ARGV_TOKENS',
+    'buildContainedDownloadArgv',
     'buildCreateFolderArgv',
     'buildDownloadArgv',
     'buildInfoArgv',
     'buildUploadArgv',
+    'runContainedDownload',
     'runCreateFolder',
-    'runDownload',
+    'runInfo',
+    'runUpload',
+  ])
+  assert.equal('runDownload' in mod, false)
+  // The internal factory offers no uncontained download either.
+  const ops = makeCloudCliOperations(REAL_CLI_DEPS)
+  assert.deepEqual(Object.keys(ops).sort(), [
+    'runContainedDownload',
+    'runCreateFolder',
     'runInfo',
     'runUpload',
   ])
@@ -2474,6 +2529,9 @@ test('CLOUD_CLI_ERROR_CODES is frozen and non-empty, and includes every code thi
     'local_readback_missing',
     'local_readback_not_regular_file',
     'download_size_mismatch',
+    'provider_termination_unconfirmed',
+    'download_containment_tripped',
+    'download_containment_violated',
   ]) {
     assert.ok(CLOUD_CLI_ERROR_CODES.includes(code), `missing code ${code}`)
   }
@@ -2535,10 +2593,12 @@ function productionCallers(dir, deps) {
         ...common,
       }),
     () =>
-      productionRunDownload({
+      productionRunContainedDownload({
         remotePath: '/a/x.dump.age',
         localDir: dir,
         expectedLocalPath: path.join(dir, 'x.dump.age'),
+        maxFileBytes: 4096,
+        wrapper: { executable: '/usr/bin/prlimit', expectedSha512: HASH_A },
         ...common,
       }),
   ]
@@ -2644,6 +2704,7 @@ test('E3J4C: an injected deps.lstatSync cannot fabricate or hide local download 
   const dir = sandbox()
   const launcherPath = path.join(dir, 'bin', 'proton-drive')
   const cli = { executable: launcherPath, expectedSha512: realSha512Of(launcherPath) }
+  const wrapper = passThroughWrapper(dir)
   const expectedLocalPath = path.join(dir, 'x.dump.age')
   writeSpec(dir, { stdout: JSON.stringify(validDownloadSummaryRaw(42)), exitCode: 0 })
 
@@ -2652,10 +2713,12 @@ test('E3J4C: an injected deps.lstatSync cannot fabricate or hide local download 
   //     answer is that the readback evidence is missing.
   const spawnCalls = []
   const statCalls = []
-  const fabricated = await productionRunDownload({
+  const fabricated = await productionRunContainedDownload({
     remotePath: '/a/x.dump.age',
     localDir: dir,
     expectedLocalPath,
+    maxFileBytes: 4096,
+    wrapper,
     cli,
     credentials: CREDENTIALS,
     timeouts: GENEROUS_TIMEOUTS,
@@ -2677,10 +2740,12 @@ test('E3J4C: an injected deps.lstatSync cannot fabricate or hide local download 
       throw err
     },
   }
-  const blocked = await productionRunDownload({
+  const blocked = await productionRunContainedDownload({
     remotePath: '/a/x.dump.age',
     localDir: dir,
     expectedLocalPath,
+    maxFileBytes: 4096,
+    wrapper,
     cli,
     credentials: CREDENTIALS,
     timeouts: GENEROUS_TIMEOUTS,
@@ -2691,11 +2756,14 @@ test('E3J4C: an injected deps.lstatSync cannot fabricate or hide local download 
   assert.equal(spawnCalls.length, 0)
 })
 
-test('E3J4C: no ops/** module other than backup-cloud-cli.mjs and this suite imports the internal core', () => {
+test('E3J4C: no ops/** module other than backup-cloud-cli.mjs, backup-cloud-containment.mjs, and their suites imports the internal core', () => {
   const opsRoot = path.resolve(HERE, '..', '..')
   const allowed = new Set([
     path.join(HERE, 'backup-cloud-cli.mjs'),
     path.join(HERE, 'backup-cloud-cli.test.mjs'),
+    // E3J6A: the containment canary's thin wrapper and its suite.
+    path.join(HERE, 'backup-cloud-containment.mjs'),
+    path.join(HERE, 'backup-cloud-containment.test.mjs'),
     path.join(HERE, 'internal', 'backup-cloud-cli-core.mjs'),
   ])
   const IMPORTS_CORE =
@@ -2876,11 +2944,12 @@ test('E3J4C upload: zero bytes is a legitimate local size, not a validation fail
 // (all E3J6).
 // ═════════════════════════════════════════════════════════════════════════════
 
-function downloadOperands({ remotePath, localDir, expectedLocalPath, deps = {} }) {
-  return runDownload({
+function downloadOperands({ remotePath, localDir, expectedLocalPath, deps = {}, ...limits }) {
+  return runContainedDownload({
     remotePath,
     localDir,
     expectedLocalPath,
+    ...limits,
     cli: CLI,
     credentials: CREDENTIALS,
     timeouts: GENEROUS_TIMEOUTS,
@@ -2966,7 +3035,7 @@ test('E3J4C download: a REAL pre-existing file at the bound path blocks the comm
   const dir = sandbox()
   const localPath = makeLocalFile(dir, 42)
   const spawnCalls = []
-  const result = await runDownload({
+  const result = await runContainedDownload({
     remotePath: '/a/downloaded.dump.age',
     localDir: dir,
     expectedLocalPath: localPath,
@@ -3049,7 +3118,11 @@ test('E3J4C download: only a definite ENOENT permits the command to run', async 
     },
   })
   assert.equal(calls.length, 1)
+  assert.equal(calls[0].command, TEST_WRAPPER.executable)
   assert.deepEqual(calls[0].args, [
+    `--fsize=${TEST_MAX_FILE_BYTES}:${TEST_MAX_FILE_BYTES}`,
+    '--',
+    CLI.executable,
     'filesystem',
     'download',
     '--json',
@@ -3105,6 +3178,7 @@ test('E3J4C safe integers: download transferredBytes is accepted at MAX_SAFE_INT
     remotePath: '/a/x.dump.age',
     localDir: '/local/dl',
     expectedLocalPath: '/local/dl/x.dump.age',
+    maxFileBytes: Number.MAX_SAFE_INTEGER, // E3J6A: the limit must admit the count under test
     deps: {
       spawn: makeSpawnSpy([], {
         stdout: JSON.stringify(validDownloadSummaryRaw(Number.MAX_SAFE_INTEGER)),
@@ -3130,4 +3204,782 @@ test('E3J4C safe integers: download transferredBytes is accepted at MAX_SAFE_INT
   })
   assert.equal(aboveBoundary.kind, 'indeterminate')
   assert.equal(aboveBoundary.code, 'provider_response_unexpected_shape')
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+// E3J6A — the contained download, termination evidence, and containment
+// classification at this boundary.
+//
+// Containment ENFORCEMENT is only ever shown by the real-`prlimit` tests
+// below, against the disposable local fake CLI; they are skipped (and
+// reported as skipped) where `/usr/bin/prlimit` is absent. Nothing here runs
+// the real Proton Drive CLI.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const REAL_PRLIMIT = '/usr/bin/prlimit'
+const HAS_REAL_PRLIMIT = (() => {
+  try {
+    fs.accessSync(REAL_PRLIMIT, fs.constants.X_OK)
+    return fs.statSync(REAL_PRLIMIT).isFile()
+  } catch {
+    return false
+  }
+})()
+const PRLIMIT_SKIP = HAS_REAL_PRLIMIT ? false : `${REAL_PRLIMIT} is not present on this host`
+
+/** A child that never closes and never reports an exit — kill() is ignored. */
+function makeUnkillableChild({ pid } = {}) {
+  const child = new EventEmitter()
+  child.stdout = new EventEmitter()
+  child.stderr = new EventEmitter()
+  child.exitCode = null
+  child.signalCode = null
+  if (pid !== undefined) child.pid = pid
+  child.kill = () => true
+  return child
+}
+
+const TINY_TIMEOUTS = Object.freeze({ operationTimeoutMs: 60, cancelGraceMs: 40 })
+
+/**
+ * The boundary's own timers are `unref()`ed (a real child keeps the event
+ * loop alive); a fake child that never closes holds nothing, so these tests
+ * keep the loop alive themselves for the duration of the call.
+ */
+async function withKeepAlive(fn) {
+  const keep = setInterval(() => {}, 1_000)
+  try {
+    return await fn()
+  } finally {
+    clearInterval(keep)
+  }
+}
+
+test('E3J6A argv: the contained download is the exact wrapper prefix plus the unchanged download argv', () => {
+  assert.deepEqual(
+    buildContainedDownloadArgv({
+      wrapperExecutable: '/usr/bin/prlimit',
+      maxFileBytes: 4096,
+      executable: '/bin/proton-drive',
+      remotePath: '/remote/a',
+      localDir: '/local/b',
+    }),
+    [
+      '/usr/bin/prlimit',
+      '--fsize=4096:4096',
+      '--',
+      '/bin/proton-drive',
+      'filesystem',
+      'download',
+      '--json',
+      '/remote/a',
+      '/local/b',
+    ],
+  )
+  // The limit is the configured value itself — no +1, soft == hard.
+  const argv = buildContainedDownloadArgv({
+    wrapperExecutable: '/usr/bin/prlimit',
+    maxFileBytes: 1,
+    executable: '/bin/proton-drive',
+    remotePath: '/r/x',
+    localDir: '/l',
+  })
+  assert.equal(argv[1], '--fsize=1:1')
+  for (const token of FORBIDDEN_ARGV_TOKENS) assert.ok(!argv.includes(token))
+})
+
+test('E3J6A argv: an invalid limit or wrapper path is refused without echoing the value', () => {
+  const base = {
+    wrapperExecutable: '/usr/bin/prlimit',
+    maxFileBytes: 4096,
+    executable: '/bin/proton-drive',
+    remotePath: '/r/x',
+    localDir: '/l',
+  }
+  for (const maxFileBytes of [
+    0,
+    -1,
+    1.5,
+    Number.NaN,
+    Infinity,
+    Number.MAX_SAFE_INTEGER + 1,
+    '4096',
+    null,
+  ]) {
+    assert.throws(() => buildContainedDownloadArgv({ ...base, maxFileBytes }), isArgvInvalid)
+  }
+  const marker = 'wrapper-path-marker-e3j6a'
+  for (const wrapperExecutable of [
+    'prlimit',
+    `/usr/bin/-${marker}`,
+    `/usr//bin/${marker}`,
+    `/usr/bin/../${marker}`,
+    '',
+    undefined,
+    '/bin/proton-drive', // the CLI itself
+  ]) {
+    assert.throws(
+      () => buildContainedDownloadArgv({ ...base, wrapperExecutable }),
+      (err) => isArgvInvalid(err) && !scanForMarker(err, marker),
+    )
+  }
+})
+
+test('E3J6A ordering: local inputs → CLI hash → wrapper hash → operands → spawn', async () => {
+  const good = {
+    remotePath: '/a/x.dump.age',
+    localDir: '/local/dl',
+    expectedLocalPath: '/local/dl/x.dump.age',
+    cli: CLI,
+    credentials: CREDENTIALS,
+    timeouts: GENEROUS_TIMEOUTS,
+  }
+  const WRAPPER_B = { executable: '/usr/bin/prlimit', expectedSha512: HASH_B }
+  const neverSpawn =
+    (spawnCalls) =>
+    (...args) => {
+      spawnCalls.push(args)
+      throw new Error('must not spawn')
+    }
+
+  // (1) invalid local inputs refuse before ANY hashing.
+  for (const bad of [
+    { maxFileBytes: 0 },
+    { maxFileBytes: 1.5 },
+    { wrapper: null },
+    { wrapper: { executable: '/usr/bin/prlimit' } },
+    { wrapper: { expectedSha512: HASH_A } },
+  ]) {
+    const hashed = []
+    const spawnCalls = []
+    await assert.rejects(
+      () =>
+        runContainedDownload({
+          ...good,
+          ...bad,
+          deps: { sha512File: (p) => (hashed.push(p), HASH_A), spawn: neverSpawn(spawnCalls) },
+        }),
+      isInvalidInput,
+    )
+    assert.deepEqual(hashed, [])
+    assert.equal(spawnCalls.length, 0)
+  }
+
+  // (2) a CLI mismatch refuses before the wrapper is even hashed.
+  {
+    const hashed = []
+    const spawnCalls = []
+    await assert.rejects(
+      () =>
+        runContainedDownload({
+          ...good,
+          remotePath: '-f',
+          deps: { sha512File: (p) => (hashed.push(p), HASH_B), spawn: neverSpawn(spawnCalls) },
+        }),
+      (err) => err instanceof BackupError && err.code === 'cli_hash_mismatch',
+    )
+    assert.deepEqual(hashed, [CLI.executable])
+    assert.equal(spawnCalls.length, 0)
+  }
+
+  // (3) CLI ok, wrapper mismatched: the invalid operand is never reached.
+  {
+    const hashed = []
+    const spawnCalls = []
+    await assert.rejects(
+      () =>
+        runContainedDownload({
+          ...good,
+          remotePath: '-f',
+          wrapper: WRAPPER_B,
+          deps: { sha512File: (p) => (hashed.push(p), HASH_A), spawn: neverSpawn(spawnCalls) },
+        }),
+      (err) => err instanceof BackupError && err.code === 'rlimit_wrapper_hash_mismatch',
+    )
+    assert.deepEqual(hashed, [CLI.executable, '/usr/bin/prlimit'])
+    assert.equal(spawnCalls.length, 0)
+  }
+
+  // (4) both gates pass: the same invalid operand now fails the builder.
+  {
+    const spawnCalls = []
+    await assert.rejects(
+      () =>
+        runContainedDownload({
+          ...good,
+          remotePath: '-f',
+          deps: { sha512File: () => HASH_A, spawn: neverSpawn(spawnCalls) },
+        }),
+      isArgvInvalid,
+    )
+    assert.equal(spawnCalls.length, 0)
+  }
+
+  // (5) an unreadable wrapper is one stable code with no native text.
+  {
+    const marker = 'wrapper-native-marker-e3j6a'
+    const spawnCalls = []
+    await assert.rejects(
+      () =>
+        runContainedDownload({
+          ...good,
+          deps: {
+            sha512File: (p) => {
+              if (p === CLI.executable) return HASH_A
+              throw Object.assign(new Error(`EACCES ${marker}`), { code: 'EACCES' })
+            },
+            spawn: neverSpawn(spawnCalls),
+          },
+        }),
+      (err) =>
+        err instanceof BackupError &&
+        err.code === 'rlimit_wrapper_unreadable' &&
+        err.cause === undefined &&
+        !scanForMarker(err, marker),
+    )
+    assert.equal(spawnCalls.length, 0)
+  }
+})
+
+test('E3J6A: an already-aborted signal skips both hash gates and every spawn', async () => {
+  const controller = new AbortController()
+  controller.abort()
+  const hashed = []
+  const result = await runContainedDownload({
+    remotePath: '/a/x.dump.age',
+    localDir: '/local/dl',
+    expectedLocalPath: '/local/dl/x.dump.age',
+    cli: CLI,
+    credentials: CREDENTIALS,
+    timeouts: GENEROUS_TIMEOUTS,
+    signal: controller.signal,
+    deps: {
+      sha512File: (p) => (hashed.push(p), HASH_A),
+      spawn: () => {
+        throw new Error('must not spawn')
+      },
+    },
+  })
+  assert.equal(result.code, 'provider_cancelled')
+  assert.deepEqual(hashed, [])
+})
+
+test('E3J6A classification: SIGXFSZ is supporting evidence → download_containment_tripped, never success', async () => {
+  const marker = 'sigxfsz-marker-e3j6a'
+  const spawn = () => {
+    const child = makeInertChild()
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from(JSON.stringify(validDownloadSummaryRaw(42))))
+      child.stderr.emit('data', Buffer.from(marker))
+      setImmediate(() => child.emit('close', null, 'SIGXFSZ'))
+    })
+    return child
+  }
+  const result = await downloadOperands({
+    remotePath: '/a/x.dump.age',
+    localDir: '/local/dl',
+    expectedLocalPath: '/local/dl/x.dump.age',
+    maxFileBytes: 42,
+    deps: { spawn, lstatSync: absentThen(() => ({ isFile: () => true, size: 42 })) },
+  })
+  assert.deepEqual(result, {
+    kind: 'indeterminate',
+    operation: 'download',
+    code: 'download_containment_tripped',
+    transferState: 'unknown',
+  })
+  assert.ok(Object.isFrozen(result))
+  assert.ok(!scanForMarker(result, marker))
+})
+
+test('E3J6A classification: a clean report of a file LARGER than the limit is download_containment_violated', async () => {
+  const result = await downloadOperands({
+    remotePath: '/a/x.dump.age',
+    localDir: '/local/dl',
+    expectedLocalPath: '/local/dl/x.dump.age',
+    maxFileBytes: 41,
+    deps: {
+      spawn: makeSpawnSpy([], { stdout: JSON.stringify(validDownloadSummaryRaw(42)), code: 0 }),
+      lstatSync: absentThen(() => ({ isFile: () => true, size: 42 })),
+    },
+  })
+  assert.equal(result.kind, 'indeterminate')
+  assert.equal(result.code, 'download_containment_violated')
+})
+
+test('E3J6A classification: a clean report of a file EXACTLY at the limit is still a success (inclusive ceiling)', async () => {
+  const result = await downloadOperands({
+    remotePath: '/a/x.dump.age',
+    localDir: '/local/dl',
+    expectedLocalPath: '/local/dl/x.dump.age',
+    maxFileBytes: 42,
+    deps: {
+      spawn: makeSpawnSpy([], { stdout: JSON.stringify(validDownloadSummaryRaw(42)), code: 0 }),
+      lstatSync: absentThen(() => ({ isFile: () => true, size: 42 })),
+    },
+  })
+  assert.deepEqual(result, {
+    kind: 'success',
+    operation: 'download',
+    localPath: '/local/dl/x.dump.age',
+    bytesWritten: 42,
+    completed: true,
+  })
+})
+
+test('E3J6A classification: a NON-clean result with a file at the limit stays indeterminate and is not labelled tripped', async () => {
+  for (const response of [
+    { stdout: '', stderr: 'write failed: File too large', code: 1 },
+    { stdout: JSON.stringify(validDownloadSummaryRaw(42)), stderr: '', code: 1 },
+  ]) {
+    const result = await downloadOperands({
+      remotePath: '/a/x.dump.age',
+      localDir: '/local/dl',
+      expectedLocalPath: '/local/dl/x.dump.age',
+      maxFileBytes: 42,
+      deps: {
+        spawn: makeSpawnSpy([], response),
+        lstatSync: absentThen(() => ({ isFile: () => true, size: 42 })),
+      },
+    })
+    assert.equal(result.kind, 'indeterminate')
+    assert.notEqual(result.code, 'download_containment_tripped')
+    assert.ok(CLOUD_CLI_ERROR_CODES.includes(result.code))
+  }
+})
+
+test('E3J6A termination: when not even SIGKILL produces a close, every operation says termination is UNCONFIRMED', async () => {
+  const common = {
+    cli: CLI,
+    credentials: CREDENTIALS,
+    timeouts: TINY_TIMEOUTS,
+  }
+  const runners = [
+    (deps) => runInfo({ remotePath: '/x', ...common, deps }),
+    (deps) => runCreateFolder({ parentPath: '/a', name: 'b', ...common, deps }),
+    (deps) =>
+      runUpload({
+        localFilePath: '/local/a',
+        remoteParentPath: '/b',
+        expectedLocalSizeBytes: 1,
+        ...common,
+        deps,
+      }),
+    (deps) =>
+      runContainedDownload({
+        remotePath: '/a/x.dump.age',
+        localDir: '/local/dl',
+        expectedLocalPath: '/local/dl/x.dump.age',
+        ...common,
+        deps: { ...deps, lstatSync: absentThen(() => ({ isFile: () => true, size: 1 })) },
+      }),
+  ]
+  for (const run of runners) {
+    const result = await withKeepAlive(() =>
+      run({ sha512File: () => HASH_A, spawn: () => makeUnkillableChild() }),
+    )
+    assert.deepEqual(Object.keys(result).sort(), ['code', 'kind', 'operation', 'transferState'])
+    assert.equal(result.kind, 'indeterminate')
+    assert.equal(result.code, 'provider_termination_unconfirmed')
+    assert.equal(result.transferState, 'unknown')
+    assert.ok(Object.isFrozen(result))
+  }
+})
+
+test('E3J6A termination: cancellation whose kill is never confirmed is unconfirmed, not provider_cancelled', async () => {
+  const controller = new AbortController()
+  const promise = runInfo({
+    remotePath: '/x',
+    cli: CLI,
+    credentials: CREDENTIALS,
+    timeouts: { operationTimeoutMs: 5_000, cancelGraceMs: 40 },
+    signal: controller.signal,
+    deps: { sha512File: () => HASH_A, spawn: () => makeUnkillableChild() },
+  })
+  setTimeout(() => controller.abort(), 10)
+  const result = await withKeepAlive(() => promise)
+  assert.equal(result.code, 'provider_termination_unconfirmed')
+})
+
+test('E3J6A termination: a started child that errors is terminated and its end confirmed or reported unconfirmed', async () => {
+  // Never started (no pid): an immediate, confirmed spawn failure — unchanged.
+  const neverStarted = await runInfo({
+    remotePath: '/x',
+    cli: CLI,
+    credentials: CREDENTIALS,
+    timeouts: TINY_TIMEOUTS,
+    deps: {
+      sha512File: () => HASH_A,
+      spawn: () => {
+        const child = makeUnkillableChild()
+        setImmediate(() => child.emit('error', new Error('ENOENT')))
+        return child
+      },
+    },
+  })
+  assert.equal(neverStarted.code, 'provider_spawn_failed')
+
+  // Started (has a pid) and its kill closes: confirmed → spawn failure.
+  const confirmed = await runInfo({
+    remotePath: '/x',
+    cli: CLI,
+    credentials: CREDENTIALS,
+    timeouts: TINY_TIMEOUTS,
+    deps: {
+      sha512File: () => HASH_A,
+      spawn: () => {
+        const child = makeUnkillableChild({ pid: 424242 })
+        child.kill = () => {
+          setImmediate(() => child.emit('close', null, 'SIGTERM'))
+          return true
+        }
+        setImmediate(() => child.emit('error', new Error('EPIPE')))
+        return child
+      },
+    },
+  })
+  assert.equal(confirmed.code, 'provider_spawn_failed')
+
+  // Started and never closes: unconfirmed.
+  const unconfirmed = await withKeepAlive(() =>
+    runInfo({
+      remotePath: '/x',
+      cli: CLI,
+      credentials: CREDENTIALS,
+      timeouts: TINY_TIMEOUTS,
+      deps: {
+        sha512File: () => HASH_A,
+        spawn: () => {
+          const child = makeUnkillableChild({ pid: 424243 })
+          setImmediate(() => child.emit('error', new Error('EPIPE')))
+          return child
+        },
+      },
+    }),
+  )
+  assert.equal(unconfirmed.code, 'provider_termination_unconfirmed')
+})
+
+test('E3J6A termination: an ordinary SIGTERM-honouring real child is still a CONFIRMED timeout', async () => {
+  const dir = sandbox()
+  writeSpec(dir, { hang: true })
+  const result = await runInfo({
+    remotePath: '/x',
+    cli: cliFor(dir),
+    credentials: CREDENTIALS,
+    timeouts: SHORT_TIMEOUTS,
+    deps: realDeps(),
+  })
+  assert.equal(result.code, 'provider_timeout')
+})
+
+/** A real-process sandbox for the contained route: fake CLI + a chosen wrapper. */
+function containedSandbox({ wrapper = 'pass-through', spec }) {
+  const dir = sandbox()
+  writeSpec(dir, spec)
+  const launcherPath = path.join(dir, 'bin', 'proton-drive')
+  const localDir = path.join(dir, 'dl')
+  fs.mkdirSync(localDir, { mode: 0o700 })
+  const wrapperPin =
+    wrapper === 'real'
+      ? { executable: REAL_PRLIMIT, expectedSha512: realSha512Of(REAL_PRLIMIT) }
+      : passThroughWrapper(dir)
+  return {
+    dir,
+    localDir,
+    target: path.join(localDir, 'x.dump.age'),
+    params: {
+      remotePath: '/a/x.dump.age',
+      localDir,
+      expectedLocalPath: path.join(localDir, 'x.dump.age'),
+      wrapper: wrapperPin,
+      cli: { executable: launcherPath, expectedSha512: realSha512Of(launcherPath) },
+      credentials: CREDENTIALS,
+      timeouts: GENEROUS_TIMEOUTS,
+    },
+  }
+}
+
+test('E3J6A production route: the real wrapper process receives the exact prefix, and an exact-limit download succeeds', async () => {
+  const LIMIT = 8192
+  const sb = containedSandbox({
+    spec: {
+      downloadWrite: { bytes: LIMIT },
+      stdout: JSON.stringify(validDownloadSummaryRaw(LIMIT)),
+    },
+  })
+  const result = await productionRunContainedDownload({
+    ...sb.params,
+    maxFileBytes: LIMIT,
+    deps: { sha512File: () => 'poisoned', spawn: () => null },
+  })
+  assert.deepEqual(result, {
+    kind: 'success',
+    operation: 'download',
+    localPath: sb.target,
+    bytesWritten: LIMIT,
+    completed: true,
+  })
+  assert.equal(
+    fs.readFileSync(path.join(sb.dir, 'wrapper.log'), 'utf8'),
+    `--fsize=${LIMIT}:${LIMIT}\n`,
+  )
+  const logged = JSON.parse((await waitForFile(path.join(sb.dir, 'argv.log'))).trim())
+  assert.deepEqual(logged, ['filesystem', 'download', '--json', '/a/x.dump.age', sb.localDir])
+})
+
+test('E3J6A production route: an injected hasher cannot satisfy a wrong WRAPPER pin', async () => {
+  const sb = containedSandbox({ spec: { stdout: '' } })
+  await assert.rejects(
+    () =>
+      productionRunContainedDownload({
+        ...sb.params,
+        wrapper: { executable: sb.params.wrapper.executable, expectedSha512: HASH_A },
+        maxFileBytes: 4096,
+        deps: { sha512File: () => HASH_A },
+      }),
+    (err) => err instanceof BackupError && err.code === 'rlimit_wrapper_hash_mismatch',
+  )
+  assert.equal(fs.existsSync(path.join(sb.dir, 'argv.log')), false, 'nothing was spawned')
+})
+
+test('E3J6A production route: a lying (pass-through) wrapper lets an oversize write through — and the boundary still refuses to call it success', async () => {
+  const LIMIT = 4096
+  const sb = containedSandbox({
+    spec: {
+      downloadWrite: { bytes: LIMIT + 1 },
+      stdout: JSON.stringify(validDownloadSummaryRaw(LIMIT + 1)),
+    },
+  })
+  const result = await productionRunContainedDownload({ ...sb.params, maxFileBytes: LIMIT })
+  assert.equal(result.kind, 'indeterminate')
+  assert.equal(result.code, 'download_containment_violated')
+  // No enforcement happened: that is exactly why this is a violation.
+  assert.equal(fs.statSync(sb.target).size, LIMIT + 1)
+})
+
+test(
+  'E3J6A REAL prlimit: an oversize local-fake download is capped at EXACTLY the limit and is never success or "tripped" without SIGXFSZ',
+  { skip: PRLIMIT_SKIP },
+  async () => {
+    const LIMIT = 8192
+    const sb = containedSandbox({
+      wrapper: 'real',
+      spec: {
+        downloadWrite: { bytes: LIMIT + 200_000 },
+        stdout: JSON.stringify(validDownloadSummaryRaw(LIMIT + 200_000)),
+      },
+    })
+    const result = await productionRunContainedDownload({ ...sb.params, maxFileBytes: LIMIT })
+    assert.equal(result.kind, 'indeterminate')
+    assert.notEqual(result.code, 'download_containment_tripped') // Node ignores SIGXFSZ
+    assert.ok(CLOUD_CLI_ERROR_CODES.includes(result.code))
+    // The kernel enforced the bound: no larger than the limit.
+    const st = fs.lstatSync(sb.target)
+    assert.ok(st.isFile())
+    assert.ok(st.size <= LIMIT, `size ${st.size} exceeds ${LIMIT}`)
+    assert.equal(st.size, LIMIT)
+  },
+)
+
+test(
+  'E3J6A REAL prlimit: a legitimate object of EXACTLY the limit downloads cleanly under enforcement',
+  { skip: PRLIMIT_SKIP },
+  async () => {
+    const LIMIT = 8192
+    const sb = containedSandbox({
+      wrapper: 'real',
+      spec: {
+        downloadWrite: { bytes: LIMIT },
+        stdout: JSON.stringify(validDownloadSummaryRaw(LIMIT)),
+      },
+    })
+    const result = await productionRunContainedDownload({ ...sb.params, maxFileBytes: LIMIT })
+    assert.equal(result.kind, 'success')
+    assert.equal(result.bytesWritten, LIMIT)
+    assert.equal(fs.statSync(sb.target).size, LIMIT)
+  },
+)
+
+test('E3J6A: no ops/** module imports or calls an uncontained download', () => {
+  const opsRoot = path.resolve(HERE, '..', '..')
+  const offenders = []
+  const walk = (current) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name !== 'node_modules') walk(full)
+        continue
+      }
+      if (!entry.name.endsWith('.mjs') || entry.name.endsWith('.test.mjs')) continue
+      const code = fs
+        .readFileSync(full, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '')
+      if (/\brunDownload\b/.test(code)) offenders.push(full)
+    }
+  }
+  walk(opsRoot)
+  assert.deepEqual(offenders, [])
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+// E3J6A correction — `close`, not a known exit status, confirms termination.
+//
+// A ChildProcess can report `exitCode`/`signalCode` while its stdio is still
+// held open (for example by a descendant). Such a child is NOT confirmed
+// ended until `close` is observed.
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * A started child that has ALREADY reported an exit status. `closeAfterKillMs`
+ * of `null` means `close` never arrives; a number means `close` arrives that
+ * long after the first kill. `emit(child)` optionally drives the trigger
+ * (output, stream error, error event).
+ */
+function makeExitedChild({ closeAfterKillMs = null, emit, exitCode = 0, signalCode = null } = {}) {
+  return () => {
+    const child = new EventEmitter()
+    child.stdout = new EventEmitter()
+    child.stderr = new EventEmitter()
+    child.pid = 515151
+    child.exitCode = exitCode
+    child.signalCode = signalCode
+    let scheduled = false
+    child.kill = () => {
+      if (closeAfterKillMs !== null && !scheduled) {
+        scheduled = true
+        setTimeout(() => child.emit('close', exitCode, signalCode), closeAfterKillMs)
+      }
+      return false // the process is already reaped: a signal is not delivered
+    }
+    if (emit) setImmediate(() => emit(child))
+    return child
+  }
+}
+
+/** Every trigger that starts a termination, as [label, emit, extra params, expected code]. */
+const TERMINATION_TRIGGERS = [
+  ['timeout', undefined, {}, 'provider_timeout'],
+  [
+    'overflow',
+    (child) => child.stdout.emit('data', Buffer.alloc(64, 0x41)),
+    { maxStdoutBytes: 16 },
+    'provider_output_overflow',
+  ],
+  [
+    'stream failure',
+    (child) => child.stderr.emit('error', new Error('EPIPE')),
+    {},
+    'provider_stream_failed',
+  ],
+  [
+    'started spawn error',
+    (child) => child.emit('error', new Error('EPERM')),
+    {},
+    'provider_spawn_failed',
+  ],
+]
+
+function allOperations({ spawn, maxStdoutBytes, timeouts = TINY_TIMEOUTS, signal }) {
+  const deps = { sha512File: () => HASH_A, spawn, ...(maxStdoutBytes ? { maxStdoutBytes } : {}) }
+  const common = { cli: CLI, credentials: CREDENTIALS, timeouts, signal }
+  return [
+    () => runInfo({ remotePath: '/x', ...common, deps }),
+    () => runCreateFolder({ parentPath: '/a', name: 'b', ...common, deps }),
+    () =>
+      runUpload({
+        localFilePath: '/local/a',
+        remoteParentPath: '/b',
+        expectedLocalSizeBytes: 1,
+        ...common,
+        deps,
+      }),
+    () =>
+      runContainedDownload({
+        remotePath: '/a/x.dump.age',
+        localDir: '/local/dl',
+        expectedLocalPath: '/local/dl/x.dump.age',
+        ...common,
+        deps: { ...deps, lstatSync: absentThen(() => ({ isFile: () => true, size: 1 })) },
+      }),
+  ]
+}
+
+test('E3J6A close race: an exited child whose close never arrives is UNCONFIRMED for every trigger and every operation', async () => {
+  for (const [label, emit, extra] of TERMINATION_TRIGGERS) {
+    for (const exited of [
+      { exitCode: 0, signalCode: null },
+      { exitCode: null, signalCode: 'SIGTERM' },
+    ]) {
+      for (const run of allOperations({ spawn: makeExitedChild({ emit, ...exited }), ...extra })) {
+        const result = await withKeepAlive(run)
+        assert.equal(result.kind, 'indeterminate', label)
+        assert.equal(
+          result.code,
+          'provider_termination_unconfirmed',
+          `${label} ${JSON.stringify(exited)}`,
+        )
+        assert.equal(result.transferState, 'unknown')
+      }
+    }
+  }
+})
+
+test('E3J6A close race: an exited child whose close never arrives is UNCONFIRMED on cancellation too', async () => {
+  for (const run of [0, 1, 2, 3]) {
+    const controller = new AbortController()
+    const promise = allOperations({
+      spawn: makeExitedChild(),
+      timeouts: { operationTimeoutMs: 5_000, cancelGraceMs: 40 },
+      signal: controller.signal,
+    })[run]()
+    setTimeout(() => controller.abort(), 10)
+    const result = await withKeepAlive(() => promise)
+    assert.equal(result.code, 'provider_termination_unconfirmed')
+  }
+})
+
+test('E3J6A close race: an exit status known before close, with close inside the grace period, keeps the ORIGINAL reason', async () => {
+  for (const [label, emit, extra, expected] of TERMINATION_TRIGGERS) {
+    for (const run of allOperations({
+      spawn: makeExitedChild({ emit, closeAfterKillMs: 5 }),
+      timeouts: { operationTimeoutMs: 300, cancelGraceMs: 200 },
+      ...extra,
+    })) {
+      const result = await withKeepAlive(run)
+      assert.equal(result.code, expected, label)
+    }
+  }
+  const controller = new AbortController()
+  const promise = allOperations({
+    spawn: makeExitedChild({ closeAfterKillMs: 5 }),
+    timeouts: { operationTimeoutMs: 5_000, cancelGraceMs: 200 },
+    signal: controller.signal,
+  })[0]()
+  setTimeout(() => controller.abort(), 10)
+  assert.equal((await withKeepAlive(() => promise)).code, 'provider_cancelled')
+})
+
+test('E3J6A close race (REAL processes): output from a grandchild after the CLI exited is an overflow whose end is UNCONFIRMED while the pipe stays held', async () => {
+  const dir = sandbox()
+  writeSpec(dir, {
+    grandchild: { delayMs: 150, text: 'B'.repeat(64), count: 60, intervalMs: 25 },
+  })
+  const result = await runInfo({
+    remotePath: '/x',
+    cli: cliFor(dir),
+    credentials: CREDENTIALS,
+    timeouts: SHORT_TIMEOUTS,
+    deps: realDeps({ maxStdoutBytes: 256 }),
+  })
+  assert.deepEqual(result, {
+    kind: 'indeterminate',
+    operation: 'info',
+    code: 'provider_termination_unconfirmed',
+    transferState: 'unknown',
+  })
+  assert.ok(!JSON.stringify(result).includes('BBBB'))
+  // The grandchild ends on its own; wait for it so nothing outlives the test.
+  await waitForFile(path.join(dir, 'markers', 'grandchild.done'), 8_000)
 })

@@ -26,8 +26,10 @@
  *      not a cryptographic or runtime access-control boundary and must never
  *      be described as one.
  *   4. A static regression in `backup-cloud-cli.test.mjs` fails if any
- *      `ops/**` module other than `../backup-cloud-cli.mjs` and that test
- *      file imports this core.
+ *      `ops/**` module other than `../backup-cloud-cli.mjs`,
+ *      `../backup-cloud-containment.mjs` (E3J6A — the canary's thin wrapper,
+ *      see `makeContainmentCanary()`), and their test files imports this
+ *      core.
  *   5. Malicious local repository code is OUTSIDE this boundary's threat
  *      model — code that can add an import statement already has arbitrary
  *      execution. The property actually defended is that an ordinary
@@ -162,11 +164,33 @@
  * property is ever consulted; no native message, path, or errno text is
  * surfaced.
  *
+ * CONTAINED DOWNLOAD (E3J6A). The uncontained download operation was
+ * REMOVED. `runContainedDownload` is the only download: it hash-gates the
+ * CLI and then the pinned RLIMIT_FSIZE wrapper, and executes
+ * `<wrapper> --fsize=N:N -- <cli> filesystem download ...` with N the
+ * caller's EXACT per-role ceiling (never N + 1). A SIGXFSZ close is
+ * `download_containment_tripped` — supporting evidence only, never required,
+ * since a child that ignores SIGXFSZ sees EFBIG instead. A clean report of a
+ * file larger than N is `download_containment_violated`. A clean report of
+ * exactly N stays a success: a legitimate object may be exactly the ceiling.
+ * Whether the wrapper actually enforces N is not proven here; that is the
+ * runtime canary's job (below) and, for the real CLI, E3J10's.
+ *
  * What download still does NOT establish, and must not be described as
- * establishing (all E3J6): the absence check and the readback are two
- * separate observations, so the race between them is NOT closed; there is
- * no hard byte-ceiling containment during the transfer; there is no
- * descriptor ownership; and the downloaded file's CONTENT is not verified.
+ * establishing: the absence check and the readback are two separate
+ * observations, so the race between them is NOT closed; there is no
+ * descriptor ownership; and the downloaded file's CONTENT is not verified
+ * (E3J6B compares it against pre-upload evidence).
+ *
+ * TERMINATION EVIDENCE (E3J6A). When this module kills a child (timeout,
+ * cancellation, overflow, stream failure, or a started child that emitted
+ * `error`), only a `close` event inside the grace period confirms the end —
+ * a known `exitCode`/`signalCode` does not, because a descendant may still
+ * hold (and write to) the stdio. Otherwise the result is
+ * `provider_termination_unconfirmed`. Every other result implies the child's
+ * stdio closed or the child never started. The CLI's own descendants are not
+ * tracked or killed as a group. This module deliberately does not use the
+ * shared producer helper `cancelChild()`, whose contract is unchanged.
  *
  * THE ENVIRONMENT ALLOWLIST — WHAT IT BOUNDS, AND WHAT IT DOES NOT
  * -------------------------------------------------------------------
@@ -183,10 +207,11 @@
  * WHAT THIS MODULE DELIBERATELY DOES NOT DO
  * --------------------------------------------
  * No attempt workflow, collision preflight, ordered triple upload, retry
- * loop, or lock ownership (E3J5). No readback byte-ceiling containment of a
- * DOWNLOADED FILE's own content, no attestation schema or writer, and no
- * download acceptance claim (E3J6). `--version` is never invoked, on any
- * path, by this module.
+ * loop, or lock ownership (E3J5/E3J6C). No readback workspace, content
+ * verification, attestation schema or writer, and no download acceptance
+ * claim (E3J6B). No generic command runner: the only processes this module
+ * can start are the four fixed Proton operations and the fixed containment
+ * canary. `--version` is never invoked, on any path, by this module.
  */
 
 import { spawn as nodeSpawn } from 'node:child_process'
@@ -194,9 +219,17 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 
 import { BackupError } from '../backup-artifact-contract.mjs'
-import { cancelChild } from '../backup-boundaries.mjs'
-import { assertCanonicalAbsolutePath, verifyCliHashPin } from '../backup-cloud-config.mjs'
-import { assertSafeRemoteComponent, validateRemoteRoot } from '../backup-cloud-naming.mjs'
+import {
+  assertCanonicalAbsolutePath,
+  validateCloudConfig,
+  verifyCliHashPin,
+} from '../backup-cloud-config.mjs'
+import {
+  RUN_ID_PATTERN,
+  assertSafeRemoteComponent,
+  buildContainmentCanaryDirName,
+  validateRemoteRoot,
+} from '../backup-cloud-naming.mjs'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The closed, machine-readable error/outcome code set.
@@ -229,6 +262,10 @@ export const CLOUD_CLI_ERROR_CODES = Object.freeze([
   'local_readback_missing',
   'local_readback_not_regular_file',
   'download_size_mismatch',
+  // termination and containment evidence (E3J6A)
+  'provider_termination_unconfirmed',
+  'download_containment_tripped',
+  'download_containment_violated',
 ])
 
 /** Forbidden anywhere in a constructed argv — see §8.7 and §5 of the memo. */
@@ -557,6 +594,31 @@ export function buildDownloadArgv({ executable, remotePath, localDir }) {
   return [executable, 'filesystem', 'download', '--json', remotePath, localDir]
 }
 
+/**
+ * The contained download (E3J6A): the pinned RLIMIT_FSIZE wrapper, the EXACT
+ * per-role limit as both soft and hard limit (so the child cannot raise it),
+ * `--`, then exactly `buildDownloadArgv()`'s argv:
+ *
+ *   [wrapper, --fsize=N:N, --, cli, filesystem, download, --json, <remote>, <localDir>]
+ *
+ * `maxFileBytes` is the configured role ceiling itself — never ceiling + 1.
+ */
+export function buildContainedDownloadArgv({
+  wrapperExecutable,
+  maxFileBytes,
+  executable,
+  remotePath,
+  localDir,
+}) {
+  assertSafeLocalPathOperand(wrapperExecutable, 'wrapperExecutable')
+  if (!Number.isSafeInteger(maxFileBytes) || maxFileBytes <= 0) {
+    return argvInvalid('maxFileBytes')
+  }
+  const inner = buildDownloadArgv({ executable, remotePath, localDir })
+  if (wrapperExecutable === executable) return argvInvalid('wrapperExecutable')
+  return [wrapperExecutable, `--fsize=${maxFileBytes}:${maxFileBytes}`, '--', ...inner]
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // The hash gate — strictly before argv construction or spawn.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -621,6 +683,95 @@ function assertCliIdentity({ cli, deps }) {
   verifyCliHashPin({ expectedSha512: cli.expectedSha512, observedSha512 })
 }
 
+function assertValidWrapperShape(wrapper) {
+  if (
+    wrapper === null ||
+    typeof wrapper !== 'object' ||
+    typeof wrapper.executable !== 'string' ||
+    wrapper.executable === '' ||
+    typeof wrapper.expectedSha512 !== 'string'
+  ) {
+    return invalidInput('wrapper')
+  }
+}
+
+/**
+ * The SAME gate for the RLIMIT_FSIZE wrapper (E3J6A), which also sits in the
+ * exec chain. Runs after the CLI gate and before any operand is inspected.
+ * Every failure is one stable code with no native text; the same
+ * post-hash replacement TOCTOU caveat as the CLI applies.
+ */
+function assertWrapperIdentity({ wrapper, deps }) {
+  let observedSha512
+  try {
+    observedSha512 = deps.sha512File(wrapper.executable)
+  } catch {
+    throw new BackupError(
+      'rlimit_wrapper_unreadable',
+      'the configured RLIMIT_FSIZE wrapper could not be read for hashing.',
+    )
+  }
+  try {
+    verifyCliHashPin({ expectedSha512: wrapper.expectedSha512, observedSha512 })
+  } catch {
+    throw new BackupError(
+      'rlimit_wrapper_hash_mismatch',
+      'the RLIMIT_FSIZE wrapper does not match its configured pin.',
+    )
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Termination that is confirmed ONLY by `close` (E3J6A correction).
+//
+// The shared producer helper `cancelChild()` treats a child whose `exitCode`
+// or `signalCode` is already set as ended and returns at once. For this
+// boundary that is not enough: a process can have exited while a descendant
+// still holds its stdout/stderr — and may still be writing — and `close` is
+// the only event that says the stdio is gone. So this module does not use
+// `cancelChild()`. It sends the same SIGTERM, escalates to SIGKILL at the
+// same point (half the grace period), bounds the wait to the same grace
+// period, and resolves `true` only if `close` was observed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function terminateAwaitingClose(child, graceMs, closeWatch) {
+  return new Promise((resolve) => {
+    if (closeWatch.seen) return resolve(true)
+    let done = false
+    let escalate = null
+    let expire = null
+    const end = (confirmed) => {
+      if (done) return
+      done = true
+      clearTimeout(escalate)
+      clearTimeout(expire)
+      closeWatch.onClose = null
+      resolve(confirmed)
+    }
+    closeWatch.onClose = () => end(true)
+    // A kill that throws or reports "not delivered" proves nothing about the
+    // stdio; only `close` (or the bounded expiry) settles this.
+    try {
+      child.kill('SIGTERM')
+    } catch {
+      /* keep waiting for close */
+    }
+    escalate = setTimeout(
+      () => {
+        try {
+          child.kill('SIGKILL')
+        } catch {
+          /* keep waiting for close */
+        }
+      },
+      Math.max(10, Math.floor(graceMs / 2)),
+    )
+    expire = setTimeout(() => end(false), Math.max(20, graceMs))
+    escalate.unref?.()
+    expire.unref?.()
+  })
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Bounded, no-shell, no-TTY subprocess capture. PRIVATE — its result is
 // consumed by the classifiers below and never returned to a caller of this
@@ -647,7 +798,7 @@ function spawnCapturingBounded({
 
     let settled = false
     // Set to the REASON this module decided to kill the child, the moment
-    // that decision is made — before `cancelChild()` even sends SIGTERM.
+    // that decision is made — before SIGTERM is even sent.
     // The plain `close` handler below consults this so that a child which
     // dies BECAUSE we killed it is always reported as `terminating`'s
     // reason, never mistaken for an ordinary exit.
@@ -679,10 +830,30 @@ function spawnCapturingBounded({
       return finish({ kind: 'spawn-error' })
     }
 
+    // Observed from the moment the child exists, before any path below can
+    // begin a termination, so a `close` can never be missed.
+    const closeWatch = { seen: false, onClose: null }
+    try {
+      child.once('close', () => {
+        closeWatch.seen = true
+        closeWatch.onClose?.()
+      })
+    } catch {
+      return finish({ kind: 'spawn-error' })
+    }
+
+    // E3J6A: termination is confirmed only by `close` inside the bounded
+    // grace period — never by a known `exitCode`/`signalCode`. Otherwise the
+    // child, or a descendant still holding its stdio, may still exist and may
+    // still be writing, so the result is `termination-unconfirmed`, never the
+    // reason we started killing it.
     const beginTermination = (kind) => {
       if (terminating || settled) return
       terminating = kind
-      cancelChild(child, cancelGraceMs).finally(() => finish({ kind }))
+      terminateAwaitingClose(child, cancelGraceMs, closeWatch).then(
+        (confirmed) => finish(confirmed ? { kind } : { kind: 'termination-unconfirmed' }),
+        () => finish({ kind: 'termination-unconfirmed' }),
+      )
     }
 
     timeoutTimer = setTimeout(() => beginTermination('timeout'), Math.max(1, timeoutMs))
@@ -694,7 +865,20 @@ function spawnCapturingBounded({
       signal.addEventListener('abort', onAbort, { once: true })
     }
 
-    child.on('error', () => finish({ kind: 'spawn-error' }))
+    // A child that never received a pid never started, so nothing can still
+    // be running. One that did start is terminated through the same bounded
+    // path as a timeout, so its end is confirmed (or reported unconfirmed)
+    // rather than assumed (E3J6A).
+    child.on('error', () => {
+      let started = false
+      try {
+        started = Number.isSafeInteger(child.pid)
+      } catch {
+        started = true
+      }
+      if (started) beginTermination('spawn-error')
+      else finish({ kind: 'spawn-error' })
+    })
 
     child.stdout.on('data', (chunk) => {
       if (settled || terminating) return
@@ -720,14 +904,18 @@ function spawnCapturingBounded({
     child.stdout.on('error', () => beginTermination('stream-failed'))
     child.stderr.on('error', () => beginTermination('stream-failed'))
 
-    child.on('close', (code) => {
+    child.on('close', (code, signalName) => {
       // If we decided to kill this child ourselves, `beginTermination`'s own
-      // `cancelChild(...).finally()` owns settling this promise — with the
-      // REASON we killed it, not a fabricated exit code from the kill.
+      // `terminateAwaitingClose(...)` continuation owns settling this promise —
+      // with the REASON we killed it, not a fabricated exit code from the kill.
       if (terminating) return
+      // `close` means the process ended and its stdio closed: termination is
+      // confirmed. The terminating signal (E3J6A) is kept only so a
+      // contained download can recognise SIGXFSZ as supporting evidence.
       finish({
         kind: 'exited',
         code,
+        signal: typeof signalName === 'string' ? signalName : null,
         stdout: Buffer.concat(stdoutChunks).toString('utf8'),
         stderr: Buffer.concat(stderrChunks).toString('utf8'),
       })
@@ -769,7 +957,15 @@ async function invoke({ argv, credentials, timeouts, deps, signal }) {
   if (result.kind === 'stream-failed') {
     return { kind: 'indeterminate', code: 'provider_stream_failed', transferState: 'unknown' }
   }
-  return result // { kind: 'exited', code, stdout, stderr } — consumed by a projector below, never returned as-is
+  if (result.kind === 'termination-unconfirmed') {
+    // Never claims the child ended (E3J6A).
+    return {
+      kind: 'indeterminate',
+      code: 'provider_termination_unconfirmed',
+      transferState: 'unknown',
+    }
+  }
+  return result // { kind: 'exited', code, signal, stdout, stderr } — consumed by a projector below, never returned as-is
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1289,6 +1485,41 @@ function projectDownload(captured, { expectedLocalPath, deps, credentials }) {
   })
 }
 
+/**
+ * The contained download's projection (E3J6A). Same gates as
+ * `projectDownload()`, plus the containment evidence this boundary can see:
+ *
+ *   - a child that ended on SIGXFSZ is `download_containment_tripped`
+ *     (indeterminate). This is SUPPORTING evidence only — a child that
+ *     ignores SIGXFSZ sees EFBIG instead and ends however it chooses, which
+ *     lands in the ordinary non-clean classifications below; nothing here
+ *     requires SIGXFSZ to have been observed;
+ *   - an otherwise clean success whose regular file is LARGER than the
+ *     enforced limit is `download_containment_violated` (indeterminate) —
+ *     the bound did not hold;
+ *   - a clean success whose size is EXACTLY the limit stays a success: a
+ *     legitimate object may be exactly the configured ceiling. Whether it is
+ *     the RIGHT object is the caller's hash comparison, not this boundary's.
+ *
+ * Every non-`exited` outcome (timeout, cancellation, overflow, stream
+ * failure, spawn failure, unconfirmed termination) was already mapped by
+ * `invoke()`; `provider_termination_unconfirmed` is the only one of those
+ * that does not imply the child ended.
+ */
+function projectContainedDownload(
+  captured,
+  { expectedLocalPath, maxFileBytes, deps, credentials },
+) {
+  if (captured.kind === 'exited' && captured.signal === 'SIGXFSZ') {
+    return indeterminate('download', 'download_containment_tripped')
+  }
+  const projected = projectDownload(captured, { expectedLocalPath, deps, credentials })
+  if (projected.kind === 'success' && projected.bytesWritten > maxFileBytes) {
+    return indeterminate('download', 'download_containment_violated')
+  }
+  return projected
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared per-call preparation and the four fixed operations.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1386,10 +1617,23 @@ export function makeCloudCliOperations(deps) {
     return projectUpload(captured, { credentials, localFilePath, expectedLocalSizeBytes })
   }
 
-  async function runDownload({
+  /**
+   * The ONLY download this module offers (E3J6A). The uncontained
+   * `runDownload` was removed from both this factory and the public module:
+   * no route in this repository downloads without the pinned RLIMIT_FSIZE
+   * wrapper and an exact per-role limit.
+   *
+   * Order: signal → local inputs (credentials, timeouts, capture limits,
+   * `maxFileBytes`, wrapper shape) → CLI hash gate → wrapper hash gate →
+   * operands (including the wrapper path) → destination binding → absence
+   * proof (`lstat`, never following a symlink) → spawn.
+   */
+  async function runContainedDownload({
     remotePath,
     localDir,
     expectedLocalPath,
+    maxFileBytes,
+    wrapper,
     cli,
     credentials,
     timeouts,
@@ -1398,13 +1642,23 @@ export function makeCloudCliOperations(deps) {
     assertValidSignal(signal)
     if (signal?.aborted) return cancelledResult('download')
     prepareCall({ credentials, timeouts, deps })
+    if (!Number.isSafeInteger(maxFileBytes) || maxFileBytes <= 0) invalidInput('maxFileBytes')
+    assertValidWrapperShape(wrapper)
     assertCliIdentity({ cli, deps })
-    // Operand step. `buildDownloadArgv()` validates `remotePath`/`localDir`
-    // itself; `expectedLocalPath` is then validated as a canonical local
-    // path AND bound to the exact immediate child of `localDir` named by the
-    // queried remote basename, so it cannot be an arbitrary file that merely
-    // exists once the command has run.
-    const argv = buildDownloadArgv({ executable: cli.executable, remotePath, localDir })
+    assertWrapperIdentity({ wrapper, deps })
+    // Operand step. `buildContainedDownloadArgv()` validates the wrapper
+    // path, the limit, `remotePath`, and `localDir`; `expectedLocalPath` is
+    // then validated as a canonical local path AND bound to the exact
+    // immediate child of `localDir` named by the queried remote basename, so
+    // it cannot be an arbitrary file that merely exists once the command has
+    // run.
+    const argv = buildContainedDownloadArgv({
+      wrapperExecutable: wrapper.executable,
+      maxFileBytes,
+      executable: cli.executable,
+      remotePath,
+      localDir,
+    })
     assertSafeLocalPathOperand(expectedLocalPath, 'expectedLocalPath')
     if (expectedLocalPath !== boundDownloadDestination(localDir, remotePath)) {
       return argvInvalid('expectedLocalPath')
@@ -1414,10 +1668,474 @@ export function makeCloudCliOperations(deps) {
     const blocked = assertDestinationAbsent(expectedLocalPath, deps)
     if (blocked) return blocked
     const captured = await invoke({ argv, credentials, timeouts, deps, signal })
-    return projectDownload(captured, { expectedLocalPath, deps, credentials })
+    return projectContainedDownload(captured, {
+      expectedLocalPath,
+      maxFileBytes,
+      deps,
+      credentials,
+    })
   }
 
-  return Object.freeze({ runInfo, runCreateFolder, runUpload, runDownload })
+  return Object.freeze({ runInfo, runCreateFolder, runUpload, runContainedDownload })
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE CONTAINMENT CANARY (E3J6A) — a fixed-purpose subprocess operation.
+//
+// It lives in this file, beside the private bounded spawn, precisely so no
+// generic command runner has to exist anywhere. `makeContainmentCanary()`
+// builds exactly two functions: `proveReadbackContainment()` and
+// `verifyContainmentProof()`. Nothing in either accepts an executable, argv,
+// script, environment, spawn implementation, or filesystem dependency from
+// its caller — the wrapper comes only from validated configuration, and the
+// Node interpreter and the writer script are module-owned.
+//
+// WHAT THE CANARY PROVES. Under the pinned wrapper with
+// `--fsize=L:L` (L = the SMALLEST configured role ceiling), the fixed writer
+// asks to write L + 64 KiB bytes into a fresh probe file. The canary passes
+// only if, with termination CONFIRMED:
+//   - the writer did NOT report a clean complete write (it exited with
+//     CANARY_WRITER_EXIT_FILE_TOO_LARGE after EFBIG, or ended on SIGXFSZ —
+//     SIGXFSZ is accepted but never required: Node ignores it and sees EFBIG);
+//   - the probe is a regular file of EXACTLY L bytes (no larger, which is the
+//     containment claim; and no smaller, which proves the writer actually
+//     reached the limit rather than failing for another reason);
+//   - every canary-owned path was then removed after exact identity checks.
+// That is evidence that THIS wrapper plus THIS kernel enforce L on THIS
+// filesystem for a Node child, now. It is NOT evidence about the Proton
+// Drive CLI, about larger limit values, about the CLI's own descendants, or
+// about any other host (E3J10).
+//
+// DIRECTORY TRUST IS OWNED HERE. The caller supplies no directory identity.
+// `config.readback.dir` must be an existing directory, not a symlink, owned
+// by the effective uid, with no group/world permission bits, whose real path
+// is itself; its `{dev, ino}` is re-checked before every create and remove.
+// These are lexical/ownership/mode observations, not proof that the deployed
+// filesystem enforces those semantics, and the check-then-act windows are
+// narrowed, not closed.
+//
+// NON-FORGEABLE PROOF. A successful run returns a frozen proof object that is
+// also registered in a WeakMap private to the factory instance that made it.
+// `verifyContainmentProof()` accepts only a registered object whose recorded
+// binding (run id, readback directory identity, mechanism, wrapper path and
+// pin, all three ceilings, limit) still matches the supplied configuration
+// and the directory as it is NOW. A structurally identical copy, or a proof
+// from another factory instance, is refused.
+// ═════════════════════════════════════════════════════════════════════════════
+
+export const CONTAINMENT_PROOF_KIND = 'eanhl.cloud-containment-proof'
+
+export const CONTAINMENT_REFUSAL_CODES = Object.freeze([
+  'containment_unsupported',
+  'rlimit_wrapper_unverified',
+  'readback_dir_untrusted',
+  'canary_collision',
+  'canary_setup_failed',
+  'canary_cancelled',
+  'containment_unproven',
+  'containment_violated',
+  'canary_cleanup_failed',
+  'termination_unconfirmed',
+])
+
+export const CONTAINMENT_CLEANUP_STATES = Object.freeze([
+  'not_started',
+  'complete',
+  'incomplete',
+  'withheld_termination_unconfirmed',
+])
+
+/** The writer's exit status after EFBIG — the "limit refused my write" report. */
+export const CANARY_WRITER_EXIT_FILE_TOO_LARGE = 3
+const CANARY_OVERSHOOT_BYTES = 65_536
+const CANARY_MAX_OUTPUT_BYTES = 4_096
+const CANARY_PROBE_NAME = 'probe.bin'
+
+/**
+ * The fixed writer. Its only inputs are its two argv operands (the probe
+ * path and the byte count to attempt), both constructed by this module. It
+ * creates the probe exclusively without following a symlink, writes until
+ * done or refused, and reports: 0 = every byte written (a CLEAN complete
+ * write — the canary fails), 3 = EFBIG, 4 = any other failure, 5 = bad
+ * operands.
+ */
+export const CANARY_SCRIPT = [
+  "'use strict'",
+  "const fs = require('fs')",
+  'const [target, totalText] = process.argv.slice(1)',
+  'const total = Number(totalText)',
+  'if (typeof target !== "string" || !target.startsWith("/") || !Number.isSafeInteger(total) || total <= 0) process.exit(5)',
+  'const c = fs.constants',
+  'let fd',
+  'try { fd = fs.openSync(target, c.O_WRONLY | c.O_CREAT | c.O_EXCL | c.O_NOFOLLOW, 0o600) } catch { process.exit(4) }',
+  'const chunk = Buffer.alloc(65536, 0x5a)',
+  'let written = 0',
+  'try {',
+  '  while (written < total) written += fs.writeSync(fd, chunk, 0, Math.min(chunk.length, total - written))',
+  '} catch (e) { process.exit(e && e.code === "EFBIG" ? 3 : 4) }',
+  'process.exit(0)',
+].join('\n')
+
+/**
+ * `[wrapper, --fsize=L:L, --, node, --input-type=commonjs, -e, CANARY_SCRIPT, probe, total]`.
+ * Every element is validated or module-owned; exported for argv-shape tests.
+ */
+export function buildCanaryArgv({ wrapperExecutable, limitBytes, nodeExecutable, probePath }) {
+  assertSafeLocalPathOperand(wrapperExecutable, 'wrapperExecutable')
+  assertSafeLocalPathOperand(nodeExecutable, 'nodeExecutable')
+  assertSafeLocalPathOperand(probePath, 'probePath')
+  if (!Number.isSafeInteger(limitBytes) || limitBytes <= 0) return argvInvalid('limitBytes')
+  const total = limitBytes + CANARY_OVERSHOOT_BYTES
+  if (!Number.isSafeInteger(total)) return argvInvalid('limitBytes')
+  return [
+    wrapperExecutable,
+    `--fsize=${limitBytes}:${limitBytes}`,
+    '--',
+    nodeExecutable,
+    '--input-type=commonjs',
+    '-e',
+    CANARY_SCRIPT,
+    probePath,
+    String(total),
+  ]
+}
+
+/** The REAL canary dependency set, bound once by `../backup-cloud-containment.mjs`. */
+export const REAL_CANARY_DEPS = Object.freeze({
+  sha512File: sha512FileReal,
+  spawn: nodeSpawn,
+  lstat: (p) => fs.lstatSync(p, { bigint: true }),
+  realpath: (p) => fs.realpathSync(p),
+  mkdir: (p, mode) => fs.mkdirSync(p, { mode }),
+  chmod: (p, mode) => fs.chmodSync(p, mode),
+  unlink: (p) => fs.unlinkSync(p),
+  rmdir: (p) => fs.rmdirSync(p),
+  geteuid: () => process.geteuid(),
+  nodeExecutable: process.execPath,
+  now: () => Date.now(),
+})
+
+function assertValidCanaryDeps(deps) {
+  if (deps === null || typeof deps !== 'object') return invalidInput('deps')
+  for (const name of [
+    'sha512File',
+    'spawn',
+    'lstat',
+    'realpath',
+    'mkdir',
+    'chmod',
+    'unlink',
+    'rmdir',
+    'geteuid',
+    'now',
+  ]) {
+    if (typeof deps[name] !== 'function') return invalidInput('deps')
+  }
+  if (typeof deps.nodeExecutable !== 'string') return invalidInput('deps')
+}
+
+function errnoOf(err) {
+  try {
+    return typeof err?.code === 'string' ? err.code : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function joinDir(dir, name) {
+  return dir === '/' ? `/${name}` : `${dir}/${name}`
+}
+
+/**
+ * Build the canary against a supplied dependency set.
+ *
+ * INTERNAL TEST SEAM — `../backup-cloud-containment.mjs` calls this exactly
+ * once, with `REAL_CANARY_DEPS`. Proofs are registered per instance.
+ */
+export function makeContainmentCanary(deps) {
+  assertValidCanaryDeps(deps)
+  const proofs = new WeakMap()
+
+  const euid = () => BigInt(deps.geteuid())
+
+  /** `{dev, ino}` of a trusted, operator-provisioned directory, or `null`. */
+  function observeTrustedDir(dir) {
+    try {
+      const st = deps.lstat(dir)
+      if (st === null || typeof st !== 'object') return null
+      if (st.isSymbolicLink() !== false || st.isDirectory() !== true) return null
+      if (typeof st.uid !== 'bigint' || st.uid !== euid()) return null
+      if (typeof st.mode !== 'bigint' || (st.mode & 0o077n) !== 0n) return null
+      if (typeof st.dev !== 'bigint' || typeof st.ino !== 'bigint') return null
+      if (deps.realpath(dir) !== dir) return null
+      return Object.freeze({ dev: st.dev, ino: st.ino })
+    } catch {
+      return null
+    }
+  }
+
+  /** `{dev, ino}` of a directory THIS run just created, or `null`. */
+  function observeOwnedDir(dir, parentDev) {
+    try {
+      const st = deps.lstat(dir)
+      if (st === null || typeof st !== 'object') return null
+      if (st.isSymbolicLink() !== false || st.isDirectory() !== true) return null
+      if (st.uid !== euid() || (st.mode & 0o7777n) !== 0o700n || st.dev !== parentDev) return null
+      return Object.freeze({ dev: st.dev, ino: st.ino })
+    } catch {
+      return null
+    }
+  }
+
+  const sameId = (observed, expected) =>
+    observed !== null && observed.dev === expected.dev && observed.ino === expected.ino
+
+  /**
+   * The probe as it is now: `{state:'absent'}`, `{state:'file', dev, ino,
+   * size}` for a regular file owned by us, or `{state:'other'}` for anything
+   * else (including an unobservable one).
+   */
+  function observeProbe(probe) {
+    let st
+    try {
+      st = deps.lstat(probe)
+    } catch (err) {
+      return errnoOf(err) === 'ENOENT' ? { state: 'absent' } : { state: 'other' }
+    }
+    try {
+      if (st === null || typeof st !== 'object') return { state: 'other' }
+      if (st.isSymbolicLink() !== false || st.isFile() !== true) return { state: 'other' }
+      if (st.uid !== euid() || typeof st.size !== 'bigint') return { state: 'other' }
+      return { state: 'file', dev: st.dev, ino: st.ino, size: st.size }
+    } catch {
+      return { state: 'other' }
+    }
+  }
+
+  /**
+   * Remove exactly the canary's own probe and directory. Every removal is
+   * preceded by identity checks of the readback directory, the canary
+   * directory, and (for the probe) the file observed at classification.
+   * Never recursive. Returns `true` only when both paths are gone.
+   */
+  function cleanup({ dir, dirId, canaryDir, canaryId, probe, probeSeen }) {
+    try {
+      if (!sameId(observeTrustedDir(dir), dirId)) return false
+      if (!sameId(observeOwnedDir(canaryDir, dirId.dev), canaryId)) return false
+      const now = observeProbe(probe)
+      if (now.state === 'other') return false
+      if (now.state === 'file') {
+        if (probeSeen.state !== 'file') return false
+        if (now.dev !== probeSeen.dev || now.ino !== probeSeen.ino) return false
+        deps.unlink(probe)
+        if (observeProbe(probe).state !== 'absent') return false
+      }
+      if (!sameId(observeTrustedDir(dir), dirId)) return false
+      if (!sameId(observeOwnedDir(canaryDir, dirId.dev), canaryId)) return false
+      deps.rmdir(canaryDir)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const refused = (code, cleanupState) =>
+    Object.freeze({ kind: 'refused', code, cleanup: cleanupState })
+
+  async function proveReadbackContainment(args) {
+    if (args === null || typeof args !== 'object') return invalidInput('arguments')
+    const { config, runId, signal } = args
+    assertValidSignal(signal)
+    let cfg
+    try {
+      cfg = validateCloudConfig(config)
+    } catch {
+      return invalidInput('config')
+    }
+    if (typeof runId !== 'string' || !RUN_ID_PATTERN.test(runId)) return invalidInput('runId')
+    if (signal?.aborted) return refused('canary_cancelled', 'not_started')
+    if (cfg.readback.containment !== 'rlimit_fsize' || cfg.readback.rlimitWrapper === null) {
+      return refused('containment_unsupported', 'not_started')
+    }
+    const wrapper = cfg.readback.rlimitWrapper
+    try {
+      assertWrapperIdentity({ wrapper, deps })
+    } catch {
+      return refused('rlimit_wrapper_unverified', 'not_started')
+    }
+
+    const dir = cfg.readback.dir
+    const dirId = observeTrustedDir(dir)
+    if (dirId === null) return refused('readback_dir_untrusted', 'not_started')
+
+    const { maxCiphertextBytes, maxSidecarBytes, maxManifestBytes } = cfg.readback
+    const limitBytes = Math.min(maxCiphertextBytes, maxSidecarBytes, maxManifestBytes)
+    // A validator-accepted ceiling can be so large that L + overshoot is not a
+    // safe integer, and a validator-accepted path can still be refused as an
+    // argv operand (a segment beginning with `-`). Neither may escape as a
+    // thrown argv error, and neither may weaken the attempt: without a
+    // representable write beyond the exact L, nothing is proven. Both are
+    // decided here, before anything is created or spawned.
+    if (!Number.isSafeInteger(limitBytes + CANARY_OVERSHOOT_BYTES)) {
+      return refused('containment_unproven', 'not_started')
+    }
+    const canaryDir = joinDir(dir, buildContainmentCanaryDirName(runId))
+    const probe = joinDir(canaryDir, CANARY_PROBE_NAME)
+    let argv
+    try {
+      argv = buildCanaryArgv({
+        wrapperExecutable: wrapper.executable,
+        limitBytes,
+        nodeExecutable: deps.nodeExecutable,
+        probePath: probe,
+      })
+    } catch {
+      return refused('containment_unproven', 'not_started')
+    }
+
+    // ── create the one directory this run owns ──
+    if (!sameId(observeTrustedDir(dir), dirId))
+      return refused('readback_dir_untrusted', 'not_started')
+    try {
+      deps.mkdir(canaryDir, 0o700)
+    } catch (err) {
+      return errnoOf(err) === 'EEXIST'
+        ? refused('canary_collision', 'not_started')
+        : refused('canary_setup_failed', 'not_started')
+    }
+    let canaryId = null
+    try {
+      deps.chmod(canaryDir, 0o700)
+      canaryId = observeOwnedDir(canaryDir, dirId.dev)
+    } catch {
+      canaryId = null
+    }
+    // Without a recorded identity nothing may be removed: leave it.
+    if (canaryId === null) return refused('canary_setup_failed', 'incomplete')
+    const ctx = { dir, dirId, canaryDir, canaryId, probe, probeSeen: { state: 'absent' } }
+    if (observeProbe(probe).state !== 'absent' || !sameId(observeTrustedDir(dir), dirId)) {
+      return refused('canary_setup_failed', cleanup(ctx) ? 'complete' : 'incomplete')
+    }
+
+    // ── run the fixed writer under the pinned wrapper ──
+    const result = await spawnCapturingBounded({
+      command: argv[0],
+      args: argv.slice(1),
+      env: {},
+      timeoutMs: cfg.run.operationTimeoutMs,
+      cancelGraceMs: cfg.run.cancelGraceMs,
+      maxStdoutBytes: CANARY_MAX_OUTPUT_BYTES,
+      maxStderrBytes: CANARY_MAX_OUTPUT_BYTES,
+      spawnImpl: deps.spawn,
+      signal,
+    })
+
+    // A child that may still exist may still be writing: touch nothing.
+    if (result.kind === 'termination-unconfirmed') {
+      return refused('termination_unconfirmed', 'withheld_termination_unconfirmed')
+    }
+
+    // ── classify (termination confirmed from here on) ──
+    let failure = null
+    const seen = observeProbe(probe)
+    ctx.probeSeen = seen
+    if (result.kind === 'cancelled') {
+      failure = 'canary_cancelled'
+    } else if (seen.state === 'file' && seen.size > BigInt(limitBytes)) {
+      failure = 'containment_violated'
+    } else if (result.kind !== 'exited') {
+      failure = 'containment_unproven'
+    } else {
+      const refusedWrite =
+        (result.code === CANARY_WRITER_EXIT_FILE_TOO_LARGE && result.signal === null) ||
+        result.signal === 'SIGXFSZ'
+      if (!refusedWrite || seen.state !== 'file' || seen.size !== BigInt(limitBytes)) {
+        failure = 'containment_unproven'
+      }
+    }
+
+    // ── remove exactly what this run created ──
+    const cleaned = cleanup(ctx)
+    if (failure !== null) return refused(failure, cleaned ? 'complete' : 'incomplete')
+    if (!cleaned) return refused('canary_cleanup_failed', 'incomplete')
+
+    let provenAt = null
+    try {
+      provenAt = new Date(deps.now()).toISOString()
+    } catch {
+      provenAt = null
+    }
+    const ceilings = Object.freeze({
+      ciphertext: maxCiphertextBytes,
+      checksum: maxSidecarBytes,
+      manifest: maxManifestBytes,
+    })
+    const proof = Object.freeze({
+      kind: CONTAINMENT_PROOF_KIND,
+      runId,
+      mechanism: 'rlimit_fsize',
+      readbackDir: dir,
+      wrapperExecutable: wrapper.executable,
+      wrapperExpectedSha512: wrapper.expectedSha512,
+      ceilings,
+      limitBytes,
+      provenAt,
+    })
+    proofs.set(
+      proof,
+      Object.freeze({
+        runId,
+        readbackDir: dir,
+        dev: dirId.dev,
+        ino: dirId.ino,
+        wrapperExecutable: wrapper.executable,
+        wrapperExpectedSha512: wrapper.expectedSha512,
+        ceilings,
+        limitBytes,
+      }),
+    )
+    return Object.freeze({ kind: 'proven', proof, cleanup: 'complete' })
+  }
+
+  /**
+   * The validation route a later consumer (E3J6B) uses. Returns `true`, or
+   * throws one generic `containment_proof_invalid` — never says which part
+   * failed, and never echoes a value.
+   */
+  function verifyContainmentProof(args) {
+    const invalid = () => {
+      throw new BackupError('containment_proof_invalid', 'the containment proof is not valid here.')
+    }
+    if (args === null || typeof args !== 'object') return invalid()
+    const { proof, config, runId } = args
+    if (proof === null || typeof proof !== 'object') return invalid()
+    const binding = proofs.get(proof)
+    if (binding === undefined) return invalid()
+    let cfg
+    try {
+      cfg = validateCloudConfig(config)
+    } catch {
+      return invalid()
+    }
+    const rb = cfg.readback
+    if (
+      runId !== binding.runId ||
+      rb.containment !== 'rlimit_fsize' ||
+      rb.rlimitWrapper === null ||
+      rb.dir !== binding.readbackDir ||
+      rb.rlimitWrapper.executable !== binding.wrapperExecutable ||
+      rb.rlimitWrapper.expectedSha512 !== binding.wrapperExpectedSha512 ||
+      rb.maxCiphertextBytes !== binding.ceilings.ciphertext ||
+      rb.maxSidecarBytes !== binding.ceilings.checksum ||
+      rb.maxManifestBytes !== binding.ceilings.manifest
+    ) {
+      return invalid()
+    }
+    if (!sameId(observeTrustedDir(rb.dir), binding)) return invalid()
+    return true
+  }
+
+  return Object.freeze({ proveReadbackContainment, verifyContainmentProof })
 }
 
 export { FORBIDDEN_ARGV_TOKENS }

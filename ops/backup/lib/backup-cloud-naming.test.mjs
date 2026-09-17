@@ -12,12 +12,14 @@ import test from 'node:test'
 import { BackupError, buildArtifactNames } from './backup-artifact-contract.mjs'
 import {
   ATTEMPT_ID_PATTERN,
+  RUN_ID_PATTERN,
   assertSafeRemoteComponent,
   assertValidArtifactBase,
   assertValidAttemptId,
   buildAttemptFolderName,
   buildAttemptNamespace,
   buildAttestationFileName,
+  buildContainmentCanaryDirName,
   buildPublishedObjectPaths,
   formatAttemptId,
   validateRemoteRoot,
@@ -357,5 +359,44 @@ test('E3J5: buildPublishedObjectPaths exposes the root and the single attempt fo
   // Exactly one segment between the root and each object — no nested artifact folder.
   for (const p of [paths.ciphertextPath, paths.checksumPath, paths.manifestPath]) {
     assert.equal(p.slice(remoteRoot.length + 1).split('/').length, 2)
+  }
+})
+
+// ── E3J6A: run ids and the containment canary directory name ─────────────────
+
+test('E3J6A: RUN_ID_PATTERN accepts exactly the compact-stamp-plus-8-hex shape', () => {
+  assert.ok(RUN_ID_PATTERN.test('20260904T180007Z-0a1b2c3d'))
+  for (const bad of [
+    '',
+    '20260904T180007Z-0A1B2C3D',
+    '20260904T180007Z-0a1b2c3',
+    '20260904T180007Z-0a1b2c3d0',
+    '2026-09-04T18:00:07Z-0a1b2c3d',
+    ' 20260904T180007Z-0a1b2c3d',
+    '20260904T180007Z-0a1b2c3d\n',
+  ]) {
+    assert.equal(RUN_ID_PATTERN.test(bad), false, JSON.stringify(bad))
+  }
+})
+
+test('E3J6A: the canary directory name is one safe component derived only from a valid run id', () => {
+  assert.equal(
+    buildContainmentCanaryDirName('20260904T180007Z-0a1b2c3d'),
+    '20260904T180007Z-0a1b2c3d.containment-canary',
+  )
+  for (const bad of [
+    undefined,
+    null,
+    '',
+    '../x',
+    'x/y',
+    '.hidden',
+    '-f',
+    '20260904T180007Z-ZZZZZZZZ',
+  ]) {
+    assert.throws(
+      () => buildContainmentCanaryDirName(bad),
+      (err) => err instanceof BackupError && err.code === 'run_id_malformed',
+    )
   }
 })
