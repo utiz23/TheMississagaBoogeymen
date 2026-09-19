@@ -36,6 +36,7 @@ import {
 } from './backup-cloud-readback.mjs'
 import {
   CLOUD_ATTEMPT_LOCK_ACTIONS,
+  CLOUD_ATTEMPT_RETRY_DISPOSITIONS,
   CLOUD_ATTEMPT_STAGES,
   CLOUD_ATTEMPT_VERDICTS,
   CLOUD_CONTAINMENT_STATES,
@@ -44,6 +45,7 @@ import { makeAttemptOrchestrator } from './internal/backup-cloud-attempt-orchest
 
 export {
   CLOUD_ATTEMPT_LOCK_ACTIONS,
+  CLOUD_ATTEMPT_RETRY_DISPOSITIONS,
   CLOUD_ATTEMPT_STAGES,
   CLOUD_ATTEMPT_VERDICTS,
   CLOUD_CONTAINMENT_STATES,
@@ -94,7 +96,8 @@ const ORCHESTRATOR = makeAttemptOrchestrator({
  * @param {object} args.containmentProof  the `proof` from a prior
  *   `proveReadbackContainment()` `'proven'` result
  * @param {AbortSignal} [args.signal]
- * @returns {Promise<object>} the frozen `CloudAttemptReport`
+ * @returns {Promise<object>} the frozen `CloudAttemptReport` (E3J6C: including
+ *   `retryDisposition`, one of `CLOUD_ATTEMPT_RETRY_DISPOSITIONS`)
  * @throws {BackupError} `cloud_attempt_invalid_input` before any attempt
  *   identity exists; `cloud_upload_invalid_input` / `cloud_upload_attempt_id_failed`
  *   from `prepareUploadAttempt()` itself, for the same reason.

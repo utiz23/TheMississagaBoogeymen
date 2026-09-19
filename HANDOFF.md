@@ -26,53 +26,54 @@ in the roadmap doc, not here.
 
 ## Latest Verified Checkpoint
 
-**2026-09-18 — E3J6B (second of three E3J6 substeps) was implemented and
-review-corrected on baseline `70abb63` (E3J6A, committed and pushed); the
-637/637 verification below is retained.**
+**2026-09-19 — E3J6C (last of the three E3J6 substeps) implemented and
+verified in the working tree on baseline `bbcff5b` (E3J6B, committed and
+pushed). Not yet committed. E3 remains unactivated.**
 
-E3J6B adds the readback, the independent verdict, and the two durable records
-— no lock, retry, signal ownership, or entrypoint (all E3J6C). Four audit
-boundaries, each a thin production API over its own internal test seam, with
-session registries private to each factory instance:
+E3J6C adds the run lock, collision-only bounded retry (T18), private signal
+ownership, and the first executable entrypoint:
 
-- `backup-cloud-attestation-records.mjs` — a `RecordSession` binds
-  `attestation.dir` identity + `artifactBase`/`attemptId` and authorizes both
-  `O_CREAT|O_EXCL|O_NOFOLLOW` 0600 records (intent before any provider call,
-  then the attestation). Closed per-stage code vocabularies and cross-field
-  invariants are enforced by membership; lock advice is derived; the writer
-  returns the effective record it wrote.
-- `backup-cloud-readback.mjs` — `establishReadbackSession({config,
-artifactBase, attemptId, sourceEvidence})` SEALS the CLI, credentials,
-  timeouts, canonical remote paths, and validated source evidence;
-  `readBackAttemptTriple({session, signal})` reads nothing else. Workspace
-  objects are tracked as each is authenticated; cleanup is exact and
-  non-recursive and re-observes each file's full identity before unlink.
-- `backup-cloud-attempt-verdict.mjs` — pure, independent re-derivation.
-- `backup-cloud-attempt.mjs` — `runAttestedAttempt()` is total after
-  `prepare`: exactly-once consumption, closed codes, one closed internal
-  outcome, and a report copied from the durable attestation.
+- `backup-cloud-run-lock.mjs` — one immutable `O_EXCL` 0600 lock (acquisition
+  metadata only) in an operator-provisioned trusted directory; a
+  factory-private handle is the only release authority. `refused` = filesystem
+  unchanged; `uncertain` = possible residue, never a handle, never removed.
+  Pre-unlink refusals leave the path untouched; post-unlink failures report
+  `release_durability_unconfirmed`/`release_replaced` and touch nothing.
+  Retaining writes nothing; no lock is ever reclaimed automatically.
+- `backup-cloud-run.mjs` — one locked run: fixed one-turn pre-lock checkpoint
+  and cancellation recheck, ONE containment proof reused per run, strict
+  validation of containment results and attempt reports, retry ONLY for R1
+  (the derived `retryDisposition`: a zero-transfer namespace/object collision
+  or an anchored upload `name_conflict`), both `retry.*` ceilings,
+  abort-aware backoff, and a deeply frozen closed summary.
+- `ops/backup/eanhl-backup-cloud.mjs` (no shebang, executable bit, or package
+  script) over a private entrypoint core that alone owns SIGINT/SIGTERM:
+  exits 0/1/2/3/4, and 130/143 when cancellation settles; a second signal
+  exits 4 and leaves the lock. **Review correction:** the run summary is
+  untrusted there — only a strict, fresh, prototype-free projection is ever
+  printed; anything else prints one fixed line and exits 4.
 
-Verification (2026-09-18): `pnpm test:backup-producer` **637/637, 0 fail, 0
-skipped** (495 + 142); five repeat runs of the subprocess files all green;
-five targeted mutations caught. **Correction:** the earlier "593/593" was an
-addition slip — the tree ran 596. An independent review's CLI/upload/
-attempt/lifecycle failures reproduce only inside the Codex bubblewrap/seccomp
-sandbox (Node child stdout on Node pipes is lost there); committed `70abb63`
-fails the same tests there — an environment limitation, not a regression.
-Run the suite outside that sandbox.
+Verification (2026-09-19, after the review correction): `pnpm
+test:backup-producer` **756/756, 0 fail, 0 skipped** (637 + 119); five repeat
+runs of the eight subprocess/concurrency suites all green; 39/39 targeted
+mutations caught, each file restored byte-identically. Attestation schema v1 unchanged. Run the suite outside the
+Codex bubblewrap sandbox (Node child stdout is lost there — an environment
+limitation, not a regression).
 
-**Known-unclosed, by design:** real-CLI schemas are hypotheses; the path-based
-upload TOCTOU is detected, not closed; the post-hash executable replacement is
-open; the canary proves nothing about the Proton CLI or Hotel-Echo. E3J6C owes
-the lock, bounded retry (T18), signal ownership, and the entrypoint.
+**Known-unclosed, by design:** real-CLI schemas are hypotheses; path-based
+lock and upload TOCTOU windows are narrowed, not closed; SIGKILL/power loss or
+a second signal leaves the lock (and possibly orphaned CLI children or an
+intent without an attestation) for manual reconciliation; a retention reason
+is durable only inside a written attestation.
 
-Full correction history and the implemented schemas (memo §9): the architecture
-memo (linked under Immediate Blockers). Milestones:
+Detail (schemas, lock contract, reconciliation §4.7, correction history): the
+architecture memo linked under Immediate Blockers. Milestones:
 [`docs/journal/2026-09.md`](docs/journal/2026-09.md).
 
-Before that: E3J6A 2026-09-16, **495/495** (`70abb63`); E3J5 2026-09-16,
-413/413 (`eea6ace`); E3J4 2026-09-14, 354/354 (`0fc9678`); E3J3 2026-09-13,
-235/235 (`a3681b0`); E3J2 2026-09-13, 179/179; E3I closed 2026-09-12.
+Before that: E3J6B 2026-09-18, **637/637** (`bbcff5b`); E3J6A 2026-09-16,
+495/495 (`70abb63`); E3J5 2026-09-16, 413/413 (`eea6ace`); E3J4 2026-09-14,
+354/354 (`0fc9678`); E3J3 2026-09-13, 235/235 (`a3681b0`); E3J2 2026-09-13,
+179/179; E3I closed 2026-09-12.
 
 ## Essential Operational Constraints
 
@@ -108,14 +109,14 @@ Before that: E3J6A 2026-09-16, **495/495** (`70abb63`); E3J5 2026-09-16,
 
 ## Immediate Blockers
 
-- **E3 (Proton cloud backup) unactivated.** No attestation writer, entrypoint,
-  or watcher exists. Open: a proven hard-containment mechanism, real
-  monitoring, and unattended credential persistence (Hotel-Echo untested).
-  E3J2-E3J6A are committed (`70abb63`); E3J6B (readback, independent verdict,
-  durable intent/attestation) is implemented and verified. E3J6C (lock,
-  retry, signal ownership, entrypoint) is next. U12-U15 remain unresolved
-  (readback ceilings/containment proof, timeouts/retry, remote root and the
-  flat layout's ratification, independent-watcher design). Detail:
+- **E3 (Proton cloud backup) unactivated.** The local chain through E3J6C
+  exists — attestation writer, run lock, bounded retry, and an executable
+  entrypoint — but nothing invokes, schedules, or deploys it, and no watcher
+  exists. Open: a proven hard-containment mechanism on the real host, real
+  monitoring, unattended credential persistence (Hotel-Echo untested), and
+  real-CLI schema verification. U12-U15 remain unresolved (readback
+  ceilings/containment proof, timeouts/retry values, remote root and the flat
+  layout's ratification, independent-watcher design). Detail:
   [`docs/planning/proton-drive-cloud-transport-architecture.md`](docs/planning/proton-drive-cloud-transport-architecture.md),
   [`docs/planning/proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md),
   [`docs/planning/proton-drive-scratch-experiment.md`](docs/planning/proton-drive-scratch-experiment.md).
@@ -136,11 +137,11 @@ Before that: E3J6A 2026-09-16, **495/495** (`70abb63`); E3J5 2026-09-16,
 
 ## Next 1-3 Actions
 
-1. If continuing backup work: review and (if authorized) checkpoint
-   **E3J6B**, then **E3J6C**: the run lock spanning upload/readback/attestation,
-   R1-only bounded retry (T18), signal ownership, and the executable
-   entrypoint, which consumes each attempt's returned `lockAction`.
-   See `docs/planning/proton-drive-cloud-transport-architecture.md` §12.
+1. If continuing backup work: E3J6C is uncommitted — review and, if
+   authorized, checkpoint it. The next local stage is **E3J7**: freshness
+   export and evaluation (attestation reader,
+   `validateCloudAttestationBinding()`, the freshness number, T21). See
+   `docs/planning/proton-drive-cloud-transport-architecture.md` §12.
 2. Gate 2 reliability items: automated backups, restore drill, alerting,
    log retention, rollback docs — all unstarted and blocking Gate 2.
 3. Disable and verify Cloudflare Web Analytics.

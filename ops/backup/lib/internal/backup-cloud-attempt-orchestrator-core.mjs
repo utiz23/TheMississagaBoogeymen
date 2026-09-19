@@ -52,7 +52,10 @@
  *   14. clean up the workspace ONLY if the attestation is durable AND
  *       termination is confirmed — including a workspace left by a PARTIAL
  *       setup failure;
- *   15. return the frozen report, including the future E3J6C lock action.
+ *   15. return the frozen report, including the lock action E3J6C consumes
+ *       and (E3J6C) the retry disposition derived from the effective written
+ *       attestation (`deriveRetryDisposition()`; `not_eligible` whenever no
+ *       attestation was written).
  *
  * TOTALITY. From step 2 onward nothing escapes: every classified
  * `BackupError` becomes its stage's closed code (membership-checked against
@@ -82,6 +85,7 @@ import { CLOUD_UPLOAD_OUTCOME_CODES, CLOUD_UPLOAD_STEPS } from '../backup-cloud-
 import {
   classifyUploadOutcome,
   deriveOverallTermination,
+  deriveRetryDisposition,
   objectWritePossible,
 } from '../backup-cloud-attempt-verdict.mjs'
 import {
@@ -642,6 +646,17 @@ export function makeAttemptOrchestrator(deps) {
       let lockAction = view.lockAction
       if (cleanupUncertain && lockAction === 'release') lockAction = 'retain_internal_error'
 
+      // E3J6C: derived ONLY from the effective written attestation; with no
+      // durable attestation nothing is ever retry-eligible.
+      const retryDisposition =
+        written !== null
+          ? deriveRetryDisposition({
+              attestation: written.attestation,
+              lockAction,
+              cleanupState,
+            })
+          : 'not_eligible'
+
       return Object.freeze({
         kind: 'eanhl.cloud-attempt-report',
         schemaVersion: 1,
@@ -662,6 +677,7 @@ export function makeAttemptOrchestrator(deps) {
           workspacePath: view.disposition === 'not_applicable' ? null : plannedWorkspacePath(),
         }),
         lockAction,
+        retryDisposition,
       })
     }
 
@@ -697,6 +713,7 @@ export function makeAttemptOrchestrator(deps) {
         attestationPath: null,
         cleanup: Object.freeze({ state: 'not_started', workspacePath: null }),
         lockAction: 'retain_internal_error',
+        retryDisposition: 'not_eligible',
       })
     }
   }

@@ -380,6 +380,7 @@ const REPORT_KEYS = [
   'intentWritten',
   'kind',
   'lockAction',
+  'retryDisposition',
   'role',
   'schemaVersion',
   'sequence',
@@ -392,6 +393,7 @@ function assertReportShape(report) {
   assert.deepEqual(Object.keys(report).sort(), REPORT_KEYS)
   assert.equal(report.kind, 'eanhl.cloud-attempt-report')
   assert.match(report.attemptId, /^\d{8}T\d{6}Z-[0-9a-f]{8}$/)
+  assert.ok(production.CLOUD_ATTEMPT_RETRY_DISPOSITIONS.includes(report.retryDisposition))
   assert.ok(Object.isFrozen(report))
   assert.ok(Object.isFrozen(report.cleanup))
   assert.throws(() => {
@@ -615,6 +617,215 @@ test('EXIT I: an info-only upload failure stops before readback and attests at t
   assert.equal(attestation.upload_transfer_state, 'definitely_zero')
   assert.equal(attestation.termination, 'confirmed')
   assert.equal(cloud.log.length, 0) // no readback download was attempted
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+// E3J6C — the derived retry disposition (R1: collision-only)
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** An upload outcome that stopped at a namespace/object preflight that FOUND the path. */
+function occupiedAt(step, remotePath) {
+  const calls = [
+    frozenCall('preflight_root', 'info', ROOT, 'success'),
+    frozenCall('preflight_namespace', 'info', 'ns', 'success'),
+  ]
+  if (step !== 'preflight_namespace') {
+    calls.push(frozenCall('create_namespace', 'create-folder', 'ns', 'success'))
+    calls.push(frozenCall('confirm_namespace', 'info', 'ns', 'success'))
+    calls.push(frozenCall(step, 'info', remotePath, 'success'))
+  }
+  return {
+    uploadedRoles: [],
+    code: 'remote_path_occupied',
+    status: 'rejected',
+    failedStep: step,
+    transferState: 'definitely_zero',
+    furthest: null,
+    writeBoundaryCallMade: step !== 'preflight_namespace',
+    boundaryCalls: calls,
+  }
+}
+
+/** An upload outcome that stopped at the ciphertext upload with an anchored rejection. */
+function uploadRejected(boundaryCode, boundaryResult = 'rejected') {
+  return {
+    uploadedRoles: [],
+    code: boundaryResult === 'rejected' ? 'provider_rejected' : 'provider_refused_before_spawn',
+    status: 'rejected',
+    failedStep: 'upload_ciphertext',
+    transferState: 'definitely_zero',
+    furthest: null,
+    boundaryCalls: [frozenCall('upload_ciphertext', 'upload', 'x', boundaryResult, boundaryCode)],
+  }
+}
+
+for (const step of [
+  'preflight_namespace',
+  'preflight_ciphertext',
+  'preflight_checksum',
+  'preflight_manifest',
+]) {
+  test(`R1: remote_path_occupied at ${step} is eligible_zero_transfer_collision`, async () => {
+    const sb = sandbox()
+    const cloud = rootOnly()
+    const wired = orchestratorFor(cloud, sb, { uploadScript: occupiedAt(step, 'obj') })
+    const report = await run(wired, sb)
+
+    assertReportShape(report)
+    assert.equal(report.verdict, 'rejected')
+    assert.equal(report.stage, 'upload')
+    assert.equal(report.code, 'remote_path_occupied')
+    assert.equal(report.lockAction, 'release')
+    assert.equal(report.cleanup.state, 'complete')
+    assert.equal(report.retryDisposition, 'eligible_zero_transfer_collision')
+    const a = assertReportMatchesAttestation(report)
+    assert.equal(a.upload_transfer_state, 'definitely_zero')
+    assert.equal(a.upload_outcome.failed_step, step)
+    assert.equal(a.upload_outcome.boundary_code, null)
+  })
+}
+
+test('R1: an anchored upload name_conflict is eligible_zero_transfer_collision', async () => {
+  const sb = sandbox()
+  const cloud = rootOnly()
+  const wired = orchestratorFor(cloud, sb, { uploadScript: uploadRejected('name_conflict') })
+  const report = await run(wired, sb)
+
+  assert.equal(report.verdict, 'rejected')
+  assert.equal(report.code, 'provider_rejected')
+  assert.equal(report.retryDisposition, 'eligible_zero_transfer_collision')
+  const a = assertReportMatchesAttestation(report)
+  assert.equal(a.upload_outcome.boundary_code, 'name_conflict')
+})
+
+test('R1: credential_unavailable is the same report code as name_conflict but is NOT eligible', async () => {
+  const sb = sandbox()
+  const cloud = rootOnly()
+  const wired = orchestratorFor(cloud, sb, {
+    uploadScript: uploadRejected('credential_unavailable'),
+  })
+  const report = await run(wired, sb)
+
+  assert.equal(report.code, 'provider_rejected') // indistinguishable at the report's code level
+  assert.equal(report.lockAction, 'release')
+  assert.equal(report.retryDisposition, 'not_eligible')
+})
+
+for (const boundaryCode of [
+  'cli_hash_mismatch',
+  'cloud_cli_argv_invalid',
+  'cli_executable_unreadable',
+]) {
+  test(`R1: provider_refused_before_spawn (${boundaryCode}) is NOT eligible`, async () => {
+    const sb = sandbox()
+    const cloud = rootOnly()
+    const wired = orchestratorFor(cloud, sb, {
+      uploadScript: uploadRejected(boundaryCode, 'refused_before_spawn'),
+    })
+    const report = await run(wired, sb)
+
+    assert.equal(report.verdict, 'rejected')
+    assert.equal(report.code, 'provider_refused_before_spawn')
+    assert.equal(report.lockAction, 'release')
+    assert.equal(report.retryDisposition, 'not_eligible')
+  })
+}
+
+test('R1: a non-collision zero-transfer rejection (remote_root_absent) and a verified attempt are NOT eligible', async () => {
+  const sb1 = sandbox()
+  const wired1 = orchestratorFor(rootOnly(), sb1, {
+    uploadScript: {
+      uploadedRoles: [],
+      code: 'remote_root_absent',
+      status: 'rejected',
+      failedStep: 'preflight_root',
+      transferState: 'definitely_zero',
+      writeBoundaryCallMade: false,
+      boundaryCalls: [frozenCall('preflight_root', 'info', ROOT, 'success')],
+    },
+  })
+  const r1 = await run(wired1, sb1)
+  assert.equal(r1.verdict, 'rejected')
+  assert.equal(r1.retryDisposition, 'not_eligible')
+
+  const sb2 = sandbox()
+  const r2 = await run(orchestratorFor(rootOnly(), sb2), sb2)
+  assert.equal(r2.verdict, 'verified')
+  assert.equal(r2.retryDisposition, 'not_eligible')
+})
+
+test('R1: a collision whose workspace cleanup returns incomplete NORMALLY is not eligible, and the lock is still released', async () => {
+  const sb = sandbox()
+  const wired = orchestratorFor(rootOnly(), sb, {
+    uploadScript: occupiedAt('preflight_namespace', 'ns'),
+    readbackOverrides: () => ({
+      cleanupAttemptWorkspace: async () => Object.freeze({ state: 'incomplete' }),
+    }),
+  })
+  const report = await run(wired, sb)
+
+  assert.equal(report.cleanup.state, 'incomplete')
+  assert.equal(report.lockAction, 'release') // E3J6B does not escalate a normal incomplete
+  assert.equal(report.retryDisposition, 'not_eligible')
+})
+
+test('R1: a collision whose workspace cleanup THROWS escalates the lock and is not eligible', async () => {
+  const sb = sandbox()
+  const wired = orchestratorFor(rootOnly(), sb, {
+    uploadScript: occupiedAt('preflight_namespace', 'ns'),
+    readbackOverrides: () => ({
+      cleanupAttemptWorkspace: async () => {
+        throw new Error(MARKER)
+      },
+    }),
+  })
+  const report = await run(wired, sb)
+
+  assert.equal(report.lockAction, 'retain_internal_error')
+  assert.equal(report.retryDisposition, 'not_eligible')
+  assertNoMarker(sb, report)
+})
+
+test('R1: the disposition is derived from the EFFECTIVE written attestation, never from the proposal', async () => {
+  const sb = sandbox()
+  const wired = orchestratorFor(rootOnly(), sb, {
+    uploadScript: occupiedAt('preflight_namespace', 'ns'),
+    recordsOverrides: {
+      // The real writer runs and writes; the EFFECTIVE record it returns is
+      // then made to disagree with the proposal in exactly one R1 field.
+      writeAttemptAttestation: (args) => {
+        const r = writeAttemptAttestation(args)
+        return Object.freeze({
+          ...r,
+          attestation: Object.freeze({ ...r.attestation, upload_transfer_state: 'unknown' }),
+        })
+      },
+    },
+  })
+  const report = await run(wired, sb)
+
+  assert.equal(report.lockAction, 'release')
+  assert.equal(report.retryDisposition, 'not_eligible')
+})
+
+test('R1: with no durable attestation a collision is never eligible', async () => {
+  const sb = sandbox()
+  const wired = orchestratorFor(rootOnly(), sb, {
+    uploadScript: occupiedAt('preflight_namespace', 'ns'),
+    recordsOverrides: {
+      writeAttemptAttestation: () => {
+        throw new BackupError(
+          'cloud_attestation_create_failed',
+          'the record file could not be created.',
+        )
+      },
+    },
+  })
+  const report = await run(wired, sb)
+
+  assert.equal(report.attestationWritten, false)
+  assert.equal(report.lockAction, 'retain_attestation_unconfirmed')
+  assert.equal(report.retryDisposition, 'not_eligible')
 })
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1331,6 +1542,7 @@ test('public inputs are validated before any attempt identity exists', async () 
 test('production API: the closed export surface, with no dependency injection', () => {
   assert.deepEqual(Object.keys(production).sort(), [
     'CLOUD_ATTEMPT_LOCK_ACTIONS',
+    'CLOUD_ATTEMPT_RETRY_DISPOSITIONS',
     'CLOUD_ATTEMPT_STAGES',
     'CLOUD_ATTEMPT_VERDICTS',
     'CLOUD_CONTAINMENT_STATES',

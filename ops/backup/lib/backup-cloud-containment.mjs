@@ -31,8 +31,10 @@
  * path was removed. It is not evidence about the Proton Drive CLI, about
  * larger limit values, about descendants of the CLI, or about another host;
  * that is the E3J10 deployment proof. `quota_mount` is refused
- * (`containment_unsupported`) until a verification exists for it. Nothing
- * consumes a proof yet (E3J6B), and nothing calls this module in production.
+ * (`containment_unsupported`) until a verification exists for it. E3J6B's
+ * attempt consumes a proof through `verifyContainmentProof()`; E3J6C's run
+ * (`backup-cloud-run.mjs`) proves containment ONCE per locked run and reuses
+ * that proof for every attempt. Nothing is activated or scheduled.
  */
 
 import {

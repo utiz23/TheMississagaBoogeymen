@@ -30,10 +30,10 @@
  * Not a verifier: the outcome (schema v2) has `verification: 'not_performed'` and no
  * verdict. E3J6 consumes it, performs readback, and derives the attestation
  * verdict independently. Not a writer of anything local: no attestation file,
- * no lock (`run.lockFile` is reserved for the entrypoint session whose lock
- * must span upload, readback, and attestation), no retry (`retry.*` is
- * reserved until the attestation writer exists). No entrypoint calls this
- * module, and nothing here is activated.
+ * no lock (the run lock is E3J6C's `backup-cloud-run-lock.mjs`, held around
+ * every attempt), no retry (bounded collision-only retry is E3J6C's run
+ * core, one fresh attempt — and one fresh call here — per retry). This module
+ * is reached only through the attested attempt; nothing here is activated.
  *
  * NO DEPENDENCY INJECTION ON THE PRODUCTION ROUTE
  * -------------------------------------------------

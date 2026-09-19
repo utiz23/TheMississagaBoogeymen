@@ -2,9 +2,10 @@
   "_comment": [
     "ILLUSTRATIVE, EXPLICITLY NON-PRODUCTION cloud-transport configuration — NOT ACTIVATED,",
     "NOT DEPLOYED, and no path below is claimed to exist on any host. Nothing in this",
-    "repository reads this file automatically, and no entry point exists. A local subprocess",
-    "boundary (E3J4), a local single-attempt upload library (E3J5) and a local containment",
-    "canary (E3J6A) exist but are called by no executable, have only been exercised against",
+    "repository reads this file automatically. The one executable that can read a file of this",
+    "shape (E3J6C: node ops/backup/eanhl-backup-cloud.mjs --config <path> --artifact-base <base>)",
+    "has no shebang, no executable bit, and no package script, and nothing schedules, deploys or",
+    "invokes it. It and the libraries beneath it (E3J4-E3J6C) have only been exercised against",
     "local fakes and disposable local probes, and are not activated —",
     "see docs/planning/proton-drive-cloud-transport-architecture.md §12.",
     "There are no defaults: every key below is required, and a missing key is a hard error.",
@@ -95,8 +96,10 @@
     "_comment": [
       "Illustrative, non-production timings (U13). cancelGraceMs must be smaller than",
       "operationTimeoutMs; the values below satisfy that shape rule and nothing more.",
-      "lockFile is validated but RESERVED: no code takes this lock yet. It belongs to the",
-      "first entrypoint session, whose lock must span upload, readback and attestation."
+      "lockFile (E3J6C) is the run lock: created O_EXCL mode 0600 inside an operator-provisioned,",
+      "trusted (0700, owner-only) directory that the uploader never creates; held from before",
+      "containment through every attempt and backoff. It is never reclaimed automatically — a",
+      "lock left behind needs operator reconciliation (memo §4.7)."
     ],
     "lockFile": "/example-non-production/cloud-run/uploader.lock",
     "operationTimeoutMs": 1800000,
@@ -107,8 +110,9 @@
     "_comment": [
       "Illustrative, non-production retry policy (U13) — an operator reliability and",
       "debris-accumulation decision, not something this example resolves.",
-      "RESERVED: validated but consumed by no code. The E3J5 uploader makes exactly one",
-      "attempt; bounded retry waits for the attestation writer (one attestation per attempt)."
+      "Consumed by E3J6C: automatic retry happens ONLY after a definite zero-transfer name",
+      "collision (R1), each retry with a fresh attempt id and remote namespace, bounded by both",
+      "ceilings, with this fixed backoff between attempts and none after the last."
     ],
     "maxAttemptsPerArtifactPerRun": 3,
     "backoffMs": 30000,

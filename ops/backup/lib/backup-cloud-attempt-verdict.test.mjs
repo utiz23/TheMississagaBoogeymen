@@ -8,11 +8,13 @@ import test from 'node:test'
 
 import {
   CLOUD_ATTEMPT_LOCK_ACTIONS,
+  CLOUD_ATTEMPT_RETRY_DISPOSITIONS,
   CLOUD_ATTEMPT_STAGES,
   CLOUD_ATTEMPT_VERDICTS,
   CLOUD_CONTAINMENT_STATES,
   classifyUploadOutcome,
   deriveOverallTermination,
+  deriveRetryDisposition,
   objectWritePossible,
 } from './backup-cloud-attempt-verdict.mjs'
 
@@ -310,4 +312,218 @@ test('deriveOverallTermination: upload and readback both confirmed -> confirmed'
     readbackResult: { performed: true, terminationConfirmed: true },
   })
   assert.equal(term, 'confirmed')
+})
+
+// ── deriveRetryDisposition — R1, the collision-only class (E3J6C) ─────────────
+
+const ELIGIBLE = 'eligible_zero_transfer_collision'
+
+function r1Attestation(overrides = {}) {
+  return {
+    verdict: 'rejected',
+    stage: 'upload',
+    code: 'remote_path_occupied',
+    containment: 'valid',
+    termination: 'confirmed',
+    upload_transfer_state: 'definitely_zero',
+    upload_outcome: {
+      code: 'remote_path_occupied',
+      failed_step: 'preflight_namespace',
+      boundary_code: null,
+    },
+    intent_record: { state: 'confirmed' },
+    readback: { performed: false },
+    future_lock_advice: 'release',
+    ...overrides,
+  }
+}
+
+const r1 = (attestation, extra = {}) =>
+  deriveRetryDisposition({ attestation, lockAction: 'release', cleanupState: 'complete', ...extra })
+
+test('deriveRetryDisposition: the vocabulary is closed and frozen', () => {
+  assert.deepEqual(CLOUD_ATTEMPT_RETRY_DISPOSITIONS, [ELIGIBLE, 'not_eligible'])
+  assert.ok(Object.isFrozen(CLOUD_ATTEMPT_RETRY_DISPOSITIONS))
+})
+
+test('deriveRetryDisposition: both collision shapes, at every named step, are eligible', () => {
+  for (const step of [
+    'preflight_namespace',
+    'preflight_ciphertext',
+    'preflight_checksum',
+    'preflight_manifest',
+  ]) {
+    const a = r1Attestation({
+      upload_outcome: { code: 'remote_path_occupied', failed_step: step, boundary_code: null },
+    })
+    assert.equal(r1(a), ELIGIBLE, step)
+  }
+  for (const step of ['upload_ciphertext', 'upload_checksum', 'upload_manifest']) {
+    const a = r1Attestation({
+      code: 'provider_rejected',
+      upload_outcome: {
+        code: 'provider_rejected',
+        failed_step: step,
+        boundary_code: 'name_conflict',
+      },
+    })
+    assert.equal(r1(a), ELIGIBLE, step)
+  }
+})
+
+test('deriveRetryDisposition: flipping ANY single condition makes it not_eligible', () => {
+  const flips = [
+    ['verdict', { verdict: 'indeterminate' }],
+    ['stage readback', { stage: 'readback' }],
+    ['stage local_refusal', { stage: 'local_refusal' }],
+    ['transfer unknown', { upload_transfer_state: 'unknown' }],
+    ['containment invalid', { containment: 'invalid' }],
+    ['containment not_checked', { containment: 'not_checked' }],
+    ['termination unconfirmed', { termination: 'unconfirmed' }],
+    ['termination not_applicable', { termination: 'not_applicable' }],
+    ['intent not confirmed', { intent_record: { state: 'not_confirmed' } }],
+    ['intent missing', { intent_record: null }],
+    ['readback performed', { readback: { performed: true } }],
+    ['readback missing', { readback: null }],
+    ['advice retain', { future_lock_advice: 'retain_internal_error' }],
+    [
+      'outcome code disagrees',
+      {
+        upload_outcome: {
+          code: 'remote_root_absent',
+          failed_step: 'preflight_namespace',
+          boundary_code: null,
+        },
+      },
+    ],
+    [
+      'preflight_root is not a collision step',
+      {
+        upload_outcome: {
+          code: 'remote_path_occupied',
+          failed_step: 'preflight_root',
+          boundary_code: null,
+        },
+      },
+    ],
+    [
+      'occupied with a boundary code',
+      {
+        upload_outcome: {
+          code: 'remote_path_occupied',
+          failed_step: 'preflight_namespace',
+          boundary_code: 'provider_timeout',
+        },
+      },
+    ],
+    ['upload outcome missing', { upload_outcome: null }],
+  ]
+  assert.equal(r1(r1Attestation()), ELIGIBLE, 'baseline')
+  for (const [label, override] of flips) {
+    assert.equal(r1(r1Attestation(override)), 'not_eligible', label)
+  }
+  assert.equal(r1(r1Attestation(), { lockAction: 'retain_internal_error' }), 'not_eligible')
+  assert.equal(
+    r1(r1Attestation(), { lockAction: 'retain_termination_unconfirmed' }),
+    'not_eligible',
+  )
+  assert.equal(
+    r1(r1Attestation(), { lockAction: 'retain_attestation_unconfirmed' }),
+    'not_eligible',
+  )
+  for (const cleanupState of [
+    'incomplete',
+    'not_started',
+    'withheld_termination_unconfirmed',
+    undefined,
+  ]) {
+    assert.equal(r1(r1Attestation(), { cleanupState }), 'not_eligible', String(cleanupState))
+  }
+})
+
+test('deriveRetryDisposition: every prohibited class is not_eligible', () => {
+  const rejectedAtUpload = (boundaryCode, code = 'provider_rejected') =>
+    r1Attestation({
+      code,
+      upload_outcome: { code, failed_step: 'upload_ciphertext', boundary_code: boundaryCode },
+    })
+  assert.equal(r1(rejectedAtUpload('credential_unavailable')), 'not_eligible')
+  for (const pre of [
+    'cloud_cli_invalid_input',
+    'cloud_cli_argv_invalid',
+    'cli_executable_unreadable',
+    'cli_hash_pin_malformed',
+    'cli_hash_observed_malformed',
+    'cli_hash_mismatch',
+  ]) {
+    assert.equal(r1(rejectedAtUpload(pre, 'provider_refused_before_spawn')), 'not_eligible', pre)
+    // even a (malformed) name_conflict boundary code under a pre-spawn code is not eligible
+  }
+  assert.equal(
+    r1(rejectedAtUpload('name_conflict', 'provider_refused_before_spawn')),
+    'not_eligible',
+  )
+  // name_conflict at a preflight step (not an upload step) is not the anchored shape
+  assert.equal(
+    r1(
+      r1Attestation({
+        code: 'provider_rejected',
+        upload_outcome: {
+          code: 'provider_rejected',
+          failed_step: 'preflight_namespace',
+          boundary_code: 'name_conflict',
+        },
+      }),
+    ),
+    'not_eligible',
+  )
+  for (const code of [
+    'remote_root_absent',
+    'remote_root_not_active_folder',
+    'local_file_empty',
+    'provider_indeterminate',
+    'attempt_cancelled',
+    'created_folder_unconfirmed',
+  ]) {
+    assert.equal(
+      r1(
+        r1Attestation({
+          code,
+          upload_outcome: { code, failed_step: 'preflight_root', boundary_code: null },
+        }),
+      ),
+      'not_eligible',
+      code,
+    )
+  }
+  for (const [stage, code] of [
+    ['readback', 'role_hash_mismatch'],
+    ['readback', 'remote_object_absent'],
+    ['completion', 'completion_adapter_internal_contradiction'],
+    ['internal', 'internal_invariant_violated'],
+    ['internal', 'clock_unusable'],
+    ['internal', 'intent_record_lost'],
+  ]) {
+    assert.equal(r1(r1Attestation({ stage, code, verdict: 'indeterminate' })), 'not_eligible', code)
+  }
+})
+
+test('deriveRetryDisposition: total — malformed input never throws and is not_eligible', () => {
+  const hostile = {}
+  Object.defineProperty(hostile, 'verdict', {
+    get() {
+      throw new Error('boom')
+    },
+  })
+  for (const input of [
+    undefined,
+    null,
+    42,
+    'x',
+    {},
+    { attestation: null, lockAction: 'release', cleanupState: 'complete' },
+    { attestation: hostile, lockAction: 'release', cleanupState: 'complete' },
+  ]) {
+    assert.equal(deriveRetryDisposition(input), 'not_eligible')
+  }
 })

@@ -57,22 +57,27 @@
  * containment discussion (§3) already states for hard containment. See
  * `assertCanonicalAbsolutePath()`.
  *
- * WHICH FIELDS ARE CONSUMED TODAY (E3J6A)
- * ----------------------------------------
- * Every field below is validated, but not every field is used yet. The
+ * WHICH FIELDS ARE CONSUMED (E3J6C)
+ * -----------------------------------
+ * Every field below is validated, and every field is now consumed. The
  * upload attempt (`backup-cloud-upload.mjs`) reads `cli`, `credentials`,
  * `remote.root`, `artifact.sourceDir`, `run.operationTimeoutMs`,
  * `run.cancelGraceMs`, and (E3J6A) the three `readback.max*Bytes` ceilings,
  * which bound each source role before anything is uploaded. The containment
  * canary (`backup-cloud-containment.mjs`) reads `readback.dir`,
  * `readback.containment`, `readback.rlimitWrapper`, the three ceilings, and
- * the two `run` timings. The rest are RESERVED — validated so a host config
- * is complete, but consumed by no code:
+ * the two `run` timings. The E3J6B records and readback read
+ * `attestation.dir` and `capacity.*`. E3J6C consumes the last two:
  *
- *   - `run.lockFile` — reserved for the entrypoint session (E3J6C), whose
- *     lock must span upload, readback, and attestation write together;
- *   - `retry.*` — reserved until the attestation writer exists (E3J6B/C);
- *   - `attestation.dir`, `capacity.*` — E3J6B onward.
+ *   - `run.lockFile` — the run lock (`backup-cloud-run-lock.mjs`), held by
+ *     one run from before containment through every attempt, readback,
+ *     attestation, and backoff to the final lock disposition;
+ *   - `retry.*` — bounded, collision-only automatic retry in
+ *     `internal/backup-cloud-run-core.mjs` (both ceilings and the fixed
+ *     backoff).
+ *
+ * Their VALUES remain unresolved production decisions (U13); nothing here or
+ * in the example file resolves them.
  *
  * `readback.rlimitWrapper` (E3J6A) is required-but-nullable: a pinned
  * `{executable, expectedSha512}` for `rlimit_fsize`, exactly `null` for

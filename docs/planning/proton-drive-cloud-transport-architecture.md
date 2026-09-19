@@ -517,6 +517,125 @@ identity (regular, non-symlink, dev/ino, owner, mode, size) before unlinking;
 readback. The report gains `role` and `termination`; `CLOUD_ATTEMPT_STAGES`
 gains the report-only `attestation` stage. **142 E3J6B tests; full suite
 637/637, 0 fail, 0 skipped**, stable over five runs of the subprocess files.
+Further corrected by **E3J6C** (2026-09-19, the last of the three E3J6
+substeps; working tree on baseline `bbcff5b`, not yet committed) — the run
+lock, collision-only bounded retry (T18), private signal ownership, and the
+first executable entrypoint now exist. Still local, still unactivated:
+
+(1) **The run lock** (`backup-cloud-run-lock.mjs` over
+`internal/backup-cloud-run-lock-core.mjs`) is specified in the new §4.7:
+one immutable `O_EXCL|O_NOFOLLOW` 0600 record of acquisition metadata in an
+operator-provisioned trusted directory; a factory-private handle as the only
+authority; `refused` (filesystem unchanged) distinct from `uncertain`
+(possible residue, never a handle, never removed); release split into
+pre-unlink refusals (path untouched) and post-unlink
+`release_durability_unconfirmed`/`release_replaced` (nothing recreated, no
+replacement touched); retaining writes nothing; nothing is ever reclaimed.
+
+(2) **R1, the only automatically retryable class, is collision-only.** The
+E3J6B report could not support a retry decision — `provider_rejected`
+covers both `name_conflict` and `credential_unavailable`, and the report
+carries no boundary code, transfer state, or failed step. The orchestrator
+therefore adds ONE derived, closed report field, `retryDisposition`
+(`eligible_zero_transfer_collision` | `not_eligible`), computed by the pure
+`deriveRetryDisposition()` from the EFFECTIVE written attestation only
+(`not_eligible` whenever none was written). Eligible requires a confirmed
+intent; `rejected` at stage `upload` with `definitely_zero` transfer; no
+readback; containment `valid`; termination `confirmed`; lock advice and
+report lock action `release`; cleanup `complete`; AND either
+`remote_path_occupied` at a namespace/object preflight (last boundary code
+null) or `provider_rejected` at an upload step whose anchored boundary code
+is `name_conflict`. **§4.5 is narrowed:** `provider_refused_before_spawn` is
+NOT retryable — a hash mismatch, an unreadable executable, or an invalid
+operand fails identically on retry, a hash mismatch is a tamper signal, and
+a retry after namespace creation only adds remote debris. Attestation schema
+v1 is unchanged: every input is a field it already records.
+
+(3) **The run** (`backup-cloud-run.mjs` over `internal/backup-cloud-run-core.mjs`):
+`cloudRunId` from the clock and 4 cryptographic random bytes (a failure
+creates nothing and returns a `cloudRunId: null`, `run_internal_error`
+summary); a fixed one-turn pre-lock checkpoint and cancellation recheck; the
+lock; ONE containment proof per locked run, reused by every attempt (the
+proof is registered, bound to `cloudRunId`, and non-consuming; each attempt
+re-verifies it); STRICT validation of the containment result (exact keys,
+frozen, closed code, code/cleanup coherence, proof verified) and of every
+attempt report (exact keys, frozen, closed vocabularies, verdict/code/stage
+coherence, eligibility coherence, distinct attempt ids) — anything else
+retains the lock; one ordered, closed `decideAfterAttempt()`; both
+`retry.*` ceilings; a fixed abort-aware backoff and never a sleep after the
+final permitted attempt. With one artifact per invocation the run-level
+ceiling is arithmetically redundant (the validator enforces
+`maxTotalAttemptsPerRun ≥ maxAttemptsPerArtifactPerRun`); it is still a
+separate counter, unit-tested with independent counts, and removing it is an
+equivalent mutant at the integration level. Exhaustion keeps the last
+attempt's own outcome; nothing synthetic is attested. The returned
+`CloudRunSummary` is deeply frozen and closed, with no path, native text,
+record or lock content, or free-form reason.
+
+(4) **Signals and the entrypoint.** `ops/backup/eanhl-backup-cloud.mjs`
+(`node … --config <path> --artifact-base <base>`; no shebang, executable bit,
+or package script) binds `internal/backup-cloud-entrypoint-core.mjs` once and
+passes only argv; no library export installs a signal listener. Listeners go
+in before any synchronous parsing — which cannot be interrupted — and the
+run's checkpoint observes a signal delivered during it. First signal: abort
+and WAIT for E3J6B's total finalization. Second signal: one bounded
+synchronous line (not guaranteed deliverable), then exit 4 with the lock
+retained by omission and children possibly alive. Exits: 0 verified, 1 not
+verified, 2 invalid invocation, 3 lock refused (filesystem unchanged), 4 lock
+unsettled or internal, 130/143 cancelled by SIGINT/SIGTERM. Config errors are
+reported by their closed code only. No text claims a remote write stopped.
+
+(5) **What is durable.** The lock carries no reason. A retention reason is
+durable only inside an attempt attestation that was actually written; the
+summary and stderr are not durable. A canary refusal, an invalid result, an
+early internal error, a second signal, acquisition residue, SIGKILL, or power
+loss may leave only the acquisition lock — §4.7's reconciliation treats every
+surviving lock as an unknown run until correlated with records.
+
+(6) **Found during implementation:** Node's `fs.constants` exposes no
+`O_CLOEXEC` because libuv adds it to every open (verified through
+`/proc/self/fdinfo`); and a file created right after an unlink can reuse the
+old inode number, so lock identity is `dev`/`ino`/`ctimeNs`. An EXACT byte
+copy (nonce included) placed by a same-uid actor on a reused inode within
+the kernel's timestamp granularity remains indistinguishable — documented,
+outside the threat model.
+
+(7) **Review correction (same day, before any checkpoint) — the summary is
+untrusted at the entrypoint.** The first E3J6C entrypoint applied only a
+shallow `summaryIsCoherent()` check and then serialized the ORIGINAL
+runner-supplied object (`JSON.stringify(summary)`) and interpolated its nested
+values into stderr. Independent review reproduced a frozen, superficially
+coherent summary carrying an extra `secret` property: exit 0, marker on
+stdout. It is replaced by `projectCloudRunSummary()` in the entrypoint core:
+a Proxy is refused by `util.types.isProxy()` (no trap runs); every level must
+be a plain, frozen `Object.prototype` object (or `Array.prototype` array)
+whose own keys — enumerable or not, strings and symbols — are EXACTLY the
+expected set, so an extra field, a non-enumerable `toJSON`, or a symbol is
+refused; every value is read ONCE through its own descriptor and must be an
+enumerable data property, so a throwing or stateful getter is refused without
+being invoked; every value is checked against its closed vocabulary or
+identifier pattern, `artifactBase` must equal the invocation's own, and the
+run's lock/containment/attempt/stop-reason/outcome relationships are
+re-derived independently. The result is a fresh, deeply frozen projection of
+null-prototype objects and a null-prototype array, so no own, inherited, or
+globally polluted `toJSON` reaches `JSON.stringify`; the original is dropped
+and never read again; only the projection feeds `JSON.stringify`, the stderr
+lines, and `exitStatusFor()`. Any failure prints only the fixed
+`summaryInvalid` line and exits 4. One residual, stated rather than hidden:
+awaiting the run performs JavaScript's own `then` lookup on the returned value
+before the boundary — whatever a hostile thenable resolves is still projected,
+and whatever it throws becomes the fixed "no summary" line. The run core, its
+summary, attestation schema v1, lock semantics, retry eligibility, signal
+ownership, and exit-code meanings are unchanged.
+
+**119 new tests (lock 35, run 36, entrypoint 29, attempt +14, verdict +5);
+full suite 756/756, 0 fail, 0 skipped**; five repeat runs of the eight
+subprocess/concurrency suites green; 39/39 targeted mutations caught (ten of
+them against the projection), each file restored byte-identically; every
+summary the run core produces in its suite is asserted to pass the projection
+unchanged. Changed existing assertions: the attempt report key set
+(+`retryDisposition`) and the attempt export set
+(+`CLOUD_ATTEMPT_RETRY_DISPOSITIONS`). Session detail: `docs/journal/2026-09.md`.
 **Status:**
 **DESIGN AND ANALYSIS FOR CLOUD TRANSPORT AND ATTESTATION — NOT ACTIVATED.**
 The **E3J2** shared artifact-contract extraction (§1.3, §12, §13), the
@@ -526,13 +645,18 @@ as corrected by **E3J3B**), the **E3J4** subprocess boundary (§2, §6-8,
 independent security review passes), and the **E3J5** single-attempt upload
 orchestration (§4, §8, §11-12, with the layout change above), and the
 **E3J6A** boundary extensions (contained download, termination evidence,
-containment canary, one-shot preparation with source evidence) are implemented
+containment canary, one-shot preparation with source evidence), the **E3J6B**
+readback, independent verdict, and durable intent/attestation records (§9),
+and the **E3J6C** run lock, collision-only bounded retry, private signal
+ownership, and executable entrypoint (§4.5, §4.7) are implemented
 locally and are either behaviour-preserving, additive-only, or a narrowly
-scoped new local boundary; all four are local repository code with no
+scoped new local boundary; all are local repository code with no
 provider, host, or credential access of their own — pure naming/path helpers,
 a fail-closed configuration validator, a subprocess boundary, and an
 orchestration library, exercised only against disposable local fakes, never
-the real Proton Drive binary, and called by no executable entrypoint. The raw provider-response shapes it validates against
+the real Proton Drive binary, and — since E3J6C — reachable from exactly one
+executable, `ops/backup/eanhl-backup-cloud.mjs`, which nothing schedules,
+deploys, or invokes. The raw provider-response shapes it validates against
 (info/create-folder success, download's terminal summary) remain
 acknowledged design hypotheses, not verified real-CLI compatibility — see
 E3J4A's correction 4, restated in E3J4B's own correction list. The
@@ -543,8 +667,7 @@ some replacements but does not close the window — a same-size replacement is
 only caught by E3J6 readback) and the gap between download's pre-spawn
 absence check and its readback (E3J6).
 Everything else this memo
-designs — retry, lock ownership, an entrypoint, readback, attestation,
-monitoring, credential handling, deployment, scheduling, retention, and
+designs — freshness export and evaluation (E3J7), monitoring, credential handling, deployment, scheduling, retention, and
 restore work — remains unimplemented and unactivated.
 **NOTHING BEYOND THOSE LOCAL SESSIONS IS APPROVED FOR ACTIVATION.**
 
@@ -1222,6 +1345,23 @@ retry (T18) is deferred until the attestation writer is integrated. The U13
 retry values are not consumed; `retry.*` is validated configuration only
 (§10.2).
 
+**[E3J6C] Implemented — collision-only (R1).** Automatic retry now exists,
+and only for the class R1: a definite, zero-transfer NAME COLLISION — the
+attempt's own namespace or object path found occupied at preflight, or an
+upload refused with the anchored `name_conflict` — each retry under a fresh
+`attemptId` and therefore a fresh remote namespace. The decision is the
+closed report field `retryDisposition`, derived from the written attestation
+(see the E3J6C correction entry at the top for every condition); the run
+never infers eligibility from free text, and a report claiming eligibility
+for any other shape is invalid and retains the lock. **This narrows the
+paragraph above:** "a pre-flight refusal that never spawned the CLI"
+(`provider_refused_before_spawn`) is NOT retried — it is deterministic, a
+hash mismatch is a tamper signal, and a retry after namespace creation only
+adds debris. `credential_unavailable` is never retried. Both ceilings and
+the fixed backoff are enforced, with no backoff after the final permitted
+attempt; every attempt, including each retry, writes its own intent and
+attestation. The `retry.*` VALUES remain U13.
+
 ### 4.6 Cleanup is manual, and that is deliberate
 
 Remote deletion is **out of scope for the uploader** — E1A's "a transport must
@@ -1240,6 +1380,92 @@ the same way. **[REPO] [OFFICIAL]** Consequently:
   accumulation is visible rather than discovered by a quota alarm — which, given
   U9's resolved-negative finding that CLI 0.8.0 exposes no quota surface
   (`proton-drive-scratch-experiment.md` §7.6), would not fire at all. **[E3I]**
+  **[E3J6C]** A run's summary reports each of ITS attempts (verdict, code,
+  retry disposition, lock action); the accumulated count and total of
+  non-verified attempts across runs is an attestation-reader concern (E3J7)
+  and is not implemented.
+
+### 4.7 The run lock and operator reconciliation — AS IMPLEMENTED (E3J6C)
+
+`run.lockFile` is held by exactly one run from before the containment proof
+through every attempt, readback, attestation, and backoff until the final
+lock disposition. Code: `ops/backup/lib/internal/backup-cloud-run-lock-core.mjs`.
+
+**The record.** One line, written once with `O_WRONLY|O_CREAT|O_EXCL|
+O_NOFOLLOW` (close-on-exec) mode 0600, fsynced, then its directory fsynced,
+then its pathname re-verified; never modified:
+`{"kind":"eanhl.cloud-run-lock","schema_version":1,"cloud_run_id":…,
+"artifact_base":…,"pid":…,"host":…,"acquired_at":…,"owner_nonce":…}`. Every
+field is validated and bounded before creation (run id and base patterns,
+`1 ≤ pid ≤ 4 194 304`, a DNS-shaped host ≤ 253 characters, an exact ISO
+timestamp, a 32-hex nonce from 16 cryptographic random bytes); the record is
+deterministic and below 4 KiB. It holds ACQUISITION METADATA ONLY.
+
+**The directory.** The lock's parent must be operator-provisioned and
+trusted — existing, not a symlink, owned by the effective uid, no group/world
+bits, real path equal to itself. The uploader never creates it.
+
+**Authority.** An opaque frozen handle registered in a factory-private
+`WeakMap`; the nonce binds exact bytes but is not an authority. Every handle
+is one-shot: release, retain, or a failed held-check settles it.
+
+**Acquisition outcomes.** `refused` (filesystem unchanged): identity, nonce,
+clock, host, untrusted directory, or an EXISTING lock — classified read-only
+through a non-blocking, no-follow, close-on-exec open whose `fstat` must
+match the prior `lstat` and be a regular file before at most 4 KiB + 1 byte
+is read (a FIFO or device swap never blocks) into `lock_path_untrusted`,
+`lock_malformed`, `lock_held_foreign_host`, `lock_held_live`,
+`lock_held_stale_looking`, or `lock_unobservable`, and left byte-identical.
+`uncertain` (residue possible, NO handle, nothing removed): an `open` failure
+with something at the path; a short/failed write; a failed fchmod, fsync,
+identity check, or close; a failed directory re-observation or fsync; a
+failed final pathname verification. Removing residue would need a proof that
+the path still names our inode, in the trusted directory, with our bytes —
+and a check-then-unlink window would remain — so it is left for an operator,
+and the next run refuses it.
+
+**Release.** Before `unlink`: directory identity; `lstat` identity
+(`dev`/`ino`/`ctimeNs`, uid, mode 0600, size, `nlink === 1`); exact bytes
+through a no-follow descriptor; directory identity again — any failure is
+`release_refused` and the path is untouched. After `unlink`: the old lock is
+gone from the namespace; failing to confirm absence or to fsync the
+directory is `release_durability_unconfirmed`; an object found at the path is
+`release_replaced` and is never touched; nothing is ever recreated. Only
+`released` maps to a clean exit; every other state is exit 4.
+
+**Retention.** `retainRunLock({handle, reason})` accepts only
+`CLOUD_RUN_LOCK_RETAIN_REASONS` (the three attempt lock actions plus
+`containment_termination_unconfirmed`, `containment_result_invalid`,
+`attempt_report_invalid`, `attempt_threw`, `run_internal_error`), echoes
+nothing, and WRITES NOTHING. There is no in-place rewrite and no
+rename-over-lock scheme.
+
+**Which evidence survives.**
+
+| Case | Surviving evidence | Lock |
+| --- | --- | --- |
+| orderly completion or caught failure | intents, attestations; non-durable summary/stderr | released or retained |
+| signal-driven cancellation | an attested indeterminate attempt | per its lock action |
+| invalid containment result / report, unexpected throw | records written so far; no durable reason | retained |
+| acquisition failure after `O_EXCL` | a possibly partial lock file | residue |
+| second signal | possibly an intent without an attestation; possibly live `prlimit`/`proton-drive` children | retained by omission |
+| SIGKILL, OOM, power loss, kernel kill | the same; no JavaScript runs | retained, or residue |
+
+**Operator reconciliation — manual, never automated.** Treat every surviving
+lock as an UNKNOWN, UNSAFE run until correlated:
+
+1. read the lock's `cloud_run_id`, `pid`, and `host` (a malformed residue has
+   none that can be trusted — correlate by time instead);
+2. confirm that no process of that run is alive, including any `prlimit` or
+   `proton-drive` child — children are not killed as a group and can outlive
+   a killed parent;
+3. list every intent and attestation in `attestation.dir` carrying that
+   `cloud_run_id`: an intent with no attestation means that attempt's remote
+   namespace is unknown and a debris candidate (§4.6); no records at all
+   means no durable reason exists;
+4. inspect `readback.dir` for `<base>.<attemptId>` workspaces and a
+   `<runId>.containment-canary` directory, and remove them by hand;
+5. only then remove the lock file.
 
 ---
 
@@ -1981,8 +2207,8 @@ on a host.
 | `readback.maxSidecarBytes` | **U12** — required positive integer, no default; much smaller than the ciphertext ceiling but still requires its own explicit production configuration |
 | `readback.containment` | `'rlimit_fsize' \| 'quota_mount'` — declares which proven mechanism is deployed (§3.3); required, no default; enforces the applicable per-role ceiling above for each one-file-per-process download. **[E3J6A]** `quota_mount` is refused at runtime |
 | `readback.rlimitWrapper` | **[E3J6A]** required-but-nullable: `{executable, expectedSha512}` for `rlimit_fsize` (canonical path, not the CLI, not in a data directory), exactly `null` for `quota_mount`; hash-gated like the CLI |
-| `run.lockFile`, `run.operationTimeoutMs`, `run.cancelGraceMs` | same discipline as `backup-config.mjs` `run.*`. **[E3J5]** the two timeouts are consumed by the upload attempt; `run.lockFile` is validated but **RESERVED** — no code takes the lock until the entrypoint session, whose lock must span upload, readback, and attestation |
-| `retry.*` | **U13**. **[E3J5]** validated but **RESERVED** — no code retries until the attestation writer exists |
+| `run.lockFile`, `run.operationTimeoutMs`, `run.cancelGraceMs` | same discipline as `backup-config.mjs` `run.*`. **[E3J5]** the two timeouts are consumed by the upload attempt; `run.lockFile` is validated but **RESERVED** — no code takes the lock until the entrypoint session, whose lock must span upload, readback, and attestation. **[E3J6C]** consumed: the run lock (§4.7) |
+| `retry.*` | **U13**. **[E3J5]** validated but **RESERVED** — no code retries until the attestation writer exists. **[E3J6C]** consumed: both ceilings and the fixed backoff of collision-only retry (§4.5); the values remain U13 |
 | `capacity.minFreeBytes`, `capacity.backingVolume` | reused wholesale, including the required-but-nullable `backingVolume` rule (`backup-config.mjs:99-123`) |
 
 Path-separation rules are validated the way
@@ -2217,6 +2443,20 @@ synthetic inputs, and an injected faulty adapter after matching evidence
 producing `completion_adapter_internal_contradiction`. **E3J6C** owes T18 and
 the lock.
 
+**[E3J6C, 2026-09-19] T18 is CLOSED**, collision-only (§4.5):
+`backup-cloud-run.test.mjs` proves, through the real `runCloudBackup()`
+export, the real lock, the real canary under `/usr/bin/prlimit`, and the real
+attempt spawning only the fake CLI, that an occupied object path or an
+anchored upload `name_conflict` is retried under a NEW `attemptId` and a NEW
+remote namespace (two different `create-folder` names, two intent/attestation
+pairs) and then verifies, and that an indeterminate first attempt is not
+retried; the factory route covers every prohibited class, both ceilings at
+their boundaries, backoff cancellation, and the absence of a sleep after the
+final attempt. `backup-cloud-run-lock.test.mjs` and
+`backup-cloud-entrypoint.test.mjs` cover the lock, residue, release
+semantics, the pre-lock checkpoint, signals at every stage, exit codes, and
+leak scans.
+
 ### 11.2 What a fake CLI proves, and what it cannot
 
 **Can prove:** argv construction and the absence of forbidden flags; ordering;
@@ -2255,7 +2495,7 @@ sessions need no provider, no host, and no credential.
 | **E3J3** | **Naming, remote paths, and the cloud config surface.** **DONE (2026-09-13), corrected same-day by E3J3B after independent review.** `publishedTripleNames()`/`ARTIFACT_PREFIX_PATTERN` (§1.3); new `backup-cloud-naming.mjs` (safe remote-component validation, canonical-remote-root validation, `assertValidArtifactBase()` identity-shape validation, self-validating `attemptId` construction, the attempt namespace, the three published object paths, the attestation filename — §4, §8.1); new `backup-cloud-config.mjs` (fail-closed cloud config validator/loader with LEXICAL canonical-path enforcement before containment comparison, a generic secret-key rejection message, a frozen `backingVolume` result, `verifyCliHashPin()`) and `eanhl-backup-cloud.example.json` (§10); T1, T2, the E3J3 portion of T22 (corrected above), and T23 — **56 new tests over the 179-test baseline (5 artifact-contract + 19 naming + 32 config), full suite 235/235, 0 fail.** No Proton CLI argv, subprocess, upload, download, or attestation writer — those remain E3J4 onward | no |
 | **E3J4** | **Subprocess boundary and the fake CLI.** **DONE (2026-09-14), corrected same-day by E3J4A, then E3J4B, then E3J4C, each after its own independent security review pass.** `backup-cloud-cli.mjs` now: constructs argv for the four operations (§8.3) with option-injection-safe operand validation and generic (non-echoing) rejection errors; runs the hash gate closing T22 (§11.1) strictly before argv/spawn, with no injectable builder anywhere in the module; spawns with `shell:false` explicit and a POSITIVE environment allowlist (not a copy-and-strip); classifies credential-unavailable/not-found/name-conflict text with EXACT anchors bound to the actual queried path or uploaded file identity (never a substring match, never accepted on an unrelated identity); treats a capture-stream failure the same as a timeout/overflow (`provider_stream_failed`); validates timeouts as positive safe integers with the grace-below-timeout coherence rule; validates download's local evidence defensively; and returns only frozen results from a closed `CLOUD_CLI_ERROR_CODES` enum, through a closed ten-name export surface. **E3J4C** then moved the boundary logic to `internal/backup-cloud-cli-core.mjs` so the production operations accept NO dependency override at all (the remaining `deps` seam), made upload cross-check the provider byte count against caller-supplied `expectedLocalSizeBytes` and stop promoting `skippedItems: 1` to success, bound download's local evidence to the exact immediate child of `localDir` named by the queried remote basename with a pre-spawn non-symlink-following absence check and a regular-file-only readback, switched every provider-derived byte count to `Number.isSafeInteger`, and made `validateLocalStat()` observe `isFile()` and `size` exactly once each inside their own `try`. New `testdoubles/fake-proton-drive.mjs` (disposable local double; its own exit-before-drain race, fixed in E3J4A, re-verified stable across 10 consecutive runs in E3J4B; records environment KEY NAMES only, never values) and `backup-cloud-cli.test.mjs` — **119 tests total (44 E3J4 + 31 E3J4A + 18 E3J4B + 26 E3J4C), full suite 354/354**. Independent review first reproduced the E3J4 session's own claimed 44/44 as 41/44, then — after E3J4A's fix — found ten further boundary-logic defects, then seven more in E3J4C (see the correction entries at the top of this memo for the itemized lists). No orchestration (attempt workflow, collision preflight, ordered triple upload, retry, lock ownership — E3J5) or readback containment/attestation (E3J6) | no |
 | **E3J5** | **Uploader orchestration.** **DONE (2026-09-16).** New `backup-cloud-upload.mjs` (thin production API, one export `runUploadAttempt({config, artifactBase, signal})` plus five frozen vocabularies) over `internal/backup-cloud-upload-core.mjs` (internal test seam, static importer regression). One explicit artifact base, no scanning; local triple validated (non-empty regular files via `lstat`, safe-integer sizes, `verifyArtifactCompletion()` with its text discarded, identity re-observed around every upload); flat layout (§4.2, §8.1) and the rewritten §8.2 order; uploads stop at the first non-success; a frozen evidence outcome with no verdict. Minimal read-only real dependencies, not `makeRealDeps()`. T10, T19, T20 in full; the E3J5 halves of T11 and T12 (§11.1). `fake-proton-drive.mjs` gained an additive `sequence` / `notFoundForQueriedBasename` mode. **56 new tests + 3 naming tests; full suite 413/413.** No retry (T18 deferred), no lock, no entrypoint, no readback, no attestation | no |
-| **E3J6** | **[E3J6A DONE 2026-09-16 (committed, `70abb63`); E3J6B DONE 2026-09-17 — readback, independent verdict, and the durable intent/attestation records, see the correction entry at the top; E3J6C (entrypoint, lock, retry) remains.]** **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T17, the E3J6 halves of T8, T11, and T12, and — once the writer exists — bounded retry (T18). Consumes the E3J5 evidence outcome and derives its verdict independently. The first executable entrypoint, wherever it lands, owns `run.lockFile`, with a lock spanning upload, readback, and attestation | no |
+| **E3J6** | **[E3J6A DONE 2026-09-16 (committed, `70abb63`); E3J6B DONE 2026-09-17 — readback, independent verdict, and the durable intent/attestation records, see the correction entry at the top; E3J6C DONE 2026-09-19 (working tree on `bbcff5b`) — the run lock, collision-only bounded retry (T18), private signal ownership, and the executable entrypoint; see the E3J6C correction entry at the top and §4.7.]** **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T17, the E3J6 halves of T8, T11, and T12, and — once the writer exists — bounded retry (T18). Consumes the E3J5 evidence outcome and derives its verdict independently. The first executable entrypoint, wherever it lands, owns `run.lockFile`, with a lock spanning upload, readback, and attestation | no |
 | **E3J7** | **Freshness export and evaluation.** The attestation reader, `validateCloudAttestationBinding()`, the freshness number, the minimal exported health signal, plus T21 | no |
 | **E3J8** | **Independent alerting.** Watcher host, channel, and a received test notification. Until this closes, nothing is monitored | yes — operator decision D1, **U15** |
 | **E3J9** | **Credential mechanism.** A service-compatible credential-access design for Hotel-Echo, closing U1's remainder | yes — separate authorization |
