@@ -40,6 +40,10 @@ import {
 } from './backup-cloud-cli.mjs'
 import * as production from './backup-cloud-upload.mjs'
 import {
+  CLOUD_ATTEMPT_BOUNDARY_CODES,
+  CLOUD_ATTEMPT_CODES_BY_STAGE,
+} from './backup-cloud-attestation-records.mjs'
+import {
   CLOUD_UPLOAD_BOUNDARY_RESULTS,
   CLOUD_UPLOAD_NAMESPACE_STATES,
   CLOUD_UPLOAD_OUTCOME_CODES,
@@ -1414,14 +1418,36 @@ test('E3J5: no ops/** module other than backup-cloud-upload.mjs and this suite i
   assert.deepEqual(offenders, [])
 })
 
+test('E3J6B parity: the attempt-record vocabularies cover every upload code, step-local refusal, and boundary code', () => {
+  // The record schema restates E3J4_PRE_SPAWN_CODES (it may not import this
+  // core); a drift here would make a genuine outcome unrecordable.
+  for (const code of [...CLOUD_CLI_ERROR_CODES, ...E3J4_PRE_SPAWN_CODES]) {
+    assert.ok(CLOUD_ATTEMPT_BOUNDARY_CODES.includes(code), code)
+  }
+  assert.equal(
+    CLOUD_ATTEMPT_BOUNDARY_CODES.length,
+    new Set([...CLOUD_CLI_ERROR_CODES, ...E3J4_PRE_SPAWN_CODES]).size,
+  )
+  for (const code of CLOUD_UPLOAD_OUTCOME_CODES) {
+    assert.ok(CLOUD_ATTEMPT_CODES_BY_STAGE.upload.includes(code), code)
+  }
+  for (const code of CLOUD_ATTEMPT_CODES_BY_STAGE.local_refusal) {
+    if (code !== 'internal_invariant_violated')
+      assert.ok(CLOUD_UPLOAD_OUTCOME_CODES.includes(code), code)
+  }
+})
+
 test('production API: the closed export surface', () => {
   // E3J6A: prepareUploadAttempt and executeUploadAttempt added.
+  // E3J6B: discardPreparedUploadAttempt added (the only authorized change to
+  // this expectation — every pre-existing name and behavior is unchanged).
   assert.deepEqual(Object.keys(production).sort(), [
     'CLOUD_UPLOAD_NAMESPACE_STATES',
     'CLOUD_UPLOAD_OUTCOME_CODES',
     'CLOUD_UPLOAD_STATUSES',
     'CLOUD_UPLOAD_STEPS',
     'CLOUD_UPLOAD_TRANSFER_STATES',
+    'discardPreparedUploadAttempt',
     'executeUploadAttempt',
     'prepareUploadAttempt',
     'runUploadAttempt',
@@ -1429,6 +1455,112 @@ test('production API: the closed export surface', () => {
   for (const name of Object.keys(production)) {
     if (typeof production[name] !== 'function') assert.ok(Object.isFrozen(production[name]))
   }
+})
+
+// ── E3J6B: discardPreparedUploadAttempt ─────────────────────────────────────
+
+test('E3J6B: discardPreparedUploadAttempt releases a ready prepared attempt with zero provider calls', () => {
+  const sb = sandbox()
+  const cloud = makeFakeCloud({ nodes: { [NAMESPACE]: { nodeKind: 'folder', state: 'active' } } })
+  const runner = makeRunner(cloud)
+  const prepared = runner.prepareUploadAttempt({ config: configFor(sb), artifactBase: BASE })
+  assert.equal(prepared.disposition, 'ready')
+
+  const ack = runner.discardPreparedUploadAttempt({ prepared })
+  assert.deepEqual(Object.keys(ack).sort(), ['attemptId', 'kind', 'schemaVersion'])
+  assert.equal(ack.kind, 'eanhl.cloud-upload-discard-ack')
+  assert.equal(ack.schemaVersion, 1)
+  assert.equal(ack.attemptId, prepared.attempt.attemptId)
+  assert.throws(() => {
+    ack.attemptId = 'tampered'
+  }, TypeError)
+  assert.equal(cloud.log.length, 0) // no provider call of any kind
+})
+
+test('E3J6B: discardPreparedUploadAttempt and executeUploadAttempt are mutually exclusive', async () => {
+  const sb = sandbox()
+  const cloud = makeFakeCloud({ nodes: { [NAMESPACE]: { nodeKind: 'folder', state: 'active' } } })
+  const runner = makeRunner(cloud)
+
+  const preparedA = runner.prepareUploadAttempt({ config: configFor(sb), artifactBase: BASE })
+  runner.discardPreparedUploadAttempt({ prepared: preparedA })
+  assert.throws(
+    () => runner.discardPreparedUploadAttempt({ prepared: preparedA }),
+    (err) => err instanceof BackupError && err.code === 'cloud_upload_prepared_reused',
+  )
+  await assert.rejects(
+    () => runner.executeUploadAttempt({ prepared: preparedA }),
+    (err) => err instanceof BackupError && err.code === 'cloud_upload_prepared_reused',
+  )
+})
+
+test('E3J6B: a discarded-then-executed ordering fails the same way in reverse', async () => {
+  const sb = sandbox()
+  const cloud = makeFakeCloud({ nodes: { [NAMESPACE]: { nodeKind: 'folder', state: 'active' } } })
+  const runner = makeRunner(cloud)
+
+  const prepared = runner.prepareUploadAttempt({ config: configFor(sb), artifactBase: BASE })
+  const executed = runner.executeUploadAttempt({ prepared })
+  assert.throws(
+    () => runner.discardPreparedUploadAttempt({ prepared }),
+    (err) => err instanceof BackupError && err.code === 'cloud_upload_prepared_reused',
+  )
+  await executed // let the in-flight execution finish before the sandbox is cleaned up
+})
+
+test('E3J6B: a discard issued while an executeUploadAttempt call is still in flight is rejected', async () => {
+  const sb = sandbox()
+  const cloud = makeFakeCloud({ nodes: { [NAMESPACE]: { nodeKind: 'folder', state: 'active' } } })
+  const runner = makeRunner(cloud)
+
+  const prepared = runner.prepareUploadAttempt({ config: configFor(sb), artifactBase: BASE })
+  // executeUploadAttempt() consumes the registry entry SYNCHRONOUSLY before
+  // its first `await` (per the module's own documented invariant), so a
+  // discard issued immediately afterward — even before the returned promise
+  // settles — must already see the entry as consumed.
+  const executePromise = runner.executeUploadAttempt({ prepared })
+  assert.throws(
+    () => runner.discardPreparedUploadAttempt({ prepared }),
+    (err) => err instanceof BackupError && err.code === 'cloud_upload_prepared_reused',
+  )
+  await executePromise
+})
+
+test('E3J6B: discardPreparedUploadAttempt refuses forged, foreign, and reused prepared objects', () => {
+  const sb = sandbox()
+  const cloud = makeFakeCloud()
+  const runner = makeRunner(cloud)
+  const otherRunner = makeRunner(makeFakeCloud())
+
+  assert.throws(
+    () => runner.discardPreparedUploadAttempt({ prepared: Object.freeze({}) }),
+    (err) => err instanceof BackupError && err.code === 'cloud_upload_prepared_invalid',
+  )
+
+  const foreignPrepared = otherRunner.prepareUploadAttempt({
+    config: configFor(sb),
+    artifactBase: BASE,
+  })
+  assert.throws(
+    () => runner.discardPreparedUploadAttempt({ prepared: foreignPrepared }),
+    (err) => err instanceof BackupError && err.code === 'cloud_upload_prepared_invalid',
+  )
+})
+
+test('E3J6B: a refused prepared attempt must be consumed through executeUploadAttempt(), never discarded', async () => {
+  const sb = sandbox({ ciphertext: Buffer.alloc(0) }) // an empty ciphertext refuses at prepare time
+  const cloud = makeFakeCloud()
+  const runner = makeRunner(cloud)
+  const prepared = runner.prepareUploadAttempt({ config: configFor(sb), artifactBase: BASE })
+  assert.equal(prepared.disposition, 'refused')
+
+  assert.throws(
+    () => runner.discardPreparedUploadAttempt({ prepared }),
+    (err) => err instanceof BackupError && err.code === 'cloud_upload_prepared_reused',
+  )
+  const outcome = await runner.executeUploadAttempt({ prepared })
+  assert.equal(outcome.status, 'rejected')
+  assert.equal(cloud.log.length, 0)
 })
 
 // ═════════════════════════════════════════════════════════════════════════════

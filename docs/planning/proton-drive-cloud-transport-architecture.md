@@ -410,7 +410,113 @@ fail against the pre-correction code (6 failures) before the fix. Deliberately u
 set (10 → 11), download tests moved to the contained route, the E3J5 outcome
 key set and version (v1 → v2), `REAL_UPLOAD_DEPS` gaining `evidence`, the
 upload export set, config fixtures gaining `rlimitWrapper`, and the CLI core's
-importer allowlist. Session detail: `docs/journal/2026-09.md`.
+importer allowlist. Session detail: `docs/journal/2026-09.md`; further
+corrected by **E3J6B** (2026-09-17, the second of three E3J6 substeps) — the
+readback, the independent verdict, and the durable intent/attestation records
+now exist, split across four audit boundaries with no lock, retry, or
+entrypoint (all E3J6C):
+
+(1) **§9 is REPLACED IN PLACE** with the schemas the code actually writes
+(`schema_version: 1` for both records — the prior §9 was an E3J1 illustration
+that was never implemented). Seven of its fields are gone, each for a stated
+reason (§9.4): `source_host`, the provider-claimed observations, an observed
+CLI hash the boundary never exposes, the `--version`-derived fields,
+`completion_failures`, `timings_ms`, and `written_at`.
+
+(2) **Two opaque, factory-scoped session capabilities.** A `RecordSession`
+binds `attestation.dir`'s `dev`/`ino`/`uid`/`mode` AND the exact
+`artifactBase`/`attemptId` once, and authorizes BOTH record writes, revalidating
+the directory before every creation, before the directory fsync (by `fstat` on
+the descriptor, before the fsync, not after), before every readback, and as
+each operation's final step. A `ReadbackSession` binds `readback.dir` once and
+carries capacity, workspace/role identities, the expected filenames, the
+downloaded files' identities, and the termination flag as PRIVATE state:
+`cleanupAttemptWorkspace({session})` takes nothing else, so no caller can
+forge an inode or claim termination was confirmed.
+
+(3) **Every attempt identity is consumed exactly once.** A locally refused
+preparation is consumed through `executeUploadAttempt()` (zero provider calls
+by construction); a ready one blocked by a trust, intent, proof, capacity, or
+workspace failure is released by the new
+`discardPreparedUploadAttempt()` — synchronous, no clock dependency, mutually
+exclusive with execute through the same registry-entry flip.
+
+(4) **`intent_record` is a cryptographic binding.** The attestation's
+`intent_record.sha256`/`bytes` come from re-opening and revalidating the exact
+intent bytes under the same session immediately before the payload is built;
+a lost, changed, or never-confirmed intent forces `indeterminate` and lock
+retention, and can never be supplied by a caller.
+
+(5) **Readback is manifest → checksum → ciphertext**, one contained download
+per role into its own authenticated directory, each role independently
+re-hashed through a no-follow descriptor and compared against `sourceEvidence`
+BEFORE its bytes are parsed. `verifyArtifactCompletion()` runs only after all
+three match, through a bounded in-memory adapter with zero extra filesystem
+I/O; because the bytes are by then proven identical to an already-complete
+source, a completion failure is an internal contradiction
+(`completion_adapter_internal_contradiction`, indeterminate), never a
+conclusive artifact rejection. `credential_unavailable` and
+`download_size_mismatch` at readback are indeterminate;
+`remote_object_absent` and an independently measured role hash/size mismatch
+are rejections.
+
+(6) **Capacity fails closed with BigInt arithmetic** over
+available-to-unprivileged blocks, distinguishing `capacity_unprovable` from
+`capacity_insufficient`; a configured `backingVolume` must lexically contain
+`readback.dir` AND share its device, or the whole check is unprovable — it is
+never silently ignored.
+
+**101 new tests (naming 4, upload 6, records 23, readback 27, verdict 19,
+attempt 22); full suite 596/596, 0 fail, 0 skipped** — [corrected
+2026-09-18: first recorded as "98 new … 593/593", an addition slip; the
+listed parts sum to 101 and 495 + 101 = 596.] Eleven of twelve
+targeted mutations were caught; the twelfth is an equivalent mutant (three
+overlapping symlink guards on the reader — removing all three IS caught).
+Deliberately updated assertion: the upload module's closed export set gains
+`discardPreparedUploadAttempt` (no pre-existing behavioural assertion was
+removed or weakened). E3J6C still owes the lock, retry (T18), signal
+ownership, and the executable entrypoint. Session detail:
+`docs/journal/2026-09.md`.
+
+(7) **E3J6B review corrections (2026-09-18, still uncommitted).** An
+independent review reported 9/4/1 failures in the CLI/upload/attempt files.
+Root cause: that run executed inside the Codex bubblewrap/seccomp sandbox,
+where a Node child writing to a Node-created stdio pipe loses its
+`process.stdout` output; committed `70abb63` (no E3J6B code) fails the SAME
+9 CLI and 4 upload tests there, and 23/31 lifecycle tests. It is an
+environment limitation, not a regression; no existing test or fake was
+changed for it, and outside that sandbox every file passes. The review's
+design findings were corrected in place: (a) both session registries are
+created INSIDE their factory — a session from another instance, however
+identical, is `record_session_invalid`; (b) the readback session SEALS its
+operational authority at `establishReadbackSession({config, artifactBase,
+attemptId, sourceEvidence})` — CLI and hash pin, credential backend,
+timeouts, the three canonical remote paths (derived via
+`buildPublishedObjectPaths()`), and a validated private copy of the source
+evidence within the role ceilings; `readBackAttemptTriple({session, signal})`
+reads nothing else (this does not close E3J4's executable TOCTOU or add
+containment beyond E3J6A); (c) `runAttestedAttempt()` is total after
+`prepare`: classified errors keep their stage's closed code, anything else is
+`internal`/`internal_invariant_violated` with no message, stack, or path, an
+exception while a child may be alive records termination `unconfirmed`, and
+the prepared object is consumed exactly once on every path; (d) workspace and
+role directories are tracked the moment each is authenticated, so a partial
+setup failure is attested first and then cleaned exactly — an object created
+but not authenticated, or a replacement, is never deleted; (e) the report is
+copied from the EFFECTIVE attestation `writeAttemptAttestation()` returns and
+never claims `verified` without one; (f) intent failures keep their closed
+codes (`cloud_intent_create_failed`, `…_durability_unconfirmed`,
+`…_schema_invalid`, `attestation_dir_untrusted`; a later loss is
+`intent_record_lost`); (g) §9.3's closed vocabularies and cross-field
+invariants are now enforced by membership, and `future_lock_advice` is
+derived; (h) an intent re-read whose close fails or whose directory changes
+is not confirmed, readers sanitize every descriptor failure and re-verify the
+directory after reading, and cleanup re-observes a downloaded file's complete
+identity (regular, non-symlink, dev/ino, owner, mode, size) before unlinking;
+(i) an upload child with unconfirmed termination now stops the attempt before
+readback. The report gains `role` and `termination`; `CLOUD_ATTEMPT_STAGES`
+gains the report-only `attestation` stage. **142 E3J6B tests; full suite
+637/637, 0 fail, 0 skipped**, stable over five runs of the subprocess files.
 **Status:**
 **DESIGN AND ANALYSIS FOR CLOUD TRANSPORT AND ATTESTATION — NOT ACTIVATED.**
 The **E3J2** shared artifact-contract extraction (§1.3, §12, §13), the
@@ -1584,140 +1690,235 @@ one or more objects do not.
 
 ---
 
-## 9. The cloud-attestation schema
+## 9. The intent and attestation schemas — AS IMPLEMENTED (E3J6B)
 
-Append-only, one file per attempt (§4.2), written `O_CREAT|O_EXCL` with mode
-`0600`, then read back and compared before being treated as written — the
-read-back-and-confirm pattern `writeFileVerified()` already uses
-(`backup-acceptance.mjs:755-770`). Its schema version is its **own** constant
-(proposed `CLOUD_ATTESTATION_SCHEMA_VERSION`), independent of
-`MANIFEST_SCHEMA_VERSION` and `RECEIPT_SCHEMA_VERSION`
-(`backup-acceptance-config.mjs:47`).
+**[REPLACED IN PLACE BY E3J6B, 2026-09-17.]** Everything this section said
+before was an ILLUSTRATION drafted at E3J1, when no writer existed; it was
+never implemented, and several of its fields turned out to be unsafe or
+unobtainable (see the corrections listed below). The schemas below are the
+ones the code actually writes and validates, in
+`ops/backup/lib/internal/backup-cloud-attestation-records-core.mjs`. There is
+no other authoritative copy.
+
+Two records per attempt, both under the operator-configured
+`attestation.dir`, both written once with `O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW`
+mode `0600`, never rewritten, never deleted by the uploader:
+
+```
+<base>.<attemptId>.cloud-attempt-intent.json     written BEFORE any provider call
+<base>.<attemptId>.cloud-attestation.json        written AFTER the verdict is derived
+```
+
+Both filenames come from `backup-cloud-naming.mjs`
+(`buildCloudAttemptIntentFileName()`, `buildAttestationFileName()`), never
+from ad-hoc string construction. Each record's serialized form is bounded at
+**16 KiB** — a security/resource ceiling chosen by E3J6B, **not** a U12/U13
+production measurement.
+
+### 9.1 Intent — `kind: "eanhl.cloud-attempt-intent"`, `schema_version: 1`
+
+Every attempt that has an identity gets one, including a local refusal, and it
+is durable before the first provider boundary call.
+
+```jsonc
+{
+  "kind": "eanhl.cloud-attempt-intent",
+  "schema_version": 1,
+  "attempt_id": "<YYYYMMDDTHHMMSSZ>-<8 hex>",
+  "cloud_run_id": "<YYYYMMDDTHHMMSSZ>-<8 hex>",
+  "sequence": 0,
+  "started_at": "<ISO-8601 UTC>",          // REQUIRED, never null
+  "artifact": { "base": "...", "ciphertext": "...", "checksum": "...", "manifest": "..." },
+  "source": {
+    "evidence": "captured" | "unavailable",
+    "snapshot_ts": "<ISO-8601 UTC>" | null,
+    "run_id": "<producer run_id>" | null,
+    "ciphertext": { "sha256": "<64 hex>", "bytes": 0 } | null,
+    "checksum":   { "sha256": "<64 hex>", "bytes": 0 } | null,
+    "manifest":   { "sha256": "<64 hex>", "bytes": 0 } | null
+  },
+  "remote": { "root", "namespace", "ciphertext_path", "checksum_path", "manifest_path" },
+  "local":  { "source_dir", "ciphertext_path", "checksum_path", "manifest_path" },
+  "cli": { "executable": "...", "expected_sha512": "<128 hex>" },
+  "containment": {
+    "mechanism": "rlimit_fsize" | "quota_mount",
+    "wrapper_executable": "..." | null,
+    "wrapper_expected_sha512": "<128 hex>" | null,
+    "ceilings": { "ciphertext": 0, "checksum": 0, "manifest": 0 }
+  },
+  "workspace": { "planned_path": "<readback.dir>/<base>.<attempt_id>" },
+  "refusal": { "step": "...", "code": "..." } | null
+}
+```
+
+Invariants the validator enforces: `source.evidence === "captured"` **iff**
+`refusal === null` **iff** all five `source.*` fields are non-null (and the
+reverse for `"unavailable"`); `containment.mechanism === "rlimit_fsize"`
+**iff** both wrapper fields are non-null; exact key sets at every level.
+`refusal` reflects only a PREPARATION-local refusal — a ready attempt that is
+later discarded (proof, capacity, or workspace failure) leaves it `null`, and
+that failure is recorded only in the attestation. The intent is never
+retrofitted.
+
+### 9.2 Attestation — `kind: "eanhl.cloud-attestation"`, `schema_version: 1`
 
 ```jsonc
 {
   "kind": "eanhl.cloud-attestation",
   "schema_version": 1,
+  "attempt_id": "...", "cloud_run_id": "...", "sequence": 0,
+  "started_at": "<ISO-8601 UTC>",                       // REQUIRED
+  "finished_at": "<ISO-8601 UTC>" | null,
+  "finish_time_state": "captured" | "unavailable",      // null finished_at IFF "unavailable"
+  "artifact": { "base", "ciphertext", "checksum", "manifest" },
+  "source_snapshot_ts": "<ISO-8601 UTC>" | null,
+  "source_run_id": "..." | null,
+  "remote": { "root", "namespace", "ciphertext_path", "checksum_path", "manifest_path" },
 
-  // ── source artifact identity ────────────────────────────────────────────
-  "artifact": {
-    "base": "<prefix>-<stamp>",
-    "ciphertext": "<base>.dump.age",
-    "checksum": "<base>.dump.age.sha256",
-    "manifest": "<base>.manifest.json"
+  "verdict": "verified" | "rejected" | "indeterminate",
+  "stage": "local_refusal" | "intent" | "containment_proof" | "capacity" | "workspace"
+          | "upload" | "readback" | "completion" | "internal" | null,
+  "code": "<closed code>" | null,
+  "role": "manifest" | "checksum" | "ciphertext" | null,
+
+  "containment": "not_checked" | "valid" | "invalid",
+  "upload_transfer_state": "definitely_zero" | "unknown",
+  "upload_outcome": {
+    "code": "<CLOUD_UPLOAD_OUTCOME_CODES value>" | null,
+    "failed_step": "<CLOUD_UPLOAD_STEPS value>" | null,
+    "boundary_code": "<CLOUD_CLI_ERROR_CODES value>" | null
   },
-  "source_snapshot_ts": "2026-09-04T18:00:07Z",   // from the producer manifest
-  "source_run_id": "<producer run_id>",
-  "source_host": "<producer manifest source.host>",
+  "termination": "confirmed" | "unconfirmed" | "not_applicable",
 
-  // ── this attempt ────────────────────────────────────────────────────────
-  "attempt_id": "<UTC compact>-<8 hex>",
-  "attempt_started_at": "<ISO-8601 UTC>",
-  "attempt_finished_at": "<ISO-8601 UTC>",
-
-  // ── the verdict: exactly these three values, no others ──────────────────
-  "verdict": "verified | rejected | indeterminate",
-
-  // ── the exact remote paths this attempt used (locally constructed) ──────
-  "remote": {
-    "root": "<configured remoteRoot>",
-    "namespace": "<remoteRoot>/<base>.<attempt_id>",
-    "ciphertext_path": "<namespace>/<base>.dump.age",
-    "checksum_path": "<namespace>/<base>.dump.age.sha256",
-    "manifest_path": "<namespace>/<base>.manifest.json"
-  },
-
-  // ── what the uploader computed itself, from the readback ────────────────
-  "local_recompute": {
-    "ciphertext": { "sha256": "<64 hex>", "bytes": 0 },
-    "checksum":   { "sha256": "<64 hex>", "bytes": 0 },
-    "manifest":   { "sha256": "<64 hex>", "bytes": 0 }
+  "intent_record": {
+    "state": "confirmed" | "not_confirmed",
+    "filename": "..." | null, "sha256": "<64 hex>" | null, "bytes": 0 | null
   },
 
-  // ── binding result ──────────────────────────────────────────────────────
-  "binding": {
-    "completion_ok": true,
-    "completion_failures": [],          // repository-authored text only
-    "matches_source_ciphertext_sha256": true,
-    "manifest_identity_ok": true
-  },
-
-  // ── untrusted provider observations — recorded, never decisive ──────────
-  "provider_observations": {
-    "trusted": false,
+  "readback": {
+    "performed": true | false,
     "ciphertext": {
-      "node_uid": "…", "active_revision_uid": "…", "state": "active",
-      "claimed_size_bytes": 0, "claimed_sha1": null, "sha1_verified": false
+      "attempted": true | false,
+      "observed": "not_observed" | "absent" | "active_file" | "other",
+      "boundary_code": "<closed code>" | null,
+      "termination": "confirmed" | "unconfirmed" | "not_applicable",
+      "bytes": 0 | null, "sha256": "<64 hex>" | null, "matches_source": true | false | null
     },
-    "checksum": { "…same allowlisted shape…" },
-    "manifest": { "…same allowlisted shape…" }
+    "checksum": { …same shape… },
+    "manifest": { …same shape… }
   },
 
-  // ── CLI identity evidence ───────────────────────────────────────────────
-  "cli": {
-    "executable": "/absolute/path",
-    "expected_sha512": "<128 hex, from config>",
-    "observed_sha512": "<128 hex, computed locally this run>",
-    "version": "cli-drive@0.8.0+…",
-    "version_evidence": "from_deployment_record | isolated_network_namespace | unisolated"
+  "completion": { "checked": true | false, "ok": true | false | null },
+  "cli": { "executable": "...", "expected_sha512": "<128 hex>" },
+  "cleanup_policy": {
+    "disposition": "after_attestation" | "withheld_termination_unconfirmed" | "not_applicable",
+    "workspace_path": "..." | null
   },
-
-  // ── timings ─────────────────────────────────────────────────────────────
-  "timings_ms": {
-    "preflight": 0, "create_folder": 0,
-    "upload_ciphertext": 0, "upload_checksum": 0, "upload_manifest": 0,
-    "readback": 0, "verify": 0, "total": 0
-  },
-
-  // ── sanitized structured failure info ───────────────────────────────────
-  "failure": {
-    "stage": "preflight | create_folder | upload | readback | verify | null",
-    "code": "<closed enum>",
-    "transfer_state": "definitely_zero | unknown"
-  }
+  "future_lock_advice": "release" | "retain_attestation_unconfirmed"
+                      | "retain_termination_unconfirmed" | "retain_internal_error"
 }
 ```
 
-Notes on specific fields:
+### 9.3 What the fields mean, and the invariants the validator enforces
 
-- **[E3J5] The upload attempt's in-memory outcome is an INPUT to this record,
-  not this record.** `runUploadAttempt()` returns a frozen evidence object —
-  artifact and attempt identities, every intended remote path, each boundary
-  call made (`boundaryCalls`), `furthestUploadSuccessReportedRole`, a closed
-  status/code, `transferState` (`definitely_zero` or `unknown` only),
-  `namespaceState` (`no_namespace_write_evidence`, `active_folder_confirmed`,
-  or `unknown`), and `verification: 'not_performed'` with no verdict. E3J6
-  consumes it, performs readback, and derives `verdict` independently; it must
-  never copy a status into `verdict`.
-- **`verdict` has exactly three values.** No `partial`, no `pending`, no
-  `warning`. Anything that is not a proven success or a proven refusal is
-  `indeterminate`.
-- **`provider_observations` is nested under an explicit `"trusted": false`
-  marker** so that a reader — human or program — cannot mistake it for evidence.
-  Its fields are precisely the allowlist of §2.3 and nothing else. It exists
-  because the observations are useful for later diagnosis (for example, whether
-  a revision uid ever changed under a path that should never have been
-  rewritten), not because they support the verdict.
-- ~~**`completion_failures` carries repository-authored strings**~~
-  **[CORRECTED BY E3J6A]** That claim is false and the field must not exist.
-  `verifyArtifactCompletion()` interpolates values read from the manifest
-  (`JSON.stringify(manifest?.artifact)`, the sidecar filename) and native error
-  messages into `failures`, and Node 22's `JSON.parse` error quotes an excerpt
-  of its input. E3J5/E3J6A read only the `complete` boolean; the attestation
-  (E3J6B) must use closed codes and booleans only.
-- **[E3J6A → E3J6B]** Every attempt with an identity, including a local
-  refusal, must eventually have an intent record, so partial or failed
-  attestations reconcile uniformly. An attestation may record cleanup
-  policy/disposition, never that cleanup succeeded: cleanup happens only after
-  the attestation is durable.
-- **`cli.version_evidence` is mandatory** and makes §6.2's distinction
-  machine-readable.
+- **`verdict` has exactly three values.** `verified` requires ALL of: a
+  confirmed `intent_record`; `containment: "valid"`; `termination:
+  "confirmed"`; `readback.performed`; every role `observed: "active_file"`
+  with non-null `bytes`/`sha256` and `matches_source: true`; and
+  `completion.ok === true`. It is derived independently — never by copying
+  the upload outcome's own `status` (`backup-cloud-attempt-verdict.mjs`
+  re-derives the classification from `code` and cross-checks it against
+  `status`; a disagreement is `internal_invariant_violated`/indeterminate).
+- **`intent_record` is a cryptographic binding, not a pointer.** Its
+  `sha256`/`bytes` are the hash and length of the intent file's own serialized
+  bytes, measured by the record session that wrote them and REVALIDATED —
+  identity and bytes re-read under the same session — immediately before the
+  attestation payload is built. A caller cannot supply it. If the intent is
+  gone, changed, or was never confirmed, the state is `not_confirmed`, a
+  `verified` verdict is forced to `indeterminate`
+  (`code: "intent_record_lost"`), and the lock advice retains.
+- **`upload_outcome` records both layers.** `code` is the upload attempt's own
+  outcome code; `boundary_code` is the last boundary call's
+  `CLOUD_CLI_ERROR_CODES` value, which is the ONLY place a specific reason
+  such as `name_conflict`, `credential_unavailable`, or
+  `provider_termination_unconfirmed` survives — `codeForNonSuccess()` collapses
+  every boundary rejection into four generic buckets before it reaches
+  `outcome.code`. Both are closed vocabularies.
+- **`termination` is conservative**: `unconfirmed` if ANY invoked child
+  (upload boundary call or readback download) reported
+  `provider_termination_unconfirmed`, scanned from `boundaryCalls` rather than
+  inferred from a status.
+- **`containment` is a closed state, not a boolean.** `not_checked` for a
+  local refusal or an intent failure (the proof is never reached),
+  `invalid` for a rejected proof, `valid` from the capacity stage onward.
+  `attestation_dir_trust` is deliberately NOT a writable `stage` value: if
+  that directory cannot be trusted, no attestation can be written at all, and
+  the failure appears only in the in-memory report.
+- **`cleanup_policy` is policy, never success.** The attestation is durable
+  BEFORE cleanup begins, so it can only say what will be attempted. The actual
+  cleanup result is in the returned report.
+- **`future_lock_advice` is derived, never supplied.** The record session
+  computes it from the written fields, most conservative first: intent not
+  confirmed → `retain_attestation_unconfirmed`; else termination
+  `unconfirmed` → `retain_termination_unconfirmed`; else
+  `internal_invariant_violated` → `retain_internal_error`; else `release`.
+  The returned report's `lockAction` is authoritative for E3J6C and equals
+  this advice, except that it may only ESCALATE: to
+  `retain_attestation_unconfirmed` when no attestation could be written, or
+  to `retain_internal_error` when post-attestation cleanup failed
+  unexpectedly.
+- **The report is the durable record.** `writeAttemptAttestation()` returns
+  the effective record exactly as written; the report's verdict, stage,
+  code, role, and termination are copied from it. With no durable
+  attestation a `verified` proposal is reported as `indeterminate`, stage
+  `attestation` (report-only, like `attestation_dir_trust`), with the closed
+  attestation-failure code.
+- **Every finite field is a closed vocabulary, checked by membership.**
+  `code` must be in its stage's set (`CLOUD_ATTEMPT_CODES_BY_STAGE`, exported
+  from `backup-cloud-attestation-records.mjs`), and the code decides the
+  verdict: only `CLOUD_ATTEMPT_REJECTED_CODES` may be `rejected`, so a
+  cancellation, timeout, or ambiguous transfer is never a definite rejection.
+  `upload_outcome.code`/`failed_step`, every `boundary_code`, and every enum
+  are membership-checked too.
+- **Cross-field invariants.** `finish_time_state: "unavailable"` iff
+  `code: "clock_unusable"`; a rejection at the upload/local-refusal stage
+  requires `upload_transfer_state: "definitely_zero"`, and no rejection may
+  carry termination `unconfirmed`; `cleanup_policy.disposition` is
+  `withheld_termination_unconfirmed` iff termination is `unconfirmed`, its
+  `workspace_path` is null iff `not_applicable`, and a workspace-or-later
+  stage may not be `not_applicable`; `role` is set iff stage is `readback`
+  and equals the role the readback stopped at; readback roles run in order,
+  nothing after the stop is attempted, `completion.checked` iff every role
+  matched, and bytes/sha256/matches_source are set together; stage
+  `local_refusal`/`upload` codes equal `upload_outcome.code`, and pre-upload
+  stages carry no upload evidence; `remote` must be the canonical attempt
+  paths and `artifact` names must derive from `artifact.base`.
 
-**What must NEVER appear, in any field, at any nesting depth:** secrets, tokens,
-session material, credentials, passwords, passphrases, cookies, recovery
-material, account identifiers or e-mail addresses, authentication URLs, raw CLI
-stdout or stderr, raw provider JSON, and any provider-authored free text. A
-recursive assertion enforcing this is a required test (§11, T8).
+### 9.4 Fields the E3J1 illustration had, and why they are gone
+
+- ~~`source_host`~~ — the uploader has no trustworthy source for it.
+- ~~`provider_observations` (`node_uid`, `active_revision_uid`,
+  `claimed_size_bytes`, `claimed_sha1`, `sha1_verified`)~~ — provider-claimed
+  metadata is never persisted; only closed LOCAL classifications
+  (`not_observed`/`absent`/`active_file`/`other`) are.
+- ~~`cli.observed_sha512`~~ — the boundary does not expose the hash it
+  computed, so nothing could honestly fill it.
+- ~~`cli.version` / `cli.version_evidence`~~ — obtaining a version means
+  invoking `--version`, which §6 forbids on the hot path.
+- ~~`binding.completion_failures`~~ — corrected at E3J6A: that array carries
+  interpolated manifest/parser text. Only the `complete` boolean is read.
+- ~~`timings_ms`~~ — dropped as unused surface; `started_at`/`finished_at`
+  bound the attempt.
+- ~~`written_at`~~ — dropped at E3J6B: an attestation written to record a
+  clock failure must not itself require another successful clock read.
+
+**What must NEVER appear, in any field, at any nesting depth:** secrets,
+tokens, session material, credentials, passwords, passphrases, cookies,
+recovery material, account identifiers or e-mail addresses, authentication
+URLs, raw CLI stdout or stderr, raw provider JSON, and any provider-authored
+free text. A recursive assertion enforcing this is a required test (§11, T8) —
+closed by E3J6B for the written records.
+
 
 ---
 
@@ -2000,9 +2201,21 @@ probes; exact-C clean success; conservative exact-C non-clean handling);
 unforgeable proofs; one-shot preparation under concurrency; source evidence
 captured before any boundary call; inclusive ceilings; closed identity
 outcomes; and no leakage of injected markers, native text, or provider text
-from those boundaries. **E3J6B still owes** T13, T15-T17, the written
-attestation halves of T8/T11/T12, and the readback half of T14; **E3J6C** owes
-T18 and the lock.
+from those boundaries.
+
+**[E3J6B, 2026-09-17]** T13, T15, T16, T17, the readback half of T14, and the
+written-attestation halves of T8, T11, and T12 are now CLOSED
+(`backup-cloud-attestation-records.test.mjs`, `backup-cloud-readback.test.mjs`,
+`backup-cloud-attempt-verdict.test.mjs`, `backup-cloud-attempt.test.mjs`).
+T15's premise is corrected in passing: once every downloaded role must
+hash-match a source that already passed `verifyArtifactCompletion()`, a
+completion-rule break cannot be driven through a full attempt while also
+satisfying source-hash equality, so it is tested where it is actually
+reachable — corrupted or substituted bytes stopped by the role comparison
+before any parse, the in-memory completion adapter exercised directly with
+synthetic inputs, and an injected faulty adapter after matching evidence
+producing `completion_adapter_internal_contradiction`. **E3J6C** owes T18 and
+the lock.
 
 ### 11.2 What a fake CLI proves, and what it cannot
 
@@ -2042,7 +2255,7 @@ sessions need no provider, no host, and no credential.
 | **E3J3** | **Naming, remote paths, and the cloud config surface.** **DONE (2026-09-13), corrected same-day by E3J3B after independent review.** `publishedTripleNames()`/`ARTIFACT_PREFIX_PATTERN` (§1.3); new `backup-cloud-naming.mjs` (safe remote-component validation, canonical-remote-root validation, `assertValidArtifactBase()` identity-shape validation, self-validating `attemptId` construction, the attempt namespace, the three published object paths, the attestation filename — §4, §8.1); new `backup-cloud-config.mjs` (fail-closed cloud config validator/loader with LEXICAL canonical-path enforcement before containment comparison, a generic secret-key rejection message, a frozen `backingVolume` result, `verifyCliHashPin()`) and `eanhl-backup-cloud.example.json` (§10); T1, T2, the E3J3 portion of T22 (corrected above), and T23 — **56 new tests over the 179-test baseline (5 artifact-contract + 19 naming + 32 config), full suite 235/235, 0 fail.** No Proton CLI argv, subprocess, upload, download, or attestation writer — those remain E3J4 onward | no |
 | **E3J4** | **Subprocess boundary and the fake CLI.** **DONE (2026-09-14), corrected same-day by E3J4A, then E3J4B, then E3J4C, each after its own independent security review pass.** `backup-cloud-cli.mjs` now: constructs argv for the four operations (§8.3) with option-injection-safe operand validation and generic (non-echoing) rejection errors; runs the hash gate closing T22 (§11.1) strictly before argv/spawn, with no injectable builder anywhere in the module; spawns with `shell:false` explicit and a POSITIVE environment allowlist (not a copy-and-strip); classifies credential-unavailable/not-found/name-conflict text with EXACT anchors bound to the actual queried path or uploaded file identity (never a substring match, never accepted on an unrelated identity); treats a capture-stream failure the same as a timeout/overflow (`provider_stream_failed`); validates timeouts as positive safe integers with the grace-below-timeout coherence rule; validates download's local evidence defensively; and returns only frozen results from a closed `CLOUD_CLI_ERROR_CODES` enum, through a closed ten-name export surface. **E3J4C** then moved the boundary logic to `internal/backup-cloud-cli-core.mjs` so the production operations accept NO dependency override at all (the remaining `deps` seam), made upload cross-check the provider byte count against caller-supplied `expectedLocalSizeBytes` and stop promoting `skippedItems: 1` to success, bound download's local evidence to the exact immediate child of `localDir` named by the queried remote basename with a pre-spawn non-symlink-following absence check and a regular-file-only readback, switched every provider-derived byte count to `Number.isSafeInteger`, and made `validateLocalStat()` observe `isFile()` and `size` exactly once each inside their own `try`. New `testdoubles/fake-proton-drive.mjs` (disposable local double; its own exit-before-drain race, fixed in E3J4A, re-verified stable across 10 consecutive runs in E3J4B; records environment KEY NAMES only, never values) and `backup-cloud-cli.test.mjs` — **119 tests total (44 E3J4 + 31 E3J4A + 18 E3J4B + 26 E3J4C), full suite 354/354**. Independent review first reproduced the E3J4 session's own claimed 44/44 as 41/44, then — after E3J4A's fix — found ten further boundary-logic defects, then seven more in E3J4C (see the correction entries at the top of this memo for the itemized lists). No orchestration (attempt workflow, collision preflight, ordered triple upload, retry, lock ownership — E3J5) or readback containment/attestation (E3J6) | no |
 | **E3J5** | **Uploader orchestration.** **DONE (2026-09-16).** New `backup-cloud-upload.mjs` (thin production API, one export `runUploadAttempt({config, artifactBase, signal})` plus five frozen vocabularies) over `internal/backup-cloud-upload-core.mjs` (internal test seam, static importer regression). One explicit artifact base, no scanning; local triple validated (non-empty regular files via `lstat`, safe-integer sizes, `verifyArtifactCompletion()` with its text discarded, identity re-observed around every upload); flat layout (§4.2, §8.1) and the rewritten §8.2 order; uploads stop at the first non-success; a frozen evidence outcome with no verdict. Minimal read-only real dependencies, not `makeRealDeps()`. T10, T19, T20 in full; the E3J5 halves of T11 and T12 (§11.1). `fake-proton-drive.mjs` gained an additive `sequence` / `notFoundForQueriedBasename` mode. **56 new tests + 3 naming tests; full suite 413/413.** No retry (T18 deferred), no lock, no entrypoint, no readback, no attestation | no |
-| **E3J6** | **[E3J6A DONE 2026-09-16, unstaged — see the correction entry at the top; E3J6B (readback, verdict, intent/attestation) and E3J6C (entrypoint, lock, retry) remain.]** **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T17, the E3J6 halves of T8, T11, and T12, and — once the writer exists — bounded retry (T18). Consumes the E3J5 evidence outcome and derives its verdict independently. The first executable entrypoint, wherever it lands, owns `run.lockFile`, with a lock spanning upload, readback, and attestation | no |
+| **E3J6** | **[E3J6A DONE 2026-09-16 (committed, `70abb63`); E3J6B DONE 2026-09-17 — readback, independent verdict, and the durable intent/attestation records, see the correction entry at the top; E3J6C (entrypoint, lock, retry) remains.]** **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T17, the E3J6 halves of T8, T11, and T12, and — once the writer exists — bounded retry (T18). Consumes the E3J5 evidence outcome and derives its verdict independently. The first executable entrypoint, wherever it lands, owns `run.lockFile`, with a lock spanning upload, readback, and attestation | no |
 | **E3J7** | **Freshness export and evaluation.** The attestation reader, `validateCloudAttestationBinding()`, the freshness number, the minimal exported health signal, plus T21 | no |
 | **E3J8** | **Independent alerting.** Watcher host, channel, and a received test notification. Until this closes, nothing is monitored | yes — operator decision D1, **U15** |
 | **E3J9** | **Credential mechanism.** A service-compatible credential-access design for Hotel-Echo, closing U1's remainder | yes — separate authorization |

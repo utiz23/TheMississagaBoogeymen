@@ -1,17 +1,23 @@
 /**
- * TEST DOUBLE — an in-memory, exact-path model of the three E3J4 cloud
- * operations the E3J5 upload attempt calls (`runInfo`, `runCreateFolder`,
- * `runUpload`).
+ * TEST DOUBLE — an in-memory, exact-path model of the four E3J4/E3J6A cloud
+ * operations the upload attempt and E3J6B readback call (`runInfo`,
+ * `runCreateFolder`, `runUpload`, `runContainedDownload`).
  *
  * **This is not Proton and not the Proton Drive CLI.** It spawns nothing,
  * touches no network, and proves nothing about real provider behaviour. It
- * exists so `internal/backup-cloud-upload-core.mjs`'s orchestration — order,
+ * exists so `internal/backup-cloud-upload-core.mjs`'s and
+ * `internal/backup-cloud-readback-core.mjs`'s orchestration — order,
  * stop-after-failure, classification, write-target scope — can be exercised
- * deterministically. Real-spawn coverage of the same sequence goes through
- * `fake-proton-drive.mjs` and the production E3J4 boundary instead.
+ * deterministically. Real-spawn coverage of the same sequences goes through
+ * `fake-proton-drive.mjs` and the production E3J4/E3J6A boundary instead.
  *
- * Every default result is a fresh, frozen object in the exact shape E3J4
- * returns (`kind`, `operation`, and the operation's allowlisted fields).
+ * Every default result is a fresh, frozen object in the exact shape the
+ * boundary returns (`kind`, `operation`, and the operation's allowlisted
+ * fields). `runUpload`'s default success path additionally reads and RETAINS
+ * the uploaded file's bytes on the in-memory tree node (E3J6B addition, purely
+ * additive — no existing field or behaviour changes), so a later
+ * `runContainedDownload` in the SAME fake can write real bytes to a real local
+ * path for readback tests, without a real subprocess.
  *
  * `respond(call)` may return a result to use instead of the default, throw to
  * simulate a boundary throw, or return `undefined` to fall through to the
@@ -20,6 +26,8 @@
  * `{ operation, remotePath | parentPath+name | localFilePath+remoteParentPath+
  * expectedLocalSizeBytes, hadSignal }` per call — never the options object.
  */
+
+import fs from 'node:fs'
 
 export const FAKE_ROOT_UID = 'root~uid'
 
@@ -64,6 +72,16 @@ export function rejectedResult(operation, code) {
 
 export function indeterminateResult(operation, code) {
   return Object.freeze({ kind: 'indeterminate', operation, code, transferState: 'unknown' })
+}
+
+export function downloadSuccess({ localPath, bytesWritten }) {
+  return Object.freeze({
+    kind: 'success',
+    operation: 'download',
+    localPath,
+    bytesWritten,
+    completed: true,
+  })
 }
 
 const basename = (p) => p.slice(p.lastIndexOf('/') + 1)
@@ -134,8 +152,38 @@ export function makeFakeCloud({ root = '/proton/eanhl-backups', nodes = {}, resp
           }
           if (tree.has(target)) return rejectedResult('upload', 'name_conflict')
           uidCounter += 1
-          tree.set(target, { nodeKind: 'file', state: 'active', nodeUid: `file~${uidCounter}` })
+          const content = fs.readFileSync(params.localFilePath)
+          tree.set(target, {
+            nodeKind: 'file',
+            state: 'active',
+            nodeUid: `file~${uidCounter}`,
+            content,
+          })
           return uploadSuccess(params.expectedLocalSizeBytes)
+        },
+      ),
+    runContainedDownload: (params) =>
+      dispatch(
+        'download',
+        params,
+        {
+          remotePath: params.remotePath,
+          localDir: params.localDir,
+          maxFileBytes: params.maxFileBytes,
+        },
+        () => {
+          const node = tree.get(params.remotePath)
+          if (!node || node.nodeKind !== 'file' || node.content === undefined) {
+            return indeterminateResult('download', 'provider_error_unrecognised')
+          }
+          if (node.content.length > params.maxFileBytes) {
+            return indeterminateResult('download', 'download_containment_violated')
+          }
+          fs.writeFileSync(params.expectedLocalPath, node.content, { mode: 0o600 })
+          return downloadSuccess({
+            localPath: params.expectedLocalPath,
+            bytesWritten: node.content.length,
+          })
         },
       ),
   })

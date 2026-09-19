@@ -12,6 +12,9 @@ import test from 'node:test'
 import { BackupError, buildArtifactNames } from './backup-artifact-contract.mjs'
 import {
   ATTEMPT_ID_PATTERN,
+  CLOUD_ATTEMPT_INTENT_SUFFIX,
+  CLOUD_ATTEMPT_RECORD_FILENAME_PATTERN,
+  CLOUD_ATTESTATION_SUFFIX,
   RUN_ID_PATTERN,
   assertSafeRemoteComponent,
   assertValidArtifactBase,
@@ -19,6 +22,7 @@ import {
   buildAttemptFolderName,
   buildAttemptNamespace,
   buildAttestationFileName,
+  buildCloudAttemptIntentFileName,
   buildContainmentCanaryDirName,
   buildPublishedObjectPaths,
   formatAttemptId,
@@ -398,5 +402,62 @@ test('E3J6A: the canary directory name is one safe component derived only from a
       () => buildContainmentCanaryDirName(bad),
       (err) => err instanceof BackupError && err.code === 'run_id_malformed',
     )
+  }
+})
+
+// ── E3J6B: the cloud-attempt-intent filename, and the shared record pattern ──
+
+test('E3J6B: the attempt-scoped intent filename matches <base>.<attemptId>.cloud-attempt-intent.json', () => {
+  const artifactBase = 'eanhl-prod-20260904T180007Z'
+  const attemptId = formatAttemptId(fixedDeps)
+  const name = buildCloudAttemptIntentFileName({ artifactBase, attemptId })
+  assert.equal(name, `${artifactBase}.${attemptId}${CLOUD_ATTEMPT_INTENT_SUFFIX}`)
+  assert.equal(CLOUD_ATTEMPT_INTENT_SUFFIX, '.cloud-attempt-intent.json')
+  assert.equal(CLOUD_ATTESTATION_SUFFIX, '.cloud-attestation.json')
+})
+
+test('E3J6B: intent filename construction validates both inputs before interpolation', () => {
+  const attemptId = formatAttemptId(fixedDeps)
+  assert.throws(() => buildCloudAttemptIntentFileName({ artifactBase: '../escape', attemptId }))
+  assert.throws(() =>
+    buildCloudAttemptIntentFileName({
+      artifactBase: 'eanhl-prod-20260904T180007Z',
+      attemptId: 'not-valid',
+    }),
+  )
+})
+
+test('E3J6B: intent and attestation filenames for the same identity never collide', () => {
+  const artifactBase = 'eanhl-prod-20260904T180007Z'
+  const attemptId = formatAttemptId(fixedDeps)
+  const intentName = buildCloudAttemptIntentFileName({ artifactBase, attemptId })
+  const attestationName = buildAttestationFileName({ artifactBase, attemptId })
+  assert.notEqual(intentName, attestationName)
+  assert.ok(intentName.startsWith(`${artifactBase}.${attemptId}.`))
+  assert.ok(attestationName.startsWith(`${artifactBase}.${attemptId}.`))
+})
+
+test('E3J6B: CLOUD_ATTEMPT_RECORD_FILENAME_PATTERN matches exactly what the builders produce, and nothing else', () => {
+  const artifactBase = 'eanhl-prod-20260904T180007Z'
+  const attemptId = formatAttemptId(fixedDeps)
+  const intentName = buildCloudAttemptIntentFileName({ artifactBase, attemptId })
+  const attestationName = buildAttestationFileName({ artifactBase, attemptId })
+
+  for (const name of [intentName, attestationName]) {
+    const m = CLOUD_ATTEMPT_RECORD_FILENAME_PATTERN.exec(name)
+    assert.ok(m, `expected ${name} to match`)
+    assert.equal(m[1], artifactBase)
+    assert.equal(m[2], attemptId)
+  }
+  assert.equal(CLOUD_ATTEMPT_RECORD_FILENAME_PATTERN.exec(intentName)[3], 'cloud-attempt-intent')
+  assert.equal(CLOUD_ATTEMPT_RECORD_FILENAME_PATTERN.exec(attestationName)[3], 'cloud-attestation')
+
+  for (const bad of [
+    'eanhl-prod-20260904T180007Z.cloud-attempt-intent.json', // no attemptId segment
+    `${artifactBase}.${attemptId}.cloud-attestation.json.bak`,
+    `${artifactBase}.${attemptId}.something-else.json`,
+    `not-a-base.${attemptId}.cloud-attestation.json`,
+  ]) {
+    assert.equal(CLOUD_ATTEMPT_RECORD_FILENAME_PATTERN.test(bad), false, bad)
   }
 })

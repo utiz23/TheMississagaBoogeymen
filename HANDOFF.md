@@ -26,49 +26,53 @@ in the roadmap doc, not here.
 
 ## Latest Verified Checkpoint
 
-**2026-09-16 — E3J6A (first of three E3J6 substeps) is implemented in the
-working tree, unstaged and uncommitted, awaiting review. Baseline: `eea6ace`
-(E3J5, committed and pushed).**
+**2026-09-18 — E3J6B (second of three E3J6 substeps) was implemented and
+review-corrected on baseline `70abb63` (E3J6A, committed and pushed); the
+637/637 verification below is retained.**
 
-E3J6A adds boundary extensions only — no readback workflow, attestation, lock,
-retry, or entrypoint:
+E3J6B adds the readback, the independent verdict, and the two durable records
+— no lock, retry, signal ownership, or entrypoint (all E3J6C). Four audit
+boundaries, each a thin production API over its own internal test seam, with
+session registries private to each factory instance:
 
-- `backup-cloud-cli.mjs`: the uncontained `runDownload` is removed (11
-  exports). `runContainedDownload` hash-gates the CLI, then the pinned
-  `readback.rlimitWrapper`, and runs `prlimit --fsize=C:C --` with C the exact
-  inclusive role ceiling. A killed child counts as ended only when `close`
-  is observed (a known exit status is not enough); otherwise the result is
-  `provider_termination_unconfirmed`.
-- `backup-cloud-containment.mjs`: a fixed-purpose canary. It checks the
-  readback directory's trust itself, uses an empty environment, and requires
-  a probe of exactly L, confirmed termination, and identity-checked cleanup.
-  Proofs are unforgeable and bound to the config and the directory's identity.
-  `quota_mount` is refused at runtime, as are configs that can't be canaried
-  (an unrepresentable overshoot, or a path argv refuses): a closed refusal
-  with nothing created.
-- `backup-cloud-upload.mjs`: one-shot `prepareUploadAttempt` /
-  `executeUploadAttempt`. No-follow descriptor SHA-256 and byte evidence is
-  captured for all three roles before any boundary call. Identity outcomes are
-  closed, and the outcome is v2.
+- `backup-cloud-attestation-records.mjs` — a `RecordSession` binds
+  `attestation.dir` identity + `artifactBase`/`attemptId` and authorizes both
+  `O_CREAT|O_EXCL|O_NOFOLLOW` 0600 records (intent before any provider call,
+  then the attestation). Closed per-stage code vocabularies and cross-field
+  invariants are enforced by membership; lock advice is derived; the writer
+  returns the effective record it wrote.
+- `backup-cloud-readback.mjs` — `establishReadbackSession({config,
+artifactBase, attemptId, sourceEvidence})` SEALS the CLI, credentials,
+  timeouts, canonical remote paths, and validated source evidence;
+  `readBackAttemptTriple({session, signal})` reads nothing else. Workspace
+  objects are tracked as each is authenticated; cleanup is exact and
+  non-recursive and re-observes each file's full identity before unlink.
+- `backup-cloud-attempt-verdict.mjs` — pure, independent re-derivation.
+- `backup-cloud-attempt.mjs` — `runAttestedAttempt()` is total after
+  `prepare`: exactly-once consumption, closed codes, one closed internal
+  outcome, and a report copied from the durable attestation.
 
-Verification: `pnpm test:backup-producer` **495/495, 0 fail, 0 skipped**
-(413 + 82). The real-`prlimit` tests ran against disposable local Node probes
-only. All 8 mutation checks were caught, and the 6 regressions from the
-in-place review corrections failed before those fixes.
+Verification (2026-09-18): `pnpm test:backup-producer` **637/637, 0 fail, 0
+skipped** (495 + 142); five repeat runs of the subprocess files all green;
+five targeted mutations caught. **Correction:** the earlier "593/593" was an
+addition slip — the tree ran 596. An independent review's CLI/upload/
+attempt/lifecycle failures reproduce only inside the Codex bubblewrap/seccomp
+sandbox (Node child stdout on Node pipes is lost there); committed `70abb63`
+fails the same tests there — an environment limitation, not a regression.
+Run the suite outside that sandbox.
 
 **Known-unclosed, by design:** real-CLI schemas are hypotheses; the path-based
-upload TOCTOU is detected, not closed (an in-place same-size rewrite is left to
-readback); the post-hash executable replacement is open; the canary proves
-nothing about the Proton CLI or Hotel-Echo. E3J6B owes readback, the verdict,
-intents for every attempt identity, and attestations (T13-T17 plus the written
-halves of T8/T11/T12). E3J6C owes the lock, retry (T18), and the entrypoint.
+upload TOCTOU is detected, not closed; the post-hash executable replacement is
+open; the canary proves nothing about the Proton CLI or Hotel-Echo. E3J6C owes
+the lock, bounded retry (T18), signal ownership, and the entrypoint.
 
-Full correction history: the architecture memo (linked under Immediate
-Blockers). Milestones: [`docs/journal/2026-09.md`](docs/journal/2026-09.md).
+Full correction history and the implemented schemas (memo §9): the architecture
+memo (linked under Immediate Blockers). Milestones:
+[`docs/journal/2026-09.md`](docs/journal/2026-09.md).
 
-Before that: E3J5 (single-attempt upload) 2026-09-16, **413/413** (`eea6ace`);
-E3J4 2026-09-14, 354/354 (`0fc9678`); E3J3 2026-09-13, 235/235 (`a3681b0`);
-E3J2 2026-09-13, 179/179; E3I (Proton scratch) closed 2026-09-12.
+Before that: E3J6A 2026-09-16, **495/495** (`70abb63`); E3J5 2026-09-16,
+413/413 (`eea6ace`); E3J4 2026-09-14, 354/354 (`0fc9678`); E3J3 2026-09-13,
+235/235 (`a3681b0`); E3J2 2026-09-13, 179/179; E3I closed 2026-09-12.
 
 ## Essential Operational Constraints
 
@@ -107,10 +111,9 @@ E3J2 2026-09-13, 179/179; E3I (Proton scratch) closed 2026-09-12.
 - **E3 (Proton cloud backup) unactivated.** No attestation writer, entrypoint,
   or watcher exists. Open: a proven hard-containment mechanism, real
   monitoring, and unattended credential persistence (Hotel-Echo untested).
-  E3J2-E3J5 are committed; E3J6A (contained download, canary, one-shot
-  prepare with source evidence) is in the working tree awaiting review. Next
-  are E3J6B (readback, verdict, intent/attestation) and E3J6C (lock, retry,
-  entrypoint). U12-U15 remain unresolved
+  E3J2-E3J6A are committed (`70abb63`); E3J6B (readback, independent verdict,
+  durable intent/attestation) is implemented and verified. E3J6C (lock,
+  retry, signal ownership, entrypoint) is next. U12-U15 remain unresolved
   (readback ceilings/containment proof, timeouts/retry, remote root and the
   flat layout's ratification, independent-watcher design). Detail:
   [`docs/planning/proton-drive-cloud-transport-architecture.md`](docs/planning/proton-drive-cloud-transport-architecture.md),
@@ -134,9 +137,9 @@ E3J2 2026-09-13, 179/179; E3I (Proton scratch) closed 2026-09-12.
 ## Next 1-3 Actions
 
 1. If continuing backup work: review and (if authorized) checkpoint
-   **E3J6A**, then **E3J6B**: readback, independent verdict, and
-   intent/attestation, consuming `verifyContainmentProof` and the v2
-   `sourceEvidence`. Then **E3J6C**: lock, R1-only retry, and entrypoint.
+   **E3J6B**, then **E3J6C**: the run lock spanning upload/readback/attestation,
+   R1-only bounded retry (T18), signal ownership, and the executable
+   entrypoint, which consumes each attempt's returned `lockAction`.
    See `docs/planning/proton-drive-cloud-transport-architecture.md` §12.
 2. Gate 2 reliability items: automated backups, restore drill, alerting,
    log retention, rollback docs — all unstarted and blocking Gate 2.

@@ -102,6 +102,29 @@ export async function executeUploadAttempt(args) {
 }
 
 /**
+ * Release a genuine READY prepared attempt (E3J6B) that becomes blocked
+ * before it can be executed — a record-session, intent, containment-proof,
+ * capacity, or workspace failure discovered upstream of the first provider
+ * call. Synchronous, makes NO provider call, and is mutually exclusive with
+ * `executeUploadAttempt()`: whichever call reaches the prepared object's
+ * registry entry first wins. A `refused` prepared object (a local
+ * validation refusal from `prepareUploadAttempt()` itself) is never
+ * discarded — it is always consumed through `executeUploadAttempt()`,
+ * which makes zero provider calls for it by construction.
+ *
+ * @param {object} args
+ * @param {object} args.prepared  from `prepareUploadAttempt()` of THIS module
+ * @returns {object} a frozen `{kind, schemaVersion, attemptId}` acknowledgement
+ * @throws {BackupError} `cloud_upload_prepared_invalid` / `cloud_upload_prepared_reused`
+ */
+export function discardPreparedUploadAttempt(args) {
+  if (args === null || typeof args !== 'object')
+    return ATTEMPT_RUNNER.discardPreparedUploadAttempt(args)
+  const { prepared } = args
+  return ATTEMPT_RUNNER.discardPreparedUploadAttempt({ prepared })
+}
+
+/**
  * Run exactly one upload attempt (prepare, then execute).
  *
  * @param {object} args

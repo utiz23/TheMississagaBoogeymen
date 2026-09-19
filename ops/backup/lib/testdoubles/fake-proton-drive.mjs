@@ -104,6 +104,14 @@
  * claim about how the real CLI behaves. A spec without `downloadWrite`
  * behaves exactly as before.
  *
+ * `"downloadWrite": {"base64": "<base64>"}` (E3J6B, ADDITIVE) writes those
+ * EXACT bytes instead of a uniform fill, through the identical exclusive
+ * create/write/refusal path. The uniform-fill form cannot reproduce a real
+ * checksum sidecar or manifest, so an end-to-end readback test — which
+ * compares the downloaded bytes against the source's own SHA-256 — has no
+ * way to succeed without it. `bytes`/`byte` and `base64` are mutually
+ * exclusive; `base64` wins if both appear.
+ *
  * GRANDCHILD HOLDING STDOUT (E3J6A, ADDITIVE)
  * ---------------------------------------------
  * `"grandchild": {"delayMs": D, "text": "B", "count": N, "intervalMs": I}`
@@ -275,14 +283,25 @@ async function main() {
     const remote = String(process.argv[5] ?? '')
     const localDir = String(process.argv[6] ?? '')
     const target = path.join(localDir, path.posix.basename(remote))
-    const total = Number(spec.downloadWrite.bytes)
-    const chunk = Buffer.alloc(65536, Number(spec.downloadWrite.byte ?? 90))
+    const exact =
+      typeof spec.downloadWrite.base64 === 'string'
+        ? Buffer.from(spec.downloadWrite.base64, 'base64')
+        : null
+    const total = exact === null ? Number(spec.downloadWrite.bytes) : exact.length
+    const chunk =
+      exact === null ? Buffer.alloc(65536, Number(spec.downloadWrite.byte ?? 90)) : exact
     try {
       const fd = fs.openSync(target, 'wx', 0o600)
       try {
         let written = 0
         while (written < total) {
-          written += fs.writeSync(fd, chunk, 0, Math.min(chunk.length, total - written))
+          const offset = written % chunk.length
+          written += fs.writeSync(
+            fd,
+            chunk,
+            offset,
+            Math.min(chunk.length - offset, total - written),
+          )
         }
       } finally {
         fs.closeSync(fd)

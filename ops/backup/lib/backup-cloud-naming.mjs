@@ -284,9 +284,36 @@ export function buildContainmentCanaryDirName(runId) {
  * configured `attestation.dir` — but it is built from the same two validated
  * identities, so it is validated the same way.
  */
+export const CLOUD_ATTESTATION_SUFFIX = '.cloud-attestation.json'
+
 export function buildAttestationFileName({ artifactBase, attemptId }) {
   assertSafeRemoteComponent(artifactBase, 'artifactBase')
   assertValidArtifactBase(artifactBase)
   assertValidAttemptId(attemptId)
-  return `${artifactBase}.${attemptId}.cloud-attestation.json`
+  return `${artifactBase}.${attemptId}${CLOUD_ATTESTATION_SUFFIX}`
 }
+
+/**
+ * The attempt-scoped LOCAL intent filename: `<base>.<attemptId>.cloud-attempt-intent.json`
+ * (E3J6B). Lives alongside the attestation, in the same operator-configured
+ * `attestation.dir` — a different party (the attempt orchestrator, before any
+ * provider call) writes it, but it is named and validated identically.
+ */
+export const CLOUD_ATTEMPT_INTENT_SUFFIX = '.cloud-attempt-intent.json'
+
+export function buildCloudAttemptIntentFileName({ artifactBase, attemptId }) {
+  assertSafeRemoteComponent(artifactBase, 'artifactBase')
+  assertValidArtifactBase(artifactBase)
+  assertValidAttemptId(attemptId)
+  return `${artifactBase}.${attemptId}${CLOUD_ATTEMPT_INTENT_SUFFIX}`
+}
+
+/**
+ * Parses either an intent or an attestation filename back into its parts, for
+ * a future reconciliation reader that lists `attestation.dir`. Matches only
+ * the exact shape `buildCloudAttemptIntentFileName()`/`buildAttestationFileName()`
+ * produce — never used to construct a path, only to classify one already
+ * observed.
+ */
+export const CLOUD_ATTEMPT_RECORD_FILENAME_PATTERN =
+  /^([a-z0-9][a-z0-9-]*-\d{8}T\d{6}Z)\.(\d{8}T\d{6}Z-[0-9a-f]{8})\.(cloud-attempt-intent|cloud-attestation)\.json$/

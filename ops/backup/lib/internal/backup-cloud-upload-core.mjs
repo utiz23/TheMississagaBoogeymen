@@ -775,12 +775,16 @@ export function makeUploadAttemptRunner(deps) {
   // EXECUTE — consumes a prepared object exactly once.
   // ───────────────────────────────────────────────────────────────────────────
 
-  async function executeUploadAttempt(args) {
-    // Everything up to `entry.state = 'consumed'` is synchronous: no `await`
-    // precedes it, so no second call can interleave between check and set.
-    if (args === null || typeof args !== 'object') return invalidInput('arguments')
-    const { prepared, signal } = args
-    if (signal !== undefined && !(signal instanceof AbortSignal)) return invalidInput('signal')
+  /**
+   * The ONLY place a `prepared` object's registry entry is looked up and
+   * consumed. Synchronous, with no `await` between the lookup and the
+   * `state = 'consumed'` flip, so `executeUploadAttempt()` and
+   * `discardPreparedUploadAttempt()` are mutually exclusive: whichever call
+   * reaches this function first — even one issued while the other's own
+   * `await`-suspended body is still running — wins, and the loser sees
+   * `entry.state !== 'ready'`.
+   */
+  function consumeEntry(prepared) {
     const entry =
       prepared !== null && typeof prepared === 'object' ? registry.get(prepared) : undefined
     if (entry === undefined) {
@@ -792,11 +796,58 @@ export function makeUploadAttemptRunner(deps) {
     if (entry.state !== 'ready') {
       throw new BackupError(
         'cloud_upload_prepared_reused',
-        'the prepared attempt has already been executed.',
+        'the prepared attempt has already been executed or discarded.',
       )
     }
     entry.state = 'consumed'
-    return runPrepared(entry.internal, signal)
+    return entry.internal
+  }
+
+  async function executeUploadAttempt(args) {
+    if (args === null || typeof args !== 'object') return invalidInput('arguments')
+    const { prepared, signal } = args
+    if (signal !== undefined && !(signal instanceof AbortSignal)) return invalidInput('signal')
+    const internal = consumeEntry(prepared)
+    return runPrepared(internal, signal)
+  }
+
+  /**
+   * Release a genuine READY prepared attempt that becomes blocked before it
+   * can be executed (a trust, intent, containment-proof, capacity, or
+   * workspace failure upstream of the first provider call). Synchronous,
+   * makes NO provider call, and is mutually exclusive with
+   * `executeUploadAttempt()` via the same registry-entry state flip.
+   *
+   * A `refused` prepared object is never discarded — it is always consumed
+   * through `executeUploadAttempt()`, which makes zero provider calls for it
+   * by construction. Discarding it here would be indistinguishable in
+   * effect but is not this function's purpose, so it is refused the same
+   * way a reused object is.
+   *
+   * @param {object} args
+   * @param {object} args.prepared  from `prepareUploadAttempt()` of THIS module
+   * @returns {object} a frozen, closed acknowledgement — no timestamp: this
+   *   function introduces no clock dependency of its own.
+   * @throws {BackupError} `cloud_upload_prepared_invalid` / `cloud_upload_prepared_reused`
+   */
+  function discardPreparedUploadAttempt(args) {
+    if (args === null || typeof args !== 'object') return invalidInput('arguments')
+    const { prepared } = args
+    if (prepared !== null && typeof prepared === 'object') {
+      const peek = registry.get(prepared)
+      if (peek !== undefined && peek.state === 'ready' && peek.internal.refusalCode !== null) {
+        throw new BackupError(
+          'cloud_upload_prepared_reused',
+          'a refused prepared attempt must be consumed through executeUploadAttempt(), not discarded.',
+        )
+      }
+    }
+    const internal = consumeEntry(prepared)
+    return Object.freeze({
+      kind: 'eanhl.cloud-upload-discard-ack',
+      schemaVersion: 1,
+      attemptId: internal.attemptId,
+    })
   }
 
   async function runPrepared(internal, signal) {
@@ -1041,5 +1092,10 @@ export function makeUploadAttemptRunner(deps) {
     })
   }
 
-  return Object.freeze({ prepareUploadAttempt, executeUploadAttempt, runUploadAttempt })
+  return Object.freeze({
+    prepareUploadAttempt,
+    executeUploadAttempt,
+    discardPreparedUploadAttempt,
+    runUploadAttempt,
+  })
 }
