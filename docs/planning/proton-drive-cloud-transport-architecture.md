@@ -478,7 +478,10 @@ removed or weakened). E3J6C still owes the lock, retry (T18), signal
 ownership, and the executable entrypoint. Session detail:
 `docs/journal/2026-09.md`.
 
-(7) **E3J6B review corrections (2026-09-18, still uncommitted).** An
+(7) **E3J6B review corrections (2026-09-18, still uncommitted).**
+**[CURRENT STATE, 2026-09-21: committed and pushed — E3J6B is `bbcff5b`,
+E3J6C is `97e62d4`. The "uncommitted" wording below was accurate on its own
+date and is left as written; it no longer describes the repository.]** An
 independent review reported 9/4/1 failures in the CLI/upload/attempt files.
 Root cause: that run executed inside the Codex bubblewrap/seccomp sandbox,
 where a Node child writing to a Node-created stdio pipe loses its
@@ -518,7 +521,8 @@ readback. The report gains `role` and `termination`; `CLOUD_ATTEMPT_STAGES`
 gains the report-only `attestation` stage. **142 E3J6B tests; full suite
 637/637, 0 fail, 0 skipped**, stable over five runs of the subprocess files.
 Further corrected by **E3J6C** (2026-09-19, the last of the three E3J6
-substeps; working tree on baseline `bbcff5b`, not yet committed) — the run
+substeps; written on baseline `bbcff5b` and **committed and pushed as
+`97e62d4` on 2026-09-19**) — the run
 lock, collision-only bounded retry (T18), private signal ownership, and the
 first executable entrypoint now exist. Still local, still unactivated:
 
@@ -689,6 +693,109 @@ local repository code and documentation only: `ops/backup/lib/` (including
 `ops/backup/run-suite.mjs` (registering the new test files), and this memo,
 `HANDOFF.md`, and the dated journal — no provider, host, credential, or
 activation action. **E3 remains unactivated.**
+
+---
+
+## CORRECTION — E3J7 (2026-09-21): freshness evaluation exists; monitoring still does not
+
+**§5.2 piece 2, §5.3 and §5.4 are updated in place; §11 T21 is closed; §12's
+E3J7 row records what was built.** Read §5.3 for the implemented rule — it is
+the authoritative copy, and this entry records only what changed and why.
+
+**What was built.** `ops/backup/lib/backup-cloud-freshness.mjs` over
+`internal/backup-cloud-freshness-core.mjs`, plus the non-activated read-only
+entrypoint `ops/backup/eanhl-backup-freshness.mjs --config <path>` (no
+shebang, no executable bit, no package script). **200 new tests, full suite
+956/956, 0 fail, 0 skipped; 69/69 targeted mutations caught**, each file
+restored byte-identically. No new configuration key: `attestation.dir`,
+`artifact.sourceDir` and `readback.maxManifestBytes` already existed, and
+`eanhl-backup-cloud.example.json` is unchanged.
+
+**Six corrections to what this memo previously proposed:**
+
+(1) **A binding failure excludes the RECORD, not the base.** An earlier draft
+of this session poisoned a whole base when any verified attestation for it
+failed binding. That is wrong, and the reasoning behind it does not survive:
+attestations are attempt-scoped and independently derived, bounded retry (T18)
+makes several attestations per base the designed success path, and the
+producer's one-manifest-per-base rule means of two divergent verified records
+at most one can match — the other is already excluded per-record. Poisoning
+would have let a single bad record suppress a genuinely verified backup.
+`verified_binding_invalid` is raised as an informational anomaly that never
+changes the number. See §5.3.
+
+(2) **`source_run_id` is checked** — a fourth binding field beyond the three
+§5.3 originally named. Both values come from the same producer manifest, so
+the check can only reject.
+
+(3) **`kind` is the discriminator, and it is checked first.** A destination
+receipt carries the same `schema_version: 1` and a matching artifact /
+ciphertext-hash / snapshot triple; only the absence of `kind` reliably
+separates the two schemas. A test feeds a real `buildReceipt()` output in.
+
+(4) **`artifact.sourceDir` needs its own trust predicate.**
+`observeTrustedDirectoryIdentity()` requires no group or world bits, but
+`backup-producer.mjs` creates `destination.dir` with
+`mkdirSync(dir, {recursive: true})` and no explicit mode — umask-derived,
+typically `0755`. Reusing that predicate would have refused every real
+deployment. The evaluator rejects group- or world-**writable** instead.
+Flagged as an open deployment question: if E3J10 tightens that directory to
+`0700`, the predicate can be tightened with it.
+
+(5) **Two unreachable guards were removed, not left unverifiable.** Mutation
+testing showed the clock's round-trip check and its safe-integer check masked
+each other (for any safe integer whose `Date` is in range, `toISOString()`
+round-trips exactly), and that a future-dated-snapshot check was already
+excluded by the age/distance rule plus a non-negative age. Removing each left
+one load-bearing guard instead of two mutually-masking ones. The same exercise
+moved the future-dated *record* check ahead of the manifest read, where it is
+reachable: only BINDING ties a record's `source_snapshot_ts` to its base
+stamp, so an unbound record can carry a future timestamp under a past-stamped
+base.
+
+(6) **The output boundary was unsound and was rebuilt.** The first
+implementation validated the evaluator's object and then serialized THAT SAME
+object. A getter can answer the validator and the serializer differently, and
+a `toJSON` inherited from a prototype is invisible to `Object.keys()` yet
+replaces the serialized output wholesale — a signal that passed validation
+could print unrelated data. Nothing a caller owns is serialized now: a fresh
+null-prototype projection of copied primitives and closed-vocabulary members
+is built (Proxy refused by `util.types.isProxy()`, accessors refused WITHOUT
+being invoked, exact `Reflect.ownKeys()` sets, leaves primitive-only), and
+that projection is what is validated and printed; the serialized text is
+re-parsed and compared before it is returned, so even a polluted
+`Array.prototype.toJSON` cannot change the output. Validation now also
+enforces the CROSS-FIELD contract, because individually-legal fields could
+still combine into a claim the evaluator can never have made: a truncated or
+unreadable scan cannot carry fresh/warning/critical, a value-bearing status
+needs a usable `generated_at`, `age_seconds` must equal the distance between
+the two timestamps it is derived from, and the status must be the one the
+approved 8 h / 24 h bands assign to that age. Finally, the synchronous stdout
+writer now reports: a short, zero or failed write exits **3** with one fixed
+stderr line and **no second stdout attempt**, because a partial line cannot be
+retracted. Exit 0 means the whole JSON line reached stdout.
+
+**What must NOT be read into this.** Memo §5.6 is unchanged and unweakened.
+Pieces 3, 4 and 5 — off-host export, the independent watcher, the notification
+channel and a received test notification — are untouched and remain **U15 /
+E3J8**. Nothing schedules, exports, watches, or alerts on the signal, and the
+signal says so in a field (`monitored: false`) rather than in prose a consumer
+can drop. The correct description of this system is still **"attestations are
+written; nobody is watching them"**. U12-U15 remain open; no Gate checkbox
+changed; **E3 remains unactivated**.
+
+**Honest non-claims.** The enumeration and manifest-read path races are
+narrowed, not closed — both resolve a path more than once, and a
+swap-and-restore of either directory is undetected. A partial stdout write is
+reported, but cannot be un-written. `Array.prototype.toJSON` pollution is
+detected, not prevented: the failure mode is "no signal", not "wrong signal".
+The freshness number is only as good as the local manifests: a base whose
+manifest has been pruned cannot advance freshness even if its Proton copy was
+genuinely verified (pruning is E3J13; this is a real coupling, not a defect
+introduced here). The signal names no base, so a `verified_binding_invalid`
+must be diagnosed from the attestation files themselves. `LOOKBACK_SECONDS`
+(7 d) and the two scan ceilings are E3J7-chosen bounds, not U12/U13 production
+measurements.
 
 ---
 
@@ -1483,30 +1590,115 @@ Calling that combination "monitoring" would be false.
 | # | Piece | Where it runs | Status |
 | --- | --- | --- | --- |
 | 1 | **Attestation creation** — write an attempt-scoped attestation for every attempt | Hotel-Echo, inside the uploader | designed here (§4, §9); not built |
-| 2 | **Freshness calculation** — derive one number from eligible attestations only | Hotel-Echo, a separate read-only evaluator | designed here (§5.3); not built |
+| 2 | **Freshness calculation** — derive one number from eligible attestations only | Hotel-Echo, a separate read-only evaluator | **BUILT (E3J7)** — `backup-cloud-freshness.mjs`; see §5.3 |
 | 3 | **Health-signal export** — publish a minimal signal somewhere off Hotel-Echo | Hotel-Echo emits; destination is not Hotel-Echo | not designed; **U15** |
 | 4 | **Independent watcher** — decide warning/critical and act when the signal is stale *or absent* | **must not be Hotel-Echo** | not designed; **U15** |
 | 5 | **Notification channel + human receipt test** | operator decision D1 | not decided; **U15** |
 
-### 5.3 Freshness calculation
+### 5.3 Freshness calculation — AS IMPLEMENTED (E3J7)
 
-**Freshness = `max(source_snapshot_ts)` over attestations that are eligible per
-§4.3.** This mirrors the destination-receipt rule
-(`backup-acceptance.mjs:305-308`, `backup-producer.md` §7 requirement 6) without
-reusing its objects, and it inherits the same replay resistance: re-delivering
-an old artifact produces a new attestation with an *old* `source_snapshot_ts`,
-which cannot raise a maximum.
+**Freshness = `max(source_snapshot_ts)` over attestations that are readable,
+schema-valid, `verdict: "verified"`, and binding-valid.** This mirrors the
+destination-receipt rule (`backup-acceptance.mjs:305-308`,
+`backup-producer.md` §7 requirement 6) without reusing its objects, and it
+inherits the same replay resistance: re-delivering an old artifact produces a
+new attestation with an *old* `source_snapshot_ts`, which cannot raise a
+maximum.
 
-Binding validation for a cloud attestation is its **own** function — proposed
-`validateCloudAttestationBinding(attestation, manifest)` — checking that
-`artifact`, `ciphertext_sha256` and `source_snapshot_ts` match the producer's
-own manifest for that base, by analogy with `validateReceiptBinding()`
-(`backup-acceptance.mjs:335-362`) but **never by reusing it**: the schemas
-differ, the authors differ, and C11 forbids letting one satisfy the other's
-rules by analogy. **[REPO]**
+`validateCloudAttestationBinding(attestation, manifest)` is its **own**
+function, in `backup-cloud-freshness.mjs`. Nothing in the freshness path
+imports `backup-acceptance.mjs` — not `validateReceiptBinding()`, not
+`validateManifestIdentity()` — and a static test enforces that. C11 forbids
+letting one schema satisfy the other's rules by analogy. It checks, in order:
+
+1. **`kind === "eanhl.cloud-attestation"` — the discriminator, checked first.**
+   A destination receipt carries a matching `artifact` / `ciphertext_sha256` /
+   `source_snapshot_ts` triple (the very three fields named below) and the same
+   `schema_version: 1`, so field-matching alone would let one pass. A receipt
+   has **no `kind` field at all**, and is rejected before anything else is
+   read. A test feeds a real `buildReceipt()` output in and asserts it.
+2. Attestation `schema_version` is 1; the manifest is an object with
+   `schema_version === MANIFEST_SCHEMA_VERSION`.
+3. The attestation's own three filenames derive from its own `artifact.base`.
+4. **`artifact`** — `attestation.artifact.ciphertext === manifest.artifact`.
+5. **`ciphertext_sha256`** — `readback.ciphertext.sha256` equals
+   `manifest.ciphertext.sha256`, and only when that role was
+   `observed: "active_file"` with `matches_source: true`. This is the cloud
+   analogue of the receipt's destination-computed hash: the value the uploader
+   computed from bytes it **downloaded back from Proton**, never one copied
+   out of the manifest.
+6. **`source_snapshot_ts`** — equal to `manifest.snapshot_ts`, which must
+   itself compact to the base's 16-character stamp.
+7. **`source_run_id === manifest.run_id`** — an **E3J7 strengthening** beyond
+   the three fields this memo originally named. Both values originate from the
+   same producer manifest, so a disagreement is a real inconsistency; the
+   check can only reject.
+
+Failures are returned as **closed codes, never interpolated text** —
+deliberately unlike `validateReceiptBinding()`, whose failure strings embed
+values and so could never be printed into a health signal. **[REPO]**
 
 An attestation whose `verdict` is `rejected` or `indeterminate` can never
 advance freshness, regardless of binding.
+
+**A binding failure excludes that RECORD, not its base.** Attestations are
+attempt-scoped: each verdict is derived independently
+(`backup-cloud-attempt-verdict.mjs` re-derives rather than copying a status),
+and attempt B never reads attempt A's record. Bounded retry (T18) makes "a
+failed attempt and a clean retry under one base" the *designed* success path,
+so discarding B because A is unusable would let one bad record suppress a
+genuinely verified backup — a false "stale" alarm, which is its own failure
+mode. Nor is a base-level rule needed to catch a swapped manifest: the
+producer publishes exactly one manifest per base and refuses to overwrite an
+identity, and binding anchors every record to it on four fields, so of two
+verified records carrying different readback hashes **at most one can match**
+and the other is already excluded per-record. A verified record that fails
+binding raises the informational anomaly `verified_binding_invalid`, which
+never changes the number.
+
+**Bounds, and honesty about races.** `attestation.dir` is enumerated as a
+**stream** (`opendir`/`readSync`), never materialized: the loop performs at
+most `MAX_DIRECTORY_ENTRIES + 1` reads and stops, so on a breach
+`counts.names_enumerated` is exactly that ceiling plus one — the extra read
+*is* the detection — and the true directory size is unknown. Any ceiling
+breach, enumeration failure, or handle-close failure yields
+`status: "indeterminate"` with **no** freshness value; a partial result is
+never produced. The local manifest read is bounded by
+`min(readback.maxManifestBytes, 1 MiB)` and checks owner, mode,
+regular-file-ness and descriptor `dev`/`ino` identity. Both directories are
+observed before and re-observed after the work. None of this closes the
+path-swap races: `opendir()` resolves the directory a second time and the
+manifest path is resolved twice, so a swap between two resolutions is not
+excluded and a swap-and-restore is not detected at all. What *is* closed is
+narrower — the bytes used come from the inode the descriptor held.
+
+**The output boundary.** Nothing the evaluator returns is serialized. A
+fresh, null-prototype projection of copied primitives and closed-vocabulary
+members is built, and that projection is what is validated and printed: a
+Proxy is refused by `util.types.isProxy()`, every value is read through its
+own property descriptor so an accessor is refused **without being invoked**,
+and `Reflect.ownKeys()` must be the exact expected set — so an inherited or
+non-enumerable `toJSON`, which `Object.keys()` cannot see yet which replaces
+serialized output wholesale, cannot survive. The serialized text is re-parsed
+and compared before use, which also defeats a polluted
+`Array.prototype.toJSON`. Validation additionally enforces the **cross-field**
+contract, because individually-legal fields can still combine into a claim the
+evaluator never made: a truncated or unreadable scan may not carry
+fresh/warning/critical, a value-bearing status needs a usable `generated_at`,
+`age_seconds` must equal the distance between the two timestamps it derives
+from, and the status must be the one the approved 8 h / 24 h bands assign to
+that age.
+
+**`artifact.sourceDir` deliberately does not use
+`observeTrustedDirectoryIdentity()`.** That predicate requires no group or
+world permission bits, but the producer creates `destination.dir` with
+`mkdirSync(dir, {recursive: true})` and no explicit mode, so it is
+umask-derived (typically `0755`); requiring owner-only bits there would refuse
+every real deployment. The evaluator uses its own narrower observation — not a
+symlink, a directory, owned by the effective uid, **not group- or
+world-writable**, and canonical. Writability is the property that matters: the
+directory holds age-encrypted ciphertext and a manifest that is plaintext and
+secret-free by contract, each file written `0600`. **[REPO]**
 
 ### 5.4 Thresholds
 
@@ -1522,9 +1714,19 @@ inherit.** `docs/operations/backup-producer.md` §8 still carries an older,
 `RTO onto a healthy provisioned host ≤ 1 h` and `RTO after total host loss
 ≤ 4 h`. E1A (2026-09-07) approved 8 h / 24 h on *verified Proton copies* and
 `RTO 8 hours`. The §8 table predates E1A and is marked PROPOSED throughout, so
-E1A governs — but the table has not been annotated as superseded, and a reader
-arriving at the ops doc first would take the wrong numbers. **Correcting that
-table is a documentation task for a later session; this memo does not edit it.**
+E1A governs — but the table had not been annotated as superseded, and a reader
+arriving at the ops doc first would take the wrong numbers.
+
+**[RESOLVED by E3J7, 2026-09-21.]** `docs/operations/backup-producer.md` §8 is
+now annotated: WARN and ALARM are marked SUPERSEDED with E1A's 8 h / 24 h in
+their place, the two split RTO rows are marked SUPERSEDED by E1A's single
+RTO 8 h, and RPO 6 h and the retention schedule are marked APPROVED by E1A.
+The steady-state recovery age (D2) and the notification channel (D1) remain
+open and were left untouched, as was §8's rule that these backups must not be
+described as monitored until a human has received a test notification. The
+approved 8 h / 24 h values are module constants in
+`backup-cloud-freshness.mjs`, deliberately **not** configuration, so an
+approved threshold cannot be weakened silently.
 
 ### 5.5 The main PC cannot gate freshness
 
@@ -2318,7 +2520,7 @@ injected fakes. **[REPO]**
 | T18 | After a definite zero-transfer rejection the bounded retry runs and uses a **new** `attemptId` and a **new** remote namespace; after an indeterminate failure no automatic retry occurs in-run (**deferred until the attestation writer is integrated** — §4.5) |
 | T19 | No automatic deletion occurs on any path, including every failure path — assert across the whole invocation log of a run that exercised every failure mode |
 | T20 | No write is ever directed at a remote path outside `<remoteRoot>/<base>.<attemptId>/`, and the only root-level write is the single `create-folder(<remoteRoot>, <base>.<attemptId>)` — assert the full set of paths passed to `create-folder` and `upload` across a run |
-| T21 | Freshness advances only from attestations that are `verdict: "verified"` **and** binding-valid; a rejected, indeterminate, schema-mismatched, or non-binding attestation never moves the number, and a re-delivered older artifact never raises it |
+| T21 | Freshness advances only from attestations that are `verdict: "verified"` **and** binding-valid; a rejected, indeterminate, schema-mismatched, or non-binding attestation never moves the number, and a re-delivered older artifact never raises it. **CLOSED by E3J7** — plus the receipt-rejection case, per-record (not per-base) exclusion, the enumeration and manifest ceilings, both directory rechecks, the output-projection boundary, the cross-field contract, and secret-safe output |
 | T22 | `cli.expectedSha512` is required by the validator; a missing, malformed, or mismatched value refuses before any provider command is constructed |
 | T23 | The config validator rejects `credentials.backend: "unsafe_file"`, rejects any secret-shaped key, and enforces the path-separation rules of §10.2 |
 
@@ -2495,8 +2697,8 @@ sessions need no provider, no host, and no credential.
 | **E3J3** | **Naming, remote paths, and the cloud config surface.** **DONE (2026-09-13), corrected same-day by E3J3B after independent review.** `publishedTripleNames()`/`ARTIFACT_PREFIX_PATTERN` (§1.3); new `backup-cloud-naming.mjs` (safe remote-component validation, canonical-remote-root validation, `assertValidArtifactBase()` identity-shape validation, self-validating `attemptId` construction, the attempt namespace, the three published object paths, the attestation filename — §4, §8.1); new `backup-cloud-config.mjs` (fail-closed cloud config validator/loader with LEXICAL canonical-path enforcement before containment comparison, a generic secret-key rejection message, a frozen `backingVolume` result, `verifyCliHashPin()`) and `eanhl-backup-cloud.example.json` (§10); T1, T2, the E3J3 portion of T22 (corrected above), and T23 — **56 new tests over the 179-test baseline (5 artifact-contract + 19 naming + 32 config), full suite 235/235, 0 fail.** No Proton CLI argv, subprocess, upload, download, or attestation writer — those remain E3J4 onward | no |
 | **E3J4** | **Subprocess boundary and the fake CLI.** **DONE (2026-09-14), corrected same-day by E3J4A, then E3J4B, then E3J4C, each after its own independent security review pass.** `backup-cloud-cli.mjs` now: constructs argv for the four operations (§8.3) with option-injection-safe operand validation and generic (non-echoing) rejection errors; runs the hash gate closing T22 (§11.1) strictly before argv/spawn, with no injectable builder anywhere in the module; spawns with `shell:false` explicit and a POSITIVE environment allowlist (not a copy-and-strip); classifies credential-unavailable/not-found/name-conflict text with EXACT anchors bound to the actual queried path or uploaded file identity (never a substring match, never accepted on an unrelated identity); treats a capture-stream failure the same as a timeout/overflow (`provider_stream_failed`); validates timeouts as positive safe integers with the grace-below-timeout coherence rule; validates download's local evidence defensively; and returns only frozen results from a closed `CLOUD_CLI_ERROR_CODES` enum, through a closed ten-name export surface. **E3J4C** then moved the boundary logic to `internal/backup-cloud-cli-core.mjs` so the production operations accept NO dependency override at all (the remaining `deps` seam), made upload cross-check the provider byte count against caller-supplied `expectedLocalSizeBytes` and stop promoting `skippedItems: 1` to success, bound download's local evidence to the exact immediate child of `localDir` named by the queried remote basename with a pre-spawn non-symlink-following absence check and a regular-file-only readback, switched every provider-derived byte count to `Number.isSafeInteger`, and made `validateLocalStat()` observe `isFile()` and `size` exactly once each inside their own `try`. New `testdoubles/fake-proton-drive.mjs` (disposable local double; its own exit-before-drain race, fixed in E3J4A, re-verified stable across 10 consecutive runs in E3J4B; records environment KEY NAMES only, never values) and `backup-cloud-cli.test.mjs` — **119 tests total (44 E3J4 + 31 E3J4A + 18 E3J4B + 26 E3J4C), full suite 354/354**. Independent review first reproduced the E3J4 session's own claimed 44/44 as 41/44, then — after E3J4A's fix — found ten further boundary-logic defects, then seven more in E3J4C (see the correction entries at the top of this memo for the itemized lists). No orchestration (attempt workflow, collision preflight, ordered triple upload, retry, lock ownership — E3J5) or readback containment/attestation (E3J6) | no |
 | **E3J5** | **Uploader orchestration.** **DONE (2026-09-16).** New `backup-cloud-upload.mjs` (thin production API, one export `runUploadAttempt({config, artifactBase, signal})` plus five frozen vocabularies) over `internal/backup-cloud-upload-core.mjs` (internal test seam, static importer regression). One explicit artifact base, no scanning; local triple validated (non-empty regular files via `lstat`, safe-integer sizes, `verifyArtifactCompletion()` with its text discarded, identity re-observed around every upload); flat layout (§4.2, §8.1) and the rewritten §8.2 order; uploads stop at the first non-success; a frozen evidence outcome with no verdict. Minimal read-only real dependencies, not `makeRealDeps()`. T10, T19, T20 in full; the E3J5 halves of T11 and T12 (§11.1). `fake-proton-drive.mjs` gained an additive `sequence` / `notFoundForQueriedBasename` mode. **56 new tests + 3 naming tests; full suite 413/413.** No retry (T18 deferred), no lock, no entrypoint, no readback, no attestation | no |
-| **E3J6** | **[E3J6A DONE 2026-09-16 (committed, `70abb63`); E3J6B DONE 2026-09-17 — readback, independent verdict, and the durable intent/attestation records, see the correction entry at the top; E3J6C DONE 2026-09-19 (working tree on `bbcff5b`) — the run lock, collision-only bounded retry (T18), private signal ownership, and the executable entrypoint; see the E3J6C correction entry at the top and §4.7.]** **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T17, the E3J6 halves of T8, T11, and T12, and — once the writer exists — bounded retry (T18). Consumes the E3J5 evidence outcome and derives its verdict independently. The first executable entrypoint, wherever it lands, owns `run.lockFile`, with a lock spanning upload, readback, and attestation | no |
-| **E3J7** | **Freshness export and evaluation.** The attestation reader, `validateCloudAttestationBinding()`, the freshness number, the minimal exported health signal, plus T21 | no |
+| **E3J6** | **[E3J6A DONE 2026-09-16 (committed, `70abb63`); E3J6B DONE 2026-09-17 — readback, independent verdict, and the durable intent/attestation records, see the correction entry at the top; E3J6C DONE 2026-09-19 (committed, `97e62d4`) — the run lock, collision-only bounded retry (T18), private signal ownership, and the executable entrypoint; see the E3J6C correction entry at the top and §4.7.]** **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T17, the E3J6 halves of T8, T11, and T12, and — once the writer exists — bounded retry (T18). Consumes the E3J5 evidence outcome and derives its verdict independently. The first executable entrypoint, wherever it lands, owns `run.lockFile`, with a lock spanning upload, readback, and attestation | no |
+| **E3J7** | **Freshness evaluation and the local health signal. DONE (2026-09-21).** New `backup-cloud-freshness.mjs` over `internal/backup-cloud-freshness-core.mjs`: `validateCloudAttestationBinding()` (§5.3, eight checks, `kind` discriminator first, closed failure codes, no acceptor import); bounded STREAMING enumeration of `attestation.dir` stopping at `MAX_DIRECTORY_ENTRIES + 1` with any breach/failure yielding indeterminate and no partial number; reuse of E3J6B's `readCloudAttestation()` as the only record reader; a bounded fail-closed manifest read at `min(readback.maxManifestBytes, 1 MiB)` with descriptor identity and a post-read recheck; per-record (never per-base) binding exclusion; `max(source_snapshot_ts)` over eligible records; the frozen `eanhl.cloud-freshness-signal` v1 carrying no identifier, path or free text; an output-projection boundary that never serializes the evaluator's own object; and a non-activated read-only entrypoint `ops/backup/eanhl-backup-freshness.mjs --config <path>` printing one JSON line (exit 0 = a complete signal line reached stdout, NOT that a backup is fresh; 2 invalid invocation; 3 no signal, or its line could not be written in full). T21 closed. **200 new tests, full suite 956/956, 0 fail, 0 skipped; 69/69 targeted mutations caught.** No new config key. The off-host export, the watcher host and the notification channel are NOT here — they remain U15/E3J8 | no |
 | **E3J8** | **Independent alerting.** Watcher host, channel, and a received test notification. Until this closes, nothing is monitored | yes — operator decision D1, **U15** |
 | **E3J9** | **Credential mechanism.** A service-compatible credential-access design for Hotel-Echo, closing U1's remainder | yes — separate authorization |
 | **E3J10** | **Hotel-Echo deployment.** CLI install and pin, containment mechanism proof (§3.3), directory and permission setup | yes — separate authorization |

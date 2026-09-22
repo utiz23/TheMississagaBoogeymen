@@ -1151,22 +1151,41 @@ originally written so the requirement and its implementation can be compared.
 
 ---
 
-## 8. Values that remain PROPOSED, not approved
+## 8. Recovery and retention values — what E1A approved, and what is still PROPOSED
 
-These are carried from the plan unchanged and are **explicitly not approved by
-the work in this document**. Nothing in the producer reads or enforces them.
+**Corrected 2026-09-21 (E3J7).** This table was written before **E1A
+(2026-09-07, "Recovery and retention targets — approved")** and originally
+marked every row PROPOSED. E1A settled several of them, and the two threshold
+rows it settled contradicted what was written here. **E1A governs.** A reader
+arriving at this document first must not take the superseded numbers: the
+authoritative thresholds are **an 8-hour warning and a 24-hour critical alert,
+both measured on _verified Proton copies_**. See
+`docs/planning/proton-drive-cloud-transport-architecture.md` §5.4 for the
+discrepancy as it was diagnosed, and §5.3 for the evaluator that now computes
+that number (E3J7, `ops/backup/lib/backup-cloud-freshness.mjs`).
 
-|                                     | Proposed value                                                               | Status                                                                                                                     |
-| ----------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Steady-state recovery age           | ≤ 6 h 45 min                                                                 | **PROPOSED** — operator decision D2                                                                                        |
-| WARN threshold                      | > 7 h 30 min                                                                 | **PROPOSED**                                                                                                               |
-| ALARM threshold                     | > 9 h 0 min                                                                  | **PROPOSED**                                                                                                               |
-| RPO                                 | 6 h (a 6-hour rewind is a permanent hole: EA exposes only ~5 recent matches) | **PROPOSED**                                                                                                               |
-| RTO onto a healthy provisioned host | ≤ 1 h                                                                        | **PROPOSED**                                                                                                               |
-| RTO after total host loss           | ≤ 4 h                                                                        | **PROPOSED**                                                                                                               |
-| Backup cadence                      | every 6 h at `00/06/12/18Z`                                                  | Policy decided 2026-09-03; **not scheduled by anything yet**                                                               |
-| Notification channel                | undecided                                                                    | Operator decision D1. **These backups must not be described as monitored until a human has received a test notification.** |
-| Retention (7 d / 30 d / 12 mo)      | ≈ 70 artifacts                                                               | **PROPOSED**, not implemented                                                                                              |
+Nothing in the **producer** reads or enforces any row below; it never did.
+
+|                                         | Value                                                                        | Status                                                                                                                     |
+| --------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Steady-state recovery age               | ≤ 6 h 45 min                                                                 | **PROPOSED** — operator decision D2, still open                                                                            |
+| WARN threshold                          | **8 h** on a verified Proton copy (~~> 7 h 30 min~~)                         | **APPROVED (E1A)**. The struck value is SUPERSEDED — it was never approved                                                 |
+| ALARM threshold                         | **24 h** on a verified Proton copy (~~> 9 h 0 min~~)                         | **APPROVED (E1A)** as the _critical_ threshold. The struck value is SUPERSEDED                                             |
+| RPO                                     | 6 h (a 6-hour rewind is a permanent hole: EA exposes only ~5 recent matches) | **APPROVED (E1A)**; enforced by nothing                                                                                    |
+| RTO                                     | **8 h** (single target)                                                      | **APPROVED (E1A)**, replacing the two split RTO rows below                                                                 |
+| ~~RTO onto a healthy provisioned host~~ | ~~≤ 1 h~~                                                                    | **SUPERSEDED by E1A's single RTO 8 h**                                                                                     |
+| ~~RTO after total host loss~~           | ~~≤ 4 h~~                                                                    | **SUPERSEDED by E1A's single RTO 8 h**                                                                                     |
+| Backup cadence                          | every 6 h; the clock times `00/06/12/18Z` are a proposal                     | Cadence **APPROVED (E1A)**; policy decided 2026-09-03; **not scheduled by anything yet**                                   |
+| Notification channel                    | undecided                                                                    | Operator decision D1. **These backups must not be described as monitored until a human has received a test notification.** |
+| Retention (7 d / 30 d / 12 mo)          | 6-hourly 7 d, daily 30 d, monthly 12 mo (≈ 70 artifacts)                     | **APPROVED (E1A)**; not implemented (E3J13, still blocked by C10)                                                          |
+
+**Still unapproved, and unchanged by this correction:** the steady-state
+recovery age (D2) and the notification channel (D1). **Approved but not
+implemented** is not the same as done — nothing schedules a backup, prunes an
+artifact, or watches a threshold. E3J7 added a read-only evaluator that
+computes the 8 h / 24 h status locally; **nothing exports, watches, or alerts
+on it** (U15 / E3J8), so the sentence in the Notification channel row above
+still holds in full.
 
 ---
 

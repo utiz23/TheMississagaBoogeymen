@@ -83,6 +83,7 @@ const DEFAULT_FILES = [
   'backup-cloud-run-lock.test.mjs',
   'backup-cloud-run.test.mjs',
   'backup-cloud-entrypoint.test.mjs',
+  'backup-cloud-freshness.test.mjs',
   'backup-producer.test.mjs',
   'backup-boundaries.test.mjs',
   'backup-acceptance.test.mjs',
