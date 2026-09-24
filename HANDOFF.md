@@ -174,14 +174,17 @@ Before that: E3J6B 2026-09-18, **637/637** (`bbcff5b`); E3J6A 2026-09-16,
 
 ## Next 1-3 Actions
 
-1. If continuing backup work: E3J8A is implemented and verified, awaiting
-   review/checkpoint. **E3J2-E3J8A are done, and that exhausts the local
-   sessions.** The next stage is **E3J8B — activation, gated on backup
-   scheduling**: create the Healthchecks check (period 1 h, grace 1 h), attach
-   Pushover and `alerts@boogeymen.app`, provision the ping key, observe the live
-   `OK` contract, **receive a test notification from a deliberately failed
-   ping**, and schedule the emitter. It needs its own authorization, and until it
-   closes nothing is monitored. Checklist: the ops doc above, §9.
+1. If continuing backup work: E3J8A is committed and pushed
+   (`9ea391ab9cb494688afcfab8b96ba544912efe19`). **E3J2-E3J8A are done, and that
+   exhausts the local sessions**; E3 remains unactivated and nothing is
+   monitored. **E3J8B (activation)** stays the named milestone but is not
+   actionable: backup scheduling does not exist. The next dependency-clearing
+   work is **E3J9** (Hotel-Echo service-compatible credential mechanism), then
+   **E3J10** (deployment/containment), each needing separate explicit
+   authorization; neither is authorized or started. E3J8B's steps (check
+   period/grace 1 h, Pushover and e-mail, ping key, live `OK` contract,
+   **test notification from a deliberately failed ping**, emitter schedule):
+   the ops doc above, §9; it needs its own authorization.
 2. Gate 2 reliability items: automated backups, restore drill, alerting,
    log retention, rollback docs — all unstarted and blocking Gate 2.
 3. Disable and verify Cloudflare Web Analytics.
