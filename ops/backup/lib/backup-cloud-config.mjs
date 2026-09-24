@@ -135,8 +135,18 @@ const FORBIDDEN_KEY_SUBSTRINGS = [
  * itself may be the sensitive material an operator accidentally pasted in,
  * so echoing it back — even inside an error message meant only for a local
  * operator — would defeat the point of rejecting it.
+ *
+ * EXPORTED, AND THEREFORE NO LONGER CLOUD-SPECIFIC (E3J8A). The monitor-export
+ * configuration surface (`backup-monitor-config.mjs`) reuses this exact
+ * traversal rather than duplicating it with weaker behaviour. The diagnostic
+ * was generalized in the same change: it previously said "may not appear
+ * anywhere in cloud configuration" and "this file names only a backend
+ * selector", both of which would be false statements about a monitor config.
+ * The error CODE (`config_secret_shaped_key`), the key-name-only rule, the
+ * absence of any location information, and the refusal to echo the key or its
+ * value are all unchanged.
  */
-function assertNoSecretShapedKeys(value) {
+export function assertNoSecretShapedKeys(value) {
   if (Array.isArray(value)) {
     for (const item of value) assertNoSecretShapedKeys(item)
     return
@@ -148,10 +158,11 @@ function assertNoSecretShapedKeys(value) {
       fail(
         'config_secret_shaped_key',
         'a configuration key name looks like it names secret- or session-shaped material and may ' +
-          'not appear anywhere in cloud configuration. Credential unlocking and storage mechanics ' +
-          "are outside the uploader's scope — this file names only a backend selector, never a " +
-          'secret, token, passphrase, cookie, recovery material, account identifier, or ' +
-          'authentication URL. (The offending key name is deliberately not repeated here.)',
+          'not appear anywhere in this configuration. Credential unlocking and storage mechanics ' +
+          'are outside the scope of every configuration surface that uses this check — they name ' +
+          'only selectors and local paths, never a secret, token, passphrase, cookie, recovery ' +
+          'material, account identifier, or authentication URL. (The offending key name is ' +
+          'deliberately not repeated here.)',
       )
     }
     assertNoSecretShapedKeys(value[key])

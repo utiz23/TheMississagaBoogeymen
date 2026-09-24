@@ -99,6 +99,7 @@ import {
   sameIdentity,
 } from './backup-cloud-directory-authority.mjs'
 import { REAL_EVIDENCE_READER } from './backup-cloud-source-evidence.mjs'
+import { deepFreeze } from './backup-signal-serialization.mjs'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The signal's identity and the approved thresholds.
@@ -956,14 +957,6 @@ function buildSignal({ generatedAt, counts, anomalies, scan, newest = null, ageS
   }
   for (const key of FRESHNESS_COUNT_KEYS) out.counts[key] = counts[key]
   return deepFreeze(out)
-}
-
-function deepFreeze(value) {
-  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
-    for (const v of Object.values(value)) deepFreeze(v)
-    Object.freeze(value)
-  }
-  return value
 }
 
 const SIGNAL_TOP_KEYS = Object.freeze([

@@ -696,6 +696,170 @@ activation action. **E3 remains unactivated.**
 
 ---
 
+## CORRECTION — E3J8A (2026-09-23): an emitter exists; nothing is monitored
+
+**§5.2 pieces 3-5, §5.6, §11 U15 and §12 are updated in place, and a new §5.7
+records the emitter as implemented.** Read §5.7 and
+[`docs/operations/backup-monitoring-export.md`](../operations/backup-monitoring-export.md)
+for the design — they are the authoritative copies. This entry records only what
+changed, what was corrected, and what must not be read into it.
+
+**What was built.** `ops/backup/eanhl-backup-monitor-export.mjs` over
+`internal/backup-monitor-export-core.mjs`, with
+`internal/backup-healthchecks-transport-core.mjs` and its sanitized public
+wrapper, `internal/backup-monitor-ping-key-core.mjs` (no public wrapper),
+`backup-monitor-config.mjs`, `internal/backup-signal-serialization.mjs`, and
+`eanhl-backup-monitor.example.json`. **213 declared E3J8A tests** (187 at first
+build, plus 11 from the first post-review correction and 15 from the second,
+(h)-(i) below); on the unprivileged verification host 212 passed and one
+real-ownership test was **skipped** with an explicit root-required reason (its
+property is still covered by a passing dependency-seam test). **Full suite:
+1169 declared, 1168 passed, 1 skipped, 0 failed.** No pre-E3J8A assertion
+changed. No shebang, no
+executable bit, no package script, no timer, no unit, no cron entry, no default
+config path. **Local only: no provider was contacted, no account, check, ping
+key, Pushover integration or e-mail integration was created, and no DNS, host,
+deployment or scheduling change was made.**
+
+**Three corrected facts, carried here deliberately.**
+
+(1) **Healthchecks documents rate limiting above FIVE pings per minute** — not the
+figure an earlier draft of this planning work assumed. At one request per
+invocation on a 30-minute cadence it is unreachable; a 429 arriving anyway is
+`delivered` + `status_unexpected`, fail-closed and never retried.
+
+(2) **Cloudflare Email Sending publishes SPF on `cf-bounce`, not on the root
+domain.** Any future reasoning about `alerts@boogeymen.app` deliverability must
+start from the `cf-bounce` subdomain, not from `boogeymen.app`'s own SPF record.
+
+(3) **A pull-based watcher does not inherently prevent a compromised Hotel-Echo
+from serving forged health.** Pull changes _who initiates the connection_, not
+_who authors the claim_: a compromised host asked "are you healthy?" can answer
+"yes" exactly as easily as it can push "yes". The genuine protection against a
+compromised emitter is that the watcher alarms on _absence_ — which is why this is
+a dead-man's switch and why the emitter cannot suppress an alarm by staying quiet.
+**No further watcher-provider comparison is added**: the provider decision is
+made.
+
+**Four in-scope corrections made while building.**
+
+(a) **The serialization extraction was reverted by half, on purpose.** Rewriting
+E3J7's `serializeFreshnessSignal()` as a call to the new shared
+`serializeChecked()` is behaviourally identical but breaks a verified E3J7 STATIC
+assertion, which requires that core to contain exactly one
+`JSON.stringify(projection)` and a literal validation guard — deliberate
+regressions against re-introducing a serialize-the-caller's-object bug. Editing a
+verified assertion to make a refactor fit is not an acceptable trade, so
+`deepFreeze` is now shared (behaviour-preserving, no assertion changed) and
+`serializeChecked()` is the self-contained helper the E3J8A report and failure
+body use, exactly as the plan's fallback prescribed.
+
+(b) **The export core imports E3J7's PUBLIC API, not its internal core.** The
+first version reached into `internal/backup-cloud-freshness-core.mjs` and tripped
+E3J7's import-graph regression. The public module is the supported path and
+already binds `evaluateCloudFreshness` to the real dependencies.
+
+(c) **`assertNoSecretShapedKeys()` was exported and its diagnostic generalized.**
+It previously said "may not appear anywhere in **cloud** configuration" and "this
+file names only a backend selector" — both false statements about a monitor
+config. The error CODE (`config_secret_shaped_key`), the key-name-only rule, the
+absence of any location information, and the refusal to echo the key or its value
+are unchanged, and no weaker second traversal was written.
+
+(d) **One permanent no-op `error` absorber stays subscribed after settlement.**
+Settlement destroys the request, and a destroyed `ClientRequest` routinely emits a
+further `error`; an emitter with no `error` listener THROWS, which surfaced as an
+`uncaughtException` that would have killed the process _after_ a perfectly good
+ping. Every listener that CLASSIFIES an event is still removed; the absorber
+cannot change a settled result because it does nothing.
+
+**Post-review correction (same day): two defects and one accounting error.**
+Independent review reproduced all three before any checkpoint.
+
+(e) **The report serializer read through a caller-owned object.** The plan
+assumed no caller-owned report would ever reach the serializer, so it skipped
+E3J7's projection machinery. That assumption was false: `validateExportReport()`
+and `serializeExportReport()` are public APIs. An enumerable accessor `slug`
+returning `safe-slug` on its first read and a marker afterwards was validated
+clean and then serialized with the marker in it. Both functions now build a
+small, flat projection first: a Proxy is refused without a trap firing, the
+prototype must be `Object.prototype` or `null`, the `Reflect.ownKeys()` set must
+be exact, and every field must be an own enumerable data property holding a
+primitive, so an accessor is refused without being invoked. Only that fresh,
+frozen, null-prototype copy is validated and serialized, and the entrypoint
+prints it and takes its exit status from it. The same reproduction is now
+refused with zero getter invocations.
+
+(f) **Settlement left the caller's `abort` listener subscribed.** It was kept
+so a late abort would re-enter `settle()` and exercise the `settled` guard. But
+`{ once: true }` removes a listener only if abort actually fires, so a
+long-lived, never-aborted caller signal kept one listener, and its request
+closure, per invocation. Settlement now calls `removeEventListener` on every
+path. A test shows the listener count stays at 0 across 25 invocations on one
+signal. The `settled` guard is still tested, through the one remaining
+double-settle path: `req.end()` settling synchronously and then throwing.
+
+(g) **The original accounting called a skipped test passed.** "1142/1142, 0
+skipped" was wrong. The first build declared 187 E3J8A tests and 1143 in the full
+suite; one real-ownership test was skipped (root required), so 186 and 1142
+passed.
+
+**Second post-review correction (same day): two security-boundary defects.**
+Both were independently reproduced, without network or key access, before any
+checkpoint.
+
+(h) **An unsafe report slug was accepted.** The report validator required only
+that a non-null `slug` be a string, so an otherwise valid report with
+`slug: "/etc/shadow"` validated and serialized. It now must match the monitor
+config's own `SLUG_PATTERN`, imported rather than restated. Path-like, URL-like,
+oversized, uppercase, whitespace-bearing and other grammar-invalid values are
+refused by validation and serialization alike. One-character, 64-character,
+underscore and hyphen slugs still pass. `slug: null` is still allowed only in a
+coherent `not_sent` report.
+
+(i) **Hostile call arguments and signals could run caller code and leak its
+marker.** The transport decided that something was a signal by reading
+`signal.addEventListener` before proving it was an `AbortSignal`. So a plain
+object with a throwing getter rejected the promise with the caller's marker.
+Both public wrappers also destructured `args`, running accessors and Proxy traps
+before any boundary. Now both wrappers forward `args` unread, and both cores use
+a shared flat projection (`projectCallArgs()`). It refuses a Proxy first, then a
+non-plain prototype, an unknown, symbol or missing key, and an accessor, which
+it never invokes. `isGenuineAbortSignal()` then requires no Proxy, a prototype
+of exactly `AbortSignal.prototype`, and no own accessor. That last check also
+refuses one forged under Node's internal `kAborted` slot, which the brand check
+would otherwise invoke. Node's native `aborted` getter then serves as the brand
+check. Only captured intrinsics are used to read or subscribe afterwards. An
+invalid transport call gets the ordinary `local_refused` result, with no key
+read, timer or request. An invalid `runMonitorExport()` call rejects with one
+fixed `TypeError` before any I/O. `signal: null` is refused, not treated as
+absent. Mutation checks: **16 of 16 caught**, each restored byte-identically.
+
+**What must NOT be read into this.** §5.6 is restated and **not weakened**. Export
+code existing is not monitoring existing: **nothing schedules the emitter, no
+provider account or check exists, no ping key has been generated, no integration
+is attached, and no human has received a test notification.** The correct
+description of this system is still **"attestations are written; nobody is
+watching them"**, and both the signal and the report say so in a fixed
+`monitored: false` field rather than in prose a consumer can drop. U12-U14 remain
+open and U15 is only partly resolved; **no Gate checkbox changed; E3 remains
+unactivated and unmonitored.**
+
+**Honest non-claims.** The forged-healthy-ping risk is **accepted, not
+mitigated**, and a forged ping is undetectable from this side. The live `OK`
+response contract is **documented, not observed** — and an observed `OK\n` would
+be a discrepancy to decide, not a licence to widen the constant. Exactly-once is
+never claimed: a ping may have been received even when the process exits non-zero.
+`delivered` means a response head arrived and **never** that Healthchecks recorded
+the heartbeat. The real ping-key format is unverified; the accepted shape is a
+conservative bound that fails closed. Close-on-exec is supplied by Node/libuv and
+is not proven here. `errorClass` fidelity is best-effort and never affects
+`delivery`. **`internal/` is a convention, not access control** — the guarantee is
+the absent public wrapper plus a static import-graph test plus runtime
+unique-marker leak tests, and later-modified local code is out of scope.
+
+---
+
 ## CORRECTION — E3J7 (2026-09-21): freshness evaluation exists; monitoring still does not
 
 **§5.2 piece 2, §5.3 and §5.4 are updated in place; §11 T21 is closed; §12's
@@ -1591,9 +1755,9 @@ Calling that combination "monitoring" would be false.
 | --- | --- | --- | --- |
 | 1 | **Attestation creation** — write an attempt-scoped attestation for every attempt | Hotel-Echo, inside the uploader | designed here (§4, §9); not built |
 | 2 | **Freshness calculation** — derive one number from eligible attestations only | Hotel-Echo, a separate read-only evaluator | **BUILT (E3J7)** — `backup-cloud-freshness.mjs`; see §5.3 |
-| 3 | **Health-signal export** — publish a minimal signal somewhere off Hotel-Echo | Hotel-Echo emits; destination is not Hotel-Echo | not designed; **U15** |
-| 4 | **Independent watcher** — decide warning/critical and act when the signal is stale *or absent* | **must not be Hotel-Echo** | not designed; **U15** |
-| 5 | **Notification channel + human receipt test** | operator decision D1 | not decided; **U15** |
+| 3 | **Health-signal export** — publish a minimal signal somewhere off Hotel-Echo | Hotel-Echo emits; destination is hosted Healthchecks.io | **BUILT LOCALLY, NOT ACTIVATED (E3J8A)** — `eanhl-backup-monitor-export.mjs`; see §5.7 |
+| 4 | **Independent watcher** — decide warning/critical and act when the signal is stale _or absent_ | **Healthchecks.io's own grace timer** — not Hotel-Echo, and not local code | **decided; provider-side; not configured, no test notification** |
+| 5 | **Notification channel + human receipt test** | Healthchecks.io integrations: Pushover primary, `alerts@boogeymen.app` secondary | **decided; provider-side; not configured, no test notification** |
 
 ### 5.3 Freshness calculation — AS IMPLEMENTED (E3J7)
 
@@ -1745,12 +1909,138 @@ passes". **[REPO]** Therefore:
 
 ### 5.6 What must not be claimed
 
-**Monitoring does not exist.** No watcher is built, no channel is chosen, and no
-human has received a test notification. `backup-producer.md` §8 already states
-the rule — "These backups must not be described as monitored until a human has
-received a test notification" — and this memo does not weaken it. Until pieces
-3, 4 and 5 exist and a test notification has been received, the correct
-description is "attestations are written; nobody is watching them".
+**Monitoring does not exist.** `backup-producer.md` §8 states the rule — "These
+backups must not be described as monitored until a human has received a test
+notification" — and this memo does not weaken it. Until a test notification has
+been received, the correct description is **"attestations are written; nobody is
+watching them"**.
+
+**E3J8A does not change that sentence, and is not allowed to.** Export code now
+exists and the watcher and channels are _decided_, but **nothing schedules the
+emitter, no Healthchecks account, check, ping key or integration has been
+created, and no human has received a test notification.** Code existing is not
+monitoring existing. `monitored` therefore stays **`false`** — in the signal, in
+the export report, and as a value the report validator refuses to see set to
+anything else. The conditions under which it may change are enumerated in §5.7.5
+and in `docs/operations/backup-monitoring-export.md` §9, and changing it requires
+its own separately authorized session.
+
+### 5.7 Off-host export, AS IMPLEMENTED (E3J8A)
+
+Piece 3 only — the **emitter**. Full operator detail:
+[`docs/operations/backup-monitoring-export.md`](../operations/backup-monitoring-export.md).
+That document is the authoritative copy; this section records the design and the
+boundaries.
+
+**5.7.1 The accepted ping-key risk, stated first.** The Healthchecks **project**
+ping key is a bearer credential with **project-wide blast radius**: anyone holding
+it can ping any check in the project, **including forging a healthy ping for this
+one**, which would keep the dead-man's switch quiet while backups failed. Per
+operator decision **this risk is explicitly accepted**. It is not mitigated, and a
+forged healthy ping is **undetectable from this side**.
+
+**5.7.2 The trust model, and the honest scope of the internal-import contract.**
+The key exists in exactly three places, all inside
+`internal/backup-healthchecks-transport-core.mjs`, all for the duration of one
+request: the bytes the reader returned, the request `path` built from them, and
+the `options.path` handed to `https.request`. It is never a module-level binding,
+never cached, never in `process.env` or `argv`, and never interpolated into a
+message, code, report or thrown error.
+
+**`internal/` is a CONVENTION, not an access-control mechanism.** Any file here
+can import `lib/internal/…`; the directory name prevents nothing. What is actually
+guaranteed is narrower: (1) no supported public wrapper re-exports the key reader
+or `buildPingPath()`, and `backup-monitor-ping-key-core.mjs` has **no public
+wrapper file at all**; (2) a static test proves that, among production modules,
+only the transport core imports the reader; (3) tests import the seam on purpose;
+(4) malicious or later-modified local code is out of scope; and (5) the
+load-bearing evidence is the **runtime unique-marker leak tests**, not the
+directory name. Every public production result is a frozen record of closed codes
+plus `redacted` — the literal `https://hc-ping.com/<ping-key>/<slug>[/fail]`.
+
+**5.7.3 The config split, and the key-file contract.** `--monitor-config` is its
+own surface with its own owner, lifetime and failure domain, for the reason §10.1
+gives: a malformed monitor config must not be able to stop the uploader, and a
+malformed cloud config must not be able to redirect a ping. The schema is
+**exactly closed** — two top-level keys, three under `watcher`, two under `ping`,
+any unknown key rejected — so **no field exists for an inline secret, origin,
+host, port, scheme, request path, query or threshold**. There is deliberately no
+value-shape heuristic: it would collide with legitimate values. The ping ORIGIN is
+a module constant, the same reasoning that keeps the approved 8 h / 24 h
+thresholds out of configuration.
+
+The key file is operator-provisioned, outside the repo, a regular non-symlink file
+owned by the effective uid, mode **exactly `0600`** (one comparison,
+`(mode & 0o7777) === 0o600`, which also rejects setuid/setgid/sticky), 1-256 bytes,
+strict UTF-8, ASCII-only, at most one trailing newline, and shaped
+`/^[A-Za-z0-9_-]{16,64}$/` — a conservative URL-path-safe bound, **not** a claim
+about the provider's grammar. Open flags are
+`O_RDONLY | O_NOFOLLOW | O_NONBLOCK`; **`O_CLOEXEC` is not specified and no
+numeric constant is manufactured in its place**, because
+`fs.constants.O_CLOEXEC` is `undefined` on this runtime. The accurate statement is
+that **close-on-exec is supplied by Node/libuv and is neither controlled
+explicitly nor proven independently here** — acceptable because the reader spawns
+no subprocess and closes within the invocation. Failures return one closed code
+and nothing else.
+
+**5.7.4 Path, acceptance, and the conservative delivery model.** The path is
+`/<key>/<slug>` (+`/fail`), built directly and issued from an explicit options
+object — never a `URL` round-trip — with **no query string, no `create`, no
+`rid`**, exactly two or three segments (so a UUID endpoint is structurally
+impossible) and a third segment of exactly `fail` (so `/start`, `/log` and an
+exit-code endpoint are excluded). `POST` for both endpoints, exact
+`content-length`, a fixed UA, no other header, `agent: false`, a 16 KiB request
+ceiling enforced as a **local refusal rather than a truncation**, and a 64-byte
+response ceiling. **No redirect is followed** and `Location` is never read.
+
+`fresh` → the success endpoint; **everything else → `/fail`**, from a closed
+classification table with an explicit entry for every `FRESHNESS_STATUSES` member,
+so a status added later can never default to success.
+
+Delivery is deliberately conservative. **`not_sent` is permitted only for a local
+refusal strictly before `https.request()` is called**; after that call it is never
+reported again, so a synchronous throw from `https.request()` or from `req.end()`
+is `indeterminate`. **`delivered` means only that a complete response head
+arrived** — not that Healthchecks recorded, processed or persisted the heartbeat.
+The only documented acknowledgement is **`accepted`: status exactly 200 plus the
+exact body bytes `OK`**, which is the _documented_ contract and is **not verified
+live here** (S3). DNS, connect, TLS, write, reset, timeout and cancellation
+failures are **all `indeterminate`**; `errorClass` is a hint that never affects
+`delivery`. **Exactly-once is never claimed** — a ping may have been received even
+when the process exits non-zero. Healthchecks documents rate limiting above five
+pings per minute, unreachable at one request per invocation on a 30-minute
+cadence; a 429 would be `delivered` + `status_unexpected`, and **never retried**.
+
+A **cloud-side** failure still pings `/fail` with a closed failure body — the
+condition worth alarming on. A **monitor-side** failure (monitor config invalid,
+key unavailable) makes a path impossible, so **nothing is sent**, `delivery` is
+`not_sent`, and the process exits 3: silence is itself the alarm after the grace
+period.
+
+**5.7.5 Cancellation, exit codes, and the `monitored` transition.** The entrypoint
+owns the single `AbortController` and the SIGINT/SIGTERM listeners, installed
+before any parsing and removed in a `finally`. The first signal records the name,
+aborts and writes one line **without exiting**; the second writes one bounded line
+and exits with the first signal's code, attempting **no** stdout report.
+Settlement is one-shot, and late events cannot change it. On every path it
+removes its listener from the caller's `AbortSignal`, so a long-lived signal
+accumulates nothing. The printed report is always a fresh, flat projection,
+never the object handed to the serializer (correction (e) above), and a non-null
+`slug` in it must match `SLUG_PATTERN` (correction (h)). Both public call
+surfaces project their caller-owned arguments and prove any `signal` a genuine
+`AbortSignal` before use (correction (i)). Exit codes:
+**0** accepted, **2** invalid invocation or `--help` (0 is reserved for an
+accepted ping), **3** local refusal with the report written, **4** delivered but
+unaccepted, **5** indeterminate, **6** attempted with the report unwritten,
+**7** refused with the report unwritten, **130/143** cancelled. **1 is
+deliberately unused**: "not fresh" is a report field, not an exit status.
+**Exit 0 means the ping was accepted, not that the backup is fresh.**
+
+`monitored` may become `true` only in a later, separately authorized session, and
+only once **all** of these hold: backup scheduling exists and runs the emitter on
+a timer; the check exists with period 1 h and grace 1 h; Pushover and
+`alerts@boogeymen.app` are attached; **a human has received a test notification**
+from a deliberately failed ping; and the live `OK` contract has been observed.
 
 ---
 
@@ -2481,7 +2771,7 @@ unknown registry; this memo does not maintain a second one.
 | **U12** | Three required, positive-integer, no-default readback ceilings — `readback.maxCiphertextBytes`, `readback.maxManifestBytes`, `readback.maxSidecarBytes` — and **which** hard-containment mechanism (`rlimit_fsize` or `quota_mount`) is deployed and proven to enforce the applicable per-role ceiling for each one-file-per-process download | The ciphertext value is blocked on U5's open half (the real production ciphertext ceiling) and must ultimately align with the approved producer/acceptor production envelope. The manifest and sidecar values are much smaller but still require their own explicit production configuration. All three, plus the containment mechanism, are also blocked on a demonstrated per-role enforcement test on the real host (§3.3) |
 | **U13** | Uploader upload/download/metadata timeouts, cancellation grace, retry counts, and retry backoff | Size-dependent timeout calibration is blocked on measured production upload/download behaviour on the intended host/link/provider path — a production dump/ciphertext-size series does not settle it; E3I1's 300 MiB-in-104 s figure is one synthetic sample on a different host **[E3I]**. Cancellation grace can be established initially through local boundary tests and later validated on the real host. Retry counts and backoff are operator reliability and debris-accumulation policy decisions, informed but not mechanically determined by transfer measurements |
 | **U14** | `remote.root` and the remote folder layout beneath it | an operator decision about the Proton account's namespace; interacts with U6 (dedicated uploader identity) |
-| **U15** | The independent watcher's host, the exported health-signal format and transport, the notification channel, and the human receipt test | operator decision D1 (`backup-producer.md` §8) and §5.2 pieces 3-5 |
+| **U15** | The independent watcher's host, the exported health-signal format and transport, the notification channel, and the human receipt test | **PARTLY RESOLVED (E3J8A, local only).** Decided and built locally: the export format (`eanhl.cloud-freshness-signal` v1 as the POST body), the transport (one POST to a hosted Healthchecks.io slug check, §5.7), the watcher (Healthchecks.io's own grace timer — not Hotel-Echo, and not local code), and the channels (Pushover primary, `alerts@boogeymen.app` secondary). **STILL OPEN:** no provider account, check, ping key or integration exists; nothing schedules the emitter (blocked on backup scheduling, which does not exist); and **no human has received a test notification**. Until that receipt test passes, nothing is monitored and `monitored` stays `false`. That remainder is **E3J8B — activation**, and it needs its own authorization |
 
 ---
 
@@ -2699,7 +2989,8 @@ sessions need no provider, no host, and no credential.
 | **E3J5** | **Uploader orchestration.** **DONE (2026-09-16).** New `backup-cloud-upload.mjs` (thin production API, one export `runUploadAttempt({config, artifactBase, signal})` plus five frozen vocabularies) over `internal/backup-cloud-upload-core.mjs` (internal test seam, static importer regression). One explicit artifact base, no scanning; local triple validated (non-empty regular files via `lstat`, safe-integer sizes, `verifyArtifactCompletion()` with its text discarded, identity re-observed around every upload); flat layout (§4.2, §8.1) and the rewritten §8.2 order; uploads stop at the first non-success; a frozen evidence outcome with no verdict. Minimal read-only real dependencies, not `makeRealDeps()`. T10, T19, T20 in full; the E3J5 halves of T11 and T12 (§11.1). `fake-proton-drive.mjs` gained an additive `sequence` / `notFoundForQueriedBasename` mode. **56 new tests + 3 naming tests; full suite 413/413.** No retry (T18 deferred), no lock, no entrypoint, no readback, no attestation | no |
 | **E3J6** | **[E3J6A DONE 2026-09-16 (committed, `70abb63`); E3J6B DONE 2026-09-17 — readback, independent verdict, and the durable intent/attestation records, see the correction entry at the top; E3J6C DONE 2026-09-19 (committed, `97e62d4`) — the run lock, collision-only bounded retry (T18), private signal ownership, and the executable entrypoint; see the E3J6C correction entry at the top and §4.7.]** **Readback containment and attestation.** The readback path, the containment tripwire, the attestation schema and writer, plus T13-T17, the E3J6 halves of T8, T11, and T12, and — once the writer exists — bounded retry (T18). Consumes the E3J5 evidence outcome and derives its verdict independently. The first executable entrypoint, wherever it lands, owns `run.lockFile`, with a lock spanning upload, readback, and attestation | no |
 | **E3J7** | **Freshness evaluation and the local health signal. DONE (2026-09-21).** New `backup-cloud-freshness.mjs` over `internal/backup-cloud-freshness-core.mjs`: `validateCloudAttestationBinding()` (§5.3, eight checks, `kind` discriminator first, closed failure codes, no acceptor import); bounded STREAMING enumeration of `attestation.dir` stopping at `MAX_DIRECTORY_ENTRIES + 1` with any breach/failure yielding indeterminate and no partial number; reuse of E3J6B's `readCloudAttestation()` as the only record reader; a bounded fail-closed manifest read at `min(readback.maxManifestBytes, 1 MiB)` with descriptor identity and a post-read recheck; per-record (never per-base) binding exclusion; `max(source_snapshot_ts)` over eligible records; the frozen `eanhl.cloud-freshness-signal` v1 carrying no identifier, path or free text; an output-projection boundary that never serializes the evaluator's own object; and a non-activated read-only entrypoint `ops/backup/eanhl-backup-freshness.mjs --config <path>` printing one JSON line (exit 0 = a complete signal line reached stdout, NOT that a backup is fresh; 2 invalid invocation; 3 no signal, or its line could not be written in full). T21 closed. **200 new tests, full suite 956/956, 0 fail, 0 skipped; 69/69 targeted mutations caught.** No new config key. The off-host export, the watcher host and the notification channel are NOT here — they remain U15/E3J8 | no |
-| **E3J8** | **Independent alerting.** Watcher host, channel, and a received test notification. Until this closes, nothing is monitored | yes — operator decision D1, **U15** |
+| **E3J8A** | **Local, non-activated Healthchecks export (§5.2 piece 3). DONE (2026-09-23).** New `internal/backup-signal-serialization.mjs` (shared `deepFreeze`, plus the `serializeChecked` loop the E3J8A report and failure body use); `backup-monitor-config.mjs` (a second, exactly-closed config surface with its own validator and closed error vocabulary, reusing the shared primitives and the now-exported `assertNoSecretShapedKeys`); `internal/backup-monitor-ping-key-core.mjs` (the only bearer-credential reader, **no public wrapper**, exactly-`0600`, `O_RDONLY|O_NOFOLLOW|O_NONBLOCK`, descriptor identity checks, nine closed failure codes); `internal/backup-healthchecks-transport-core.mjs` + the sanitized public `backup-healthchecks-transport.mjs` (module-constant origin, `buildPingPath()` never publicly exported, one request with no retry, the conservative delivery model, one-shot settlement); `internal/backup-monitor-export-core.mjs` + `backup-monitor-export.mjs`'s report contract; the non-activated entrypoint `ops/backup/eanhl-backup-monitor-export.mjs` (no shebang, no exec bit, no package script, no timer/unit/cron); `eanhl-backup-monitor.example.json`; four suites. **198 declared E3J8A tests: 197 passed, 1 real-ownership test skipped (root required). Full suite 1154 declared, 1153 passed, 1 skipped, 0 failed**, with **no pre-E3J8A assertion changed**. A same-day post-review correction added a flat report projection boundary and removes the caller's abort listener on settlement. Pieces 4 and 5 became provider-side decisions with no local code. **Nothing is activated**, and `monitored` stays `false` | no |
+| **E3J8B** | **Activation.** Create the Healthchecks project and check (period 1 h, grace 1 h), attach Pushover and `alerts@boogeymen.app`, provision the ping key, observe the live `OK` contract, **receive a test notification from a deliberately failed ping**, and schedule the emitter. Blocked on backup scheduling, which does not exist. Until this closes, **nothing is monitored** | yes — operator decision D1, **U15** |
 | **E3J9** | **Credential mechanism.** A service-compatible credential-access design for Hotel-Echo, closing U1's remainder | yes — separate authorization |
 | **E3J10** | **Hotel-Echo deployment.** CLI install and pin, containment mechanism proof (§3.3), directory and permission setup | yes — separate authorization |
 | **E3J11** | **Production size measurement.** A measured production dump/ciphertext series, closing U5's numeric production-envelope portion and the byte-value portion of U12. Does **not** set U13 — a size series does not settle transfer timing or retry policy | yes — production database |
@@ -2707,8 +2998,8 @@ sessions need no provider, no host, and no credential.
 | **E3J13** | **Retention and pruning.** Still blocked by C10 on five unproven provider behaviours, and constrained by `backup-producer.md` §7 requirement 8 | yes |
 | **E3J14** | **Restore drill.** Recover into a disposable database and verify critical table counts and representative application reads | yes — separate authorization |
 
-Sessions E3J2-E3J7 are local and can proceed in order without any further
-provider or host authorization. E3J8 onward each require their own.
+Sessions E3J2-E3J7 and E3J8A are local and can proceed in order without any
+further provider or host authorization. E3J8B onward each require their own.
 
 ---
 

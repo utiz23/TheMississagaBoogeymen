@@ -1166,26 +1166,37 @@ that number (E3J7, `ops/backup/lib/backup-cloud-freshness.mjs`).
 
 Nothing in the **producer** reads or enforces any row below; it never did.
 
-|                                         | Value                                                                        | Status                                                                                                                     |
-| --------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Steady-state recovery age               | ≤ 6 h 45 min                                                                 | **PROPOSED** — operator decision D2, still open                                                                            |
-| WARN threshold                          | **8 h** on a verified Proton copy (~~> 7 h 30 min~~)                         | **APPROVED (E1A)**. The struck value is SUPERSEDED — it was never approved                                                 |
-| ALARM threshold                         | **24 h** on a verified Proton copy (~~> 9 h 0 min~~)                         | **APPROVED (E1A)** as the _critical_ threshold. The struck value is SUPERSEDED                                             |
-| RPO                                     | 6 h (a 6-hour rewind is a permanent hole: EA exposes only ~5 recent matches) | **APPROVED (E1A)**; enforced by nothing                                                                                    |
-| RTO                                     | **8 h** (single target)                                                      | **APPROVED (E1A)**, replacing the two split RTO rows below                                                                 |
-| ~~RTO onto a healthy provisioned host~~ | ~~≤ 1 h~~                                                                    | **SUPERSEDED by E1A's single RTO 8 h**                                                                                     |
-| ~~RTO after total host loss~~           | ~~≤ 4 h~~                                                                    | **SUPERSEDED by E1A's single RTO 8 h**                                                                                     |
-| Backup cadence                          | every 6 h; the clock times `00/06/12/18Z` are a proposal                     | Cadence **APPROVED (E1A)**; policy decided 2026-09-03; **not scheduled by anything yet**                                   |
-| Notification channel                    | undecided                                                                    | Operator decision D1. **These backups must not be described as monitored until a human has received a test notification.** |
-| Retention (7 d / 30 d / 12 mo)          | 6-hourly 7 d, daily 30 d, monthly 12 mo (≈ 70 artifacts)                     | **APPROVED (E1A)**; not implemented (E3J13, still blocked by C10)                                                          |
+|                                         | Value                                                                        | Status                                                                                                                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Steady-state recovery age               | ≤ 6 h 45 min                                                                 | **PROPOSED** — operator decision D2, still open                                                                                                                                      |
+| WARN threshold                          | **8 h** on a verified Proton copy (~~> 7 h 30 min~~)                         | **APPROVED (E1A)**. The struck value is SUPERSEDED — it was never approved                                                                                                           |
+| ALARM threshold                         | **24 h** on a verified Proton copy (~~> 9 h 0 min~~)                         | **APPROVED (E1A)** as the _critical_ threshold. The struck value is SUPERSEDED                                                                                                       |
+| RPO                                     | 6 h (a 6-hour rewind is a permanent hole: EA exposes only ~5 recent matches) | **APPROVED (E1A)**; enforced by nothing                                                                                                                                              |
+| RTO                                     | **8 h** (single target)                                                      | **APPROVED (E1A)**, replacing the two split RTO rows below                                                                                                                           |
+| ~~RTO onto a healthy provisioned host~~ | ~~≤ 1 h~~                                                                    | **SUPERSEDED by E1A's single RTO 8 h**                                                                                                                                               |
+| ~~RTO after total host loss~~           | ~~≤ 4 h~~                                                                    | **SUPERSEDED by E1A's single RTO 8 h**                                                                                                                                               |
+| Backup cadence                          | every 6 h; the clock times `00/06/12/18Z` are a proposal                     | Cadence **APPROVED (E1A)**; policy decided 2026-09-03; **not scheduled by anything yet**                                                                                             |
+| Notification channel                    | Healthchecks.io dead-man's switch; Pushover primary + e-mail secondary       | **DECIDED (D1, 2026-09-23)**, **not activated, no test notification received.** **These backups must not be described as monitored until a human has received a test notification.** |
+| Retention (7 d / 30 d / 12 mo)          | 6-hourly 7 d, daily 30 d, monthly 12 mo (≈ 70 artifacts)                     | **APPROVED (E1A)**; not implemented (E3J13, still blocked by C10)                                                                                                                    |
 
-**Still unapproved, and unchanged by this correction:** the steady-state
-recovery age (D2) and the notification channel (D1). **Approved but not
-implemented** is not the same as done — nothing schedules a backup, prunes an
-artifact, or watches a threshold. E3J7 added a read-only evaluator that
-computes the 8 h / 24 h status locally; **nothing exports, watches, or alerts
-on it** (U15 / E3J8), so the sentence in the Notification channel row above
-still holds in full.
+**Still unapproved, and unchanged:** the steady-state recovery age (D2).
+**Approved but not implemented** is not the same as done — nothing schedules a
+backup, prunes an artifact, or watches a threshold. E3J7 added a read-only
+evaluator that computes the 8 h / 24 h status locally, and **E3J8A (2026-09-23)
+added a local, non-activated emitter** that classifies that signal and would POST
+it to one hosted Healthchecks.io slug check
+([`backup-monitoring-export.md`](backup-monitoring-export.md)).
+
+**D1 is now decided, and that is all it is.** No Healthchecks account, check,
+ping key, Pushover integration or e-mail integration has been created; nothing
+schedules the emitter (it has no shebang, no executable bit and no package
+script, and activation is blocked on backup scheduling, which does not exist);
+and **no human has received a test notification**. So the sentence in the
+Notification channel row above **still holds in full**, and the honest
+description of the system remains "attestations are written; nobody is watching
+them". Both the freshness signal and the export report carry a fixed
+`"monitored": false` field that says so. The remaining work is **E3J8B —
+activation**, which needs its own authorization.
 
 ---
 

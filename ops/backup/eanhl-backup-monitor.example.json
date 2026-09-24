@@ -1,0 +1,11 @@
+{
+  "watcher": {
+    "provider": "healthchecks_io",
+    "slug": "eanhl-cloud-backup-freshness",
+    "pingKeyFile": "/etc/eanhl/healthchecks-ping-key"
+  },
+  "ping": {
+    "requestTimeoutMs": 10000,
+    "connectTimeoutMs": 5000
+  }
+}
