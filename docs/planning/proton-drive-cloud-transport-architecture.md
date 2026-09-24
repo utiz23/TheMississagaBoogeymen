@@ -2149,7 +2149,18 @@ that makes an unexpected binary swap loud instead of silent.
   availability, not Proton session expiry over the tested interval.**
 - **Untested:** Hotel-Echo entirely; reboot; logout; terminal closure as a
   controlled variable; the exact time and cause of cache loss; and any
-  service-compatible credential-access mechanism.
+  service-compatible credential-access mechanism. **E3J9A (2026-09-24)** has
+  since inspected Hotel-Echo read-only: no usable Proton credential mechanism
+  or session was established for `utiz` in the inspected default/current-session
+  locations (Proton CLI, `pass` and the default `~/.gnupg` path absent, none of
+  the inspected common Secret Service provider packages installed, no
+  dedicated identity; universal absence not established; GnuPG,
+  gpg-agent socket units, `pinentry-curses`, D-Bus prerequisites and
+  `systemd-creds` are installed), no TPM path or `crypt` layer is evidenced,
+  and no unattended credential mechanism is selected pending an operator risk
+  decision — see
+  [`proton-drive-hotel-echo-credential-feasibility.md`](proton-drive-hotel-echo-credential-feasibility.md).
+  Reboot, logout and service-mode behaviour remain untested.
 - **U1 remains only partially informed and open.** U1 is
   `proton-drive-transport-feasibility.md` §9's first ranked unknown: *whether the
   CLI can run unattended across reboots on Hotel-Echo — which credential backend
@@ -2201,6 +2212,10 @@ and how they behave under a service-mode (non-login, non-interactive, possibly
 near-empty-environment) run are E3J9/E3J10 questions with no proof in this
 repository yet.** Until that proof exists, the allowlist must be described as
 ambient-variable exclusion, never as a trusted-environment guarantee.
+**[E3J9A]** Hotel-Echo values seen in an interactive SSH session
+(`XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set; the other
+credential-related keys unset) are point-in-time session observations,
+**not** canonical service-mode values; those remain unproven.
 
 The consequence is that the credential mechanism is its **own** session (§12,
 E3J9) and its own unknown (U1), and that the uploader can be designed, built and
@@ -2991,7 +3006,7 @@ sessions need no provider, no host, and no credential.
 | **E3J7** | **Freshness evaluation and the local health signal. DONE (2026-09-21).** New `backup-cloud-freshness.mjs` over `internal/backup-cloud-freshness-core.mjs`: `validateCloudAttestationBinding()` (§5.3, eight checks, `kind` discriminator first, closed failure codes, no acceptor import); bounded STREAMING enumeration of `attestation.dir` stopping at `MAX_DIRECTORY_ENTRIES + 1` with any breach/failure yielding indeterminate and no partial number; reuse of E3J6B's `readCloudAttestation()` as the only record reader; a bounded fail-closed manifest read at `min(readback.maxManifestBytes, 1 MiB)` with descriptor identity and a post-read recheck; per-record (never per-base) binding exclusion; `max(source_snapshot_ts)` over eligible records; the frozen `eanhl.cloud-freshness-signal` v1 carrying no identifier, path or free text; an output-projection boundary that never serializes the evaluator's own object; and a non-activated read-only entrypoint `ops/backup/eanhl-backup-freshness.mjs --config <path>` printing one JSON line (exit 0 = a complete signal line reached stdout, NOT that a backup is fresh; 2 invalid invocation; 3 no signal, or its line could not be written in full). T21 closed. **200 new tests, full suite 956/956, 0 fail, 0 skipped; 69/69 targeted mutations caught.** No new config key. The off-host export, the watcher host and the notification channel are NOT here — they remain U15/E3J8 | no |
 | **E3J8A** | **Local, non-activated Healthchecks export (§5.2 piece 3). DONE (2026-09-23).** New `internal/backup-signal-serialization.mjs` (shared `deepFreeze`, plus the `serializeChecked` loop the E3J8A report and failure body use); `backup-monitor-config.mjs` (a second, exactly-closed config surface with its own validator and closed error vocabulary, reusing the shared primitives and the now-exported `assertNoSecretShapedKeys`); `internal/backup-monitor-ping-key-core.mjs` (the only bearer-credential reader, **no public wrapper**, exactly-`0600`, `O_RDONLY|O_NOFOLLOW|O_NONBLOCK`, descriptor identity checks, nine closed failure codes); `internal/backup-healthchecks-transport-core.mjs` + the sanitized public `backup-healthchecks-transport.mjs` (module-constant origin, `buildPingPath()` never publicly exported, one request with no retry, the conservative delivery model, one-shot settlement); `internal/backup-monitor-export-core.mjs` + `backup-monitor-export.mjs`'s report contract; the non-activated entrypoint `ops/backup/eanhl-backup-monitor-export.mjs` (no shebang, no exec bit, no package script, no timer/unit/cron); `eanhl-backup-monitor.example.json`; four suites. **E3J8A: 213 declared, 212 passed, 1 root-only ownership test skipped, 0 failed. Full suite: 1169 declared, 1168 passed, 1 skipped, 0 failed**, with **no pre-E3J8A assertion changed**. Two same-day post-review corrections: fresh report projection and abort-listener cleanup on settlement; then canonical slug validation, and safe call-argument projection with genuine `AbortSignal` validation. Pieces 4 and 5 became provider-side decisions with no local code. **Nothing is activated**, and `monitored` stays `false` | no |
 | **E3J8B** | **Activation.** Create the Healthchecks project and check (period 1 h, grace 1 h), attach Pushover and `alerts@boogeymen.app`, provision the ping key, observe the live `OK` contract, **receive a test notification from a deliberately failed ping**, and schedule the emitter. Blocked on backup scheduling, which does not exist. Until this closes, **nothing is monitored** | yes — operator decision D1, **U15** |
-| **E3J9** | **Credential mechanism.** A service-compatible credential-access design for Hotel-Echo, closing U1's remainder | yes — separate authorization |
+| **E3J9** | **Credential mechanism.** A service-compatible credential-access design for Hotel-Echo, closing U1's remainder. **E3J9A — read-only Hotel-Echo feasibility inspection complete (2026-09-24)**, [`proton-drive-hotel-echo-credential-feasibility.md`](proton-drive-hotel-echo-credential-feasibility.md): no credential setup and no persistence proof; **U1 and E3J9 remain open**. Next: the operator risk decision (memo §5), then a separately authorized mechanism-specific setup experiment | yes — separate authorization |
 | **E3J10** | **Hotel-Echo deployment.** CLI install and pin, containment mechanism proof (§3.3), directory and permission setup | yes — separate authorization |
 | **E3J11** | **Production size measurement.** A measured production dump/ciphertext series, closing U5's numeric production-envelope portion and the byte-value portion of U12. Does **not** set U13 — a size series does not settle transfer timing or retry policy | yes — production database |
 | **E3J12** | **Production transfer/timing calibration.** Measured production upload/download behaviour on the intended host/link/provider path, calibrating the timeout portion of U13. Retry counts and backoff remain an operator reliability/debris-accumulation policy decision, informed but not mechanically determined by these measurements | yes — production upload/download on Hotel-Echo's Proton path |

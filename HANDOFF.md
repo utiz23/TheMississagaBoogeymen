@@ -26,16 +26,20 @@ in the roadmap doc, not here.
 
 ## Latest Verified Checkpoint
 
-**2026-09-23 — E3J8A (local, non-activated Healthchecks freshness export)
-implemented and verified. Local-only. E3 remains unactivated, and NOTHING IS
-MONITORED.**
+**2026-09-24 — E3J9A: read-only Hotel-Echo credential feasibility inspection
+complete. U1 and E3J9 remain open.** No usable Proton credential mechanism or
+session found for `utiz` in inspected default/session locations (Proton CLI,
+`pass`, default `~/.gnupg` absent; universal absence not established; GnuPG,
+agent socket units, D-Bus and `systemd-creds` installed); no TPM path or
+`crypt` layer evidenced. **No unattended mechanism is selected** pending an
+operator risk decision:
+[`proton-drive-hotel-echo-credential-feasibility.md`](docs/planning/proton-drive-hotel-echo-credential-feasibility.md) §5.
 
-E3J8A is memo §5.2 piece 3 — the emitter — and nothing else: it classifies
-E3J7's signal (`fresh` → success endpoint, everything else → `/fail`) and would
-POST it to one hosted Healthchecks.io slug check as a dead-man's switch. Pieces
-4 and 5 are provider-side — Healthchecks' own grace timer, plus Pushover and
-`alerts@boogeymen.app` as its integrations — so **there is no local watcher or
-notification code**.
+Previous — **2026-09-23 — E3J8A (local, non-activated Healthchecks freshness
+export), verified. E3 unactivated; NOTHING IS MONITORED.** Memo §5.2 piece 3,
+the emitter: `fresh` → success endpoint, else `/fail`, to one hosted
+Healthchecks.io check. Pieces 4-5 are provider-side (grace timer, Pushover,
+`alerts@boogeymen.app`) — **no local watcher or notification code**.
 
 - `ops/backup/eanhl-backup-monitor-export.mjs --cloud-config <p>
 --monitor-config <p>`; no shebang, exec bit, package script, timer, unit or
@@ -64,20 +68,10 @@ notification code**.
   Proxy trap run (16/16 caught). Nothing contacted any external host (a guard
   refuses non-loopback connects). Contract: memo §5.7 and the ops doc below.
 
-Before that — **2026-09-21 — E3J7 (freshness evaluation and the local health
-signal), local-only** — memo §5.2 piece 2 only: `backup-cloud-freshness.mjs`
-derives `max(source_snapshot_ts)` over records that are readable, schema-valid,
-`verdict: "verified"` **and** binding-valid (`kind` first, so a destination
-receipt can never satisfy binding; a binding failure excludes **that record**,
-not its base), and any ceiling, enumeration, clock or directory-identity failure
-yields `indeterminate` with **no** number. `eanhl-backup-freshness.mjs --config
-<path>` prints one `eanhl.cloud-freshness-signal` v1 line of counts, closed
-codes and timestamps plus a fixed `monitored: false`; **exit 0 means a signal
-was produced, not that a backup is fresh**, and a short or failed stdout write
-exits 3 with no second line. Nothing the evaluator returns is serialized — a
-fresh null-prototype projection is validated (cross-field contract included) and
-printed. The approved **8 h / 24 h** bands (E1A) are module constants. **956/956**
-(756 + 200), 69/69 mutations caught. Rule detail: memo §5.3.
+Before that — **2026-09-21 — E3J7 (freshness evaluation, local-only)**:
+`eanhl-backup-freshness.mjs` prints one `eanhl.cloud-freshness-signal` v1 line
+(`monitored: false`; exit 0 = signal produced, not freshness); 8 h / 24 h bands;
+**956/956**, 69/69 mutations. Rule detail: memo §5.3.
 
 Before that — **2026-09-19, E3J6C (`97e62d4`, committed and pushed)** — the run
 lock, collision-only bounded retry (T18), private signal ownership, and the
@@ -147,8 +141,8 @@ Before that: E3J6B 2026-09-18, **637/637** (`bbcff5b`); E3J6A 2026-09-16,
   human has received a test notification**. Code existing is not monitoring
   existing; `monitored` stays `false`, and activation (**E3J8B**) is blocked on
   backup scheduling, which does not exist. Also open: a proven hard-containment
-  mechanism on the real host, unattended credential persistence (Hotel-Echo
-  untested), and real-CLI schema verification. U12-U14 remain unresolved (readback ceilings/containment proof,
+  mechanism on the real host, unattended credential persistence (U1 open; E3J9A
+  found none for `utiz` in inspected locations), and real-CLI schema verification. U12-U14 remain unresolved (readback ceilings/containment proof,
   timeouts/retry values, remote root and the flat layout's ratification); U15 is
   **partly** resolved — format, transport, watcher and channels decided and the
   emitter built, but no provider object exists and the receipt test is unrun.
@@ -178,10 +172,12 @@ Before that: E3J6B 2026-09-18, **637/637** (`bbcff5b`); E3J6A 2026-09-16,
    (`9ea391ab9cb494688afcfab8b96ba544912efe19`). **E3J2-E3J8A are done, and that
    exhausts the local sessions**; E3 remains unactivated and nothing is
    monitored. **E3J8B (activation)** stays the named milestone but is not
-   actionable: backup scheduling does not exist. The next dependency-clearing
-   work is **E3J9** (Hotel-Echo service-compatible credential mechanism), then
-   **E3J10** (deployment/containment), each needing separate explicit
-   authorization; neither is authorized or started. E3J8B's steps (check
+   actionable: backup scheduling does not exist. After **E3J9A** (see Latest
+   Verified Checkpoint), next is the **operator risk decision** (restricted
+   service-readable credential vs operator-gated protected credential vs
+   firmware TPM investigation), then a mechanism-specific E3J9 setup
+   experiment and **E3J10**, each separately authorized; neither is
+   authorized or started. E3J8B's steps (check
    period/grace 1 h, Pushover and e-mail, ping key, live `OK` contract,
    **test notification from a deliberately failed ping**, emitter schedule):
    the ops doc above, §9; it needs its own authorization.
