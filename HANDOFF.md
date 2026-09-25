@@ -26,47 +26,43 @@ in the roadmap doc, not here.
 
 ## Latest Verified Checkpoint
 
-**2026-09-24 — E3J9A: read-only Hotel-Echo credential feasibility inspection
-complete. U1 and E3J9 remain open.** No usable Proton credential mechanism or
-session found for `utiz` in inspected default/session locations (Proton CLI,
-`pass`, default `~/.gnupg` absent; universal absence not established; GnuPG,
-agent socket units, D-Bus and `systemd-creds` installed); no TPM path or
-`crypt` layer evidenced. **No unattended mechanism is selected** pending an
-operator risk decision:
-[`proton-drive-hotel-echo-credential-feasibility.md`](docs/planning/proton-drive-hotel-echo-credential-feasibility.md) §5.
+**2026-09-24 — E3J9B-doc: the option-A Hotel-Echo credential design is recorded
+locally (documentation only, uncommitted). U1 and E3J9 remain open; E3 remains
+unactivated.** Design (operator's option (a)):
+[`proton-drive-hotel-echo-credential-design.md`](docs/planning/proton-drive-hotel-echo-credential-design.md)
+— dedicated locked `eanhl-cloud` system identity (system services, no linger),
+curated credential `PATH`, kernel `flock --close` credential lock, every credential
+command started through `env -i` with twelve initial literals, operator-only PTY
+login, fixed `ERROR` logging. Same-day review correction: pass's own `GPG_TTY`
+(expected empty) and `GIT_CEILING_DIRECTORIES` exports are permitted with fixed
+values; `/proc` observation is supplementary only. **E3J9B-doc installed or
+configured none of the option-A components on Hotel-Echo** (it is a design only).
+Sequence E3J9B-doc → **E3J9C** (needs separate authorization; not started) →
+E3J9D (**D1** gates it only) → E3J9E (**D7** gates it only); D1 and D7 are
+unresolved. **C1**
+(literal `ERROR` in `buildChildEnv()` + tests) must merge before any E3J10 step that
+executes the CLI or can contact Proton. Journal:
+[`docs/journal/2026-09.md`](docs/journal/2026-09.md).
 
-Previous — **2026-09-23 — E3J8A (local, non-activated Healthchecks freshness
-export), verified. E3 unactivated; NOTHING IS MONITORED.** Memo §5.2 piece 3,
-the emitter: `fresh` → success endpoint, else `/fail`, to one hosted
-Healthchecks.io check. Pieces 4-5 are provider-side (grace timer, Pushover,
-`alerts@boogeymen.app`) — **no local watcher or notification code**.
+Previous — **2026-09-24 — E3J9A**, read-only Hotel-Echo inspection, complete only as
+feasibility evidence ([memo](docs/planning/proton-drive-hotel-echo-credential-feasibility.md)):
+no usable Proton credential mechanism or session for `utiz` in the inspected
+default/current-session locations (universal absence not established); no TPM
+device path or `crypt` layer evidenced by the named checks.
 
-- `ops/backup/eanhl-backup-monitor-export.mjs --cloud-config <p>
---monitor-config <p>`; no shebang, exec bit, package script, timer, unit or
-  cron entry. **One HTTPS request per invocation, no retry.**
-- Two separate config surfaces, neither referencing the other; the monitor
-  schema is **exactly closed** (7 keys), so no field exists for an inline secret,
-  origin, host, port, scheme, path or threshold, and the origin is a module
-  constant. The ping key lives in a `0600` operator file **outside the repo**,
-  read per invocation by one internal reader with **no public wrapper**.
-- `delivered` means only that a response head arrived; only `accepted` (status
-  exactly 200 + the exact bytes `OK`) is acknowledgement, **exactly-once is never
-  claimed**, and `not_sent` is only for a refusal before `https.request()`.
-  Cloud-side failure still pings `/fail`; **monitor-side failure pings nothing**
-  and exits 3 — silence is the alarm. Exits 0/2/3/4/5/6/7/130/143 are each
-  truthful about ping state _and_ report writability; **exit 0 means the ping was
-  accepted, not that the backup is fresh** (`--help` exits 2 so 0 stays
-  unambiguous). **The ping-key risk is EXPLICITLY ACCEPTED:** it is a bearer
-  credential with project-wide blast radius, so anyone holding it can forge a
-  healthy ping — undetectable from this side.
-- **213 declared E3J8A tests; on the unprivileged host 212 passed, 1
-  real-ownership test skipped (root required). Full suite: 1169 declared, 1168
-  passed, 1 skipped, 0 failed.** Two same-day review corrections: a flat report
-  projection + abort-listener removal (mutations 10/17 caught, 7 equivalent);
-  then report slugs must match `SLUG_PATTERN`, and call args/signals are
-  projected and proven genuine `AbortSignal`s before use, with no accessor or
-  Proxy trap run (16/16 caught). Nothing contacted any external host (a guard
-  refuses non-loopback connects). Contract: memo §5.7 and the ops doc below.
+Before that — **2026-09-23 — E3J8A (local, non-activated Healthchecks freshness
+export), verified. NOTHING IS MONITORED.** `ops/backup/eanhl-backup-monitor-export.mjs
+--cloud-config <p> --monitor-config <p>`: `fresh` → success endpoint, else `/fail`,
+one hosted Healthchecks.io check; one HTTPS request per invocation, no retry; no
+shebang, exec bit, package script, timer, unit or cron entry. Pieces 4-5 (grace
+timer, Pushover, `alerts@boogeymen.app`) are provider-side: **no local watcher or
+notification code**. The monitor schema is exactly closed (7 keys); the ping key
+sits in a `0600` operator file outside the repo. Only exact 200 + `OK` is
+`accepted`; exit 0 means the ping was accepted, not that the backup is fresh;
+monitor-side failure pings nothing (silence is the alarm). **The ping-key risk is
+EXPLICITLY ACCEPTED** (bearer credential; a forged healthy ping is undetectable).
+Full suite 1169 declared, 1168 passed, 1 root-only skipped, 0 failed; nothing
+contacted an external host. Contract: memo §5.7 and the ops doc below.
 
 Before that — **2026-09-21 — E3J7 (freshness evaluation, local-only)**:
 `eanhl-backup-freshness.mjs` prints one `eanhl.cloud-freshness-signal` v1 line
@@ -141,8 +137,8 @@ Before that: E3J6B 2026-09-18, **637/637** (`bbcff5b`); E3J6A 2026-09-16,
   human has received a test notification**. Code existing is not monitoring
   existing; `monitored` stays `false`, and activation (**E3J8B**) is blocked on
   backup scheduling, which does not exist. Also open: a proven hard-containment
-  mechanism on the real host, unattended credential persistence (U1 open; E3J9A
-  found none for `utiz` in inspected locations), and real-CLI schema verification. U12-U14 remain unresolved (readback ceilings/containment proof,
+  mechanism on the real host, unattended credential persistence (U1 open; the option-A
+  design is recorded; E3J9B-doc installed nothing and nothing is proven), and real-CLI schema verification. U12-U14 remain unresolved (readback ceilings/containment proof,
   timeouts/retry values, remote root and the flat layout's ratification); U15 is
   **partly** resolved — format, transport, watcher and channels decided and the
   emitter built, but no provider object exists and the receipt test is unrun.
@@ -169,18 +165,16 @@ Before that: E3J6B 2026-09-18, **637/637** (`bbcff5b`); E3J6A 2026-09-16,
 ## Next 1-3 Actions
 
 1. If continuing backup work: E3J8A is committed and pushed
-   (`9ea391ab9cb494688afcfab8b96ba544912efe19`). **E3J2-E3J8A are done, and that
-   exhausts the local sessions**; E3 remains unactivated and nothing is
-   monitored. **E3J8B (activation)** stays the named milestone but is not
-   actionable: backup scheduling does not exist. After **E3J9A** (see Latest
-   Verified Checkpoint), next is the **operator risk decision** (restricted
-   service-readable credential vs operator-gated protected credential vs
-   firmware TPM investigation), then a mechanism-specific E3J9 setup
-   experiment and **E3J10**, each separately authorized; neither is
-   authorized or started. E3J8B's steps (check
-   period/grace 1 h, Pushover and e-mail, ping key, live `OK` contract,
-   **test notification from a deliberately failed ping**, emitter schedule):
-   the ops doc above, §9; it needs its own authorization.
+   (`9ea391ab9cb494688afcfab8b96ba544912efe19`); E3J2-E3J8A exhaust the local
+   sessions. E3 stays unactivated and nothing is monitored; **E3J8B (activation)**
+   is not actionable until backup scheduling exists (its steps: the ops doc above,
+   §9; own authorization). After **E3J9B-doc** the next credential step is
+   **E3J9C** (host foundation and local proof: package, `eanhl-cloud` identity,
+   curated `PATH`, wrapper, pinned CLI install without execution, key, empty store),
+   which **is not authorized or started** and needs its own authorization. Then
+   E3J9D (operator ceremony; **D1** open) and E3J9E (lifecycle incl. a reboot;
+   **D7** open), each separately authorized. **C1** must merge before any E3J10
+   step that executes the CLI or can contact Proton.
 2. Gate 2 reliability items: automated backups, restore drill, alerting,
    log retention, rollback docs — all unstarted and blocking Gate 2.
 3. Disable and verify Cloudflare Web Analytics.

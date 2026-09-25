@@ -284,6 +284,18 @@ separate authorization covers only what the chosen design needs:
 
 **[NEEDS-MUTATION]** + **[NEEDS-OPERATOR]**
 
+**Update (E3J9B-doc, 2026-09-24) — the operator chose option (a); the approved
+design is in
+[`proton-drive-hotel-echo-credential-design.md`](proton-drive-hotel-echo-credential-design.md).**
+The recommendation and next step above are superseded by that design and its
+sequence **E3J9B-doc → E3J9C → E3J9D → E3J9E**. The E3J9A findings in this memo
+are unchanged and stand only as read-only feasibility evidence, within the
+inspection scope documented in §1-§3 (not a universal host claim). Documenting the
+design installs and proves nothing: E3J9C is not authorized or started, and
+E3J9B-doc installed or configured none of the option-A components on Hotel-Echo. The system-unit vs
+user-unit question left open above is decided in the design (system services, no
+linger), but that decision is unproven until E3J9C-E3J9E.
+
 ## 6. What remains to close U1 / E3J9
 
 1. The operator choice in §5.
