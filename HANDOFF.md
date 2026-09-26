@@ -26,29 +26,30 @@ in the roadmap doc, not here.
 
 ## Latest Verified Checkpoint
 
-**2026-09-24 — E3J9B-doc: the option-A Hotel-Echo credential design is recorded
-locally (documentation only, uncommitted). U1 and E3J9 remain open; E3 remains
-unactivated.** Design (operator's option (a)):
-[`proton-drive-hotel-echo-credential-design.md`](docs/planning/proton-drive-hotel-echo-credential-design.md)
-— dedicated locked `eanhl-cloud` system identity (system services, no linger),
-curated credential `PATH`, kernel `flock --close` credential lock, every credential
-command started through `env -i` with twelve initial literals, operator-only PTY
-login, fixed `ERROR` logging. Same-day review correction: pass's own `GPG_TTY`
-(expected empty) and `GIT_CEILING_DIRECTORIES` exports are permitted with fixed
-values; `/proc` observation is supplementary only. **E3J9B-doc installed or
-configured none of the option-A components on Hotel-Echo** (it is a design only).
-Sequence E3J9B-doc → **E3J9C** (needs separate authorization; not started) →
-E3J9D (**D1** gates it only) → E3J9E (**D7** gates it only); D1 and D7 are
-unresolved. **C1**
-(literal `ERROR` in `buildChildEnv()` + tests) must merge before any E3J10 step that
-executes the CLI or can contact Proton. Journal:
-[`docs/journal/2026-09.md`](docs/journal/2026-09.md).
+**2026-09-25 — E3J9C-R: local correction of the stopped E3J9C (implemented and verified locally).**
+E3J9C **stopped after M1 and has not passed**: only `pass` 1.7.4-8 and its
+dependency `tree` are installed on Hotel-Echo; M2+ never ran; nothing else exists
+there. E3J9C-R (local only, no host/provider/credential action) replaced the
+byte-identity rule with an exact fail-closed acceptance rule (sha256
+`b0da432e…8632`, hunks H1–H7 in the whitespace-clean
+[`pass-1.7.4-8.accepted-delta.escaped`](ops/backup/credential/pass-1.7.4-8.accepted-delta.escaped))
+and corrected the templates: `bash -p`, fail-closed counts and exit statuses
+(every subcommand exits 0 only on full postconditions), an invocation-bound
+`probe` operation with cleanup as part of the result, a provider-only unit, an
+evidence-bound resident-agent `auth-login` preflight (rules empty until M8/L2),
+no `StateDirectory=`, `PrivateNetwork` for local units, `setpriv` for root reads,
+and corrected rotation/rollback. Local test
+`ops/backup/credential/test/credential-templates.test.sh`: 308/308, 24/24
+mutations killed (template logic only, not host behaviour). Record: design memo
+[§18](docs/planning/proton-drive-hotel-echo-credential-design.md). U1/E3J9 open;
+D1, D7 unresolved; E3 unactivated.
 
-Previous — **2026-09-24 — E3J9A**, read-only Hotel-Echo inspection, complete only as
-feasibility evidence ([memo](docs/planning/proton-drive-hotel-echo-credential-feasibility.md)):
-no usable Proton credential mechanism or session for `utiz` in the inspected
-default/current-session locations (universal absence not established); no TPM
-device path or `crypt` layer evidenced by the named checks.
+Previous — **2026-09-24 — E3J9B-doc** (committed, `c99598e`): the option-A design
+recorded ([memo](docs/planning/proton-drive-hotel-echo-credential-design.md)) —
+locked `eanhl-cloud` system identity, curated `PATH`, `flock --close` lock, `env -i`
+with twelve literals, operator-only PTY login. **E3J9A** (same day): read-only
+feasibility evidence only
+([memo](docs/planning/proton-drive-hotel-echo-credential-feasibility.md)).
 
 Before that — **2026-09-23 — E3J8A (local, non-activated Healthchecks freshness
 export), verified. NOTHING IS MONITORED.** `ops/backup/eanhl-backup-monitor-export.mjs
@@ -138,7 +139,7 @@ Before that: E3J6B 2026-09-18, **637/637** (`bbcff5b`); E3J6A 2026-09-16,
   existing; `monitored` stays `false`, and activation (**E3J8B**) is blocked on
   backup scheduling, which does not exist. Also open: a proven hard-containment
   mechanism on the real host, unattended credential persistence (U1 open; the option-A
-  design is recorded; E3J9B-doc installed nothing and nothing is proven), and real-CLI schema verification. U12-U14 remain unresolved (readback ceilings/containment proof,
+  design is recorded; E3J9C stopped after installing only `pass` + `tree`, E3J9C-R corrected it locally, nothing is proven), and real-CLI schema verification. U12-U14 remain unresolved (readback ceilings/containment proof,
   timeouts/retry values, remote root and the flat layout's ratification); U15 is
   **partly** resolved — format, transport, watcher and channels decided and the
   emitter built, but no provider object exists and the receipt test is unrun.
@@ -168,12 +169,11 @@ Before that: E3J6B 2026-09-18, **637/637** (`bbcff5b`); E3J6A 2026-09-16,
    (`9ea391ab9cb494688afcfab8b96ba544912efe19`); E3J2-E3J8A exhaust the local
    sessions. E3 stays unactivated and nothing is monitored; **E3J8B (activation)**
    is not actionable until backup scheduling exists (its steps: the ops doc above,
-   §9; own authorization). After **E3J9B-doc** the next credential step is
-   **E3J9C** (host foundation and local proof: package, `eanhl-cloud` identity,
-   curated `PATH`, wrapper, pinned CLI install without execution, key, empty store),
-   which **is not authorized or started** and needs its own authorization. Then
-   E3J9D (operator ceremony; **D1** open) and E3J9E (lifecycle incl. a reboot;
-   **D7** open), each separately authorized. **C1** must merge before any E3J10
+   §9; own authorization). The next credential step is **review of E3J9C-R**
+   (memo §18), then a new, explicit authorization to continue **E3J9C from M2**
+   (rollback of `pass` + `tree` is the alternative; neither is authorized). E3J9D
+   stays blocked (D1 open, and E3J9C has not passed); E3J9E needs D7.
+   **C1** must merge before any E3J10
    step that executes the CLI or can contact Proton.
 2. Gate 2 reliability items: automated backups, restore drill, alerting,
    log retention, rollback docs — all unstarted and blocking Gate 2.

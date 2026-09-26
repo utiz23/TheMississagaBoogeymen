@@ -1,24 +1,32 @@
 # Proton Drive on Hotel-Echo — option-A credential mechanism design (E3J9B-doc)
 
 **Stage:** E3J9B-doc · **Date:** 2026-09-24 · **Type:** design memo, local
-documentation only · **Status:** design approved and recorded; **nothing is
-implemented.** U1 and E3J9 remain open. E3 remains unactivated.
+documentation only · **Status:** design approved and recorded. **E3J9C was
+authorized and STOPPED at its first host comparison (§17):** only the `pass` package
+(M1, with its dependency `tree`) was installed; the repository templates exist;
+nothing else is implemented on the host. **E3J9C-R (§18, local only)** corrected the
+design and templates: an exact acceptance rule for the installed Ubuntu `pass`, and
+the template security review. E3J9C has **not** passed; resuming at M2 needs a new
+authorization. U1 and E3J9 remain open. E3 remains unactivated.
 
 This memo durably records the approved option-A design for a service-usable Proton
 Drive CLI credential on Hotel-Echo, and the separately authorized sessions that
 would build and prove it. It is derived from the approved plan (revision 3 with
 its same-day review correction, SHA-256
 `d35759417f68a66bf767cae6cf824ed79ff75e9fd1a8d8151a7e6c5d932afc9c`, kept outside
-the repository) and keeps that plan's section numbering, so the
-cross-references below (§4, §7, §9, §11 …) resolve inside this file.
+the repository; both external copies now carry an identical appended "Revision 4
+(E3J9C-R)" section, whose resulting SHA-256 is recorded in §18) and keeps that
+plan's section numbering, so the cross-references below (§4, §7, §9, §11 …)
+resolve inside this file.
 
 **What documenting the design does and does not do.**
 
 - E3J9A remains complete **only as read-only feasibility evidence**
   ([`proton-drive-hotel-echo-credential-feasibility.md`](proton-drive-hotel-echo-credential-feasibility.md)).
 - E3J9B-doc is complete locally once this memo and the narrow pointer edits exist.
-- **E3J9C is not authorized and not started.** E3J9B-doc itself installed or
-  configured none of the option-A components on Hotel-Echo.
+- **E3J9C was authorized separately on 2026-09-24 and stopped at the M1 `pass`
+  comparison (§17).** E3J9B-doc itself installed or configured none of the
+  option-A components on Hotel-Echo.
 - **Writing this design down creates nothing on the host:** no GPG key,
   credential store, `eanhl-cloud` system account, CLI installation, lock, wrapper,
   service unit or curated `PATH` comes into existence because of it. Every
@@ -100,7 +108,8 @@ E3J9B-doc, not a new milestone:
    (JSON on stdin) and `rm -f <entry>`. Whatever environment the CLI holds
    therefore reaches `pass` and `gpg`. The design starts the CLI through
    `/usr/bin/env -i` with the twelve §7 literals as its initial environment.
-   Nothing from the parent or systemd crosses that boundary, so everything `pass`
+   No variable from the parent or systemd crosses that boundary (under the §7
+   assumptions: a root-authored system unit, no untrusted loader variables), so everything `pass`
    and `gpg` see comes from those literals, from variables that bash derives from
    process state, or from the two variables pass itself exports (`GPG_TTY`,
    `GIT_CEILING_DIRECTORIES`; §7). That `Bun.spawn` resolves `pass` using that environment's `PATH`
@@ -177,20 +186,25 @@ E3J9B-doc, not a new milestone:
 
 | Class                          | Path                                                                                                 | Owner                   | Dir mode      | File mode                                                          | Notes                                                                                                                                                                 |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------- | ----------------------- | ------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| HOME                           | `/var/lib/eanhl-cloud`                                                                               | eanhl-cloud:eanhl-cloud | 0700          | —                                                                  | `StateDirectory=eanhl-cloud`, `StateDirectoryMode=0700`                                                                                                               |
+| HOME                           | `/var/lib/eanhl-cloud`                                                                               | eanhl-cloud:eanhl-cloud | 0700          | —                                                                  | Created by M3 only. **No `StateDirectory=`** (E3J9C-R): systemd must not create or recursively re-own it                                                              |
 | **Secret**                     | `/var/lib/eanhl-cloud/gnupg` (GNUPGHOME)                                                             | svc                     | 0700          | 0600                                                               | Layout, socket location and agent behaviour are **[VALIDATE]** (§5)                                                                                                   |
 | **Secret**                     | `/var/lib/eanhl-cloud/password-store` (PASSWORD_STORE_DIR)                                           | svc                     | 0700          | 0600 (`.gpg-id`, `ch.proton.drive/drive-sdk-cli/auth-session.gpg`) | Always initialised **empty** (§5). No `pass git init`                                                                                                                 |
 | **Lock**                       | `/var/lib/eanhl-cloud/locks/credential.lock`                                                         | svc                     | `locks/` 0700 | 0600, pre-created empty                                            | Kernel `flock` only; content never read (§4)                                                                                                                          |
 | Sensitive non-secret           | `/var/lib/eanhl-cloud/data` (XDG_DATA_HOME)                                                          | svc                     | 0700          | 0600 (child `UMask=0077`)                                          | [BIN] the CLI otherwise writes 0644                                                                                                                                   |
 | **Secret-class logs**          | `/var/lib/eanhl-cloud/.local/state/proton-drive-cli/proton-drive.log*`                               | svc                     | 0700          | 0600                                                               | Level fixed at `ERROR` (§7). Verification reads metadata only                                                                                                         |
 | Non-secret                     | `/var/lib/eanhl-cloud/config` (XDG_CONFIG_HOME)                                                      | svc                     | 0700          | 0600                                                               | Set so nothing falls back to other defaults                                                                                                                           |
-| Cache                          | `/var/cache/eanhl-cloud` (XDG_CACHE_HOME)                                                            | svc                     | 0700          | 0600                                                               | `CacheDirectory=eanhl-cloud`. Disposable                                                                                                                              |
+| Cache                          | `/var/cache/eanhl-cloud` (XDG_CACHE_HOME)                                                            | svc                     | 0700          | 0600                                                               | Created by M3 only; no `CacheDirectory=`. Disposable                                                                                                                  |
 | Runtime                        | `/tmp` private per unit (`PrivateTmp=yes`)                                                           | —                       | —             | —                                                                  | No runtime directory is used                                                                                                                                          |
 | **Curated PATH**               | `/opt/eanhl-cloud/credential-bin`                                                                    | root:root               | 0755          | root-owned symlinks only                                           | Exact manifest in §3                                                                                                                                                  |
 | CLI executable                 | `/opt/eanhl-cloud/bin/proton-drive`                                                                  | root:root               | 0755          | 0755                                                               | SHA-512 pinned; always invoked by absolute path                                                                                                                       |
 | **Lock + environment wrapper** | `/usr/local/lib/eanhl-cloud/credential-exec`                                                         | root:root               | 0755          | 0755                                                               | The **single definition** of the credential command's initial environment at the `env -i` boundary (§7) and the only entry point for credential-bearing commands (§4) |
 | Launcher                       | `/usr/local/sbin/eanhl-cloud-credential`                                                             | root:root               | 0755          | 0750                                                               | Root-only fixed subcommands; builds every transient unit (§4, §6)                                                                                                     |
-| Validation tooling             | `/usr/local/lib/eanhl-cloud/validation/` (probe, env-inspect, lockhold, PTY-marker, owned-inventory) | root:root               | 0755          | 0755                                                               | Removed after E3J9E (D8); re-installed from repo templates only if rollback needs it                                                                                  |
+| Validation tooling             | `/usr/local/lib/eanhl-cloud/validation/` (probe, env-inspect, lockhold, PTY-marker, owned-inventory) | root:root               | 0755          | 0755                                                               | Removed after E3J9E (D8); for rollback, owned-inventory runs from a root-only temporary path                                                                          |
+
+- **Root never reads inside the `eanhl-cloud`-owned trees directly** (E3J9C-R):
+  launcher and helper reads, stats, searches and lock acquisitions there run as
+  `eanhl-cloud` through `setpriv`, so a planted symlink or FIFO cannot redirect a
+  root operation. Deletions in those trees run the same way (§12).
 
 - **There is no environment file on the host.** An earlier revision's
   `/etc/eanhl-cloud/credential.env` is dropped. The wrapper holds the literal
@@ -226,10 +240,52 @@ authentication, logout, provider probes, lifecycle tests and the eventual upload
 | `insert -f -m <entry>`          | `dirname`, `mkdir`, `gpg`      | `mkdir -p -v "$PREFIX/$(dirname -- "$path")"`, `$GPG -e … -o`                                                                                                                                                                                                                                                                    |
 | `rm -f <entry>`                 | `rm`, `rmdir`                  | `rm -f -v`, `rmdir -p … 2>/dev/null`                                                                                                                                                                                                                                                                                             |
 | **Usage and error paths**       | **`cat`**                      | line 89 (the missing-`.gpg-id` error in `set_gpg_recipients`, then `cmd_usage`), 261 (`cmd_version`), 278 (`cmd_usage`). Without `cat` these paths lose their text, and the CLI's failure message degrades. `die` uses the `echo` builtin. The CLI's "entry missing" anchor (`is not in the password store`) is emitted by `die` |
-| Platform line (**conditional**) | `uname`, `cut`, `tr`           | only if the installed `/usr/bin/pass` still has the upstream `PLATFORM_FUNCTION_FILE` `source` line (E3J9C compares with upstream) **[VALIDATE]**                                                                                                                                                                                |
+| Platform line (**unnecessary**) | —                              | upstream's `PLATFORM_FUNCTION_FILE` `source` line (the only use of `uname`, `cut`, `tr`) is **absent** from the accepted Ubuntu pass (hunk H1 below)                                                                                                                                                                             |
 
 **Curated manifest:** `bash getopt gpg pass mkdir dirname grep find base64 rm rmdir
-cat`, plus the conditional trio (`uname cut tr`) only if required.
+cat`. The former conditional trio (`uname cut tr`) is never installed.
+
+**Accepted installed `pass` (E3J9C-R; replaces "byte-identical to upstream beyond
+the platform line").** Evidence: the full unified diff between upstream 1.7.4
+(sha256 `b48d710a…bcd7`) and the installed Ubuntu script (fixed `--label` headers;
+raw-diff sha256 `185a3b10…ef3c`, 62 lines). Raw unified-diff context lines carry
+whitespace-only lines and space-before-tab by nature, so the repository holds it
+as a whitespace-clean **escaped line manifest**,
+[`ops/backup/credential/pass-1.7.4-8.accepted-delta.escaped`](../../ops/backup/credential/pass-1.7.4-8.accepted-delta.escaped).
+Each raw line is written as `|<escaped>|`, where `\\` is one backslash and `\t` is
+one TAB. Its `#` preamble records both full input hashes, the raw-diff hash, the
+fixed labels, the source and version, the GPL-2.0-or-later provenance and the
+generation command. The local test decodes it and compares it byte-for-byte
+(`cmp`) with the regenerated raw diff, and it passes
+`git diff --no-index --check` as an untracked file. There is no `.gitattributes`
+exemption. The diff has 13 changed lines in **7 change blocks** (plain `diff`),
+which unified output shows as 6 hunks because H5 and H6 share one. Outside them
+the file is byte-identical, so the table above carries over:
+
+| #      | Upstream → installed line | Change                                                             | Effect on `init` / `show` / `insert` / `rm -f`                                                                                                                                                                                                                                                                                                |
+| ------ | ------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H1     | 249 → removed             | platform `source` line removed                                     | Narrows startup: `dirname`, `uname`, `cut`, `tr` no longer run at top level; no platform file is sourced; `GETOPT`/`SHRED`/`BASE64` keep their defaults                                                                                                                                                                                       |
+| H2     | 297 → 296                 | `${EDITOR:-vi}` → `${EDITOR:-editor}` in the `cmd_usage` heredoc   | **Reachable, text only**: `insert` on a store without `.gpg-id` (A10 `neg-uninit`) → `set_gpg_recipients` → `cat >&2` + `cmd_usage`. A parameter expansion in a heredoc; no command runs; `EDITOR` is unset under `env -i`                                                                                                                    |
+| H3, H4 | 405 → 404, 417 → 416      | `tree … 3>&-`                                                      | `cmd_show`'s directory branch and `cmd_find` only. The approved entry names are never directories; `find` is not approved; `tree` is not on the curated `PATH`, so reaching it would print `tree: command not found` and trip `pass_cmd_not_found`                                                                                            |
+| H5, H6 | 503 → 502, 509 → 508      | `${EDITOR:-editor}`                                                | `cmd_edit` only (dispatch arm `edit`): unreachable                                                                                                                                                                                                                                                                                            |
+| H7     | 679 → 678                 | `SYSTEM_EXTENSION_DIR=""` → `"/usr/lib/password-store/extensions"` | Read only by `cmd_extension`, called only from the dispatch fallback `*)`; `init`, `show`, `insert` and `rm` dispatch explicitly, so unreachable on approved paths. Unlike upstream, a system extension needs only an executable `<dir>/<arg>.bash` (not `PASSWORD_STORE_ENABLE_EXTENSIONS`), so the directory must stay root-owned and empty |
+
+The acceptance rule, exact and fail-closed:
+
+1. package `pass` **1.7.4-8**; `/usr/bin/pass` a regular file, root:root 0755,
+   25 821 bytes, SHA-256
+   **`b0da432e8d377a67c7a74a9111c6b32889cce62f6e4f506a7bbdba817a268632`**; the
+   curated `pass` link resolves to exactly that file;
+2. the delta from upstream is exactly H1–H7;
+3. `/usr/lib/password-store/extensions` exists, is root-owned, not group/world
+   writable and empty;
+4. **any other hash, version, extra or changed hunk is a STOP**: re-derive the
+   delta and review it again.
+
+The main PC's `pass` 1.7.4-6 `/usr/bin/pass` has the identical SHA-256 (verified
+by a full hash and its dpkg md5sum in E3J9C-R). The two `export` lines and the
+`PREFIX` line are unchanged (they are outside every hunk). The probe checks
+`pass_script_sha256_match` and `pass_system_ext_dir_empty`.
 
 **Referenced but tolerated when absent** (the call is redirected or its failure is
 non-fatal on the exercised paths [SRC]):
@@ -245,7 +301,7 @@ non-fatal on the exercised paths [SRC]):
 already holds entries runs the `reencrypt_path` loop body. That needs `sed`,
 `sort`, `head` and `mv` beyond the manifest, plus a decrypt→encrypt pipe per entry.
 This design **never** runs `pass init` on a nonempty store. Initial setup, recovery
-and key rotation all use a newly created, proven-empty store (§5). Supporting
+and key rotation all use a new, proven-empty store (§5). Supporting
 in-place re-encryption would require a separately reviewed manifest expansion.
 Commands of unused features are also excluded: `edit` (`mktemp`, `shred`, editor),
 `generate`, `find`/`grep` subcommands and directory `show` (`tree`, `sed`, `tail`),
@@ -260,8 +316,13 @@ Commands of unused features are also excluded: `edit` (`mktemp`, `shred`, editor
   compiled-in paths, not `PATH` **[HYP]**. L1 **[VALIDATE]**s this.
 - If any exercised path fails for want of a command, **stop**. Add a command only
   through a design revision citing the source line that needs it.
-- If the installed `/usr/bin/pass` differs from upstream beyond the platform-line
-  edit, **stop** and re-derive this table.
+- If the installed `/usr/bin/pass` does not meet the acceptance rule above,
+  **stop** and re-derive this table.
+- **Symlink chains (A1/A2):** several curated targets are themselves symlinks on
+  Hotel-Echo (uutils multicall coreutils; `rm` → `gnurm`; `gpg` has a
+  `gpg-from-sq` alternative). A1 records each target's final `readlink -f` path,
+  its owning package and the ownership and non-writability of every hop; any
+  change between sessions (unattended upgrade, alternatives switch) is a STOP.
 
 ## 4. Shared credential lock [DESIGN]
 
@@ -279,13 +340,71 @@ Commands of unused features are also excluded: `edit` (`mktemp`, `shred`, editor
      `/opt/eanhl-cloud/bin/proton-drive`, and validation ids →
      `/usr/local/lib/eanhl-cloud/validation/*` only while installed; E3J10 adds the
      uploader id by design revision). Unknown ids exit 64;
-  3. runs **`exec /usr/bin/flock --exclusive --close <lockmode> --conflict-exit-code
+  3. refuses (exit 64) unless the lock file already exists as a regular,
+     non-symlink file (E3J9C-R), so `flock`, which opens with `O_CREAT`, never
+     silently creates it;
+  4. runs **`exec /usr/bin/flock --exclusive --close <lockmode> --conflict-exit-code
 75 /var/lib/eanhl-cloud/locks/credential.lock /usr/bin/env -i <§7
 environment> <absolute command> [args…]`**.
 - **The operator never types a `systemd-run` line.** The root-only launcher
   `/usr/local/sbin/eanhl-cloud-credential` has fixed subcommands: `keygen`,
-  `pass-init`, `pty-marker`, `env-proof`, `auth-login`, `auth-logout`. Each builds
-  the identical §8 property set with the wrapper as its command.
+  `pass-init`, `probe`, `probe-stop`, `pty-marker`, `env-proof`, `auth-login`,
+  `auth-logout`, and the rollback/recovery-only `entry-remove`, `canary-remove` and
+  `key-delete` (E3J9C-R: fixed, precondition-checked, each separately authorized
+  at use). Each builds the §8 property set with the wrapper as its command.
+- **Exit status is the result (E3J9C-R correction).** Every subcommand exits 0
+  **only** when every required operation and every stated postcondition
+  succeeded. A printed line never stands in for success, and an unknown state
+  (a failed metadata check) is never read as success. The postconditions:
+  - `keygen`: exactly one primary secret key with certify capability and a
+    40-hex fingerprint, exactly one encryption subkey, exactly one user ID equal to
+    the fixed UID, both secret parts present, no expiry;
+  - `pass-init`: `.gpg-id` is a readable 0600 regular file holding exactly the
+    fingerprint, and it is the store's only entry;
+  - `auth-logout`: the unit succeeded **and** the entry is proven absent;
+  - `entry-remove`/`canary-remove`: the unit succeeded and the entry is proven
+    absent;
+  - `key-delete`: the unit succeeded, the revocation file is proven absent and
+    the secret-key count is 0;
+  - `pty-marker`: the unit succeeded and there are exactly 0 journal hits;
+  - `env-proof`: three passing steps and exactly 0 nonce hits;
+  - `probe`/`probe-stop`: the accepted outcome **and** a successful cleanup
+    (§11).
+
+  Presence checks distinguish `present`, `absent` and `error`; `error` fails.
+
+- **Presence proof (`svc_exists`, third E3J9C-R correction).** The earlier
+  `[ -e ] || [ -L ]` test reported an object under an inaccessible (mode-000)
+  parent as `absent`: fail-open. The proof now runs as `eanhl-cloud` through
+  `setpriv`, over a fixed relative contract path under the trusted root
+  `/var/lib/eanhl-cloud`:
+  - the root must be a real directory, and after `cd -P` its `pwd -P` must equal
+    it;
+  - each component is looked up by listing the current directory with the fixed
+    expression `find . -mindepth 1 -maxdepth 1 -print` and comparing whole lines
+    with `./<component>`, so no caller text enters the find expression;
+  - the final component listed → `present` (a symlink, even dangling, counts);
+  - not listed in a listing that **succeeded** → `absent`, which is therefore
+    only reported after the containing directory was reached from the root and
+    read in full;
+  - a failed listing (unreadable directory, mode 100 or 000, I/O), a failed
+    `cd`, an intermediate symlink or non-directory, or a physical cwd outside
+    the root after a `cd` → `error`.
+
+  Paths are validated in the launcher and again in the script: components of
+  `[A-Za-z0-9._-]`; no empty, `.`, `..` or leading-`-` component; no leading or
+  trailing `/`. Every caller passes a fixed contract path; `key-delete` adds
+  only the validated 40-hex fingerprint. No native error text is read.
+  **Not race-free:** a component is listed, checked and entered in separate
+  steps. A concurrent change by `eanhl-cloud` itself (outside the protection
+  boundary) can race them. An escape out of the tree after a `cd` is detected
+  as `error`, but a redirection within the tree, or a change just after the
+  final listing, can give an answer that is stale for that instant.
+
+- **Not an access-control boundary.** The wrapper, the launcher and root ownership
+  are consistency controls for root-authored units. Code already running as
+  `eanhl-cloud` can run gpg, pass or the CLI directly, with any environment and any
+  arguments, and is outside the protection boundary (§9).
 - **Descriptor lifetime ([DOC] util-linux `flock(1)`):**
   - In command form **without `--no-fork`**, `flock` acquires the lock, forks, and
     the **`flock` parent keeps the locked descriptor while it waits for the
@@ -309,10 +428,17 @@ environment> <absolute command> [args…]`**.
     - crash, stop and reboot behaviour is kernel-lock behaviour: a lock dies with
       its holder and never persists across boot, and the file's persistence is
       irrelevant.
-- **Residual window (documented stop-overlap limitation):** if a stop signals the
-  `flock` parent while its foreground command is still dying, another unit could
-  acquire the lock during that brief overlap. Stops are operator-initiated, and K5
-  observes the ordering. This is recorded, not eliminated.
+- **Stop window (corrected in E3J9C-R; a documented limitation, not an edge
+  case):** with `KillMode=control-group`, `systemctl stop` (or a start timeout)
+  sends SIGTERM to the `flock` parent **and** the command at the same time.
+  `flock(1)` has no SIGTERM handler, so the lock is released at once while pass or
+  gpg may still be running their signal cleanup, for example mid-way through
+  `gpg -e … -o <entry>`. Another unit could then acquire the lock during that
+  window. The local test demonstrates the release-before-exit ordering. E3J9 has
+  no concurrent writer, so this is recorded, not eliminated. It is an **E3J10
+  design blocker** before the uploader coexists with other credential units (for
+  example a supervising wrapper under `KillMode=mixed`). K5 also checks that the
+  canary entry is intact or absent after a stop.
 - **Lock order (fixed):** (1) the credential lock, taken by the wrapper before the
   uploader process exists; (2) the uploader's internal run lock
   (`backup-cloud-run-lock.mjs`), taken inside Node. No path reverses this. The
@@ -325,6 +451,11 @@ environment> <absolute command> [args…]`**.
   - The uploader uses a bounded `--wait=<N>`, with N fixed in E3J10 and less than
     `TimeoutStartSec=`. On expiry it exits 75.
   - Exit 75 is never retried within the same run.
+  - Exit 75 is ambiguous on its own (a wrapped command could exit 75 too). "Busy"
+    evidence is exit 75 **and** no command output (K1, N3).
+  - No launcher operation uses `--wait`: its expiry semantics are proven by the
+    local test against the real util-linux `flock`, and on the host only in E3J10
+    (the uploader's bounded wait).
 - **Limit:** `eanhl-cloud` owns `locks/` and could replace the file. The lock
   prevents accidental concurrency; it is not a control against the identity itself.
 - **Tests:** §11 K1–K7.
@@ -347,19 +478,33 @@ environment> <absolute command> [args…]`**.
   identifiers, capability letters, creation and expiry fields), closed booleans, and
   a secret-key count.
 - **gpg.conf** (0600, svc-owned): `batch`, `no-tty`, `pinentry-mode error`. There is
-  no `gpg-agent.conf`.
+  no `gpg-agent.conf`. It is installed after `keygen` **as `eanhl-cloud`** (through
+  `setpriv`, refusing an existing file), never written by root into the
+  service-owned directory.
+- **`keygen` preconditions (E3J9C-R):** GNUPGHOME must be the M3 directory
+  (a real directory, 0700, owned by `eanhl-cloud`) and empty, checked before any gpg
+  run creates files there. The empty-passphrase argument must survive systemd-run →
+  bash → flock → env as an empty argv element. Locally this is proven for GNU
+  `env`; on the host (uutils `env`) it is **[VALIDATE]**. Its loss fails closed
+  (gpg rejects the command line), and L1 under `pinentry-mode error` proves the key
+  needs no passphrase.
 - **Empty-store rule:** `pass init <primary fingerprint>` runs only through
-  `pass-init`, and only after a metadata check proves the store directory **newly
-  created and empty** (no `.gpg-id`, no entries). Anything else means **stop**.
-  `.gpg-id` has exactly one line.
+  `pass-init`, and only after a metadata check proves the store directory is
+  **empty and correctly owned at that moment** (no `.gpg-id`, no entries; a scan
+  failure refuses, never counts as empty). That it is the directory M3 created is
+  established by the session record, not by metadata (E3J9C-R). Anything else
+  means **stop**. `.gpg-id` has exactly one line.
 - **Canary:** `pass insert -f -m e3j9-canary/probe` from random bytes, then
   `pass show` compared inside the probe (boolean only), then the noninteractive
   **`pass rm -f e3j9-canary/probe`**. Absence is then verified.
 - **Recovery (D5, resolved):** no off-host private-key backup and no recovery
-  material. Recovery means:
-  1. local logout if still possible;
-  2. remove the old store contents (metadata-proven);
-  3. recreate the store directory empty (`install -d`);
+  material. Because `keygen` requires an empty keyring and `pass-init` exactly one
+  key (E3J9C-R ordering correction), recovery means:
+  1. local logout if still possible (`auth-logout`; if that fails, the fixed
+     `entry-remove`);
+  2. remove the old store contents (metadata-proven) and recreate the store
+     directory empty (`install -d`);
+  3. **delete the old key** (`key-delete`): after step 2 it protects nothing;
   4. generate a new key;
   5. `pass-init` on the proven-empty store;
   6. **a new operator login**.
@@ -368,8 +513,10 @@ environment> <absolute command> [args…]`**.
 
 - **Rotation:** triggered by suspected compromise, host rebuild or identity change.
   The sequence is the same as recovery: local logout → old store removed → **new
-  empty store** → new key → `pass-init` → **new operator login** → old key deleted
-  (§12 order). Rotation never runs `pass init` over existing entries.
+  empty store** → **old key deleted** → new key → `pass-init` → **new operator
+  login**. (An earlier revision deleted the old key last; that order is impossible
+  under the `keygen`/`pass-init` guards.) Rotation never runs `pass init` over
+  existing entries.
 - **Not claimed:** encrypting to a key the same identity can use gives no secrecy
   against that identity or root. It gives the only non-keychain, non-plaintext CLI
   backend, key/store separation, and the standing `unsafe_file` rejection.
@@ -386,10 +533,44 @@ environment> <absolute command> [args…]`**.
 - **URL handling is conditional:** PTY-not-journal is proven by A6, and opener
   absence by A1–A4. Until every A-series proof passes in the same session, no claim
   is made that the URL reaches only the PTY, and the ceremony does not start.
-- **Immediately before the ceremony (read-only):** CLI SHA-512 = pin; A1–A4, A10 and
-  E1 re-run; the lock is free; the store holds only `.gpg-id`; no
-  `auth-session.json` in the §2 trees; `.gpg-id` = the recorded fingerprint; no
-  `eanhl-cloud` process running.
+- **Immediately before the ceremony (read-only):** A1–A4, A10 and E1 re-run by the
+  operator. Then `auth-login` itself runs a **fail-closed preflight** (E3J9C-R) and
+  refuses on any failure:
+  1. CLI SHA-512 = pin; exactly one secret key; the store holds exactly `.gpg-id`,
+     whose single line equals that key's fingerprint; no `auth-session.json` in the
+     §2 trees (all store reads as `eanhl-cloud`);
+  2. no `eanhl-cloud-*` unit is activating, active, deactivating or reloading (a
+     `systemctl` failure refuses);
+  3. every process owned by the `eanhl-cloud` uid is checked against a structured
+     **resident-agent rule** (corrected in E3J9C-R to match this description). The
+     only evidence read is `/proc/<pid>/exe` (readlink), the `Uid:` and `PPid:`
+     lines of `status`, and `cgroup`. Each rule is
+     `<final executable path>|<exact PPid>|<cgroup v2 path regex>`, and a process
+     is permitted only if all of these hold:
+     - its executable equals a rule's path;
+     - all four `Uid:` fields equal the service uid;
+     - its `PPid` equals the rule's;
+     - its `cgroup` file is exactly one `0::<path>` line whose path matches the
+       rule;
+     - it is the only process for that rule.
+
+     Key generation or pass initialisation may leave a `gpg-agent`/`keyboxd`
+     resident, and with `--close` it never holds the lock. Anything else refuses:
+     the Proton CLI, any other binary, an unreadable or deleted executable, a
+     wrong parent, a wrong or multi-line cgroup, a pid that vanishes mid-scan, or a
+     `pgrep` failure. **The rule list is empty in the template.** No parent or
+     cgroup relationship has been observed on Hotel-Echo, and the rules must come
+     from M8/L2 evidence **[VALIDATE]**. With the list empty, any resident process
+     refuses;
+
+  4. the lock file is a regular non-symlink file and a nonblocking exclusive
+     acquire **as `eanhl-cloud`** succeeds.
+
+  The preflight never reads any process's command line or environment, and it
+  prints only `preflight_*` booleans and counts. The ceremony still uses
+  `--nonblock`, which covers the gap between the preflight and the start. It has
+  its own `TimeoutStartSec=900`; a timeout is a STOP.
+
 - **Operator conduct:** open the URL on another device, never paste it anywhere, and
   clear scrollback afterwards. Type any mailbox-password prompt in the PTY. **No
   credential is copied from the main PC.**
@@ -479,8 +660,22 @@ the eventual uploader.
 **The security property, stated precisely:**
 
 - **Boundary guarantee:** no ambient parent or systemd variable, and no value
-  injected into the unit or the wrapper, crosses the `env -i` boundary. The
-  credential command's **initial** environment is exactly the twelve literals.
+  injected into the unit or the wrapper, crosses the `env -i` boundary **as a
+  variable**. The credential command's **initial** environment is exactly the
+  twelve literals.
+- **What that guarantee rests on (E3J9C-R):**
+  - every script is `#!/usr/bin/bash -p`, which disables Bash's own startup
+    mechanisms: `BASH_ENV`/`ENV` sourcing, function import from the environment,
+    and `SHELLOPTS`, `BASHOPTS`, `CDPATH` and `GLOBIGNORE` from the environment;
+  - `bash -p` **cannot** neutralise the dynamic loader, which acts before Bash
+    starts: `LD_*` and similar variables in the wrapper's own environment would
+    affect `bash`, `flock` and `/usr/bin/env` itself;
+  - the supported production claim therefore assumes execution by a
+    **root-authored system unit** whose environment, and the manager's, contain
+    **no untrusted loader variables**. This is an assumption resting on root
+    control, not a tested property;
+  - direct execution by already-compromised code running as `eanhl-cloud` is
+    outside the protection boundary (§4, §9).
 - **Not claimed:** that every later process keeps exactly that set. Two kinds of
   variable legitimately appear after the boundary, and neither is evidence that an
   ambient parent value crossed it:
@@ -510,8 +705,9 @@ the eventual uploader.
   `GPG_TTY` would mean either that an ambient value crossed or that `tty` became
   resolvable; both are failures.
 - **How the two pass exports are validated on Hotel-Echo (E3J9C):**
-  1. The installed `/usr/bin/pass` is compared with upstream 1.7.4, and both
-     `export` lines must match verbatim (`pass_exports_match_upstream=true`).
+  1. The installed `/usr/bin/pass` meets the §3 acceptance rule
+     (`pass_script_sha256_match=true`). Both `export` lines and the `PREFIX` line
+     lie outside hunks H1–H7, so they equal upstream verbatim.
   2. `command -v tty` fails in the scrubbed child (A3).
   3. E1(b) proves that `PASSWORD_STORE_DIR` is exactly its literal and that no
      `GPG_TTY` exists at the boundary.
@@ -527,9 +723,11 @@ the eventual uploader.
   secret by design, and no value is printed anyway.
 - **Directory values:** production commands (key generation, `pass init`, the
   canary, the ceremony, logout, provider reads, the uploader) cannot alter any of
-  the twelve values; the wrapper accepts no environment arguments. Only
-  validation-only secondary processes may replace **exactly one** directory value
-  (§11 test isolation) — the sole exception.
+  the twelve **environment** values; the wrapper accepts no environment arguments.
+  The wrapper does forward arbitrary argv (for example `gpg --homedir`), so what
+  bounds the arguments is the launcher's fixed argv, not the wrapper (E3J9C-R).
+  Only validation-only secondary processes may replace **exactly one** directory
+  value (§11 test isolation) — the sole exception.
 
 **Logging:**
 
@@ -571,19 +769,33 @@ activation.
   - `ExecStart=/usr/local/lib/eanhl-cloud/credential-exec <lockmode> <command-id> …`
     as the sole entry (§4). **No `EnvironmentFile=` and no `Environment=`**; the
     credential command's initial environment comes only from the wrapper's literals
-    (§7)
+    (§7). The one exception: the validation-only `--setenv` nonce and decoys of
+    `pty-marker` and `env-proof` become the transient unit's `Environment=`. They
+    stay in the wrapper's own environment, are not secret, and exist only to prove
+    the boundary
   - `WorkingDirectory=/var/lib/eanhl-cloud`, so any derived `PWD` is deterministic
     (the launcher passes it as `-p WorkingDirectory=…` for transient units, the
     ceremony and logout included)
   - `UMask=0077`, `PrivateTmp=yes`, `ProtectHome=yes`, `ProtectSystem=strict`,
     `ReadWritePaths=/var/lib/eanhl-cloud /var/cache/eanhl-cloud`
-  - `StateDirectory=eanhl-cloud`/`0700`, `CacheDirectory=eanhl-cloud`/`0700`
+  - **no `StateDirectory=`/`CacheDirectory=`** (E3J9C-R): with them, systemd would
+    create a missing home or cache and recursively re-own a mismatched tree,
+    adopting pre-existing state and hiding an incomplete M3. Without them, a
+    missing directory fails `ReadWritePaths=`/`WorkingDirectory=` setup (fail
+    closed)
+  - **local-only units** (keygen, pass-init, the `probe` operation, pty-marker,
+    env-proof and the removal subcommands): `PrivateNetwork=yes` (E3J9C-R), so
+    "does not contact Proton" has a kernel basis; GnuPG's sockets live in
+    GNUPGHOME **[VALIDATE]**
   - `NoNewPrivileges=yes`, `StandardInput=null` (except the ceremony's PTY),
     `KillMode=control-group`, no `PAMName=`
   - `Type=oneshot` with a `TimeoutStartSec=` bound (for the uploader, larger than
     its lock `--wait`)
-- **Ordering:** `After=`/`Wants=network-online.target` only for units that contact
-  Proton.
+- **Ordering:** `After=`/`Wants=network-online.target` only for units that start
+  the Proton CLI: `auth-login`, `auth-logout` and the provider probe template
+  (`eanhl-cloud-credential-provider-probe@.service`, installed only in
+  E3J9D/E3J9E). Local probe modes have no unit file; they run only through the
+  launcher's `probe` operation (§11).
 - **Stop/restart:** the lock is released when the `flock` parent exits (§4). Cgroup
   cleanup separately ends stragglers (agent included, **[VALIDATE]**). The next
   start cold-starts.
@@ -601,14 +813,14 @@ activation.
 > - **Incident response options, kept separate:** (1) local logout, which clears local credentials and caches only; (2) remote session revocation through a Proton account control, whose coverage of CLI sessions is still to be verified; (3) a password change, as a separately justified action. None is claimed sufficient alone. Re-establishing service always needs a new key, a new empty store and a new operator login.
 > - **Leakage channels designed out, not eliminated:**
 >   - the repository holds paths, public fingerprints and a non-secret environment manifest;
->   - credential commands start from a fixed, positively enumerated environment, and no ambient or injected parent variable crosses into them;
+>   - credential commands start from a fixed, positively enumerated environment, and no ambient or injected parent variable crosses into them — assuming a root-authored system unit with no untrusted loader variables (§7);
 >   - the sign-in URL goes to the operator's PTY, once the A-series proofs pass;
 >   - probes print a fixed vocabulary, and host-wide scans print booleans and counts;
 >   - CLI logs are fixed at `ERROR` and mode-restricted;
 >   - **the operator's scrollback during the ceremony contains the URL.**
 > - **Accidental backup:** `/var/lib/eanhl-cloud` and `/var/cache/eanhl-cloud` must be excluded from host or file-level backups, or such a backup must be treated as containing the credential.
 > - **Protects against:** other unprivileged local users and container uids, accidental reads through the repo, config, journal or transcripts, ambient variables leaking into credential commands, operator personal keys ever being involved, silent `unsafe_file` or keychain fallback, and concurrent credential writers.
-> - **Does not protect against:** `eanhl-cloud`, root, offline disk access, or kernel compromise.
+> - **Does not protect against:** `eanhl-cloud` (including code already running as that identity, which can bypass the wrapper and launcher entirely), root, offline disk access, or kernel compromise.
 
 ("C6" in the statement is constraint C6 of
 [`proton-drive-transport-feasibility.md`](proton-drive-transport-feasibility.md): no
@@ -627,19 +839,19 @@ Every row below is **[AUTH]**: none is authorized by this memo.
 
 | #   | Mutation                                                                                                                                                                                                                                                                                                                           | Privilege            | Contacts Proton             | Rollback                                                  | Owner                                                                                      |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | --------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| M1  | `apt-get install --no-install-recommends pass` after an `-s` simulation, no `apt update`; confirm `/usr/bin/flock` (util-linux, with `--close`) and `/usr/bin/env` exist                                                                                                                                                           | root                 | no                          | `apt remove` after `-s` review                            | E3J9C                                                                                      |
+| M1  | `apt-get install --no-install-recommends pass` after an `-s` simulation, no `apt update`; confirm `/usr/bin/flock` (util-linux, with `--close`) and `/usr/bin/env` exist. **Done in E3J9C** (with its new dependency `tree` 2.3.1-1)                                                                                               | root                 | no                          | `apt-get -s remove pass tree`, then both; no autoremove   | E3J9C                                                                                      |
 | M2  | Group + account `eanhl-cloud` (§1)                                                                                                                                                                                                                                                                                                 | root                 | no                          | §12 step 11                                               | E3J9C                                                                                      |
 | M3  | `install -d` for `/var/lib/eanhl-cloud{,/gnupg,/password-store,/config,/data,/locks}`, `/var/cache/eanhl-cloud`, `/opt/eanhl-cloud/{bin,credential-bin}`, `/usr/local/lib/eanhl-cloud{,/validation}`; pre-create `locks/credential.lock` 0600                                                                                      | root                 | no                          | `rmdir`/`rm` of literal paths                             | E3J9C                                                                                      |
-| M4  | Curated PATH: root-owned symlinks for exactly the §3 manifest (including `cat`; the conditional trio only if required); manifest sha256 recorded                                                                                                                                                                                   | root                 | no                          | remove literal links, `rmdir`                             | E3J9C                                                                                      |
+| M4  | Curated PATH: root-owned symlinks for exactly the §3 manifest (including `cat`; never the old conditional trio); manifest sha256 recorded                                                                                                                                                                                          | root                 | no                          | remove literal links, `rmdir`                             | E3J9C                                                                                      |
 | M5  | Wrapper `credential-exec` (lock + `env -i` environment) and launcher `eanhl-cloud-credential`; sha256 recorded                                                                                                                                                                                                                     | root                 | no                          | remove after sha256 match                                 | E3J9C                                                                                      |
 | M6  | CLI 0.8.0 `linux-x64`: acquire, verify SHA-512 against the recorded pin, install root:root 0755, deployment record. **Never executed.** Acquisition is either an unauthenticated fetch from Proton's public download host (named explicitly in the authorization) or a transfer of the byte-identical pinned file from the main PC | root                 | download host only, or none | remove literal file                                       | E3J9C                                                                                      |
-| M7  | Validation tooling (probe, env-inspect, lockhold, PTY-marker, owned-inventory) + `eanhl-cloud-credential-probe@.service`, `daemon-reload`, **no enable**                                                                                                                                                                           | root                 | no                          | removed in M18                                            | E3J9C                                                                                      |
+| M7  | Validation tooling (probe, env-inspect, lockhold, PTY-marker, owned-inventory). **No unit file** in E3J9C: local modes run through the launcher's `probe`; the provider template is installed only in E3J9D/E3J9E, never enabled                                                                                                   | root                 | no                          | removed in M18                                            | E3J9C                                                                                      |
 | M8  | GPG key via `keygen`, then gpg.conf                                                                                                                                                                                                                                                                                                | root→svc             | no                          | §12 step 8                                                | E3J9C                                                                                      |
-| M9  | `pass init <fpr>` via `pass-init` on a newly created, proven-empty store                                                                                                                                                                                                                                                           | root→svc             | no                          | §12 step 7                                                | E3J9C                                                                                      |
+| M9  | `pass init <fpr>` via `pass-init` on a proven-empty store (§5)                                                                                                                                                                                                                                                                     | root→svc             | no                          | §12 step 7                                                | E3J9C                                                                                      |
 | M10 | Local proofs: A1–A10, E1–E3, L1, L2, K1–K6                                                                                                                                                                                                                                                                                         | svc units / launcher | no                          | canary removed in-run with `pass rm -f`; absence verified | E3J9C                                                                                      |
 | M11 | **Operator `auth-login` ceremony** (§6)                                                                                                                                                                                                                                                                                            | root→svc, PTY        | **yes, authenticates**      | M19                                                       | E3J9D (**D1**)                                                                             |
 | M12 | Provider read `filesystem info /my-files` (metadata only, stdout→`/dev/null`)                                                                                                                                                                                                                                                      | svc unit             | **yes, one per run**        | none (read)                                               | E3J9D (exactly one, P0); E3J9E                                                             |
-| M13 | `eanhl-cloud-credential-probe-boot.timer` (`OnBootSec=10min`, no recurrence)                                                                                                                                                                                                                                                       | root                 | via M12                     | removed in M18                                            | E3J9E                                                                                      |
+| M13 | `eanhl-cloud-credential-probe-boot.timer` (`OnBootSec=10min`, no recurrence), starting a provider-template instance                                                                                                                                                                                                                | root                 | via M12                     | removed in M18                                            | E3J9E                                                                                      |
 | M14 | Transient one-shot timers (`--on-active=20min` / `6h15min`)                                                                                                                                                                                                                                                                        | root                 | via M12                     | self-removing; verified                                   | E3J9E                                                                                      |
 | M15 | Logout of all human sessions                                                                                                                                                                                                                                                                                                       | operator             | no                          | n/a                                                       | E3J9E                                                                                      |
 | M16 | **Reboot** of Hotel-Echo (restarts its parallel web/worker/db deployment); read-only pre-check of restart policies and main-PC ingestion health first                                                                                                                                                                              | root                 | no                          | n/a                                                       | E3J9E (**D7**)                                                                             |
@@ -648,15 +860,68 @@ Every row below is **[AUTH]**: none is authorized by this memo.
 | M19 | Local `auth-logout` (`pass rm -f` + clear caches [SRC]; **local only**)                                                                                                                                                                                                                                                            | root→svc             | possibly (CLI start)        | —                                                         | rollback / rotation / recovery                                                             |
 | M20 | Remote session revocation through a verified Proton account control                                                                                                                                                                                                                                                                | operator only        | yes                         | —                                                         | rollback / incident                                                                        |
 | M21 | Account password change                                                                                                                                                                                                                                                                                                            | operator only        | yes                         | —                                                         | incident only, separately justified                                                        |
-| M22 | Key deletion; store/dir removal; launcher, wrapper, curated PATH, CLI removal; account; package                                                                                                                                                                                                                                    | root                 | no                          | —                                                         | rollback, each separately                                                                  |
+| M22 | Key deletion (`key-delete`); store/dir removal (as `eanhl-cloud`, §12); launcher, wrapper, curated PATH, CLI removal; account; packages `pass` and `tree`                                                                                                                                                                          | root                 | no                          | —                                                         | rollback, each separately                                                                  |
 | C1  | **Repository code correction** (not a host mutation): literal `ERROR` in `buildChildEnv()` + §7 tests                                                                                                                                                                                                                              | local repo           | no                          | git revert                                                | **Must be merged before any E3J10 step that executes the CLI or can contact the provider** |
 
 ## 11. Acceptance protocol [DESIGN]
 
 **Probe** (validation-only). It is started through the wrapper, so it runs as the
-scrubbed child. The instance selects its mode: `local`, `provider`,
-`provider-freshcache`, `neg-nokey`, `neg-nostore`, `neg-uninit`. It prints **only**
-lines matching `^E3J9 [a-z_]+=[a-z0-9_.:-]+$`. It records:
+scrubbed child. Its argument is `local:<mode>` or `provider:<mode>`, each a closed
+set (E3J9C-R):
+
+- **Local modes** (`precheck`, `local`, `canary`, `canary-a`, `canary-b`,
+  `neg-uninit`, `lockhold-hold`, `lockhold-long`, `lockhold-detach`,
+  `busy-a`…`busy-d`) run **only** through `eanhl-cloud-credential probe <mode>`.
+  That operation always passes `local:<mode>`, in a `PrivateNetwork=yes` transient
+  unit with no network dependency, and has no provider mode in its allowlist.
+- **Provider modes** (`provider`, `provider-freshcache`, `neg-nokey`,
+  `neg-nostore`) run only through the provider template, which always passes
+  `provider:%i` and is installed only in E3J9D/E3J9E.
+- The internal `canary-nested` form (used by `lockhold`) is not launcher-startable.
+
+It prints **only** lines matching `^E3J9 [a-z_]+=[a-z0-9_.:-]+$`. A value outside
+that vocabulary prints as `invalid`, and a failed tool behind any count
+(`loginctl`, `pgrep`, `find`) prints `invalid` and counts as a failure: a failed
+scan never reads as `0`. Its first line is always `probe_mode=<mode>`, and it
+prints exactly one `probe_result=` line (`lockhold` prints it for the lockhold
+modes).
+
+**The `probe` operation** (launcher, E3J9C-R) makes every result bound to one
+invocation, so stale output cannot be accepted. Each stage fails closed:
+
+1. exact allowlisted mode, else refused before any unit exists;
+2. a fresh unit name (`eanhl-cloud-cred-probe-<mode>-<16 hex>`), refused unless
+   systemd reports it `not-found`;
+3. exactly one start (`systemd-run --no-block`, no `--collect`,
+   `RemainAfterExit=yes`); a failed start stops the unit and fails;
+4. its `InvocationID` bound within 10 s, else the unit is stopped and the run
+   fails;
+5. a bounded wait for `active/exited`, `failed` or `inactive` (expiry stops the
+   unit and fails), then the `InvocationID` is re-read and a change fails;
+6. only records matching both `_SYSTEMD_UNIT=<unit>` and
+   `_SYSTEMD_INVOCATION_ID=<id>` are read; a `journalctl` failure fails;
+7. vocabulary lines are printed and every other record is only counted.
+   `pass` requires zero other records, the first record `probe_mode=<mode>`,
+   exactly one `probe_mode`, exactly one `probe_result=pass` and exit 0. `busy`
+   requires exit 75 and zero records. Everything else is `fail`. Each mode has
+   fixed accepted outcomes (`busy-*`: busy; `canary-a`/`-b`: pass or busy; the
+   rest: pass);
+8. **cleanup is part of the result** (E3J9C-R correction):
+   - A keep mode (`canary`, `lockhold-detach`, `lockhold-long`, for K2/K3/K5)
+     stays active only after it reached `pass`.
+   - Every other run, including a failed or indeterminate keep-mode run, is
+     stopped and reset. Cleanup succeeds only if the unit ends inactive or no
+     longer loaded; a show, stop or reset failure is a cleanup failure.
+   - `bound_cleanup_ok=true|false` is printed on every cleanup path (start
+     failure, unbound invocation, timeout, changed invocation, journal failure,
+     normal end). A failed cleanup turns any outcome into `fail`.
+   - A unit name that already existed is never stopped: it is not this run's.
+   - `probe-stop` requires the unit to be loaded (a typo never succeeds) and exits
+     0 only if the stop and the reset/cleanup succeed.
+
+`env-proof` uses the same mechanics for its three steps.
+
+The probe records:
 
 - identity and groups booleans;
 - `env_initial_exact` (its own exec-time environment, read from
@@ -667,8 +932,11 @@ lines matching `^E3J9 [a-z_]+=[a-z0-9_.:-]+$`. It records:
   `env_nonce_absent`. Helper children report their **own** `/proc/self/environ`,
   so these reads are deterministic. These are booleans; unexpected variables are
   reported only as a count, never by name or value;
-- `pass_exports_match_upstream` (the installed pass's two `export` lines equal
-  upstream 1.7.4) and `tty_absent` (`command -v tty` fails in the child);
+- `pass_script_sha256_match` (the curated `pass` link resolves to `/usr/bin/pass`,
+  a root:root 0755 regular file with the accepted §3 SHA-256),
+  `pass_system_ext_dir_empty` (hunk H7's directory is root-owned, not
+  group/world-writable and empty) and `tty_absent` (`command -v tty` fails in the
+  child);
 - the **supplementary** `/proc` observation (only in `lockhold` runs):
   `proc_obs=observed|not_observed`; only when observed, `proc_nonce_hits`,
   `proc_forbidden_names`, `proc_gpg_tty_empty` and `proc_git_ceiling_expected`;
@@ -682,35 +950,48 @@ lines matching `^E3J9 [a-z_]+=[a-z0-9_.:-]+$`. It records:
 Stderr is never printed. Log contents are never read.
 
 **Owned-inventory** (validation-only). Root runs `find` over each filesystem holding
-`/`, `/var`, `/opt`, `/etc`, `/usr/local`, `/tmp` and `/home` for the uid/gid
-`eanhl-cloud`. It compares the results in memory against the §2 set and emits
-**only** `owned_expected_set_match`, `owned_unexpected_count` and `owned_scan_code`.
-It never prints a path. On a mismatch: **stop**; only the operator inspects, and
-names never go to an agent.
+`/`, `/var`, `/var/tmp`, `/opt`, `/etc`, `/usr/local`, `/tmp`, `/home`, `/run` and
+`/dev/shm` for the uid/gid `eanhl-cloud` (E3J9C-R added the three tmpfs-prone
+roots). It compares the results in memory against the §2 set, or, with
+`expect-none` (§12 step 11), against the empty set. It emits **only**
+`owned_expected_set_match`, `owned_unexpected_count` and `owned_scan_code`.
+Preconditions in **both** modes, else scan code 4 (E3J9C-R: deliberately stricter
+than the `auth-login` preflight, with no resident-agent exception):
+
+- **no** process runs as `eanhl-cloud` (`pgrep -u` must report none; a `pgrep` or
+  `/proc` error fails);
+- no `eanhl-cloud-*` unit is activating, active, deactivating or reloading (a
+  `systemctl` error fails).
+
+If M8/L2 shows that GnuPG daemons stay resident, a design revision must add the
+same evidence-bound rule here before owned-inventory can pass while they run.
+The result is evidence only
+within those scan roots. It never prints a path. On a mismatch: **stop**; only the
+operator inspects, and names never go to an agent.
 
 | Test                                                    | When                                  | Pass criterion                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A1 curated inventory                                    | E3J9C, pre-ceremony                   | the directory contains exactly the §3 manifest (including `cat`); each entry is a symlink to its recorded `/usr/bin/…` target; the directory is root:root 0755                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| A2 non-writability                                      | E3J9C, pre-ceremony                   | as `eanhl-cloud`: the curated directory, every target, `/opt`, `/opt/eanhl-cloud`, `bin/`, the CLI, the wrapper and the launcher are not writable; targets are root-owned and not group/world-writable                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| A1 curated inventory                                    | E3J9C, pre-ceremony                   | the directory contains exactly the §3 manifest (including `cat`); each entry is a symlink to its recorded `/usr/bin/…` target; the directory is root:root 0755; for each target the final `readlink -f` path, its owning package and the owner/mode of every hop are recorded, and any later change is a STOP (E3J9C-R)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| A2 non-writability                                      | E3J9C, pre-ceremony                   | as `eanhl-cloud` (through `setpriv`): the curated directory, every target and every final chain target, `/opt`, `/opt/eanhl-cloud`, `bin/`, the CLI, the wrapper and the launcher are not writable; targets are root-owned and not group/world-writable                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | A3 `xdg-open` and `tty`                                 | E3J9C, pre-ceremony                   | `command -v xdg-open` and `command -v tty` both fail in the scrubbed child (`tty` absence is what makes pass's `GPG_TTY` empty, §7)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | A4 no opener                                            | E3J9C, pre-ceremony                   | every §3 opener name fails `command -v` in the child. Host-wide opener presence is recorded as a boolean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | A5 pass/GPG canary                                      | E3J9C                                 | = L1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | A6 PTY marker                                           | E3J9C, pre-ceremony                   | `pty-marker` runs through the wrapper. The launcher passes a nonce to the unit via `--setenv` (never in the unit's `ExecStart=` argv, which systemd may log), so it reaches only the wrapper's environment. For the validation-only `pty-marker` command id alone, the wrapper hands the nonce to the scrubbed child as a positional argument. The child writes it to stdout and stderr. The operator sees it on the PTY; a root search of **all** journal entries since the test start returns `pty_marker_journal_hits=0`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | A7 CLI pin                                              | E3J9C, pre-ceremony                   | sha512 = pin, not executed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | A8 lock free                                            | pre-ceremony                          | nonblocking acquire succeeds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| A9 empty-store proof                                    | E3J9C, before `pass-init`             | the store directory was newly created and holds no entries and no `.gpg-id`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| A9 empty-store proof                                    | E3J9C, before `pass-init`             | the store directory is correctly owned and holds no entries and no `.gpg-id` (a scan failure refuses); that it is the M3 directory comes from the session record, not metadata                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | A10 pass error paths                                    | E3J9C                                 | in the child: `pass show e3j9-absent` exits ≠ 0 and its stderr contains `is not in the password store` (boolean); `neg-uninit` (a private empty store without `.gpg-id`) `insert` exits ≠ 0 and its stderr contains `You must run` (boolean, which proves `cat` works); `pass_cmd_not_found=false` throughout                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | E1 construction + initial exec environment              | E3J9C, pre-ceremony                   | (a) **Construction:** the installed wrapper's sha256 equals the repo template, and the repo test proves the template execs `/usr/bin/env -i` followed by exactly the twelve manifest literals, with no parent-value expansion. (b) **Exec boundary:** `env-inspect`, exec'd directly as the credential command, reads its exec-time environment from `/proc/self/environ` before doing anything else. The name set equals the twelve exactly, each value equals its literal (`env_initial_exact=true`), and every forbidden name is absent, systemd-added ones included                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| E2 wrapper side vs. downstream                          | E3J9C                                 | `env-proof` records, for the **wrapper's** own environment, the booleans `wrapper_has_invocation_id=true` and `wrapper_has_journal_stream=true`. Then, in the probe (a bash descendant) and in helper children that read their own `/proc/self/environ` (deterministic): `env_descendant_within_permitted=true` against the §7 union and its expected values, `env_pwd_is_workdir=true`, and none of `INVOCATION_ID`, `SYSTEMD_EXEC_PID`, `JOURNAL_STREAM` is present. pass's contribution is fixed statically: `pass_exports_match_upstream=true`, A3 and E1(b) determine `GPG_TTY` = empty and `GIT_CEILING_DIRECTORIES` = `/var/lib/eanhl-cloud/password-store/..`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| E2 wrapper side vs. downstream                          | E3J9C                                 | `env-proof` records, for the **wrapper's** own environment, the booleans `wrapper_has_invocation_id=true` and `wrapper_has_journal_stream=true`. Then, in the probe (a bash descendant) and in helper children that read their own `/proc/self/environ` (deterministic): `env_descendant_within_permitted=true` against the §7 union and its expected values, `env_pwd_is_workdir=true`, and none of `INVOCATION_ID`, `SYSTEMD_EXEC_PID`, `JOURNAL_STREAM` is present. pass's contribution is fixed statically: `pass_script_sha256_match=true` (§3), A3 and E1(b) determine `GPG_TTY` = empty and `GIT_CEILING_DIRECTORIES` = `/var/lib/eanhl-cloud/password-store/..`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | E3 injected parent values have no effect on pass or GPG | E3J9C                                 | `env-proof` sets decoys on the unit via `--setenv`: `E3J9_INJECTED=<nonce>`, `GNUPGHOME=/nonexistent-e3j9`, `PASSWORD_STORE_DIR=/nonexistent-e3j9`, `PASSWORD_STORE_GPG_OPTS=--e3j9-invalid`, `PATH=/nonexistent-e3j9`, `GPG_TTY=/dev/e3j9-decoy`, `PROTON_DRIVE_BASE_URL=http://127.0.0.1:9`. **Required (all deterministic):** (a) E1(b) passes under the decoys, so the nonce and every decoy name are absent from the credential command's exec-time environment; (b) the L1 canary succeeds. Had the `GNUPGHOME` or `PASSWORD_STORE_DIR` decoy reached pass or gpg, the key or store would not be found; had `PASSWORD_STORE_GPG_OPTS` reached pass, gpg would reject the invalid option; had the `PATH` decoy reached the command, `/usr/bin/env bash` could not start pass; (c) the probe and its self-reporting helper children report `env_nonce_absent=true`. The base-URL decoy's effect is tested in E4, where the CLI runs; `GPG_TTY`'s is covered by (a) and the §7 static validation. **Supplementary only:** root may read `/proc/<pid>/environ` of a live `pass` or `gpg` during a `lockhold` canary. `proc_obs=not_observed` (the short-lived process was not caught) is recorded and is neither a pass nor proof. When observed, any nonce hit, forbidden name, non-empty `GPG_TTY` or unexpected `GIT_CEILING_DIRECTORIES` is a STOP |
 | E4 injected decoys have no effect on the Proton CLI     | E3J9E                                 | provider probe with parent decoys `PROTON_DRIVE_CACHE_DIR=<private-tmp marker dir>`, `XDG_CACHE_HOME=<another marker dir>`, `PROTON_DRIVE_BASE_URL=http://127.0.0.1:9` and `E3J9_INJECTED=<nonce>`: `env_initial_exact=true` and `env_nonce_absent=true`; result `ok` (a CLI using the loopback discard-port base URL could not reach the provider); both marker dirs stay empty                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | L1 local key/store                                      | E3J9C                                 | canary match=true; then `pass rm -f`; absence verified; no pinentry process                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | L2 cold start                                           | E3J9C                                 | after stop/start: agent count 0 at start; L1 passes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| K1 contention across the whole foreground command       | E3J9C                                 | `lockhold` runs a foreground canary plus a fixed hold; second instances started at the beginning, middle and end all exit 75 / `credential_lock_busy` without starting pass or GPG                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| K1 contention across the whole foreground command       | E3J9C                                 | `lockhold` runs a foreground canary plus a fixed hold; second instances started at the beginning, middle and end all exit 75 / `credential_lock_busy` without starting pass or GPG (`probe_run_result=busy`: exit 75 and zero records)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | K2 descendants never hold the lock                      | E3J9C                                 | in a validation unit with `RemainAfterExit=yes`, `lockhold` leaves a detached `setsid` descendant running and exits its foreground command. While the descendant is verified alive (boolean), a nonblocking acquire succeeds; root reports `descendant_holds_lock_fd=false` (fd-link comparison, boolean only)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | K3 gpg-agent cannot keep it busy                        | E3J9C                                 | after an L1 canary in a `RemainAfterExit=yes` unit, while `gpg-agent` is verified still running: a nonblocking acquire succeeds and `agent_holds_lock_fd=false`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| K4 bounded and nonblocking semantics                    | E3J9C                                 | `--nonblock` → 75 immediately; `--wait=<short test bound>` → 75 on expiry while a holder runs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| K5 stop releases                                        | E3J9C                                 | `systemctl stop` of a holding `lockhold` → after the stop completes, a nonblocking acquire succeeds; no process of that unit remains                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| K4 bounded and nonblocking semantics                    | E3J9C                                 | `--nonblock` → 75 immediately; `--wait=<short test bound>` → 75 on expiry while a holder runs. No launcher operation uses `--wait`, so that half is proven by the local test only and on the host in E3J10                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| K5 stop releases                                        | E3J9C                                 | `systemctl stop` of a holding `lockhold` → after the stop completes, a nonblocking acquire succeeds; no process of that unit remains; the canary entry is intact or absent (the next `probe local` starts with `store_other_entry_count=0`). The stopped holder's own result is `fail` by design                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | K6 no simultaneous rewrite                              | E3J9C                                 | two concurrent canaries: exactly one runs, the other is busy; the entry is intact                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | K7 reboot + lock order                                  | E3J9E (reboot); E3J10 (static order)  | the first boot probe acquires nonblocking; E3J10 statically verifies the wrapper is first in `ExecStart=`, no `flock` exists in `ops/backup/lib`, and the run-lock acquisition is unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | P0 first provider read                                  | E3J9D, straight after the ceremony    | `ok`; entry 0600; no `auth-session.json`; owned-inventory match=true                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
@@ -739,6 +1020,14 @@ names never go to an agent.
 - **Provider scope (D6, resolved):** `/my-files`, metadata `filesystem info` only,
   separately authorized per session. Every CLI invocation, N1/N2/E4 included, is
   treated as possibly Proton-contacting.
+- **Provisional provider labels (E3J9C-R):** the probe's N1/N2 text anchors
+  (`You need to login first`, `decryption failed`, `No secret key`) are hypotheses
+  from source. The generic `Failed to load` anchor was removed because it could
+  mislabel an unrelated error as `pass_load_failed`. Unmatched text is `other`,
+  which fails the expectation. The anchors are to be replaced from E3J9E evidence.
+- **Known template gap:** `env-proof` covers E1–E3 only. The E4/N4 decoy vehicle
+  would execute the CLI, so it is not built in E3J9C-R; it is prepared for E3J9E
+  under that session's authorization.
 - **What E3/E4 prove, and what they do not:** the listed effect-bearing decoys had
   no effect, and the boundary admitted none of them. A canary does **not** by
   itself prove the absence of every arbitrary variable; that rests on the `env -i`
@@ -752,7 +1041,7 @@ names never go to an agent.
 - **STOP (any one):** a prompt; a timeout; a pinentry process; an `unsafe_file` file;
   a line outside the vocabulary; `login_required` on the real store; a hash
   mismatch; owned-inventory match=false; a PTY-marker hit > 0; an E-series failure;
-  `pass_exports_match_upstream=false`; an observed descendant environment containing
+  `pass_script_sha256_match=false` or `pass_system_ext_dir_empty=false`; a `probe_run_result` outside the mode's accepted outcomes; an observed descendant environment containing
   the nonce, a forbidden name or a wrong value (including a non-empty `GPG_TTY` or an
   unexpected `GIT_CEILING_DIRECTORIES`); unexpected lock busy or a descendant holding the lock; a curated-inventory
   mismatch; `command not found` from pass; a nonempty store before `pass-init`. On
@@ -768,12 +1057,23 @@ names never go to an agent.
 
 ## 12. Rollback (ordered; each step separately authorized)
 
-1. Stop and disable only E3J9 units and timers. Remove unit files by literal path
-   after a sha256 match. `daemon-reload`.
+**From the current E3J9C-stopped state** (only M1 happened), only step 12 applies:
+review `apt-get -s remove pass tree`, confirm with `apt-cache rdepends --installed
+tree` that nothing else needs `tree`, read the M1 transaction in
+`/var/log/apt/history.log`, then remove **both** packages. Never run
+`autoremove`. Removing `pass` also removes its empty extensions directory. This
+rollback is **not** authorized by E3J9C-R.
+
+**From a fuller state**, in order:
+
+1. Stop and disable only E3J9 units and timers (`probe-stop` for kept probe
+   units). Remove unit files by literal path after a sha256 match. `daemon-reload`.
 2. **Local logout:** `sudo /usr/local/sbin/eanhl-cloud-credential auth-logout`,
    under the lock with the §7 environment. Proven effect [SRC]: the local pass
    entry is removed (`pass rm -f`) and caches are cleared. **This is not remote
-   revocation.** Verify the entry is absent (metadata).
+   revocation.** Verify the entry is absent (metadata). If logout fails and the
+   entry must still go, the fixed `entry-remove` subcommand removes exactly that
+   entry with `pass rm -f`. A leftover canary is removed with `canary-remove`.
 3. **Remote session revocation (separate):** the operator uses Proton's account
    session management; its coverage of CLI sessions is **[VALIDATE]**, recorded as
    an operator boolean.
@@ -781,24 +1081,31 @@ names never go to an agent.
 5. If step 2 failed, keep the key: local cleanup may still need it. Retry only under
    new authorization.
 6. **Recovery or rotation, when the service is to continue:** follow the §5 sequence
-   (new empty store → new key → `pass-init` → new operator login). There is **no
-   in-place re-encryption** of the old store.
+   (store removed → **old key deleted** → new key → `pass-init` → new operator
+   login). There is **no in-place re-encryption** of the old store.
 7. Password store: only if metadata shows exactly `.gpg-id` plus empty directories,
-   `rm` the literal file and `rmdir` bottom-up. Otherwise stop for operator-only
-   review.
+   remove them (as in step 9). Otherwise stop for operator-only review.
 8. **Key deletion (separate authorization), only once no local cleanup still needs
-   it:** prove the keyring holds only the recorded fingerprint;
-   `gpg --batch --yes --delete-secret-and-public-key <FPR>` via the wrapper; remove
-   `openpgp-revocs.d/<FPR>.rev` by literal path.
-9. Remove GNUPGHOME, data, config, logs, cache and `locks/` after a metadata table
-   proves every entry is E3J9-created. Use literal paths only.
+   it:** `sudo eanhl-cloud-credential key-delete <FPR>`. It refuses unless the
+   keyring holds exactly that one key, no credential unit is active and the store
+   holds no entry (and any `.gpg-id` names that key). It deletes the key through
+   the wrapper and removes `openpgp-revocs.d/<FPR>.rev` as `eanhl-cloud`.
+9. GNUPGHOME, data, config, logs, cache and `locks/`: key files are named by
+   keygrip, so their exact paths cannot be known in advance (E3J9C-R correction to
+   "literal paths only"). Generate a metadata table, review it, then delete **as
+   `eanhl-cloud`** through `setpriv`, with
+   `find <literal top> -xdev -depth -type <reviewed types> -delete`. Root then
+   `rmdir`s only verified-empty top directories. The identity cannot delete what
+   it does not own.
 10. Remove the launcher, the wrapper, the curated directory, and `/opt/eanhl-cloud`
     (the last after an E3J10 dependency review).
-11. Account: `pgrep -u eanhl-cloud` empty; no unit with `User=eanhl-cloud`;
-    owned-inventory (re-installed from the repo template) reports
-    `owned_unexpected_count=0` → `deluser --system eanhl-cloud`, `delgroup`. A
-    mismatch means stop and operator-only inspection.
-12. Package: `apt-get -s remove pass` review, then removal.
+11. Account: no unit with `User=eanhl-cloud`; run `owned-inventory expect-none`
+    from a root-only temporary copy (for example `/run/eanhl-cloud-rollback/`,
+    removed afterwards; never recreate `/usr/local/lib/eanhl-cloud`). It requires
+    that no process runs as `eanhl-cloud` and reports a match only if the identity
+    owns nothing within its scan roots → `deluser --system eanhl-cloud`,
+    `delgroup`. A mismatch means stop and operator-only inspection.
+12. Packages: `pass` **and `tree`** (both installed by M1), as above.
 
 ## 13. Session sequence and dependency ordering
 
@@ -808,7 +1115,8 @@ names never go to an agent.
 | Session                                   | Authorized mutations                                                                                                                                                                                        | Prohibited                                                                                                                                                                                                                | Operator                                                            | Verification                                                                                                                                                     | Checkpoint                                                                                  |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | **E3J9B-doc** (local)                     | Design doc + pointer edits                                                                                                                                                                                  | Any host/provider action; code                                                                                                                                                                                            | —                                                                   | `git diff --check`, sensitive-value and stale-claim scans                                                                                                        | docs commit (only if separately authorized). **Complete locally** once written and verified |
-| **E3J9C** host foundation + local proof   | M1–M10                                                                                                                                                                                                      | Proton CLI execution, authentication, provider contact (except an explicitly named M6 download), reboot                                                                                                                   | sudo                                                                | getent/`passwd -S` locked, no linger, `id -G`, directory table, pass-vs-upstream comparison, CLI sha512 = pin, A1–A10, E1–E3, L1, L2, K1–K6, public key metadata | docs + `ops/backup/credential/` templates. **Requires separate authorization; not started** |
+| **E3J9C** host foundation + local proof   | M1–M10                                                                                                                                                                                                      | Proton CLI execution, authentication, provider contact (except an explicitly named M6 download), reboot                                                                                                                   | sudo                                                                | getent/`passwd -S` locked, no linger, `id -G`, directory table, the §3 pass acceptance rule, CLI sha512 = pin, A1–A10, E1–E3, L1, L2, K1–K6, public key metadata | docs + templates. **STOPPED after M1 (§17); M2 needs new authorization**                    |
+| **E3J9C-R** correction (local)            | Design memo, templates, local test harness, both external plan copies                                                                                                                                       | Any host, provider, credential, key, package or unit action; C1 or other E3J10 work; staging, commit, push                                                                                                                | —                                                                   | full-mode template test with mutation checks, `bash -n`, `systemd-analyze verify`, targeted Prettier, `git diff --check`                                         | docs + templates (§18). **Complete locally**; commit only if authorized                     |
 | **E3J9D** ceremony                        | M11, exactly one M12 (P0)                                                                                                                                                                                   | Upload/list/create/trash; a second login; the agent seeing ceremony output                                                                                                                                                | **ceremony; D1 accepted**; the A-series and E1 re-passed in-session | §6 pre-checks, metadata table, owned-inventory, P0                                                                                                               | docs                                                                                        |
 | **E3J9E** lifecycle validation            | M12–M18                                                                                                                                                                                                     | Upload or other provider mutation; production unit; schedules beyond M13/M14                                                                                                                                              | logout; **reboot (D7)**                                             | P1–P5, K7 (reboot), E4, N1–N4, J, then M18 cleanup verified                                                                                                      | docs; U1 disposition                                                                        |
 | Conditional local correction              | Observed credential-failure anchors (§0.8), only if E3J9E evidence warrants it                                                                                                                              | Host/provider                                                                                                                                                                                                             | —                                                                   | full `pnpm test:backup-producer` suite, mutation checks                                                                                                          | code commit                                                                                 |
@@ -817,7 +1125,10 @@ names never go to an agent.
 
 **Dependency ordering:**
 
-- E3J9B-doc → E3J9C → (D1) E3J9D → (D7) E3J9E.
+- E3J9B-doc → E3J9C → (D1) E3J9D → (D7) E3J9E. E3J9C stopped after M1, and
+  E3J9C-R corrected the design locally; E3J9C resumes at M2 only under a new,
+  explicit authorization given after E3J9C-R has been reviewed. E3J9D needs D1
+  **and** a passed E3J9C.
 - **C1 is a mandatory prerequisite before any E3J10 step that executes the CLI or can
   contact Proton.** It can be written at any point after E3J9B-doc, and it must be
   merged before the first such step.
@@ -832,14 +1143,20 @@ names never go to an agent.
   `credential-bin.manifest`, `credential-exec`, `eanhl-cloud-credential`,
   `gpg.conf`, `README.md` (install, recovery, rotation and rollback runbook, no
   secrets); new under `ops/backup/credential/validation/` —
-  `eanhl-cloud-credential-probe.sh`, `eanhl-cloud-credential-probe@.service`,
+  `eanhl-cloud-credential-probe.sh`, a probe unit template (E3J9C-R replaced it
+  with the provider-only `eanhl-cloud-credential-provider-probe@.service`),
   `env-inspect`, `lockhold`, `pty-marker`, `owned-inventory`; optionally
   `ops/backup/lib/backup-cloud-credential-env.test.mjs` (asserting that the wrapper's
   literals equal the env manifest, the manifest ⊆ `ENV_ALLOWLIST` ∪ {the two
   `PROTON_DRIVE_*`}, the wrapper uses `/usr/bin/env -i` and `flock --close` without
   `--no-fork`, and no forbidden name appears; needs `ENV_ALLOWLIST` exported); a
   pointer in `ops/README.md`; the execution record in this memo; HANDOFF; journal.
-- **E3J9D:** this memo, HANDOFF, journal.
+- **E3J9C-R (done locally, §18):** the templates above, plus
+  `ops/backup/credential/pass-1.7.4-8.accepted-delta.escaped` and
+  `ops/backup/credential/test/credential-templates.test.sh`; this memo; HANDOFF;
+  journal; `ops/README.md`; both external plan copies (Revision 4).
+- **E3J9D:** this memo, HANDOFF, journal; the provider template is installed from the
+  repository (no repository change).
 - **E3J9E:** new `ops/backup/credential/validation/eanhl-cloud-credential-probe-boot.timer`;
   results in this memo; U1 updates in the three planning memos; HANDOFF; journal.
 - **Conditional correction:** `ops/backup/lib/internal/backup-cloud-cli-core.mjs`,
@@ -854,7 +1171,7 @@ names never go to an agent.
 | Condition                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Status                                                                                                                                                                                                                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Docs don't establish that pass works with the explicit environment                                                                                                                                                                                                                                                                                                                                                                                                 | **Satisfied, with caveats.** [DOC] + [SRC] at `js/v0.21.0` (`e6a661f5…`) and `password-store.sh@1.7.4`. The binary's build suffix `06e8c605` is not a public commit, so the binary↔source link is by version label only. It is validated behaviourally |
-| Curated PATH insufficient on an exercised path (including usage/error paths), or installed pass differs from upstream beyond the platform line                                                                                                                                                                                                                                                                                                                     | **Stop E3J9C**; re-derive §3 by design revision                                                                                                                                                                                                        |
+| Curated PATH insufficient on an exercised path (including usage/error paths), or the installed pass fails the §3 acceptance rule (package 1.7.4-8, SHA-256 `b0da432e…8632`, exactly hunks H1–H7, extension directory root-owned and empty)                                                                                                                                                                                                                         | **Stop E3J9C**; re-derive §3 by design revision                                                                                                                                                                                                        |
 | A store is not proven empty before `pass init`                                                                                                                                                                                                                                                                                                                                                                                                                     | **Stop**; no in-place re-encryption                                                                                                                                                                                                                    |
 | Initial exec environment not exactly the twelve literals (E1); a descendant variable outside the §7 permitted union, or a wrong value for a name with a fixed expected value, including a non-empty `GPG_TTY` or a `GIT_CEILING_DIRECTORIES` other than `/var/lib/eanhl-cloud/password-store/..` (E2); installed pass `export` lines differing from upstream; a decoy having an effect (E3/E4); or an observed descendant containing the nonce or a forbidden name | **Stop.** A `not_observed` supplementary `/proc` result is not a stop and not a pass                                                                                                                                                                   |
 | A descendant or `gpg-agent` holds the lock descriptor, or the lock is busy after its holder exits                                                                                                                                                                                                                                                                                                                                                                  | **Stop**                                                                                                                                                                                                                                               |
@@ -919,11 +1236,34 @@ documented behaviour: https://github.com/ProtonDriveApps/sdk/blob/main/cli/READM
 | Requires Hotel-Echo validation | everything tagged [VALIDATE], every A/E/L/K/P/N/J row, the installed pass's two `export` lines, and `tty` absence                                                                                                                                                                                                                                                              |
 
 **Remaining validation requirements:** every item in the last row above is
-unvalidated. In addition, still to be established by later sessions: the Hotel-Echo
-util-linux version (local reference 2.39.3), the installed `pass` versus upstream
-1.7.4 (platform line and the two `export` lines), the `future-default` key parameters, the GnuPG agent's
-lifecycle under a system unit, remote-revocation coverage of CLI sessions, and the
-Ubuntu 26.04 `adduser` behaviour.
+unvalidated. In addition, still to be established by later sessions:
+
+- the `future-default` key parameters;
+- the GnuPG agent's lifecycle under a system unit, including whether a
+  `gpg-agent`/`keyboxd` stays resident after a unit stops, and, per daemon, its
+  final executable path, its parent (`PPid`) and its cgroup. These fill the
+  `auth-login` resident-agent rules; none is observed yet;
+- remote-revocation coverage of CLI sessions;
+- the Ubuntu 26.04 `adduser` behaviour.
+
+Resolved by E3J9C (§17.1): the Hotel-Echo util-linux is 2.41.3 with `--close`.
+Resolved by E3J9C-R (§3): the installed `pass` versus upstream 1.7.4, now an exact
+acceptance rule. Its host re-verification before M2 stays read-only work for the
+continuation.
+
+New host items from E3J9C-R, all **[VALIDATE]**:
+
+- `dpkg -V pass`;
+- the final chain targets of the curated links;
+- `/usr/bin/setpriv` present and accepting user names;
+- uutils `env` preserving an empty argv element;
+- uutils `install /dev/null` creating an empty file;
+- GnuPG under `PrivateNetwork=yes`;
+- journald attaching `_SYSTEMD_INVOCATION_ID` to a service's stdout records. The
+  `probe` operation reads nothing, and so fails closed, if it does not;
+- systemd's `stop`/`reset-failed` behaviour for a transient unit that is already
+  unloaded. The cleanup treats "no longer loaded" as clean, and any other failure
+  as a cleanup failure.
 
 **Other sources:**
 
@@ -949,9 +1289,327 @@ Ubuntu 26.04 `adduser` behaviour.
   Invoking-GPG_002dAGENT; Invoking-gpgconf; whats-new-in-2.1 (`GPG_AGENT_INFO`
   ignored).
 - **systemd:** `systemd.exec` (environment variables set for services,
-  `WorkingDirectory=`, `UMask=`, `StateDirectory`/`CacheDirectory`, `ProtectHome`);
+  `WorkingDirectory=`, `UMask=`, `StateDirectory`/`CacheDirectory` (the reason they
+  are not used, §8), `ProtectHome`, `PrivateNetwork`);
   `systemd.kill` (`KillMode=control-group`); `systemd.service`
   (`RemainAfterExit=`); `systemd-run` (`--pty`, `--uid`, `--setenv`, `-p`).
 - **Debian/Ubuntu adduser:**
   https://manpages.debian.org/testing/adduser/adduser.8.en.html (re-confirm against
   Ubuntu 26.04 in E3J9C).
+
+## 17. E3J9C execution record (2026-09-24) — STOPPED at the M1 `pass` comparison
+
+**Outcome: STOPPED, not passed.** The installed `/usr/bin/pass` differs from upstream
+1.7.4 beyond the platform line, which §3 and §14 make a stop condition ("stop and
+re-derive this table"). M1 alone was completed. **M2–M10 were not performed, and no
+A, E, L or K acceptance test ran on the host.** Nothing was retried, weakened or
+rolled back. Dates are local (2026-09-24); the Hotel-Echo clock read
+2026-09-25 ~05:03 UTC.
+
+**Authorization:** E3J9C M1–M10 only. E3J9D, authentication, any Proton CLI
+execution (even `version`/`help`), provider contact, reboot, deployment, scheduling
+and activation were all excluded.
+
+### 17.1 Preflight (read-only)
+
+- **Repository:** `main`, `HEAD` = `origin/main` =
+  `c99598e74f46f429bc00484b1ca7bd79c9e65e8b`, index empty, only the unrelated
+  roster-design directory untracked (not opened).
+- **External plan:** both copies under `~/.claude/plans/` have SHA-256
+  `d3575941…afc9c` and are byte-identical.
+- **H0 identity gate** (SSH over the established Tailscale path): hostname
+  `hotel-echo`; the archived identity marker matched (no address printed); `utiz`
+  uid/gid 1000, `HOME=/home/utiz`.
+- **Collision checks:**
+  - no `eanhl-cloud` user or group (`getent` rc 2);
+  - every literal §2 target path absent;
+  - no `eanhl-cloud*` unit or template;
+  - no linger file.
+- **Proposed ids:** adduser allocates the first free id from 100, so uid 104 and
+  gid 107. Each owns 0 objects on `/` and `/tmp` (count-only scan).
+- **`pass`:** not installed; candidate 1.7.4-8.
+- **Tooling [VALIDATE] resolved:**
+  - `/usr/bin/flock` is util-linux **2.41.3** and supports `--close`, `--nonblock`,
+    `--wait` and `--conflict-exit-code`.
+  - `/usr/bin/env` is **uutils coreutils 0.8.0** (a symlink into
+    `/usr/lib/cargo/bin/coreutils/`, multicall). A read-only test as `utiz` showed
+    that `env -i` keeps empty values and passes `--batch -x -- -i` after the
+    command verbatim. E1(b) would still be the deciding check.
+  - Curated targets `mkdir`, `dirname`, `base64`, `rmdir`, `cat` (and `uname`,
+    `cut`, `tr`) resolve to that multicall binary. `rm` resolves to `gnurm`; the
+    others are GNU.
+  - `loginctl list-sessions` puts CLASS in column 6.
+  - `sudo -n` worked for `utiz`, so no operator password was involved.
+- **Upstream basis:** `password-store.sh@1.7.4`, fetched from the public source
+  host. Its SHA-256 is `b48d710a…bcd7`, equal to §3.
+
+### 17.2 Repository templates (Phase 1)
+
+Written under `ops/backup/credential/`: both manifests, `credential-exec`,
+`eanhl-cloud-credential`, `gpg.conf`, `README.md`, and `validation/` (probe script
+and unit template, `env-inspect`, `lockhold`, `pty-marker`, `owned-inventory`). The
+optional `.mjs` test was **not** added: it would need `ENV_ALLOWLIST` exported. C1
+is not implemented.
+
+**Local checks:**
+
+- `bash -n` passes on all seven scripts.
+- `systemd-analyze verify` reports only that the executable is not installed.
+- A scratchpad harness (not committed) passed **93/93**. It covered:
+  - the manifest ⇔ wrapper ⇔ `env-inspect` ⇔ probe literals, in order;
+  - the manifest being a subset of `ENV_ALLOWLIST` plus the two `PROTON_DRIVE_*`;
+  - command-form `flock --close`, with no `--no-fork`;
+  - `env -i` used once, with no expansion in any literal;
+  - `WorkingDirectory=` present, no `Environment=`, no `[Install]`;
+  - in a sandbox with the real `flock`/`env` and decoys in the parent: the child's
+    exec-time environment equals the twelve literals, arguments pass through, and
+    the id/lock-mode/unknown-id refusals, the `pty-marker` nonce handling, 75 on
+    `--nonblock` and `--wait`, and `--close` against a detached descendant all
+    behave as designed;
+  - `env-inspect` boundary and descendant rules, including empty `GPG_TTY`, the
+    expected `GIT_CEILING_DIRECTORIES`, `PWD`, systemd names and never echoing the
+    nonce;
+  - the launcher's key-metadata parser against real gpg 2.4 colon field positions
+    (confirmed with a throwaway key in a temporary local `GNUPGHOME`, since
+    deleted), including the sanitiser;
+  - the owned-inventory expected set;
+  - a secret-marker scan.
+- **E3J9C-R correction to this claim:**
+  - that harness lived in scratch and was not reproducible from the repository;
+  - it tested `env-inspect` only through its `stdin-*` modes, not the real
+    `boundary` mode's parent/E2 checks;
+  - it did not exercise the launcher flows, the probe canary, `lockhold`'s root
+    modes, owned-inventory's scan or any unit.
+
+  Its successor is the committed `ops/backup/credential/test/credential-templates.test.sh` (§18).
+
+**Template choices a reviewer should check against this memo:**
+
+- The probe carries helper modes that serve as K-test vehicles: `precheck`,
+  `canary`, `canary-a`/`-b`, `lockhold-hold`/`-long`/`-detach` and `busy-a…d`.
+- `env-inspect` adds the `stdin-*` and root-only `observe` modes.
+- `lockhold` adds root-only `held`, `free` and `fdcheck` modes.
+- The probe unit uses `RemainAfterExit=yes` (for K2/K3) and
+  `After=`/`Wants=network-online.target` (for the provider modes).
+- The E3 nonce is detected by a fixed `e3j9nonce` prefix, not handed to the probe.
+- `env-proof` runs three units: boundary, canary and a supplementary observation.
+- The provider modes and `auth-login`/`auth-logout` exist but were **never run**.
+  Their failure-label anchors are hypotheses (§0.8).
+
+### 17.3 M1 — package (the only host mutation)
+
+- **Simulation** (`apt-get -s install --no-install-recommends pass`, run as `utiz`):
+  - NEW: `pass` 1.7.4-8 (`all`) and its Depends `tree` 2.3.1-1;
+  - 0 upgraded, 0 removed;
+  - `gpg` stays on gnupg's 2.4.8-4ubuntu3.1 (`gpg-from-sq` was not selected);
+  - Recommends not installed.
+- **Install:** with `sudo`, no `apt update`, rc 0.
+- **needrestart:** listed deferred restarts only. `docker`, `containerd`,
+  `systemd-logind`, `networkd-dispatcher`, `unattended-upgrades` and `dbus` kept
+  their 2026-09-03/09 start times, and the three web/worker/db containers stayed up
+  (2–3 weeks). PackageKit was started on demand by apt.
+- **Installed file:** `/usr/bin/pass` is root:root 0755, 25 821 bytes, SHA-256
+  `b0da432e8d377a67c7a74a9111c6b32889cce62f6e4f506a7bbdba817a268632`. That is
+  byte-identical to the main PC's Ubuntu `pass` 1.7.4-6 (E3J9C-R confirmed this by
+  a full SHA-256 of the main-PC `/usr/bin/pass` and its dpkg md5sum). The package also created
+  `/usr/lib/password-store/extensions/` (root-owned, empty).
+
+**Comparison with upstream 1.7.4** (upstream line → installed line):
+
+| Upstream | Change                                                             | Where                                   | On a path this design exercises?                                                                                                                             |
+| -------- | ------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 249      | platform `source` line removed                                     | top level                               | documented difference; **the conditional `uname`/`cut`/`tr` trio is not needed**                                                                             |
+| 297      | `${EDITOR:-vi}` → `${EDITOR:-editor}` in help text                 | `cmd_usage` heredoc                     | text only (usage is printed by `cat`)                                                                                                                        |
+| 405, 417 | `tree … 3>&-`                                                      | `cmd_show` directory branch, `cmd_find` | no (directory `show` and `find` are excluded, §3)                                                                                                            |
+| 503, 509 | `${EDITOR:-editor}`                                                | `cmd_edit`                              | no (`edit` excluded)                                                                                                                                         |
+| 679      | `SYSTEM_EXTENSION_DIR=""` → `"/usr/lib/password-store/extensions"` | `cmd_extension`                         | no: reached only through the `*)` fallback; `init`/`show`/`insert`/`rm` dispatch explicitly (installed lines 705–714). The directory is root-owned and empty |
+
+- The two `export` lines and the `PREFIX` line each appear exactly once, verbatim,
+  so `pass_exports_match_upstream` would be `true`.
+- **Assessment only, not a decision:** none of the six extra lines is on an exercised
+  path, and the §3 command inventory would be unchanged. Accepting the Debian
+  packaging delta, and pinning the installed hash, needs a design revision.
+- **E3J9C-R correction:** one changed line **is** on an exercised path. The usage
+  heredoc's `${EDITOR:-editor}` (H2) is printed by the A10 `neg-uninit` error path;
+  it is text only and runs no command. E3J9C-R made the design revision: §3 now
+  holds the full reachability table and the exact acceptance rule.
+
+### 17.4 Not performed
+
+- **Host steps:**
+  - M2 identity and M3 directories;
+  - M4 curated `PATH` and M5 wrapper/launcher;
+  - M6 CLI (the main-PC source binary was not read, hashed or transferred);
+  - M7 validation tooling/unit and `daemon-reload`;
+  - M8 key and `gpg.conf`, M9 `pass init`;
+  - M10 proofs.
+- **Acceptance tests not run:** A1–A10, E1–E3, L1–L2 and K1–K6. The
+  supplementary `/proc` observation did not run either.
+- **Never done:** the Proton CLI was never executed; there was no Proton contact,
+  no authentication, and no URL, token or session. There was also no reboot,
+  deployment, timer, schedule, unit enablement or E3 activation.
+
+### 17.5 Rollback surface and next step
+
+- **Rollback (not authorized, not performed):** `apt-get -s remove pass`, reviewed
+  for the auto-installed `tree`, then removal.
+- **Remaining uncertainty:**
+  - the uutils `env`/coreutils behaviour of the curated commands under pass;
+  - the keybox vs keyboxd layout;
+  - acceptance of the transient-unit property set by systemd 259;
+  - everything tagged [VALIDATE].
+- **Next:** a design revision that re-derives §3 against the installed 1.7.4-8
+  (accept or reject the Debian delta; record the installed SHA-256), then a new
+  E3J9C authorization continuing from M2. **E3J9D stays blocked**: on D1, and now
+  also on E3J9C passing.
+- **E3J9C-R update:** the rollback removes **both** `pass` and `tree` (M1 installed
+  both), without `autoremove` (§12). The design revision is done (§18). What
+  remains is the review of E3J9C-R, then a new authorization to continue from M2.
+
+## 18. E3J9C-R correction record (2026-09-25) — local only
+
+**Outcome:** the design and templates were corrected and verified locally. E3J9C
+itself **has not passed**, and nothing changed on Hotel-Echo: `pass` and `tree`
+stay installed as the partial host state, M2 and every later step remain
+unperformed, and resuming at M2 needs a new, explicit authorization after this
+correction has been reviewed. U1/E3J9 are open; D1 gates E3J9D; D7 gates E3J9E;
+C1 gates CLI-executing or provider-contacting E3J10 steps; E3 is unactivated. No
+Gate checkbox changed.
+
+**Scope and prohibitions honoured:**
+
+- No SSH or Hotel-Echo access; no Proton CLI, provider or network contact.
+- No `pass`, GPG, credential, key, account, package, unit, Docker, database,
+  deployment, scheduling or tunnel action.
+- No staging, commit or push.
+- `docs/design/roster-stats-design/` was not opened.
+
+**Evidence.** The saved E3J9C artifacts were re-authenticated before any edit:
+
+- upstream `password-store.sh` 1.7.4: `b48d710a…bcd7`;
+- the installed `pass` copy: `b0da432e…8632`;
+- the scratch harness: `89a5df5b…82b3`.
+
+A full `diff -u` gave exactly hunks H1–H7 (§3). The main-PC `/usr/bin/pass`
+(1.7.4-6) hashed to `b0da432e…8632` and matched its dpkg md5sum.
+
+**Corrections** (each is recorded in place in the section named):
+
+| Area                                 | Correction                                                                                                                                                                                                                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pass` acceptance (§3, §7, §11, §14) | Exact rule: package, full SHA-256, hunks H1–H7 and an empty root-owned extension directory; anything else is a STOP. Deterministic, whitespace-clean escaped manifest `pass-1.7.4-8.accepted-delta.escaped`. The H2 usage text is reachable but text only; the trio is dropped              |
+| Environment boundary (§0, §7, §9)    | `bash -p` on every script; the stated limits cover the dynamic loader and code already running as `eanhl-cloud`; the argv bound is the launcher's fixed argv                                                                                                                                |
+| Wrapper and lock (§4)                | Lock-file pre-check; exit-75 ambiguity; stop window corrected and made an E3J10 blocker; `--wait` proven locally only                                                                                                                                                                       |
+| Launcher exit status (§4)            | Every subcommand exits 0 only when every operation and postcondition succeeded; `present`/`absent`/`error` presence checks                                                                                                                                                                  |
+| systemd (§2, §8)                     | No `StateDirectory=`/`CacheDirectory=`; `PrivateNetwork=yes` for local units; network ordering only for units that start the CLI; the `--setenv` exception stated                                                                                                                           |
+| Probes (§8, §11)                     | `local:`/`provider:` separation; the invocation-bound `probe` operation with cleanup as part of the result; a provider-only unit template with no raw journal recipe; fail-closed counts; sanitised `emit`; `secondary` rejects `..`; provisional N1/N2 anchors; the E4/N4 vehicle deferred |
+| Authentication (§6)                  | Fail-closed, metadata-only `auth-login` preflight with structured resident-agent rules (executable, uid, PPid, cgroup; at most one each), empty until M8/L2 evidence; 900 s timeout                                                                                                         |
+| Key and store (§5)                   | `keygen` requires the empty M3 GNUPGHOME and checks the resulting key topology; `gpg.conf` installed as `eanhl-cloud`; the A9 wording; recovery/rotation deletes the old key before `keygen`                                                                                                |
+| Rollback (§12)                       | Current-state rollback is `pass` + `tree` with no `autoremove`; `entry-remove`, `canary-remove`, `key-delete` with postconditions; deletions as `eanhl-cloud`; `owned-inventory` with no-process preconditions in both modes; `expect-none` from a temporary path; added scan roots         |
+| Curated commands (§3, A1/A2)         | Symlink-chain evidence (final target, package, every hop)                                                                                                                                                                                                                                   |
+| Records (§17)                        | Harness claim qualified; H2 reachability corrected; main-PC identity confirmed by a full hash                                                                                                                                                                                               |
+
+**Defect found during implementation.** The approved plan expected 7 unified-diff
+hunks, but GNU diffutils merges H5 and H6 into one hunk with 3 lines of context.
+The artifact and tests use the correct counts: 6 unified hunks, 7 plain-`diff`
+change blocks, 13 changed lines.
+
+**Second correction pass (in place, same day).** A review found seven defects
+that the first harness did not cover:
+
+1. The raw `.diff` artifact failed `git diff --no-index --check` (whitespace-only
+   context lines, space-before-tab). It is replaced by the escaped manifest
+   (§3), decoded and compared byte-for-byte (`cmp`); there is no `.gitattributes`
+   exemption.
+2. Several launcher subcommands printed a failed result but exited 0:
+   - `auth-logout` ignored the unit result;
+   - `pty-marker` exited 0 with `invalid` or non-zero journal hits;
+   - `env-proof` did not aggregate its steps;
+   - `keygen` printed metadata without checking the topology;
+   - `pass-init` printed false postconditions;
+   - `key-delete` printed the remaining key count without checking it;
+   - a failed presence check read as "absent" (`svc_meta` empty).
+
+   All now exit non-zero (§4).
+
+3. Probe cleanup was not part of the result. A failed keep-mode probe was
+   retained, cleanup failures were not reported, and `probe-stop` ignored the
+   reset. Corrected (§11).
+4. The preflight read only the executable and uid, although the design described
+   uid, PPid and cgroup. Structured rules are now implemented, and the rule list
+   stays empty (§6).
+5. `owned-inventory`'s default mode checked only units. Both modes now require no
+   service-identity process (§11).
+6. The provider template's comment suggested a raw `journalctl -o cat` read. It
+   is removed, and E3J9D/E must first supply a reviewed invocation-bound reader.
+7. `lockhold free` and `fdcheck` exited 0 on a false result; they now exit
+   non-zero.
+
+**Third correction pass (in place, same day).** `svc_exists` used
+`[ -e ] || [ -L ]`, which reports an object under an inaccessible parent as
+`absent`. This was reproduced with a real mode-000 parent. The presence proof is
+replaced by the listing-based, root-anchored proof described in §4. Its call
+sites (`auth-logout`, `entry-remove`/`canary-remove`, the store and `.gpg-id`
+checks in `key-delete`, and the revocation-file check after deletion) now pass
+fixed relative contract paths, bound at startup to the absolute constants, and
+fail non-zero on `error`. New genuine-filesystem regressions cover:
+
+- a present object, and a dangling symlink (`present`);
+- an absent object under traversable parents, and a missing intermediate
+  directory (`absent`);
+- parents with mode 000 and mode 100 (`error`, never `absent`);
+- an intermediate symlink or regular file (`error`);
+- 12 malformed paths, refused in the launcher and in the script;
+- `auth-logout`, `entry-remove` and `key-delete` failing when their lookup is
+  indeterminate.
+
+Three mutations that remove the access-error distinction are caught.
+
+**Files:**
+
+- Templates:
+  - 9 changed: `credential-exec`, `eanhl-cloud-credential`,
+    `credential-bin.manifest`, `README.md`, and in `validation/` the probe,
+    `env-inspect`, `lockhold`, `owned-inventory` and `pty-marker`;
+  - 2 unchanged: `credential-child-env.manifest`, `gpg.conf`;
+  - `validation/eanhl-cloud-credential-probe@.service` replaced by
+    `validation/eanhl-cloud-credential-provider-probe@.service`;
+  - 2 new: `pass-1.7.4-8.accepted-delta.escaped` (it replaces the first pass's
+    `pass-1.7.4-8.accepted.diff`, which is removed) and
+    `test/credential-templates.test.sh`.
+- Docs: this memo, `HANDOFF.md`, `docs/journal/2026-09.md`, `ops/README.md`.
+- Outside the repository: both plan copies carry an identical Revision 4 section,
+  regenerated in the second pass. Their SHA-256 is
+  `3d4d2b23821808cf4ed0e6c44428576e56aaa40f7a92d67a6e18ae5c351e7f3c`; their first 68 765 bytes still hash to revision 3
+  (`d3575941…afc9c`).
+
+**Verification (local only, after the third pass):**
+
+- `E3J9_PASS_UPSTREAM=… E3J9_PASS_INSTALLED=… bash ops/backup/credential/test/credential-templates.test.sh`:
+  **308 checks declared, 308 passed, 0 failed; 24 of 24 mutations killed**. The
+  mutations weaken:
+  - `bash -p` and the lock pre-check;
+  - the probe count and `..` checks;
+  - the store-scan and journal failure handling;
+  - the invocation-ID match and the first-line rule;
+  - the resident-agent cgroup, parent and per-process rule checks;
+  - the `keygen`, `pass-init`, `auth-logout`, `key-delete`, `pty-marker` and
+    `env-proof` postconditions and exit statuses;
+  - the probe and `probe-stop` cleanup results;
+  - the `lockhold` symlink check and the `owned-inventory` process precondition;
+  - the `svc_exists` access-error distinction (a failed `cd`, a failed listing,
+    and a revert to `[ -e ] || [ -L ]`).
+
+  `--static-only` passes 304 checks with the same 24 mutations, and reports the
+  delta regeneration as not run. Running with neither input nor flag refuses
+  (exit 2).
+
+- `bash -n` passes on all 8 shell files. `systemd-analyze verify` of a scratch
+  instance of the provider template reports only the not-installed executable.
+- `git diff --no-index --check /dev/null <file>` is clean for every untracked
+  file. Targeted Prettier and `git diff --check` pass.
+
+**What the local tests do not prove:** any Hotel-Echo behaviour (units, uutils,
+GnuPG, systemd 259, journald invocation IDs, cleanup of unloaded transient units,
+resident-agent parents or cgroups), dynamic-loader isolation, or protection
+against code running as `eanhl-cloud`. Every **[VALIDATE]** item stays open (§16).
