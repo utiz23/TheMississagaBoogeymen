@@ -18,8 +18,7 @@ from game_ocr.parsers import _LOADOUT_XFACTOR_ICON_CENTROIDS
 from game_ocr.xfactor_icon_matcher import canonical_names, match_icon
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-LOADOUT_FIXTURES = REPO_ROOT / "research" / "OCR-SS" / "Pre-Game-Loadouts"
+LOADOUT_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "xfactor_icon_matcher"
 
 # (filename, [(canonical_name, slot_index), ...]) — slot order is left→right.
 # Only fixtures with verified-from-source X-Factor text labels are listed.

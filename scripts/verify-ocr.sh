@@ -107,6 +107,7 @@ node --test \
   "$REPO_ROOT/apps/worker/scripts/lib/test-db-guard.test.mjs" \
   "$REPO_ROOT/apps/worker/scripts/lib/test-db-session.test.mjs" \
   "$REPO_ROOT/apps/worker/scripts/lib/verify-ocr-orchestration.test.mjs" \
+  "$REPO_ROOT/apps/worker/scripts/lib/build-deps.test.mjs" \
   || fail "verification-database isolation safety suite failed — refusing to run any DB-backed step."
 
 # ── 1. db unit + integration tests (isolated clone) ──────────────────────────
