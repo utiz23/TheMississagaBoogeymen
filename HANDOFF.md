@@ -6,179 +6,117 @@ reproduce the linked documents.
 
 - Full prior history through 2026-09-12:
   [`docs/archive/handoff-history-2026-09-12.md`](docs/archive/handoff-history-2026-09-12.md)
-  (byte-identical snapshot of this file before compaction; its internal
-  links resolve from the repo root, not from `docs/archive/` — see
+  (byte-identical snapshot; its links resolve from the repo root — see
   [`docs/archive/README.md`](docs/archive/README.md)).
-- Full Gate 1-3 checklist, unchanged:
+- Gate 1-3 checklist:
   [`docs/planning/operational-v1-roadmap.md`](docs/planning/operational-v1-roadmap.md).
-- Dated work diary: [`docs/journal/2026-09.md`](docs/journal/2026-09.md)
-  (create the next month's file as needed).
-- Workflow policy (Plan Mode, delegation, HANDOFF lifecycle, etc.):
+- Dated work diary (per-milestone detail and test counts):
+  [`docs/journal/2026-09.md`](docs/journal/2026-09.md).
+- Workflow policy:
   [`docs/operations/agent-manager-workflow.md`](docs/operations/agent-manager-workflow.md).
 
 ## Current Objective / Status
 
 Operational V1 launch readiness, target 2026-10-01. Gate 1 complete. Gate 2
-in progress: hosting/domain/NHL 26-27 cutover decided; legal docs drafted
-but unpublished; reliability/backup automation not started; product-
-readiness audits not started. Gate 3 not started. Checkbox-level detail is
-in the roadmap doc, not here.
+in progress: hosting/domain/NHL 26-27 cutover decided; legal docs drafted but
+unpublished; reliability/backup automation not started; product-readiness
+audits not started. Gate 3 not started. Checkbox detail: the roadmap doc.
 
 ## Latest Verified Checkpoint
 
-**2026-09-25 — E3J9C-R: local correction of the stopped E3J9C (implemented and verified locally).**
-E3J9C **stopped after M1 and has not passed**: only `pass` 1.7.4-8 and its
-dependency `tree` are installed on Hotel-Echo; M2+ never ran; nothing else exists
-there. E3J9C-R (local only, no host/provider/credential action) replaced the
-byte-identity rule with an exact fail-closed acceptance rule (sha256
-`b0da432e…8632`, hunks H1–H7 in the whitespace-clean
-[`pass-1.7.4-8.accepted-delta.escaped`](ops/backup/credential/pass-1.7.4-8.accepted-delta.escaped))
-and corrected the templates: `bash -p`, fail-closed counts and exit statuses
-(every subcommand exits 0 only on full postconditions), an invocation-bound
-`probe` operation with cleanup as part of the result, a provider-only unit, an
-evidence-bound resident-agent `auth-login` preflight (rules empty until M8/L2),
-no `StateDirectory=`, `PrivateNetwork` for local units, `setpriv` for root reads,
-and corrected rotation/rollback. Local test
-`ops/backup/credential/test/credential-templates.test.sh`: 308/308, 24/24
-mutations killed (template logic only, not host behaviour). Record: design memo
-[§18](docs/planning/proton-drive-hotel-echo-credential-design.md). U1/E3J9 open;
-D1, D7 unresolved; E3 unactivated.
+**2026-09-26 — E3J9C PASSED (credential foundation + local proof only).**
+E3J9C-R is committed and pushed (`835b3ece`). On Hotel-Echo: `pass` + `tree`,
+the locked `eanhl-cloud` identity, §2 directories and lock, 12 curated links,
+wrapper, launcher, validation tools (kept until E3J9E), the pinned CLI at
+`/opt/eanhl-cloud/bin/proton-drive` (**never executed**), the service key with
+`gpg.conf`, and a store holding only `.gpg-id`. Two template defects found on
+the host were corrected, reviewed and reinstalled (launcher/`lockhold`
+working directory; the probe's digit-containing record name). M10 then passed
+in full, one row at a time: A1–A10 (A6 by the operator's direct PTY
+observation), E1–E3, L1–L2, K1–K6 and owned-inventory. `gpg-agent` lives only
+inside a running unit. Staging removed. The E3J9C work since `835b3ece`
+(corrected templates, harness, docs) is checkpointed on the dedicated branch
+`feat/e3j9c-credential-foundation`, **not yet merged into main**. Network: public
+upstream/Ubuntu downloads only; no Proton/provider contact. Record:
+[memo §19](docs/planning/proton-drive-hotel-echo-credential-design.md).
 
-Previous — **2026-09-24 — E3J9B-doc** (committed, `c99598e`): the option-A design
-recorded ([memo](docs/planning/proton-drive-hotel-echo-credential-design.md)) —
-locked `eanhl-cloud` system identity, curated `PATH`, `flock --close` lock, `env -i`
-with twelve literals, operator-only PTY login. **E3J9A** (same day): read-only
-feasibility evidence only
-([memo](docs/planning/proton-drive-hotel-echo-credential-feasibility.md)).
+Earlier (detail in the journal): E3J9C-R 09-25 (exact `pass` acceptance rule,
+template corrections, memo §18); E3J9C first run 09-24 (stopped after M1:
+`pass` + `tree`, memo §17); E3J9B-doc 09-24 (`c99598e`, option-A design);
+E3J9A 09-24 (read-only feasibility); E3J8A 09-23 (`9ea391a`, Healthchecks
+export, non-activated, ping-key risk explicitly accepted); E3J7 09-21
+(freshness evaluator); E3J6C 09-19 (`97e62d4`, run lock/retry/entrypoint);
+E3J6B `bbcff5b`, E3J6A `70abb63`, E3J5 `eea6ace`, E3J4 `0fc9678`, E3J2-3, E3I.
 
-Before that — **2026-09-23 — E3J8A (local, non-activated Healthchecks freshness
-export), verified. NOTHING IS MONITORED.** `ops/backup/eanhl-backup-monitor-export.mjs
---cloud-config <p> --monitor-config <p>`: `fresh` → success endpoint, else `/fail`,
-one hosted Healthchecks.io check; one HTTPS request per invocation, no retry; no
-shebang, exec bit, package script, timer, unit or cron entry. Pieces 4-5 (grace
-timer, Pushover, `alerts@boogeymen.app`) are provider-side: **no local watcher or
-notification code**. The monitor schema is exactly closed (7 keys); the ping key
-sits in a `0600` operator file outside the repo. Only exact 200 + `OK` is
-`accepted`; exit 0 means the ping was accepted, not that the backup is fresh;
-monitor-side failure pings nothing (silence is the alarm). **The ping-key risk is
-EXPLICITLY ACCEPTED** (bearer credential; a forged healthy ping is undetectable).
-Full suite 1169 declared, 1168 passed, 1 root-only skipped, 0 failed; nothing
-contacted an external host. Contract: memo §5.7 and the ops doc below.
-
-Before that — **2026-09-21 — E3J7 (freshness evaluation, local-only)**:
-`eanhl-backup-freshness.mjs` prints one `eanhl.cloud-freshness-signal` v1 line
-(`monitored: false`; exit 0 = signal produced, not freshness); 8 h / 24 h bands;
-**956/956**, 69/69 mutations. Rule detail: memo §5.3.
-
-Before that — **2026-09-19, E3J6C (`97e62d4`, committed and pushed)** — the run
-lock, collision-only bounded retry (T18), private signal ownership, and the
-first executable entrypoint (`ops/backup/eanhl-backup-cloud.mjs`); **756/756**,
-39/39 mutations caught. Contract detail: memo §4.7. Run the suite outside the
-Codex bubblewrap sandbox (Node child stdout is lost there — an environment
-limitation, not a regression).
-
-**Known-unclosed, by design:** real-CLI schemas are hypotheses; path-based
-lock, upload, enumeration and manifest-read TOCTOU windows are narrowed, not
-closed (a swap-and-restore is undetected); SIGKILL/power loss or a second
-signal leaves the lock (and possibly orphaned CLI children or an intent
-without an attestation) for manual reconciliation; a retention reason is
-durable only inside a written attestation; freshness depends on local
-manifests, so a pruned manifest blocks its base from counting (E3J13); and
-(E3J8A) a forged healthy ping is undetectable from this side, the live `OK`
-response contract is documented but never observed, exactly-once ping delivery
-is never claimed, and `internal/` is a convention rather than access control.
-
-Detail (schemas, lock contract, reconciliation §4.7, ping contract §5.7,
-correction history): the architecture memo linked under Immediate Blockers.
-Milestones: [`docs/journal/2026-09.md`](docs/journal/2026-09.md).
-
-Before that: E3J6B 2026-09-18, **637/637** (`bbcff5b`); E3J6A 2026-09-16,
-495/495 (`70abb63`); E3J5 2026-09-16, 413/413 (`eea6ace`); E3J4 2026-09-14,
-354/354 (`0fc9678`); E3J3 235/235 and E3J2 179/179 both 2026-09-13; E3I closed 09-12.
+**Known-unclosed, by design (backup chain):** real-CLI schemas are
+hypotheses; lock/upload/enumeration/manifest-read TOCTOU windows are narrowed,
+not closed; SIGKILL/power loss can leave the lock or an unattested intent for
+manual reconciliation; freshness depends on local manifests (E3J13); a forged
+healthy ping is undetectable and the live `OK` contract is unobserved. Run
+backup suites outside the Codex bubblewrap sandbox (Node child stdout is lost
+there). Detail: the architecture memo and ops docs under Immediate Blockers.
 
 ## Essential Operational Constraints
 
 - Domain `boogeymen.app` live (Cloudflare); `webmaster@boogeymen.app` works
   both directions.
-- Cloudflare tunnel is **deliberately offline** on both hosts; reopening it
-  needs its own separate authorization on top of closing the relevant Gate 2
-  items, not just a status change. Auth is **deliberately disabled
-  pre-launch** (the account system is removed from source, not just
-  hidden) — both are decisions, not gaps.
+- Cloudflare tunnel **deliberately offline** on both hosts; reopening needs
+  its own authorization on top of the relevant Gate 2 items. Auth is
+  **deliberately disabled pre-launch** (removed from source). Both are
+  decisions, not gaps.
 - Main PC is still real production (web/worker/db); Hotel-Echo runs a
-  parallel, not-yet-migrated deployment. Verify the actual deployed commit
-  per host via `docker inspect`/`git log` — don't assume from this file.
-- NHL 27 ingestion live on both hosts since 2026-09-05; NHL 26 fully
-  preserved and untouched.
-- **Main-PC secrets rotation (2026-09-03):** `POSTGRES_PASSWORD` and
-  `BETTER_AUTH_SECRET` were exposed (a `docker compose config` tool
-  transcript, plus an older `POSTGRES_PASSWORD` committed and pushed in
-  plaintext since 2026-04-16) and rotated same-day; the old plaintext value
-  stays in git history (dead, not erased). Hotel-Echo's own secrets were
-  never touched by this.
-- **Separate Hotel-Echo incident, same day:** an unauthenticated
-  "bootstrap first admin" flow was briefly reachable (~7.5 min) while its
-  database was empty; no account was created (tables verified empty), and
-  it was fixed at source. This is unrelated to the secrets rotation above.
-- **Separate again — Hotel-Echo network verification (2026-09-04, "Stage
-  D"):** ports 3000/3001/5433 confirmed loopback-only from host/LAN/WAN/
-  router vantages. This verified network port exposure only — it did not
-  verify or reconfirm the secrets rotation or the bootstrap-admin incident
-  above.
-- Backup producer/acceptor exist, verified in isolation only — no
-  production activation (see Immediate Blockers).
+  parallel, not-yet-migrated deployment. Verify each host's deployed commit
+  via `docker inspect`/`git log`.
+- NHL 27 ingestion live on both hosts since 2026-09-05; NHL 26 preserved.
+- Main-PC secrets rotation 2026-09-03 (`POSTGRES_PASSWORD`,
+  `BETTER_AUTH_SECRET`); the dead old value stays in git history. Separate
+  same-day Hotel-Echo incident: a bootstrap-admin flow was reachable ~7.5 min,
+  no account created, fixed at source. Separate 2026-09-04 check: Hotel-Echo
+  ports 3000/3001/5433 loopback-only (network exposure only).
+- Backup producer/acceptor verified in isolation only — no activation.
 
 ## Immediate Blockers
 
-- **E3 (Proton cloud backup) unactivated, and NOTHING IS MONITORED.** The local
-  chain through E3J8A exists — attestation writer, run lock, bounded retry, two
-  executable entrypoints, a read-only freshness evaluator, and now an **emitter
-  that would ping Healthchecks.io** — but **nothing schedules the emitter, no
-  provider account, check, ping key or notification integration exists, and no
-  human has received a test notification**. Code existing is not monitoring
-  existing; `monitored` stays `false`, and activation (**E3J8B**) is blocked on
-  backup scheduling, which does not exist. Also open: a proven hard-containment
-  mechanism on the real host, unattended credential persistence (U1 open; the option-A
-  design is recorded; E3J9C stopped after installing only `pass` + `tree`, E3J9C-R corrected it locally, nothing is proven), and real-CLI schema verification. U12-U14 remain unresolved (readback ceilings/containment proof,
-  timeouts/retry values, remote root and the flat layout's ratification); U15 is
-  **partly** resolved — format, transport, watcher and channels decided and the
-  emitter built, but no provider object exists and the receipt test is unrun.
-  Detail:
-  [`docs/operations/backup-monitoring-export.md`](docs/operations/backup-monitoring-export.md),
-  [`docs/planning/proton-drive-cloud-transport-architecture.md`](docs/planning/proton-drive-cloud-transport-architecture.md),
-  [`docs/planning/proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md),
-  [`docs/planning/proton-drive-scratch-experiment.md`](docs/planning/proton-drive-scratch-experiment.md).
-- **Legal docs drafted, not published, not counsel-reviewed.** Privacy,
-  data-collection, attribution, and Terms of Use each carry open publication
-  blockers (placeholder URLs, indexing reverification, a notice-of-changes
-  mechanism). Cloudflare Web Analytics is still enabled, contradicting the
-  no-tracking decision. Drafts: `docs/planning/*-draft.md`.
+- **E3 (Proton cloud backup) unactivated; NOTHING IS MONITORED.** The local
+  chain through E3J8A exists, but nothing schedules the emitter, no provider
+  account/check/ping key/notification exists, and no test notification was
+  received. E3J8B (activation; steps in the monitoring ops doc §9, own
+  authorization) is blocked on backup scheduling. Also open:
+  hard containment on the real host; unattended credential persistence (U1
+  open; E3J9C passed its local scope, lifecycle/reboot unproven); real-CLI schema verification; U12-U14
+  (readback ceilings/containment, timeouts/retries, remote root and flat
+  layout); U15 partly resolved (emitter built, no provider object, receipt
+  test unrun). **D1** gates E3J9D; **D7** gates E3J9E; **C1** must merge
+  before any E3J10 step that executes the CLI or can contact Proton. Detail:
+  [credential memo](docs/planning/proton-drive-hotel-echo-credential-design.md),
+  [`backup-monitoring-export.md`](docs/operations/backup-monitoring-export.md),
+  [`proton-drive-cloud-transport-architecture.md`](docs/planning/proton-drive-cloud-transport-architecture.md),
+  [`proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md),
+  [`proton-drive-scratch-experiment.md`](docs/planning/proton-drive-scratch-experiment.md).
+- **Legal docs drafted, not published, not counsel-reviewed** (placeholder
+  URLs, indexing reverification, notice-of-changes mechanism). Cloudflare Web
+  Analytics is still enabled, contradicting the no-tracking decision. Drafts:
+  `docs/planning/*-draft.md`.
 - **NHL 26/27 title default & chronology bug** — decided at E1J, not
   implemented: `is_active` conflates ingestion eligibility with frontend
-  default; `/` and `/games` lack the archive-fallback resolution
-  `title-resolver.ts` already has; chronology sorts by id, which is already
-  wrong (NHL 27's id > NHL 26's, breaking career-season ordering). As a
-  mechanical side effect, NHL 27 is now the default title on `/`/`/games` on
-  both hosts. Rollback (stops NHL 27 polling, reverts default, deletes
-  nothing): `UPDATE game_titles SET is_active = false WHERE slug = 'nhl27';`.
+  default; `/` and `/games` lack `title-resolver.ts`'s archive fallback;
+  chronology sorts by id (NHL 27's id > NHL 26's). NHL 27 is currently the
+  default on `/`/`/games` on both hosts. Rollback (stops NHL 27 polling,
+  deletes nothing): `UPDATE game_titles SET is_active = false WHERE slug = 'nhl27';`.
   Full spec: archive, E1J entry.
 
 ## Next 1-3 Actions
 
-1. If continuing backup work: E3J8A is committed and pushed
-   (`9ea391ab9cb494688afcfab8b96ba544912efe19`); E3J2-E3J8A exhaust the local
-   sessions. E3 stays unactivated and nothing is monitored; **E3J8B (activation)**
-   is not actionable until backup scheduling exists (its steps: the ops doc above,
-   §9; own authorization). The next credential step is **review of E3J9C-R**
-   (memo §18), then a new, explicit authorization to continue **E3J9C from M2**
-   (rollback of `pass` + `tree` is the alternative; neither is authorized). E3J9D
-   stays blocked (D1 open, and E3J9C has not passed); E3J9E needs D7.
-   **C1** must merge before any E3J10
+1. **Backup credential path:** the E3J9C work (corrected launcher, `lockhold`,
+   probe, harness 337/337, docs) is checkpointed on the dedicated branch
+   `feat/e3j9c-credential-foundation`, not yet merged into main. Then E3J9D
+   (operator ceremony) needs **D1**;
+   E3J9E (lifecycle, reboot) needs **D7**; **C1** must merge before any E3J10
    step that executes the CLI or can contact Proton.
-2. Gate 2 reliability items: automated backups, restore drill, alerting,
-   log retention, rollback docs — all unstarted and blocking Gate 2.
+2. Gate 2 reliability items: automated backups, restore drill, alerting, log
+   retention, rollback docs — all unstarted and blocking Gate 2.
 3. Disable and verify Cloudflare Web Analytics.
 
-Pick one item per session. Update this file in place at the natural
-stopping point, and log the milestone in `docs/journal/2026-09.md` — see
-`agent-manager-workflow.md` §8 and the `handoff-update` skill.
+Pick one item per session. Update this file in place at the natural stopping
+point and log the milestone in the journal — see `agent-manager-workflow.md`
+§8 and the `handoff-update` skill.

@@ -244,7 +244,9 @@ check_identity() {
 }
 
 check_commands() {
-  expect pass_script_sha256_match true "$(tf pass_script_sha256_match)"
+  # Emitted name has no digits: the launcher's vocabulary is ^E3J9 [a-z_]+=…
+  # (E3J9C §19.6). The function keeps its accurate SHA-256 name; it is not emitted.
+  expect pass_script_hash_match true "$(tf pass_script_sha256_match)"
   expect pass_system_ext_dir_empty true "$(tf pass_system_ext_dir_empty)"
   expect tty_absent true "$(tf cmd_absent tty)"
   expect xdg_open_absent true "$(tf cmd_absent xdg-open)"

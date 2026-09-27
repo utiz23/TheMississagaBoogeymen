@@ -9,10 +9,17 @@ acceptance protocol and the execution records are in
 file installs nothing on its own, and a subcommand existing here is not an
 authorization to run it.
 
-**Current state (E3J9C-R):** E3J9C **stopped after M1** and has not passed. Only
-`pass` 1.7.4-8 and its dependency `tree` 2.3.1-1 are installed on Hotel-Echo.
-M2 and every later step have not run. Resuming at M2 needs a new, explicit
-authorization.
+**Current state (2026-09-26, design memo §19):** **E3J9C passed — for its
+credential-foundation and local-proof scope only.** Installed on Hotel-Echo:
+`pass` 1.7.4-8 + `tree`, the `eanhl-cloud` identity, the directories and lock,
+the curated `PATH`, the wrapper, the corrected launcher, `lockhold` and probe,
+the other validation scripts (kept until E3J9E, D8), the pinned CLI (never
+executed), the service key with `gpg.conf`, and the initialised store
+(`.gpg-id` only). M10 passed in full, one step at a time (A6 by the operator's
+direct PTY observation), and the final owned-inventory matched. The staging
+directory was removed. U1 and E3J9 remain open; E3J9D needs D1, E3J9E needs D7,
+and C1 must merge before any E3J10 step that executes the CLI or can contact
+Proton. No authentication has happened and nothing is scheduled.
 
 Nothing here is secret. The repository holds paths, command names, the twelve
 environment literals and public fingerprints only. Never add a key, a Proton
@@ -50,7 +57,7 @@ Each raw unified-diff line is written as `|<escaped>|`, with `\\` for a backslas
 and `\t` for a TAB; the local test decodes it and compares it byte-for-byte with
 the regenerated diff. `/usr/lib/password-store/extensions` exists,
 is root-owned, not group/world-writable and empty. **Any other hash, version or
-hunk means STOP.** The probe checks the hash (`pass_script_sha256_match`) and
+hunk means STOP.** The probe checks the hash (`pass_script_hash_match`) and
 the extension directory (`pass_system_ext_dir_empty`).
 
 ## What each piece guarantees — and what it does not
@@ -126,8 +133,9 @@ Literal paths only. No recursive `chown`/`chmod`/`rm`, and nothing may be adopte
 from pre-existing state. Record every command and result in the design memo.
 Commands run from a checkout of this directory on Hotel-Echo.
 
-1. **M1 (done in E3J9C):** `pass` 1.7.4-8 + `tree` 2.3.1-1 installed. Before M2,
-   re-verify the §3 acceptance rule read-only.
+1. **M1 (done in E3J9C):** `pass` 1.7.4-8 + `tree` 2.3.1-1 installed. **M2–M7
+   were done on 2026-09-26 (memo §19)**; re-verify the §3 acceptance rule and the
+   installed hashes read-only before resuming.
 2. **M2:**
    `sudo adduser --system --group --home /var/lib/eanhl-cloud --no-create-home --shell /usr/sbin/nologin eanhl-cloud`.
    Check: `passwd -S` locked, `id -G eanhl-cloud` = its own gid only, no linger
@@ -167,10 +175,17 @@ Commands run from a checkout of this directory on Hotel-Echo.
 7. **M8:** `sudo eanhl-cloud-credential keygen` (refuses unless GNUPGHOME is the
    empty M3 directory). Then install `gpg.conf` **as `eanhl-cloud`** (never as
    root into its directory; `set -C` refuses an existing file):
+
    ```bash
-   sudo /usr/bin/setpriv --reuid=eanhl-cloud --regid=eanhl-cloud --clear-groups -- \
-     /usr/bin/bash -p -c 'umask 077; set -C; cat > /var/lib/eanhl-cloud/gnupg/gpg.conf' < gpg.conf
+   ( cd / && sudo /usr/bin/setpriv --reuid=eanhl-cloud --regid=eanhl-cloud --clear-groups -- \
+     /usr/bin/bash -p -c 'umask 077; set -C; cat > /var/lib/eanhl-cloud/gnupg/gpg.conf' ) < gpg.conf
    ```
+
+   `< gpg.conf` sits **outside** the group: the shell opens the checkout's
+   `gpg.conf` first, then the group enters `/`, so the service identity never
+   inherits the operator's working directory (design §19.5) and never reads
+   `/gpg.conf`.
+
 8. **M9:** `sudo eanhl-cloud-credential pass-init <fpr>` (A9: refuses unless the
    store is empty and correctly owned; that it is the M3 directory is
    established by the session record).
@@ -181,10 +196,17 @@ Commands run from a checkout of this directory on Hotel-Echo.
 Use **only** these operations. Never raw `systemctl start` or `journalctl`.
 `<unit>` is the `bound_unit=` value a `probe` run prints.
 
+**Run the rows one at a time.** Start one probe or launcher operation, evaluate
+it completely (exit status, `probe_run_result`, `bound_cleanup_ok`, and every
+count or boolean its row requires), and stop before starting the next on any
+failure. Never launch several rows in one loop and evaluate afterwards (design
+§19.7). Only K1, K4, K5 and K6 start overlapping operations by design; each is
+evaluated as one step.
+
 | Test                        | Procedure                                                                                                                                                                                                                                   | Pass                                                                                                                                                            |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A1                          | For each manifest link: `stat -c '%F %U:%G'` = `symbolic link root:root`; `readlink` = manifest target; record `readlink -f`, `dpkg -S <final>` and owner/mode of every hop; directory listing = manifest exactly; directory root:root 0755 | all match; any change later = STOP                                                                                                                              |
-| A2                          | `sudo setpriv --reuid=eanhl-cloud --regid=eanhl-cloud --clear-groups -- /usr/bin/test -w <path>` for the curated dir, every final target, `/opt`, `/opt/eanhl-cloud`, `bin/`, the CLI, the wrapper, the launcher                            | every test fails (exit 1)                                                                                                                                       |
+| A2                          | `( cd / && sudo /usr/bin/setpriv --reuid=eanhl-cloud --regid=eanhl-cloud --clear-groups -- /usr/bin/test -w <path> )` for the curated dir, every final target, `/opt`, `/opt/eanhl-cloud`, `bin/`, the CLI, the wrapper, the launcher       | every test fails (exit 1)                                                                                                                                       |
 | A3, A4, E2 (helpers)        | `sudo eanhl-cloud-credential probe precheck`                                                                                                                                                                                                | `probe_run_result=pass`                                                                                                                                         |
 | A5 / L1, A10 (absent entry) | `sudo eanhl-cloud-credential probe local`                                                                                                                                                                                                   | pass                                                                                                                                                            |
 | A10 (`neg-uninit`)          | `sudo eanhl-cloud-credential probe neg-uninit`                                                                                                                                                                                              | pass                                                                                                                                                            |
@@ -262,7 +284,7 @@ transaction in `/var/log/apt/history.log`; then remove both. **Never run
 6. GNUPGHOME, data, config, logs, cache, `locks/`: key files are named by
    keygrip, so exact paths are not known in advance. Generate a metadata table,
    review it, then delete **as `eanhl-cloud`** —
-   `sudo setpriv --reuid=eanhl-cloud --regid=eanhl-cloud --clear-groups -- /usr/bin/find <literal top> -xdev -depth -type <reviewed types> -delete`
+   `( cd / && sudo /usr/bin/setpriv --reuid=eanhl-cloud --regid=eanhl-cloud --clear-groups -- /usr/bin/find <literal top> -xdev -depth -type <reviewed types> -delete )`
    — and let root `rmdir` only verified-empty top directories.
 7. Remove the launcher, the wrapper, the curated directory, and `/opt/eanhl-cloud`
    (the last after an E3J10 dependency review).
