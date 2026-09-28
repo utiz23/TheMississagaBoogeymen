@@ -1,6 +1,10 @@
+import { BrandedLoader } from '@/components/loading/branded-loader'
+
 export default function Loading() {
   return (
-    <div className="space-y-8">
+    <div data-route-loading className="space-y-8">
+      <BrandedLoader />
+
       {/* Back link placeholder */}
       <div className="h-4 w-16 rounded bg-zinc-800 animate-pulse" />
 
