@@ -13,9 +13,11 @@ import assert from 'node:assert/strict'
 import {
   aggregate,
   aggregateBySource,
+  archiveRowToTeamHistoryInput,
   buildGroups,
   filterRows,
   formatGoalDiff,
+  formatRecord,
   formatToa,
   listFamilies,
   listTitles,
@@ -101,6 +103,90 @@ void test('toTeamHistoryRow: parses strings, derives W% and GD/G, keeps missing 
   assert.equal(missing.gdg, null)
   assert.equal(missing.wpct, null)
   assert.equal(missing.w, null)
+})
+
+// ─── archiveRowToTeamHistoryInput: locked-title archive mapping ──────────────
+
+function archiveQueryRow(
+  overrides: Partial<Omit<TeamHistoryInput, 'gameTitleId' | 'titleName' | 'source'>> = {},
+) {
+  return {
+    playlist: 'eashl_6v6',
+    gamesPlayed: 89,
+    wins: 53,
+    losses: 34,
+    otl: 2,
+    avgGoalsFor: '3.30',
+    avgGoalsAgainst: '2.80',
+    avgTimeOnAttack: '07:06',
+    powerPlayPct: '21.70',
+    powerPlayKillPct: '80.10',
+    ...overrides,
+  }
+}
+
+void test('archiveRowToTeamHistoryInput: maps a fully-populated row, tags it archive, takes id/name from the title argument', () => {
+  const mapped = archiveRowToTeamHistoryInput(archiveQueryRow(), { id: 6, name: 'NHL 22' })
+  assert.deepEqual(mapped, {
+    gameTitleId: 6,
+    titleName: 'NHL 22',
+    source: 'archive',
+    playlist: 'eashl_6v6',
+    gamesPlayed: 89,
+    wins: 53,
+    losses: 34,
+    otl: 2,
+    avgGoalsFor: '3.30',
+    avgGoalsAgainst: '2.80',
+    avgTimeOnAttack: '07:06',
+    powerPlayPct: '21.70',
+    powerPlayKillPct: '80.10',
+  })
+})
+
+void test('archiveRowToTeamHistoryInput: null GP/W/L/OTL stay null — never coerced to 0', () => {
+  const mapped = archiveRowToTeamHistoryInput(
+    archiveQueryRow({ gamesPlayed: null, wins: null, losses: null, otl: null }),
+    { id: 6, name: 'NHL 22' },
+  )
+  assert.equal(mapped.gamesPlayed, null)
+  assert.equal(mapped.wins, null)
+  assert.equal(mapped.losses, null)
+  assert.equal(mapped.otl, null)
+})
+
+void test('archiveRowToTeamHistoryInput: null rate/average fields stay null', () => {
+  const mapped = archiveRowToTeamHistoryInput(
+    archiveQueryRow({
+      avgGoalsFor: null,
+      avgGoalsAgainst: null,
+      avgTimeOnAttack: null,
+      powerPlayPct: null,
+      powerPlayKillPct: null,
+    }),
+    { id: 6, name: 'NHL 22' },
+  )
+  assert.equal(mapped.avgGoalsFor, null)
+  assert.equal(mapped.avgGoalsAgainst, null)
+  assert.equal(mapped.avgTimeOnAttack, null)
+  assert.equal(mapped.powerPlayPct, null)
+  assert.equal(mapped.powerPlayKillPct, null)
+})
+
+void test('archiveRowToTeamHistoryInput: a null W/L/OTL still nulls winPct/formatRecord end to end through toTeamHistoryRow/aggregate', () => {
+  const mapped = archiveRowToTeamHistoryInput(archiveQueryRow({ otl: null }), {
+    id: 6,
+    name: 'NHL 22',
+  })
+  const r = toTeamHistoryRow(mapped)
+  assert.equal(r.otl, null)
+  assert.equal(r.wpct, null)
+  assert.equal(formatRecord(r.w, r.l, r.otl), '—')
+
+  const agg = aggregate([r])
+  assert.equal(agg.otl, null)
+  assert.equal(agg.wpct, null)
+  assert.equal(formatRecord(agg.w, agg.l, agg.otl), '—')
 })
 
 void test('aggregate: exact sums, GP-weighted averages flagged approximate, null propagates', () => {

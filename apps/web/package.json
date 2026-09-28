@@ -6,11 +6,12 @@
     "build": "next build",
     "dev": "next dev --turbopack --hostname 127.0.0.1",
     "start": "next start",
-    "test": "pnpm run test:unit && pnpm run test:auth-disabled && pnpm run test:http-404 && pnpm run test:http-legal",
+    "test": "pnpm run test:unit && pnpm run test:auth-disabled && pnpm run test:http-404 && pnpm run test:http-legal && pnpm run test:http-stats",
     "test:unit": "node --test \"src/**/*.test.ts\"",
     "test:auth-disabled": "node --import ./test/register-loader.mjs --test test/auth-routes-disabled.test.ts",
     "test:http-404": "node --test test/disabled-routes-http.test.ts",
     "test:http-legal": "node --test test/legal-http.test.ts",
+    "test:http-stats": "node --test test/stats-http.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src \"test/**/*.ts\""
   },

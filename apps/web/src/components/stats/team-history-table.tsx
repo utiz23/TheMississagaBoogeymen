@@ -32,6 +32,14 @@ import {
 
 interface Props {
   rows: TeamHistoryInput[]
+  /**
+   * When set, the table is scoped to exactly this title: the "Filter by
+   * title" control is hidden (there is nothing to choose between), and the
+   * scope text always shows this name instead of ever falling back to "All
+   * Titles". Used by the archive-title Stats view, whose `rows` already
+   * contain only that one title's data.
+   */
+  lockedTitle?: string
 }
 
 const FOCUS_RING =
@@ -96,18 +104,26 @@ export function TeamHistoryUnavailable() {
  * reviewed screenshot-import rows for archive titles. Totals are computed per
  * source and never blended. All logic lives in the lib; this file renders.
  */
-export function TeamHistoryTable({ rows: inputs }: Props) {
+export function TeamHistoryTable({ rows: inputs, lockedTitle }: Props) {
   const rows = useMemo(() => inputs.map(toTeamHistoryRow), [inputs])
   const titles = useMemo(() => listTitles(rows), [rows])
   const families = useMemo(() => listFamilies(rows), [rows])
 
-  const [title, setTitle] = useState<string | null>(null)
+  const [selectedTitle, setSelectedTitle] = useState<string | null>(null)
   const [family, setFamily] = useState<string | null>(null)
   const [groupBy, setGroupBy] = useState<GroupBy>('title')
   const [sort, setSort] = useState<SortState | null>(null)
   const [announcement, setAnnouncement] = useState('')
 
-  const filtered = useMemo(() => filterRows(rows, title, family), [rows, title, family])
+  // Derived, not seeded into state: if the archive page navigates to a
+  // different locked title while this component stays mounted, this must
+  // reflect the new prop immediately rather than the value at first mount.
+  const effectiveTitle = lockedTitle ?? selectedTitle
+
+  const filtered = useMemo(
+    () => filterRows(rows, effectiveTitle, family),
+    [rows, effectiveTitle, family],
+  )
   const groups = useMemo(() => buildGroups(filtered, groupBy, sort), [filtered, groupBy, sort])
   const summary = useMemo(() => aggregateBySource(filtered), [filtered])
   const columns = useMemo(() => columnsFor(groupBy), [groupBy])
@@ -134,7 +150,7 @@ export function TeamHistoryTable({ rows: inputs }: Props) {
     groups.some((g) => g.subtotals.some((s) => s.aggregate.averagesApproximate)) ||
     summary.some((s) => s.aggregate.averagesApproximate)
   const scope = [
-    title ?? 'All titles',
+    effectiveTitle ?? 'All titles',
     family === null ? 'all playlists' : (families.find((f) => f.key === family)?.label ?? family),
   ].join(' · ')
 
@@ -149,7 +165,7 @@ export function TeamHistoryTable({ rows: inputs }: Props) {
   }
 
   function resetFilters() {
-    setTitle(null)
+    setSelectedTitle(null)
     setFamily(null)
   }
 
@@ -192,29 +208,31 @@ export function TeamHistoryTable({ rows: inputs }: Props) {
       <SourceLegend sources={visibleSources} />
 
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        <ToggleGroup label="Filter by title" pill>
-          <Toggle
-            pill
-            pressed={title === null}
-            onClick={() => {
-              setTitle(null)
-            }}
-          >
-            All Titles
-          </Toggle>
-          {titles.map((t) => (
+        {lockedTitle === undefined ? (
+          <ToggleGroup label="Filter by title" pill>
             <Toggle
               pill
-              key={t}
-              pressed={title === t}
+              pressed={selectedTitle === null}
               onClick={() => {
-                setTitle(t)
+                setSelectedTitle(null)
               }}
             >
-              {t}
+              All Titles
             </Toggle>
-          ))}
-        </ToggleGroup>
+            {titles.map((t) => (
+              <Toggle
+                pill
+                key={t}
+                pressed={selectedTitle === t}
+                onClick={() => {
+                  setSelectedTitle(t)
+                }}
+              >
+                {t}
+              </Toggle>
+            ))}
+          </ToggleGroup>
+        ) : null}
         <ToggleGroup label="Filter by playlist" pill>
           <Toggle
             pill

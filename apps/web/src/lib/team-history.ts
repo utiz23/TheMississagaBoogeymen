@@ -451,13 +451,44 @@ export function formatToa(seconds: number | null): string {
 /** A failed query is "unavailable", never an empty result that looks complete. */
 export type TeamHistoryLoad = { status: 'ok'; rows: TeamHistoryInput[] } | { status: 'unavailable' }
 
-interface TitleRef {
+export interface TitleRef {
   id: number
   name: string
 }
 
 /** What the queries return, before the loader adds the title name and source tag. */
 type QueryRow = Omit<TeamHistoryInput, 'titleName' | 'source'>
+
+/**
+ * Maps a single archive team-stats row (already fetched, already
+ * mode-filtered, already reviewed-only) into TeamHistoryInput, for callers
+ * that render one locked archive title directly instead of going through
+ * `loadTeamHistory`'s multi-title live+archive loader. Every nullable field
+ * stays null — never coerced to 0 — matching this module's existing
+ * null-propagation contract (see `winPct`/`formatRecord`). Structurally
+ * typed against `QueryRow`, independent of any `@eanhl/db` import; a wider
+ * DB row type's extra fields (e.g. goalsFor, faceoffPct) are ignored.
+ */
+export function archiveRowToTeamHistoryInput(
+  row: Omit<QueryRow, 'gameTitleId'>,
+  title: TitleRef,
+): TeamHistoryInput {
+  return {
+    gameTitleId: title.id,
+    titleName: title.name,
+    source: 'archive',
+    playlist: row.playlist,
+    gamesPlayed: row.gamesPlayed,
+    wins: row.wins,
+    losses: row.losses,
+    otl: row.otl,
+    avgGoalsFor: row.avgGoalsFor,
+    avgGoalsAgainst: row.avgGoalsAgainst,
+    avgTimeOnAttack: row.avgTimeOnAttack,
+    powerPlayPct: row.powerPlayPct,
+    powerPlayKillPct: row.powerPlayKillPct,
+  }
+}
 
 export interface TeamHistoryLoaderDeps {
   /** Every active title; each contributes match-derived (live) rows. */

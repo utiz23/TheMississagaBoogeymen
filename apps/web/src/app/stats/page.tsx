@@ -32,7 +32,6 @@ import {
   listArchiveGameTitles,
   getTeamShotLocationAggregates,
   getTeamGoalieShotLocationAggregates,
-  type HistoricalClubTeamStatsRow,
 } from '@eanhl/db/queries'
 import { TeamShotMap } from '@/components/stats/team-shot-map'
 import { SectionHeader } from '@/components/ui/section-header'
@@ -47,8 +46,7 @@ import { TeamHistoryTable, TeamHistoryUnavailable } from '@/components/stats/tea
 import { CareerStatsSection } from '@/components/stats/career-stats-section'
 import { TitleSelector, ModeFilter, EmptyState } from '@/components/title-selector'
 import { resolveTitleFromSlug } from '@/lib/title-resolver'
-import { formatPct, formatWinPct } from '@/lib/format'
-import { loadTeamHistory } from '@/lib/team-history'
+import { archiveRowToTeamHistoryInput, loadTeamHistory } from '@/lib/team-history'
 import {
   settle,
   rowsOrEmpty,
@@ -440,14 +438,23 @@ async function ArchiveStats({
         />
       </div>
 
-      {/* CLUB/TEAM totals — overview before per-player breakdowns. A failed
-          query gets its own explicit message so it never looks like a
-          successful empty result (which is simply omitted, as before). */}
+      {/* Career Team Stats — the same redesigned presentation used on the
+          active title, locked to this one archive title. Rows come from the
+          reviewed, mode-filtered archive query above (settled independently
+          of every other section); error/empty/rows stay three distinct
+          outcomes, none silently dropped. */}
       {teamRowsP.kind === 'error' ? (
-        <EmptyState message="Club team records are unavailable right now." />
-      ) : teamRowsP.kind === 'rows' ? (
-        <ArchiveClubTeamSection rows={teamRowsP.rows} titleName={gameTitle.name} />
-      ) : null}
+        <TeamHistoryUnavailable />
+      ) : teamRowsP.kind === 'empty' ? (
+        <TeamHistoryTable rows={[]} lockedTitle={gameTitle.name} />
+      ) : (
+        <TeamHistoryTable
+          rows={teamRowsP.rows.map((row) =>
+            archiveRowToTeamHistoryInput(row, { id: gameTitle.id, name: gameTitle.name }),
+          )}
+          lockedTitle={gameTitle.name}
+        />
+      )}
 
       <CareerStatsSection
         titleName={gameTitle.name}
@@ -533,95 +540,6 @@ async function ArchiveStats({
         }
       />
     </PageShell>
-  )
-}
-
-// ─── Archive club-team totals ─────────────────────────────────────────────────
-
-const PLAYLIST_LABEL: Record<string, string> = {
-  eashl_6v6: 'EASHL 6v6',
-  eashl_3v3: 'EASHL 3v3',
-  clubs_6v6: 'Clubs 6v6',
-  clubs_3v3: 'Clubs 3v3',
-  '6_player_full_team': '6P Full Team',
-  clubs_6_players: 'Clubs 6P',
-  threes: 'Threes',
-  quickplay_3v3: 'Quickplay 3v3',
-}
-
-function ArchiveClubTeamSection({
-  rows,
-  titleName,
-}: {
-  rows: HistoricalClubTeamStatsRow[]
-  titleName: string
-}) {
-  return (
-    <section className="space-y-4 border-t border-zinc-800 pt-6">
-      <div className="space-y-1">
-        <h2 className="font-condensed text-base font-semibold uppercase tracking-widest text-zinc-300">
-          Club team records
-        </h2>
-        <p className="text-xs text-zinc-500">
-          Season totals from {titleName} STATS → CLUB STATS screen captures, per playlist. PP% and
-          PK% are not tracked in 3v3 and Threes modes.
-        </p>
-      </div>
-      <div className="overflow-x-auto border border-zinc-800">
-        <table className="w-full text-sm tabular-nums">
-          <thead>
-            <tr className="border-b border-zinc-800 text-right text-xs uppercase tracking-wider text-zinc-500">
-              <th className="px-4 py-2 text-left font-medium">Playlist</th>
-              <th className="px-3 py-2 font-medium">GP</th>
-              <th className="px-3 py-2 font-medium text-accent">W</th>
-              <th className="px-3 py-2 font-medium">L</th>
-              <th className="px-3 py-2 font-medium">OTL</th>
-              <th className="px-3 py-2 font-medium">W%</th>
-              <th className="px-3 py-2 font-medium">GF/G</th>
-              <th className="px-3 py-2 font-medium">GA/G</th>
-              <th className="px-3 py-2 font-medium">TOA</th>
-              <th className="px-3 py-2 font-medium">PP%</th>
-              <th className="px-3 py-2 font-medium">PK%</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800/60">
-            {rows.map((row) => {
-              const gp = row.gamesPlayed ?? 0
-              const w = row.wins ?? 0
-              const l = row.losses ?? 0
-              const otl = row.otl ?? 0
-              return (
-                <tr key={row.playlist} className="bg-surface">
-                  <td className="px-4 py-3 font-medium text-zinc-300">
-                    {PLAYLIST_LABEL[row.playlist] ?? row.playlist}
-                  </td>
-                  <td className="px-3 py-3 text-right text-zinc-300">{gp}</td>
-                  <td className="px-3 py-3 text-right font-semibold text-accent">{w}</td>
-                  <td className="px-3 py-3 text-right text-zinc-400">{l}</td>
-                  <td className="px-3 py-3 text-right text-zinc-500">{otl}</td>
-                  <td className="px-3 py-3 text-right text-zinc-300">
-                    {formatWinPct(w, w + l + otl)}
-                  </td>
-                  <td className="px-3 py-3 text-right text-zinc-300">{row.avgGoalsFor ?? '—'}</td>
-                  <td className="px-3 py-3 text-right text-zinc-400">
-                    {row.avgGoalsAgainst ?? '—'}
-                  </td>
-                  <td className="px-3 py-3 text-right text-zinc-400">
-                    {row.avgTimeOnAttack ?? '—'}
-                  </td>
-                  <td className="px-3 py-3 text-right text-zinc-400">
-                    {formatPct(row.powerPlayPct)}
-                  </td>
-                  <td className="px-3 py-3 text-right text-zinc-400">
-                    {formatPct(row.powerPlayKillPct)}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
   )
 }
 
