@@ -445,9 +445,6 @@ const ARCHIVE_SOURCE: StatsSource = {
   kind: 'archive-club-member',
   label: 'Club-member totals (reviewed screenshot import)',
   description: 'Club-scoped, from reviewed CLUBS → MEMBERS captures.',
-  notes: [
-    'Some counts were not captured by the source and the current query shows them as 0, so a displayed 0 may be unrecorded.',
-  ],
 }
 
 function byPlayerId<T extends { playerId: number }>(rows: T[]): Record<number, T> {
