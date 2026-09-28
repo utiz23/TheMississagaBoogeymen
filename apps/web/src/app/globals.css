@@ -26,6 +26,12 @@
      label, not a solid fill with white text. */
   --color-accent-soft: rgba(232, 65, 49, 0.1);
   --color-accent-line: rgba(232, 65, 49, 0.4);
+  /* Accessible text variant of --color-accent: the official accent (#e84131)
+     falls short of 4.5:1 for normal-sized text on this app's dark surfaces.
+     Reuses the same lighter red already carried by --color-loss for exactly
+     that reason ("lighter accent — readable on dark"). Text only — borders,
+     soft fills, and non-text focus indicators keep the official accent. */
+  --color-accent-readable: #ef6a5e;
 
   /* Opponent colour vars (game sheet) — NOT defined here. Set per match as
      inline style on the /games/[id] page root by resolveOpponentColors()
