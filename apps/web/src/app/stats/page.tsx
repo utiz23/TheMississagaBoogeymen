@@ -43,7 +43,7 @@ import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
 import { WithWithoutTable, BestPairsTable } from '@/components/stats/chemistry-tables'
 import { ChemistrySection } from '@/components/stats/chemistry-section'
 import { PairWinMatrix } from '@/components/stats/pair-win-matrix'
-import { TeamHistoryTable } from '@/components/stats/team-history-table'
+import { TeamHistoryTable, TeamHistoryUnavailable } from '@/components/stats/team-history-table'
 import { CareerStatsSection } from '@/components/stats/career-stats-section'
 import {
   TitleSelector,
@@ -53,6 +53,7 @@ import {
 } from '@/components/title-selector'
 import { resolveTitleFromSlug } from '@/lib/title-resolver'
 import { formatPct, formatWinPct } from '@/lib/format'
+import { loadTeamHistory } from '@/lib/team-history'
 
 export const metadata: Metadata = { title: 'Stats — Club Stats' }
 
@@ -174,33 +175,19 @@ async function ActiveStats({
       ? 'Career totals across all titles · all clubs'
       : undefined
 
-  // Career Team Stats rows — live (NHL 26 derived from `matches`) + archive
-  // (reviewed historical_club_team_stats across every prior title). Both
-  // sources share the same row shape so the table renders them uniformly.
-  type TeamHistoryRow = Awaited<ReturnType<typeof getHistoricalClubTeamStatsBatch>>[number] & {
-    titleName: string
-  }
-  let teamHistoryRows: TeamHistoryRow[] = []
-  try {
-    const archiveTitles = await listArchiveGameTitles()
-    const archiveIds = archiveTitles.map((t) => t.id)
-    const titleNameById = new Map([
-      [gameTitle.id, gameTitle.name],
-      ...archiveTitles.map((t) => [t.id, t.name] as const),
-    ])
-    const [liveRows, archiveRows] = await Promise.all([
-      getLiveTeamStatsByMode(gameTitle.id).catch(() => []),
-      archiveIds.length > 0
-        ? getHistoricalClubTeamStatsBatch(archiveIds).catch(() => [])
-        : Promise.resolve([]),
-    ])
-    teamHistoryRows = [...liveRows, ...archiveRows].map((r) => ({
-      ...r,
-      titleName: titleNameById.get(r.gameTitleId) ?? '',
-    }))
-  } catch {
-    teamHistoryRows = []
-  }
+  // Career Team Stats — live rows for every ACTIVE title (match-derived) plus
+  // reviewed archive rows. If any required query fails the section renders an
+  // explicit "unavailable" state instead of a partial/empty table; the rest of
+  // the page is unaffected.
+  const teamHistory = await loadTeamHistory({
+    activeTitles: allTitles.filter((t) => t.isActive),
+    listArchiveTitles: listArchiveGameTitles,
+    getLiveRows: getLiveTeamStatsByMode,
+    getArchiveRows: getHistoricalClubTeamStatsBatch,
+    onError: (error) => {
+      console.error('[stats] Career Team Stats unavailable', error)
+    },
+  })
 
   // Offense (shots taken) + defense (shots faced) team aggregates feed the
   // Offense/Defense toggle on the team shot map.
@@ -274,10 +261,13 @@ async function ActiveStats({
           : {})}
       />
 
-      {/* Career team stats — per-title, per-playlist rows from reviewed
-          archive imports (NHL 22-25). Surfaces PP%/PK% and team-rate metrics
-          we don't compute live yet. */}
-      {teamHistoryRows.length > 0 && <TeamHistoryTable rows={teamHistoryRows} />}
+      {/* Career team stats — live NHL rows for every active title plus
+          reviewed archive imports; sources stay separate in the table. */}
+      {teamHistory.status === 'unavailable' ? (
+        <TeamHistoryUnavailable />
+      ) : teamHistory.rows.length > 0 ? (
+        <TeamHistoryTable rows={teamHistory.rows} />
+      ) : null}
 
       {/* Skater + Goalie stats — wrapped together in a shared module-frame
           container so they read as one "Player Stats" module, matching the
