@@ -11,7 +11,7 @@ export function DraftBanner() {
   return (
     <div
       role="note"
-      className="border border-accent-line bg-accent-soft px-4 py-3 font-condensed text-xs font-bold uppercase tracking-[0.14em] text-accent"
+      className="border border-accent-line bg-accent-soft px-4 py-3 font-condensed text-xs font-bold uppercase tracking-[0.14em] text-accent-readable"
     >
       {DRAFT_BANNER_TEXT}
     </div>

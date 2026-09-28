@@ -29,7 +29,7 @@ export function LegalDocIndex({ current }: LegalDocIndexProps) {
               >
                 {doc.footerLabel}
                 {doc.status === 'draft' ? (
-                  <span className="rounded-xs border border-accent-line px-1.5 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-accent">
+                  <span className="rounded-xs border border-accent-line px-1.5 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-accent-readable">
                     Draft
                   </span>
                 ) : null}

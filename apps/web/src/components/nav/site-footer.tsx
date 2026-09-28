@@ -49,7 +49,7 @@ export function SiteFooter() {
         </div>
 
         <nav aria-label="Legal" className="flex flex-col gap-3">
-          <p className="font-condensed text-[11px] font-semibold uppercase tracking-[0.22em] text-fg-5">
+          <p className="font-condensed text-[11px] font-semibold uppercase tracking-[0.22em] text-fg-4">
             Legal
           </p>
           <ul className="flex flex-col gap-2.5">
@@ -61,7 +61,7 @@ export function SiteFooter() {
                 >
                   {doc.footerLabel}
                   {doc.status === 'draft' ? (
-                    <span className="rounded-xs border border-accent-line px-1.5 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-accent">
+                    <span className="rounded-xs border border-accent-line px-1.5 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-[0.14em] text-accent-readable">
                       Draft
                     </span>
                   ) : null}
@@ -72,7 +72,7 @@ export function SiteFooter() {
         </nav>
 
         <div className="flex flex-col gap-3">
-          <p className="font-condensed text-[11px] font-semibold uppercase tracking-[0.22em] text-fg-5">
+          <p className="font-condensed text-[11px] font-semibold uppercase tracking-[0.22em] text-fg-4">
             Contact
           </p>
           <a href="mailto:webmaster@boogeymen.app" className={`text-sm ${LINK_CLASS}`}>
@@ -83,7 +83,7 @@ export function SiteFooter() {
 
       <div className="border-t border-border-subtle">
         <div className="mx-auto max-w-screen-xl px-4 py-4 nav:px-5">
-          <p className="font-condensed text-[10px] font-semibold uppercase tracking-[0.2em] text-fg-5">
+          <p className="font-condensed text-[10px] font-semibold uppercase tracking-[0.2em] text-fg-4">
             © {year} Boogeymen
           </p>
         </div>
