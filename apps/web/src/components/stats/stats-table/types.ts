@@ -7,6 +7,7 @@ export type StatsSourceKind =
   | 'ea-season'
   | 'local-tracked'
   | 'archive-club-member'
+  | 'archive-player-card'
   | 'career'
   | 'unspecified'
 

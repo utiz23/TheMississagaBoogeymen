@@ -206,6 +206,11 @@ void test('expanded genuinely out of scope keeps the generic explanation (local,
   assert.equal(keyNote({ sourceKind: 'career', scope: 'allTime', expandedFailed: true }), true)
 })
 
+void test('archive-player-card is treated like every other real source: expanded stats are out of scope', () => {
+  assert.equal(keyNote({ sourceKind: 'archive-player-card' }), true)
+  assert.equal(keyNote({ sourceKind: 'archive-player-card', hasExpanded: true }), false)
+})
+
 void test('no generic note when expanded data is present, or for unspecified legacy sources', () => {
   assert.equal(keyNote({ hasExpanded: true }), false)
   assert.equal(keyNote({ sourceKind: 'unspecified' }), false)

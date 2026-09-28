@@ -45,15 +45,22 @@ import { ChemistrySection } from '@/components/stats/chemistry-section'
 import { PairWinMatrix } from '@/components/stats/pair-win-matrix'
 import { TeamHistoryTable, TeamHistoryUnavailable } from '@/components/stats/team-history-table'
 import { CareerStatsSection } from '@/components/stats/career-stats-section'
-import {
-  TitleSelector,
-  ModeFilter,
-  EmptyState,
-  statsSourceLabel,
-} from '@/components/title-selector'
+import { TitleSelector, ModeFilter, EmptyState } from '@/components/title-selector'
 import { resolveTitleFromSlug } from '@/lib/title-resolver'
 import { formatPct, formatWinPct } from '@/lib/format'
 import { loadTeamHistory } from '@/lib/team-history'
+import {
+  settle,
+  rowsOrEmpty,
+  resolveTablePresentation,
+  shouldShowPlayerModule,
+} from '@/lib/stats-load'
+import {
+  liveSource,
+  careerSource,
+  ARCHIVE_CLUB_MEMBER_SOURCE,
+  ARCHIVE_PLAYER_CARD_SOURCE,
+} from '@/lib/stats-sources'
 
 export const metadata: Metadata = { title: 'Stats — Club Stats' }
 
@@ -102,33 +109,30 @@ async function ActiveStats({
   gameTitle: GameTitle
   gameMode: GameMode | null
 }) {
-  const subtitle = statsSourceLabel({ isActive: true, gameMode })
-
-  const fetched = await (async () => {
+  // Page-critical, non-player-stat dependencies: kept at one failure boundary
+  // (unchanged from before this unit) since a failure here has always meant
+  // there is nothing coherent to render — record strip, selectors, team shot
+  // map and chemistry all need this same handful of queries.
+  const pageCore = await (async () => {
     try {
       return await Promise.all([
         getClubStats(gameTitle.id, gameMode),
         // 10 — RecordStrip looks at the first 10 for its form ribbon; the
         // bottom Recent Games section slices to 3 below.
         getRecentMatches({ gameTitleId: gameTitle.id, limit: 10 }),
-        gameMode === null ? getEASkaterStats(gameTitle.id) : getSkaterStats(gameTitle.id, gameMode),
-        gameMode === null ? getEAGoalieStats(gameTitle.id) : getGoalieStats(gameTitle.id, gameMode),
         getPlayerWithWithoutSplits(gameTitle.id, gameMode),
         getPlayerPairs(gameTitle.id, gameMode),
         getPairWinMatrix(gameTitle.id, gameMode),
         // RecordStrip — soft-fail to null if the EA endpoint hasn't run yet.
         getOfficialClubRecord(gameTitle.id).catch(() => null),
         getClubSeasonRank(gameTitle.id).catch(() => null),
-        // Stats tables: All-Time scope toggle + per-player metadata tooltips.
-        getAllTimeSkaterStats().catch(() => []),
-        getAllTimeGoalieStats().catch(() => []),
       ])
     } catch {
       return null
     }
   })()
 
-  if (fetched === null) {
+  if (pageCore === null) {
     return (
       <PageShell gameTitle={gameTitle}>
         <EmptyState message="Unable to load stats right now." />
@@ -139,17 +143,49 @@ async function ActiveStats({
   const [
     clubStats,
     recentMatches,
-    skaterRows,
-    goalieRows,
     withWithoutRows,
     pairRows,
     pairWinMatrix,
     officialRecord,
     seasonRank,
-    allTimeSkaterRows,
-    allTimeGoalieRows,
-  ] = fetched
+  ] = pageCore
   const emptyModeLabel = gameMode !== null ? `${gameMode} ` : ''
+
+  // Player-stat tables + All-Time toggle: each settles independently so one
+  // failing query never blanks the whole page or the other table. A failure
+  // renders that table's own "unavailable" state (via `state`/
+  // `allTimeUnavailable`), never a false empty/zero result.
+  const [skaters, goalies, allTimeSkaters, allTimeGoalies] = await Promise.all([
+    settle('current skater stats', () =>
+      gameMode === null ? getEASkaterStats(gameTitle.id) : getSkaterStats(gameTitle.id, gameMode),
+    ),
+    settle('current goalie stats', () =>
+      gameMode === null ? getEAGoalieStats(gameTitle.id) : getGoalieStats(gameTitle.id, gameMode),
+    ),
+    settle('all-time skater stats', () => getAllTimeSkaterStats()),
+    settle('all-time goalie stats', () => getAllTimeGoalieStats()),
+  ])
+  const skaterRows = rowsOrEmpty(skaters)
+  const goalieRows = rowsOrEmpty(goalies)
+  const allTimeSkaterRows = rowsOrEmpty(allTimeSkaters)
+  const allTimeGoalieRows = rowsOrEmpty(allTimeGoalies)
+  // The Skaters/Goalies module renders whenever there is real state to show:
+  // club activity, a non-empty Current or All Time result, or ANY of the
+  // four player queries having failed (a failure must never be hidden just
+  // because the club's season GP happens to be 0 — see
+  // `shouldShowPlayerModule`). It only stays hidden when every query
+  // succeeded and came back empty, in which case the page-top "no stats
+  // recorded" notice already covers it. Once it renders, each role's table
+  // is independent: a failed query shows that table's own error, and a
+  // successful-but-empty result shows an explicit role-specific empty
+  // message via `emptyMessage`.
+  const showPlayerModule = shouldShowPlayerModule({
+    hasClubActivity: clubStats !== null && clubStats.gamesPlayed > 0,
+    currentSkaters: skaters,
+    currentGoalies: goalies,
+    allTimeSkaters,
+    allTimeGoalies,
+  })
 
   // Per-player metadata for the stats tables' gamertag tooltip (jersey #,
   // preferred position, last-seen ISO date). Soft-fail to an empty map.
@@ -167,13 +203,6 @@ async function ActiveStats({
   } catch {
     // Soft-fail — tooltips fall back to the bare gamertag.
   }
-
-  // Subtitle that shows on the All-Time scope tab. Pulls the title count from
-  // the same place the roster page uses.
-  const allTimeSubtitle =
-    allTimeSkaterRows.length > 0 || allTimeGoalieRows.length > 0
-      ? 'Career totals across all titles · all clubs'
-      : undefined
 
   // Career Team Stats — live rows for every ACTIVE title (match-derived) plus
   // reviewed archive rows. If any required query fails the section renders an
@@ -271,36 +300,36 @@ async function ActiveStats({
 
       {/* Skater + Goalie stats — wrapped together in a shared module-frame
           container so they read as one "Player Stats" module, matching the
-          depth-chart card frame on /roster (visually-linked sibling). */}
-      {skaterRows.length > 0 || goalieRows.length > 0 ? (
+          depth-chart card frame on /roster (visually-linked sibling). Both
+          tables always render together (see `shouldShowPlayerModule`) so
+          neither role's independent result — error, explicit empty, or rows
+          — can hide the other, or hide its own All Time dataset. */}
+      {showPlayerModule ? (
         <section className="module-frame divide-y divide-zinc-800/60">
-          {skaterRows.length > 0 ? (
-            <SkaterStatsTable
-              rows={skaterRows}
-              title="Skaters"
-              subtitle={subtitle}
-              allTimeRows={allTimeSkaterRows}
-              {...(allTimeSubtitle !== undefined ? { allTimeSubtitle } : {})}
-              playerMeta={playerMeta}
-            />
-          ) : null}
-          {goalieRows.length > 0 ? (
-            <GoalieStatsTable
-              rows={goalieRows}
-              title="Goalies"
-              subtitle={subtitle}
-              allTimeRows={allTimeGoalieRows}
-              {...(allTimeSubtitle !== undefined ? { allTimeSubtitle } : {})}
-              playerMeta={playerMeta}
-            />
-          ) : null}
+          <SkaterStatsTable
+            rows={skaterRows}
+            title="Skaters"
+            source={liveSource(gameMode)}
+            allTimeRows={allTimeSkaterRows}
+            allTimeSource={careerSource('Career totals across all titles · all clubs')}
+            allTimeUnavailable={allTimeSkaters.status === 'error'}
+            playerMeta={playerMeta}
+            state={skaters.status}
+            emptyMessage={`No ${emptyModeLabel}skater stats recorded yet.`}
+          />
+          <GoalieStatsTable
+            rows={goalieRows}
+            title="Goalies"
+            source={liveSource(gameMode)}
+            allTimeRows={allTimeGoalieRows}
+            allTimeSource={careerSource('Career totals across all titles · all clubs')}
+            allTimeUnavailable={allTimeGoalies.status === 'error'}
+            playerMeta={playerMeta}
+            state={goalies.status}
+            emptyMessage={`No ${emptyModeLabel}goalie stats recorded yet.`}
+          />
         </section>
-      ) : (
-        clubStats !== null &&
-        clubStats.gamesPlayed > 0 && (
-          <EmptyState message={`No ${emptyModeLabel}skater stats recorded yet.`} />
-        )
-      )}
+      ) : null}
 
       <ChemistrySection
         withWithout={<WithWithoutTable rows={withWithoutRows} />}
@@ -355,41 +384,40 @@ async function ArchiveStats({
   gameTitle: GameTitle
   gameMode: GameMode | null
 }) {
-  const fetched = await (async () => {
-    try {
-      if (gameMode === null) {
-        return await Promise.all([
-          // Primary: club-scoped member totals (CLUBS → MEMBERS captures).
-          getClubMemberSkaterStatsAllModes(gameTitle.id),
-          getClubMemberGoalieStatsAllModes(gameTitle.id),
-          // Secondary: player-card season totals (may include other clubs).
-          getHistoricalSkaterStatsAllModes(gameTitle.id),
-          getHistoricalGoalieStatsAllModes(gameTitle.id),
-          // Club/team totals (STATS → CLUB STATS captures).
-          getHistoricalClubTeamStats(gameTitle.id, null),
-        ])
-      }
-      return await Promise.all([
-        getClubMemberSkaterStats(gameTitle.id, gameMode),
-        getClubMemberGoalieStats(gameTitle.id, gameMode),
-        getHistoricalSkaterStats(gameTitle.id, gameMode),
-        getHistoricalGoalieStats(gameTitle.id, gameMode),
-        getHistoricalClubTeamStats(gameTitle.id, gameMode),
-      ])
-    } catch {
-      return null
-    }
-  })()
+  // Five archive queries settle independently: a failed one shows its own
+  // table's unavailable state (or, for club/team, an explicit "unavailable"
+  // message) while every other successfully loaded section stays visible.
+  const [clubSkaters, clubGoalies, cardSkaters, cardGoalies, teamRowsResult] = await Promise.all([
+    settle('archive club-member skaters', () =>
+      gameMode === null
+        ? getClubMemberSkaterStatsAllModes(gameTitle.id)
+        : getClubMemberSkaterStats(gameTitle.id, gameMode),
+    ),
+    settle('archive club-member goalies', () =>
+      gameMode === null
+        ? getClubMemberGoalieStatsAllModes(gameTitle.id)
+        : getClubMemberGoalieStats(gameTitle.id, gameMode),
+    ),
+    settle('archive player-card skaters', () =>
+      gameMode === null
+        ? getHistoricalSkaterStatsAllModes(gameTitle.id)
+        : getHistoricalSkaterStats(gameTitle.id, gameMode),
+    ),
+    settle('archive player-card goalies', () =>
+      gameMode === null
+        ? getHistoricalGoalieStatsAllModes(gameTitle.id)
+        : getHistoricalGoalieStats(gameTitle.id, gameMode),
+    ),
+    settle('archive club/team rows', () => getHistoricalClubTeamStats(gameTitle.id, gameMode)),
+  ])
 
-  if (fetched === null) {
-    return (
-      <PageShell gameTitle={gameTitle}>
-        <EmptyState message="Unable to load archived stats right now." />
-      </PageShell>
-    )
-  }
+  const clubSkatersP = resolveTablePresentation(clubSkaters)
+  const clubGoaliesP = resolveTablePresentation(clubGoalies)
+  const cardSkatersP = resolveTablePresentation(cardSkaters)
+  const cardGoaliesP = resolveTablePresentation(cardGoalies)
+  const teamRowsP = resolveTablePresentation(teamRowsResult)
 
-  const [clubSkaterRows, clubGoalieRows, cardSkaterRows, cardGoalieRows, teamRows] = fetched
+  const modeLabel = gameMode ?? 'combined'
 
   return (
     <PageShell gameTitle={gameTitle}>
@@ -412,53 +440,95 @@ async function ArchiveStats({
         />
       </div>
 
-      {/* CLUB/TEAM totals — overview before per-player breakdowns. */}
-      {teamRows.length > 0 && <ArchiveClubTeamSection rows={teamRows} titleName={gameTitle.name} />}
+      {/* CLUB/TEAM totals — overview before per-player breakdowns. A failed
+          query gets its own explicit message so it never looks like a
+          successful empty result (which is simply omitted, as before). */}
+      {teamRowsP.kind === 'error' ? (
+        <EmptyState message="Club team records are unavailable right now." />
+      ) : teamRowsP.kind === 'rows' ? (
+        <ArchiveClubTeamSection rows={teamRowsP.rows} titleName={gameTitle.name} />
+      ) : null}
 
       <CareerStatsSection
         titleName={gameTitle.name}
         clubScoped={
           <>
-            {clubSkaterRows.length > 0 ? (
+            {clubSkatersP.kind === 'rows' ? (
               <SkaterStatsTable
-                rows={clubSkaterRows}
+                rows={clubSkatersP.rows}
                 title="Skaters"
-                subtitle="Club-member totals (reviewed screenshot import)"
+                source={ARCHIVE_CLUB_MEMBER_SOURCE}
+              />
+            ) : clubSkatersP.kind === 'error' ? (
+              <SkaterStatsTable
+                rows={[]}
+                title="Skaters"
+                source={ARCHIVE_CLUB_MEMBER_SOURCE}
+                state="error"
               />
             ) : (
               <EmptyState
-                message={`No club-scoped ${gameMode ?? 'combined'} skater totals captured for ${gameTitle.name}.`}
+                message={`No club-scoped ${modeLabel} skater totals captured for ${gameTitle.name}.`}
               />
             )}
-            {clubGoalieRows.length > 0 ? (
+            {clubGoaliesP.kind === 'rows' ? (
               <GoalieStatsTable
-                rows={clubGoalieRows}
+                rows={clubGoaliesP.rows}
                 title="Goalies"
-                subtitle="Club-member totals (reviewed screenshot import)"
+                source={ARCHIVE_CLUB_MEMBER_SOURCE}
               />
-            ) : null}
+            ) : clubGoaliesP.kind === 'error' ? (
+              <GoalieStatsTable
+                rows={[]}
+                title="Goalies"
+                source={ARCHIVE_CLUB_MEMBER_SOURCE}
+                state="error"
+              />
+            ) : (
+              <EmptyState
+                message={`No club-scoped ${modeLabel} goalie totals captured for ${gameTitle.name}.`}
+              />
+            )}
           </>
         }
         playerCard={
           <>
-            {cardSkaterRows.length > 0 ? (
+            {cardSkatersP.kind === 'rows' ? (
               <SkaterStatsTable
-                rows={cardSkaterRows}
+                rows={cardSkatersP.rows}
                 title="Skaters"
-                subtitle="Player-card season totals — may include games for other clubs"
+                source={ARCHIVE_PLAYER_CARD_SOURCE}
+              />
+            ) : cardSkatersP.kind === 'error' ? (
+              <SkaterStatsTable
+                rows={[]}
+                title="Skaters"
+                source={ARCHIVE_PLAYER_CARD_SOURCE}
+                state="error"
               />
             ) : (
               <EmptyState
-                message={`No player-card ${gameMode ?? 'combined'} skater totals for ${gameTitle.name}.`}
+                message={`No player-card ${modeLabel} skater totals for ${gameTitle.name}.`}
               />
             )}
-            {cardGoalieRows.length > 0 ? (
+            {cardGoaliesP.kind === 'rows' ? (
               <GoalieStatsTable
-                rows={cardGoalieRows}
+                rows={cardGoaliesP.rows}
                 title="Goalies"
-                subtitle="Player-card season totals — may include games for other clubs"
+                source={ARCHIVE_PLAYER_CARD_SOURCE}
               />
-            ) : null}
+            ) : cardGoaliesP.kind === 'error' ? (
+              <GoalieStatsTable
+                rows={[]}
+                title="Goalies"
+                source={ARCHIVE_PLAYER_CARD_SOURCE}
+                state="error"
+              />
+            ) : (
+              <EmptyState
+                message={`No player-card ${modeLabel} goalie totals for ${gameTitle.name}.`}
+              />
+            )}
           </>
         }
       />

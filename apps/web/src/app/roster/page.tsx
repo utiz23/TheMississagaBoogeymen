@@ -34,8 +34,8 @@ import type { DepthChartProps, DepthSlot } from '@/components/roster/depth-chart
 import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
 import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
 import { TitleSelector, ModeFilter, EmptyState } from '@/components/title-selector'
-import type { StatsSource } from '@/components/stats/stats-table/types'
 import { deriveRosterSections, loadRosterData, settle } from '@/lib/roster-load'
+import { liveSource, careerSource, ARCHIVE_CLUB_MEMBER_SOURCE } from '@/lib/stats-sources'
 import { resolveTitleFromSlug } from '@/lib/title-resolver'
 
 export const metadata: Metadata = { title: 'Roster — Club Stats' }
@@ -417,35 +417,9 @@ export default async function RosterPage({ searchParams }: { searchParams: Searc
 }
 
 // ─── Source labels ────────────────────────────────────────────────────────────
+// Shared with /stats — see apps/web/src/lib/stats-sources.ts.
 
-function liveSource(gameMode: GameMode | null): StatsSource {
-  return gameMode === null
-    ? {
-        kind: 'ea-season',
-        label: 'EA season totals',
-        description: 'Official EA club-member totals. Includes games not captured locally.',
-      }
-    : {
-        kind: 'local-tracked',
-        label: `Local tracked ${gameMode}`,
-        description: `Only ${gameMode} matches captured here, so totals can be far smaller than EA season totals. Choose All for those.`,
-      }
-}
-
-function careerSource(label: string): StatsSource {
-  return {
-    kind: 'career',
-    label,
-    description:
-      'EA season totals plus reviewed player-card history, which can include other clubs. Title and mode filters do not apply.',
-  }
-}
-
-const ARCHIVE_SOURCE: StatsSource = {
-  kind: 'archive-club-member',
-  label: 'Club-member totals (reviewed screenshot import)',
-  description: 'Club-scoped, from reviewed CLUBS → MEMBERS captures.',
-}
+const ARCHIVE_SOURCE = ARCHIVE_CLUB_MEMBER_SOURCE
 
 function byPlayerId<T extends { playerId: number }>(rows: T[]): Record<number, T> {
   return Object.fromEntries(rows.map((r) => [r.playerId, r]))
