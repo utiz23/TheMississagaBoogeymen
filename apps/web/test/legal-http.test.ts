@@ -1,8 +1,9 @@
 /**
- * END-TO-END test for the four draft-gated legal routes: starts the BUILT
- * app and reads real HTTP responses and real rendered HTML, the same
- * pattern `disabled-routes-http.test.ts` uses and for the same reason —
- * module-level tests cannot prove what a browser actually receives.
+ * END-TO-END test for the four draft-gated legal routes and the sitewide
+ * footer: starts the BUILT app and reads real HTTP responses and real
+ * rendered HTML, the same pattern `disabled-routes-http.test.ts` uses and
+ * for the same reason — module-level tests cannot prove what a browser
+ * actually receives.
  *
  * REQUIRES A BUILD. Skips — loudly, not silently — when `.next/BUILD_ID` is
  * absent:
@@ -11,12 +12,13 @@
  *
  * Override the port with LEGAL_HTTP_TEST_PORT if 34572 is taken.
  *
- * UNIT SCOPE: this file currently tests route behavior, metadata, the
- * draft gate, heading/landmark structure, cross-links, and content
- * fidelity against the source drafts. It intentionally asserts NOTHING
- * about a sitewide footer — `SiteFooter` does not exist yet. Unit 2 adds
- * footer assertions (single instance across every page, its four legal
- * links, duplicate-footer checks) to this same file.
+ * SCOPE: route behavior, metadata, the draft gate, heading/landmark
+ * structure, cross-links, and content fidelity against the source drafts
+ * for the four legal routes; plus the sitewide footer's presence (exactly
+ * once, on every route that renders the root layout, including a 404) and
+ * content (legal links, draft labels, the EA sentence, the contact
+ * mailto, the copyright line, and the absence of disabled or
+ * prototype-only destinations).
  */
 
 import test, { after, before } from 'node:test'
@@ -93,6 +95,89 @@ async function getHtml(urlPath: string): Promise<{ status: number; html: string 
 const LEGAL_ROUTES: readonly { slug: LegalSlug; href: string; title: string }[] = LEGAL_DOCS.map(
   (doc) => ({ slug: doc.slug, href: doc.href, title: `${doc.title} (Draft) — Club Stats` }),
 )
+
+const EA_FOOTER_SENTENCE = 'This website is not endorsed by or affiliated with EA or its licensors.'
+
+/** Prototype-only destinations that must never appear in the sitewide footer. */
+const FORBIDDEN_FOOTER_DESTINATIONS = [
+  'Discord',
+  'Twitch',
+  'Cookie notice',
+  'Code of conduct',
+  'Season archive',
+  'Scoring leaders',
+  'Goalie splits',
+  'Depth chart',
+  'Glossary',
+  'Tryouts',
+  'Clips',
+]
+
+/**
+ * Runs every content assertion the footer must satisfy against a page's
+ * full HTML, extracting `[data-site-footer]` itself first so a false
+ * match elsewhere on the page (e.g. the legal doc index) can't hide a
+ * missing footer element.
+ */
+function assertFooterContent(html: string, urlPath: string): void {
+  const footerCount = [...html.matchAll(/<footer\b[^>]*\bdata-site-footer\b[^>]*>/gi)].length
+  assert.equal(
+    footerCount,
+    1,
+    `${urlPath}: expected exactly one [data-site-footer], found ${String(footerCount)}`,
+  )
+
+  // React server-renders an empty `<!-- -->` comment between two adjacent
+  // text-expression children of the same element (see legal-fidelity.ts's
+  // htmlToText doc comment) — the footer's `© {year} Boogeymen` becomes
+  // `© <!-- -->2026<!-- --> Boogeymen`. Stripped here so every text match
+  // below sees the real characters only; hrefs and other attributes are
+  // untouched since comments never appear inside them.
+  const footer = extractByDataAttribute(html, 'data-site-footer').replace(/<!--[\s\S]*?-->/g, '')
+
+  for (const doc of LEGAL_DOCS) {
+    assert.ok(
+      footer.includes(`href="${doc.href}"`),
+      `${urlPath}: footer missing link to ${doc.href}`,
+    )
+  }
+
+  const draftDocCount = LEGAL_DOCS.filter((doc) => doc.status === 'draft').length
+  const draftLabelCount = [...footer.matchAll(/>Draft</g)].length
+  assert.equal(
+    draftLabelCount,
+    draftDocCount,
+    `${urlPath}: expected ${String(draftDocCount)} visible "Draft" labels in the footer, found ${String(draftLabelCount)}`,
+  )
+
+  assert.ok(footer.includes(EA_FOOTER_SENTENCE), `${urlPath}: footer missing the exact EA sentence`)
+  assert.ok(
+    footer.includes('href="mailto:webmaster@boogeymen.app"'),
+    `${urlPath}: footer missing the webmaster mailto link`,
+  )
+
+  const year = new Date().getFullYear()
+  assert.match(
+    footer,
+    new RegExp(`©\\s*${String(year)}\\s*Boogeymen`),
+    `${urlPath}: footer missing "© ${String(year)} Boogeymen"`,
+  )
+
+  const footerHrefs = [...footer.matchAll(/href="([^"]*)"/g)].map((m) => m[1] ?? '')
+  for (const href of footerHrefs) {
+    assert.ok(
+      !/^\/(login|account|me|admin)\b/.test(href),
+      `${urlPath}: footer links to a disabled route: ${href}`,
+    )
+  }
+
+  for (const destination of FORBIDDEN_FOOTER_DESTINATIONS) {
+    assert.ok(
+      !footer.includes(destination),
+      `${urlPath}: footer contains an unsupported prototype destination: "${destination}"`,
+    )
+  }
+}
 
 void test('control: the server really is serving this app', { skip }, async () => {
   const { status } = await getHtml('/')
@@ -259,7 +344,31 @@ for (const route of LEGAL_ROUTES) {
       )
     },
   )
+
+  void test(
+    `${route.href}: sitewide footer is present exactly once and correct`,
+    { skip },
+    async () => {
+      const { html } = await getHtml(route.href)
+      assertFooterContent(html, route.href)
+    },
+  )
 }
+
+void test('/: sitewide footer is present exactly once and correct', { skip }, async () => {
+  const { html } = await getHtml('/')
+  assertFooterContent(html, '/')
+})
+
+void test(
+  '/no-such-page (404): sitewide footer is present exactly once and correct',
+  { skip },
+  async () => {
+    const { status, html } = await getHtml('/no-such-page')
+    assert.equal(status, 404, 'expected an ordinary 404 for a nonexistent page')
+    assertFooterContent(html, '/no-such-page (404)')
+  },
+)
 
 void test(
   'every /legal/* link found across all four pages resolves with 200',

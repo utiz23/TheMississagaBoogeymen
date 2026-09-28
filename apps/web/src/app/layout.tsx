@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Barlow, Barlow_Semi_Condensed } from 'next/font/google'
 import { TopNav } from '@/components/nav/top-nav'
+import { SiteFooter } from '@/components/nav/site-footer'
 import './globals.css'
 
 const barlow = Barlow({
@@ -53,9 +54,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="font-sans antialiased">
+      <body className="flex min-h-screen flex-col font-sans antialiased">
         <TopNav />
-        <main className="mx-auto max-w-screen-xl px-4 py-8">{children}</main>
+        <main className="mx-auto w-full max-w-screen-xl flex-1 px-4 py-8">{children}</main>
+        <SiteFooter />
       </body>
     </html>
   )

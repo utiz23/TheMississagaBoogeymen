@@ -50,6 +50,7 @@ const ACCOUNT_ACTIONS = path.join(WEB_SRC, 'app/account-actions.ts')
 const AUTH_API_ROUTE = path.join(WEB_SRC, 'app/api/auth/[...all]/route.ts')
 const TOP_NAV = path.join(WEB_SRC, 'components/nav/top-nav.tsx')
 const NAV_DRAWER = path.join(WEB_SRC, 'components/nav/nav-drawer.tsx')
+const SITE_FOOTER = path.join(WEB_SRC, 'components/nav/site-footer.tsx')
 
 /**
  * The two modules that still exist on the disabled surface. The disabled PAGES
@@ -294,11 +295,13 @@ void test('authentication is disabled without any environment switch', () => {
   )
 })
 
-void test('neither navigation variant offers a login or account CTA', () => {
-  // Both renderings of the nav, checked the same way. The drawer cannot be
-  // rendered in a plain node:test process (it needs Next's router context), so
-  // this is source-level for both rather than behavioural for one.
-  for (const file of [TOP_NAV, NAV_DRAWER]) {
+void test('no site chrome (nav, drawer, or footer) offers a login or account CTA', () => {
+  // Every rendering of the site's persistent chrome, checked the same way.
+  // The drawer cannot be rendered in a plain node:test process (it needs
+  // Next's router context), so this is source-level for all three rather
+  // than behavioural for one. SiteFooter is added here because it renders
+  // on every route from the root layout, exactly like TopNav.
+  for (const file of [TOP_NAV, NAV_DRAWER, SITE_FOOTER]) {
     const src = read(file)
     const hrefs = [...src.matchAll(/href=(?:"([^"]*)"|\{`([^`]*)`\}|\{([^}]*)\})/g)].map(
       (m) => m[1] ?? m[2] ?? m[3] ?? '',

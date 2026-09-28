@@ -35,6 +35,7 @@ export function NavDrawer({ titles }: { titles: GameTitle[] }) {
 
   const burgerRef = useRef<HTMLButtonElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   // Gates the focus-return effect: without it, the initial `open === false`
   // render would pull focus to the burger on every page load.
   const everOpened = useRef(false)
@@ -53,7 +54,41 @@ export function NavDrawer({ titles }: { titles: GameTitle[] }) {
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') {
+        setOpen(false)
+        return
+      }
+      // Focus trap: while the dialog is open, Tab/Shift+Tab must cycle only
+      // through ITS OWN focusable controls — never out into the header,
+      // main content, or (once it exists) the footer behind the scrim. The
+      // panel stays mounted in the DOM (see the class comment above), so
+      // without this, a sighted-but-keyboard user could Tab straight past
+      // the scrim into whatever page is behind it while the drawer still
+      // looks open.
+      if (event.key !== 'Tab') return
+      const panel = panelRef.current
+      if (!panel) return
+      const focusable = [
+        ...panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ]
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (!first || !last) return
+      const active = document.activeElement
+      const activeIsInPanel = active instanceof Node && panel.contains(active)
+      if (event.shiftKey) {
+        if (!activeIsInPanel || active === first) {
+          event.preventDefault()
+          last.focus()
+        }
+      } else {
+        if (!activeIsInPanel || active === last) {
+          event.preventDefault()
+          first.focus()
+        }
+      }
     }
     document.addEventListener('keydown', onKeyDown)
     const previousOverflow = document.body.style.overflow
@@ -91,6 +126,7 @@ export function NavDrawer({ titles }: { titles: GameTitle[] }) {
         }`}
       />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Menu"

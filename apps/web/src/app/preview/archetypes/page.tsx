@@ -68,6 +68,7 @@ export default function ArchetypesPreviewPage() {
       <style>{`
         body > header { display: none !important; }
         body > main { max-width: none !important; padding: 0 !important; margin: 0 !important; }
+        body > footer { display: none !important; }
       `}</style>
 
       <div className="min-h-screen bg-[radial-gradient(circle_at_top,#1e293b_0%,#09090b_46%,#020617_100%)] text-zinc-100">

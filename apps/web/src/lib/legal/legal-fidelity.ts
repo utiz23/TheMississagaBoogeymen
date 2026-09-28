@@ -241,22 +241,28 @@ export function htmlToText(html: string): string {
 
 /**
  * Extracts the inner HTML of the first element carrying `data-<attribute>`
- * (a boolean-style data attribute, e.g. `data-legal-content`), by depth-
- * counting `<div>`/`</div>` tags from that element's own opening tag. Only
- * `<div>` needs balancing here: the element itself is always a `<div>`, and
- * every other tag used inside (p, ul, li, h2, strong, a, code, section) is
- * either self-balancing per-occurrence or irrelevant to where THIS div
+ * (a boolean-style data attribute, e.g. `data-legal-content` on a `<div>`,
+ * or `data-site-footer` on a `<footer>`), by reading that element's own
+ * tag name off its opening tag and then depth-counting occurrences of
+ * exactly that tag name until the matching close tag. Only the marked
+ * element's own tag needs balancing this way — every other tag nested
+ * inside it (p, ul, li, h2, strong, a, code, section, nav, …) is either
+ * self-balancing per-occurrence or irrelevant to where THIS element
  * closes.
  */
 export function extractByDataAttribute(html: string, attribute: string): string {
-  const openTagRe = new RegExp(`<div[^>]*\\b${attribute}\\b[^>]*>`, 'i')
+  const openTagRe = new RegExp(`<([a-zA-Z][a-zA-Z0-9]*)\\b[^>]*\\b${attribute}\\b[^>]*>`, 'i')
   const openMatch = openTagRe.exec(html)
   if (!openMatch) {
     throw new Error(`no element with ${attribute} found in the fetched HTML`)
   }
+  const tag = openMatch[1]
+  if (!tag) {
+    throw new Error(`could not determine the tag name of the ${attribute} element`)
+  }
   let depth = 1
   const bodyStart = openMatch.index + openMatch[0].length
-  const tagRe = /<div\b[^>]*>|<\/div>/gi
+  const tagRe = new RegExp(`<${tag}\\b[^>]*>|</${tag}>`, 'gi')
   tagRe.lastIndex = bodyStart
   let match: RegExpExecArray | null
   while ((match = tagRe.exec(html))) {
@@ -269,5 +275,5 @@ export function extractByDataAttribute(html: string, attribute: string): string 
       return html.slice(bodyStart, match.index)
     }
   }
-  throw new Error(`unbalanced <div> while extracting ${attribute}`)
+  throw new Error(`unbalanced <${tag}> while extracting ${attribute}`)
 }
