@@ -206,7 +206,7 @@ does not match the no-analytics posture described in "Scope and launch
 posture" above. **We intend to disable Cloudflare Web Analytics before this
 site is published, and this policy will not claim "no analytics" as a
 current fact until that has been verified from our live Cloudflare
-dashboard.** See the internal checklist below.
+dashboard.**
 
 We do not plan to show a cookie-consent banner while our posture is "no
 nonessential tracking," but whether a banner is legally required in any
@@ -452,6 +452,10 @@ resolves any new substantive question. E2D2A's findings and E2D3's
 decisions remain authoritative for the drafting pass; none of E2D4, E2D5,
 or this E2I pass constitutes independent factual/legal review, and none
 resolves any of the still-open questions listed below.
+
+On 2026-09-27, a pre-implementation correction removed the stale public
+pointer from section 6 to this internal checklist. The correction changed no
+analytics claim and conferred no publication or legal approval.
 
 ### Publication blockers (must all be true before this policy is published)
 
