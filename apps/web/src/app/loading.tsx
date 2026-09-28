@@ -1,6 +1,10 @@
+import { BrandedLoader } from '@/components/loading/branded-loader'
+
 export default function HomeLoading() {
   return (
-    <div className="space-y-8">
+    <div data-route-loading className="space-y-8">
+      <BrandedLoader />
+
       {/* Header skeleton */}
       <div className="flex items-baseline gap-3">
         <div className="h-7 w-16 animate-pulse bg-zinc-800" />
