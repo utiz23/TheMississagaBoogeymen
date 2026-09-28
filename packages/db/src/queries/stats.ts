@@ -7,6 +7,7 @@ import {
   players,
 } from '../schema/index.js'
 import type { GameMode } from '../schema/index.js'
+import { maskPlayerWideGoalieRecord } from './goalie-record-mask.js'
 
 /**
  * Skater season stats for the stats table.
@@ -69,6 +70,11 @@ export async function getSkaterStats(gameTitleId: number, gameMode: GameMode | n
  * Includes only players with goalieGp > 0 for this game title and mode.
  * Uses goalieGp as the GP denominator and goalieToiSeconds for total TOI.
  *
+ * W/L/OTL: the stored `wins/losses/otl` are the player's results across EVERY
+ * role, not a goalie-only record, so they are returned as null with
+ * `recordUnavailable: true` (see goalie-record-mask.ts). Stored values are
+ * untouched; a real goalie-only record needs separate aggregate columns.
+ *
  * Ordered by save_pct desc → goalieGp desc → gaa asc → gamertag asc.
  */
 export async function getGoalieStats(gameTitleId: number, gameMode: GameMode | null = null) {
@@ -77,7 +83,7 @@ export async function getGoalieStats(gameTitleId: number, gameMode: GameMode | n
       ? isNull(playerGameTitleStats.gameMode)
       : eq(playerGameTitleStats.gameMode, gameMode)
 
-  return db
+  const rows = await db
     .select({
       playerId: playerGameTitleStats.playerId,
       gamertag: players.gamertag,
@@ -108,6 +114,8 @@ export async function getGoalieStats(gameTitleId: number, gameMode: GameMode | n
       asc(playerGameTitleStats.gaa),
       asc(players.gamertag),
     )
+
+  return maskPlayerWideGoalieRecord(rows)
 }
 
 /**
@@ -193,7 +201,83 @@ export async function getEAGoalieStats(gameTitleId: number) {
 }
 
 export type SkaterStatsRow = Awaited<ReturnType<typeof getSkaterStats>>[number]
-export type GoalieStatsRow = Awaited<ReturnType<typeof getGoalieStats>>[number]
+type LocalGoalieStatsRow = Awaited<ReturnType<typeof getGoalieStats>>[number]
+/**
+ * Shared goalie row shape. `recordUnavailable` is set only by `getGoalieStats`
+ * (local 6s/3s); EA and career rows leave it undefined.
+ */
+export type GoalieStatsRow = Omit<LocalGoalieStatsRow, 'recordUnavailable'> & {
+  recordUnavailable?: true
+}
+
+/**
+ * EA-only expanded skater stats (Active title + All mode). Keyed to the same
+ * players as getEASkaterStats; the roster table merges by playerId. Decimal
+ * columns arrive as strings (numeric) or null; counts are numbers.
+ */
+export async function getEASkaterExpandedStats(gameTitleId: number) {
+  return db
+    .select({
+      playerId: eaMemberSeasonStats.playerId,
+      powerPlayGoals: eaMemberSeasonStats.powerPlayGoals,
+      shortHandedGoals: eaMemberSeasonStats.shortHandedGoals,
+      gameWinningGoals: eaMemberSeasonStats.gameWinningGoals,
+      hatTricks: eaMemberSeasonStats.hatTricks,
+      shotPct: eaMemberSeasonStats.shotPct,
+      shotOnNetPct: eaMemberSeasonStats.shotOnNetPct,
+      passes: eaMemberSeasonStats.passes,
+      passAttempts: eaMemberSeasonStats.passAttempts,
+      saucerPasses: eaMemberSeasonStats.saucerPasses,
+      possessionSeconds: eaMemberSeasonStats.possessionSeconds,
+      dekes: eaMemberSeasonStats.dekes,
+      dekesMade: eaMemberSeasonStats.dekesMade,
+      deflections: eaMemberSeasonStats.deflections,
+      faceoffWins: eaMemberSeasonStats.faceoffWins,
+      faceoffLosses: eaMemberSeasonStats.faceoffLosses,
+      blockedShots: eaMemberSeasonStats.blockedShots,
+      interceptions: eaMemberSeasonStats.interceptions,
+      pkClearZone: eaMemberSeasonStats.pkClearZone,
+      penaltiesDrawn: eaMemberSeasonStats.penaltiesDrawn,
+      offsides: eaMemberSeasonStats.offsides,
+      fights: eaMemberSeasonStats.fights,
+      fightsWon: eaMemberSeasonStats.fightsWon,
+      breakaways: eaMemberSeasonStats.breakaways,
+      breakawayGoals: eaMemberSeasonStats.breakawayGoals,
+      breakawayPct: eaMemberSeasonStats.breakawayPct,
+      penaltyShotAttempts: eaMemberSeasonStats.penaltyShotAttempts,
+      penaltyShotGoals: eaMemberSeasonStats.penaltyShotGoals,
+      penaltyShotPct: eaMemberSeasonStats.penaltyShotPct,
+    })
+    .from(eaMemberSeasonStats)
+    .where(
+      and(eq(eaMemberSeasonStats.gameTitleId, gameTitleId), gt(eaMemberSeasonStats.skaterGp, 0)),
+    )
+}
+
+/** EA-only expanded goalie stats (Active title + All mode). Counterpart of getEASkaterExpandedStats. */
+export async function getEAGoalieExpandedStats(gameTitleId: number) {
+  return db
+    .select({
+      playerId: eaMemberSeasonStats.playerId,
+      shutoutPeriods: eaMemberSeasonStats.goalieShutoutPeriods,
+      desperationSaves: eaMemberSeasonStats.goalieDesperationSaves,
+      breakawayShots: eaMemberSeasonStats.goalieBrkShots,
+      breakawaySaves: eaMemberSeasonStats.goalieBrkSaves,
+      breakawaySavePct: eaMemberSeasonStats.goalieBrkSavePct,
+      penaltyShots: eaMemberSeasonStats.goaliePenShots,
+      penaltyShotSaves: eaMemberSeasonStats.goaliePenSaves,
+      penaltyShotSavePct: eaMemberSeasonStats.goaliePenSavePct,
+      pokeChecks: eaMemberSeasonStats.goaliePokeChecks,
+      pkClearZone: eaMemberSeasonStats.goaliePkClearZone,
+    })
+    .from(eaMemberSeasonStats)
+    .where(
+      and(eq(eaMemberSeasonStats.gameTitleId, gameTitleId), gt(eaMemberSeasonStats.goalieGp, 0)),
+    )
+}
+
+export type EASkaterExpandedRow = Awaited<ReturnType<typeof getEASkaterExpandedStats>>[number]
+export type EAGoalieExpandedRow = Awaited<ReturnType<typeof getEAGoalieExpandedStats>>[number]
 
 /**
  * All-time skater totals across every game title.
@@ -268,7 +352,7 @@ export async function getAllTimeSkaterStats(): Promise<SkaterStatsRow[]> {
     })
     .from(players)
 
-  type Agg = {
+  interface Agg {
     gamesPlayed: number
     goals: number
     assists: number
@@ -441,7 +525,7 @@ export async function getAllTimeGoalieStats(): Promise<GoalieStatsRow[]> {
 
   const meta = await db.select({ playerId: players.id, gamertag: players.gamertag }).from(players)
 
-  type Agg = {
+  interface Agg {
     gamesPlayed: number
     wins: number
     losses: number
