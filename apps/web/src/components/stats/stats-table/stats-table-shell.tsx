@@ -15,7 +15,7 @@ import {
 import { playerSubline, playerTooltip, type PlayerMeta } from './player-label.ts'
 import { RetryButton } from './retry-button.tsx'
 import { nextSort, sortRows, type SortState } from './sort.ts'
-import type { BaseDisplayRow, StatsSource } from './types.ts'
+import type { BaseDisplayRow, CareerCoverage, StatsSource } from './types.ts'
 import { resolveViews, visibleKeysFor, type ViewSpec } from './views.ts'
 
 export interface ShellDataset<R> {
@@ -98,9 +98,15 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
     scope: activeScope,
     source: active.source,
     visibleKeys,
-    activeRows: active.rows.map((r) => ({
-      recordUnavailable: (r as { recordUnavailable?: boolean }).recordUnavailable === true,
-    })),
+    activeRows: active.rows.map((r) => {
+      const toiCoverage = (r as { toiCoverage?: CareerCoverage }).toiCoverage
+      const gaaCoverage = (r as { gaaCoverage?: CareerCoverage }).gaaCoverage
+      return {
+        recordUnavailable: (r as { recordUnavailable?: boolean }).recordUnavailable === true,
+        ...(toiCoverage !== undefined ? { toiCoverage } : {}),
+        ...(gaaCoverage !== undefined ? { gaaCoverage } : {}),
+      }
+    }),
   })
   if (expandedFailedNoteVisible(activeScope, props.expandedFailed === true)) {
     footnotes.push(EXPANDED_FETCH_FAILED_NOTE)
@@ -454,7 +460,19 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                                 groupStart ? 'border-l border-l-zinc-800' : '',
                               ].join(' ')}
                             >
-                              {c.text}
+                              {c.annotation ? (
+                                <span title={c.annotation.srText}>
+                                  {c.text}
+                                  {c.annotation.marker !== undefined && (
+                                    <span aria-hidden className="text-accent">
+                                      {c.annotation.marker}
+                                    </span>
+                                  )}
+                                  <span className="sr-only"> {c.annotation.srText}</span>
+                                </span>
+                              ) : (
+                                c.text
+                              )}
                             </td>
                           )
                         })}

@@ -1,6 +1,8 @@
 import type {
   ArchiveGoalieStatsRow,
   ArchiveSkaterStatsRow,
+  CareerGoalieStatsRow,
+  CareerSkaterStatsRow,
   EAGoalieExpandedRow,
   EASkaterExpandedRow,
   GoalieStatsRow,
@@ -10,8 +12,16 @@ import type {
 } from '@eanhl/db/queries'
 import type { GoalieDisplayRow, GoalieExpanded, SkaterDisplayRow, SkaterExpanded } from './types.ts'
 
-export type SkaterInputRow = SkaterStatsRow | HistoricalSkaterStatsRow | ArchiveSkaterStatsRow
-export type GoalieInputRow = GoalieStatsRow | HistoricalGoalieStatsRow | ArchiveGoalieStatsRow
+export type SkaterInputRow =
+  | SkaterStatsRow
+  | HistoricalSkaterStatsRow
+  | ArchiveSkaterStatsRow
+  | CareerSkaterStatsRow
+export type GoalieInputRow =
+  | GoalieStatsRow
+  | HistoricalGoalieStatsRow
+  | ArchiveGoalieStatsRow
+  | CareerGoalieStatsRow
 
 function stripId<T extends { playerId: number }>(row: T | undefined): Omit<T, 'playerId'> | null {
   if (row === undefined) return null
@@ -53,6 +63,12 @@ export function toSkaterDisplayRow(
     shotAttempts: 'shotAttempts' in row ? row.shotAttempts : null,
     toiSeconds: 'toiSeconds' in row ? row.toiSeconds : null,
     expanded,
+    // Career rows (`CareerSkaterStatsRow`) carry TOI coverage metadata; every
+    // other source leaves these undefined, so ordinary rows fall back to
+    // `gamesPlayed` in the TOI/GP metric (see skater-metrics.ts) and never
+    // show a coverage marker.
+    ...('toiCoverageGp' in row ? { toiCoverageGp: row.toiCoverageGp } : {}),
+    ...('toiCoverage' in row ? { toiCoverage: row.toiCoverage } : {}),
   }
 }
 
@@ -83,5 +99,14 @@ export function toGoalieDisplayRow(
     toiSeconds: 'toiSeconds' in row ? row.toiSeconds : null,
     recordUnavailable: (row as { recordUnavailable?: boolean }).recordUnavailable === true,
     expanded,
+    // Career rows (`CareerGoalieStatsRow`) carry TOI and GAA coverage
+    // metadata; every other source leaves these undefined.
+    ...('toiCoverageGp' in row ? { toiCoverageGp: row.toiCoverageGp } : {}),
+    ...('toiCoverage' in row ? { toiCoverage: row.toiCoverage } : {}),
+    ...('gaaCoveredGoalsAgainst' in row
+      ? { gaaCoveredGoalsAgainst: row.gaaCoveredGoalsAgainst }
+      : {}),
+    ...('gaaCoverageGp' in row ? { gaaCoverageGp: row.gaaCoverageGp } : {}),
+    ...('gaaCoverage' in row ? { gaaCoverage: row.gaaCoverage } : {}),
   }
 }

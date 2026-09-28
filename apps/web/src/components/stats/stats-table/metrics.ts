@@ -1,5 +1,16 @@
 import { formatValue, perGame, type FormatId } from './format.ts'
 
+/**
+ * Row-specific annotation for a cell — used by career TOI/GAA coverage, but
+ * generic: any metric can attach one. `srText` is always present so the
+ * information is never conveyed by a mouse-only tooltip alone; `marker` is
+ * the short visible glyph (e.g. "*") appended to the cell text.
+ */
+export interface CellAnnotation {
+  marker?: string
+  srText: string
+}
+
 export interface Metric<R> {
   key: string
   label: string
@@ -16,6 +27,8 @@ export interface Metric<R> {
   sortAsc?: boolean
   /** Only available when EA expanded data is present (Active title + All mode). */
   expanded?: boolean
+  /** Optional per-row coverage/annotation for this cell (e.g. career TOI/GAA coverage). */
+  annotate?: (row: R, perGameMode: boolean) => CellAnnotation | undefined
 }
 
 export type MetricMap<R> = Record<string, Metric<R>>
@@ -23,6 +36,7 @@ export type MetricMap<R> = Record<string, Metric<R>>
 export interface Cell {
   value: number | null
   text: string
+  annotation?: CellAnnotation
 }
 
 /** Resolve a metric's sortable value and display text for one row. */
@@ -31,12 +45,21 @@ export function resolveCell<R extends { gamesPlayed: number | null }>(
   row: R,
   perGameMode: boolean,
 ): Cell {
+  const annotation = metric.annotate?.(row, perGameMode)
   if (perGameMode && metric.perGame) {
     const v = perGame(metric.value(row), row.gamesPlayed)
-    return { value: v, text: formatValue(metric.perGame.format, v) }
+    return {
+      value: v,
+      text: formatValue(metric.perGame.format, v),
+      ...(annotation ? { annotation } : {}),
+    }
   }
   const v = metric.value(row)
-  return { value: v, text: metric.text ? metric.text(row) : formatValue(metric.format, v) }
+  return {
+    value: v,
+    text: metric.text ? metric.text(row) : formatValue(metric.format, v),
+    ...(annotation ? { annotation } : {}),
+  }
 }
 
 /** Header label; Per GP appends "/GP" to eligible metrics only. */

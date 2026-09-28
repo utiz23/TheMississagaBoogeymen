@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   eaMemberSeasonStats,
@@ -8,6 +8,14 @@ import {
 } from '../schema/index.js'
 import type { GameMode } from '../schema/index.js'
 import { maskPlayerWideGoalieRecord } from './goalie-record-mask.js'
+import {
+  excludeHistoricalRowsCoveredByEa,
+  aggregateSkaterCareerRows,
+  aggregateGoalieCareerRows,
+  type CareerCoverage,
+  type CareerSkaterCountRow,
+  type CareerGoalieCountRow,
+} from './career-coverage.js'
 
 /**
  * Skater season stats for the stats table.
@@ -280,59 +288,83 @@ export type EASkaterExpandedRow = Awaited<ReturnType<typeof getEASkaterExpandedS
 export type EAGoalieExpandedRow = Awaited<ReturnType<typeof getEAGoalieExpandedStats>>[number]
 
 /**
+ * Career skater row: `SkaterStatsRow` plus TOI coverage metadata.
+ *
+ * `toiSeconds`/`gamesPlayed` keep their normal meaning (total career TOI and
+ * total career GP); `toiCoverageGp` is the GP from exactly the rows that
+ * contributed to `toiSeconds`, which is the correct TOI/GP denominator — see
+ * `career-coverage.ts`.
+ */
+export type CareerSkaterStatsRow = SkaterStatsRow & {
+  toiCoverageGp: number
+  toiCoverage: CareerCoverage
+}
+
+/**
  * All-time skater totals across every game title.
  *
  * Combines EA member-season totals (live titles) with reviewed
- * historical_player_season_stats (older titles, all modes summed). Rate fields
- * (faceoffPct, passPct) are recomputed from raw counts so they remain
- * meaningful at the multi-title scope. Shape matches `SkaterStatsRow` so the
- * existing skater table renders unchanged.
+ * historical_player_season_stats (older titles, all modes summed), applying
+ * the same source precedence as `getPlayerCareerSeasons`: an EA row is
+ * authoritative for its player+title, so any reviewed historical row for
+ * that exact player+title is excluded (see `excludeHistoricalRowsCoveredByEa`
+ * — production currently has zero overlaps, but the exclusion always runs).
  *
- * Filters to players with `gamesPlayed > 0`, sorted by points desc.
+ * Rate fields (faceoffPct, passPct) are recomputed from raw counts across
+ * every selected row, unaffected by TOI coverage. TOI/GP coverage is
+ * computed by `aggregateSkaterCareerRows`: TOI sums only rows that captured
+ * it, paired with the GP from those same rows — reviewed NHL 22-25
+ * player-card rows have GP but no TOI, so a naive TOI-sum ÷ total-GP
+ * previously understated career TOI/GP.
+ *
+ * Shape matches `SkaterStatsRow` (plus coverage metadata) so the existing
+ * skater table renders unchanged for every other field. Filters to players
+ * with `gamesPlayed > 0`, sorted by points desc.
  */
-export async function getAllTimeSkaterStats(): Promise<SkaterStatsRow[]> {
-  const liveAgg = await db
+export async function getAllTimeSkaterStats(): Promise<CareerSkaterStatsRow[]> {
+  const eaRows = await db
     .select({
       playerId: eaMemberSeasonStats.playerId,
-      gamesPlayed: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.skaterGp}), 0)::int`,
-      goals: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goals}), 0)::int`,
-      assists: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.assists}), 0)::int`,
-      points: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.points}), 0)::int`,
-      plusMinus: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.plusMinus}), 0)::int`,
-      pim: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.pim}), 0)::int`,
-      shots: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.shots}), 0)::int`,
-      hits: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.hits}), 0)::int`,
-      takeaways: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.takeaways}), 0)::int`,
-      giveaways: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.giveaways}), 0)::int`,
-      shotAttempts: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.shotAttempts}), 0)::int`,
-      faceoffWins: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.faceoffWins}), 0)::int`,
-      faceoffLosses: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.faceoffLosses}), 0)::int`,
-      passes: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.passes}), 0)::int`,
-      passAttempts: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.passAttempts}), 0)::int`,
-      toiSeconds: sql<number | null>`SUM(${eaMemberSeasonStats.toiSeconds})::int`,
+      gameTitleId: eaMemberSeasonStats.gameTitleId,
+      gamesPlayed: eaMemberSeasonStats.skaterGp,
+      goals: eaMemberSeasonStats.goals,
+      assists: eaMemberSeasonStats.assists,
+      points: eaMemberSeasonStats.points,
+      plusMinus: eaMemberSeasonStats.plusMinus,
+      pim: eaMemberSeasonStats.pim,
+      shots: eaMemberSeasonStats.shots,
+      hits: eaMemberSeasonStats.hits,
+      takeaways: eaMemberSeasonStats.takeaways,
+      giveaways: eaMemberSeasonStats.giveaways,
+      shotAttempts: eaMemberSeasonStats.shotAttempts,
+      faceoffWins: eaMemberSeasonStats.faceoffWins,
+      faceoffLosses: eaMemberSeasonStats.faceoffLosses,
+      passCompletions: eaMemberSeasonStats.passes,
+      passAttempts: eaMemberSeasonStats.passAttempts,
+      toiSeconds: eaMemberSeasonStats.toiSeconds,
     })
     .from(eaMemberSeasonStats)
-    .groupBy(eaMemberSeasonStats.playerId)
 
-  const histAgg = await db
+  const historicalRowsRaw = await db
     .select({
       playerId: historicalPlayerSeasonStats.playerId,
-      gamesPlayed: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.gamesPlayed}), 0)::int`,
-      goals: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.goals}), 0)::int`,
-      assists: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.assists}), 0)::int`,
-      points: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.points}), 0)::int`,
-      plusMinus: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.plusMinus}), 0)::int`,
-      pim: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.pim}), 0)::int`,
-      shots: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.shots}), 0)::int`,
-      hits: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.hits}), 0)::int`,
-      takeaways: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.takeaways}), 0)::int`,
-      giveaways: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.giveaways}), 0)::int`,
-      shotAttempts: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.shotAttempts}), 0)::int`,
-      faceoffWins: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.faceoffWins}), 0)::int`,
-      faceoffLosses: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.faceoffLosses}), 0)::int`,
-      passCompletions: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.passCompletions}), 0)::int`,
-      passAttempts: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.passAttempts}), 0)::int`,
-      toiSeconds: sql<number | null>`SUM(${historicalPlayerSeasonStats.toiSeconds})::int`,
+      gameTitleId: historicalPlayerSeasonStats.gameTitleId,
+      gamesPlayed: historicalPlayerSeasonStats.gamesPlayed,
+      goals: historicalPlayerSeasonStats.goals,
+      assists: historicalPlayerSeasonStats.assists,
+      points: historicalPlayerSeasonStats.points,
+      plusMinus: historicalPlayerSeasonStats.plusMinus,
+      pim: historicalPlayerSeasonStats.pim,
+      shots: historicalPlayerSeasonStats.shots,
+      hits: historicalPlayerSeasonStats.hits,
+      takeaways: historicalPlayerSeasonStats.takeaways,
+      giveaways: historicalPlayerSeasonStats.giveaways,
+      shotAttempts: historicalPlayerSeasonStats.shotAttempts,
+      faceoffWins: historicalPlayerSeasonStats.faceoffWins,
+      faceoffLosses: historicalPlayerSeasonStats.faceoffLosses,
+      passCompletions: historicalPlayerSeasonStats.passCompletions,
+      passAttempts: historicalPlayerSeasonStats.passAttempts,
+      toiSeconds: historicalPlayerSeasonStats.toiSeconds,
     })
     .from(historicalPlayerSeasonStats)
     .where(
@@ -342,7 +374,8 @@ export async function getAllTimeSkaterStats(): Promise<SkaterStatsRow[]> {
         eq(historicalPlayerSeasonStats.reviewStatus, 'reviewed'),
       ),
     )
-    .groupBy(historicalPlayerSeasonStats.playerId)
+
+  const historicalRows = excludeHistoricalRowsCoveredByEa(eaRows, historicalRowsRaw)
 
   const meta = await db
     .select({
@@ -352,97 +385,60 @@ export async function getAllTimeSkaterStats(): Promise<SkaterStatsRow[]> {
     })
     .from(players)
 
-  interface Agg {
-    gamesPlayed: number
-    goals: number
-    assists: number
-    points: number
-    plusMinus: number
-    pim: number
-    shots: number
-    hits: number
-    takeaways: number
-    giveaways: number
-    shotAttempts: number
-    faceoffWins: number
-    faceoffLosses: number
-    passes: number
-    passAttempts: number
-    toiSeconds: number | null
+  const rowsByPlayer = new Map<number, CareerSkaterCountRow[]>()
+  const pushRow = (playerId: number, row: CareerSkaterCountRow): void => {
+    const group = rowsByPlayer.get(playerId) ?? []
+    group.push(row)
+    rowsByPlayer.set(playerId, group)
   }
-  const byPlayer = new Map<number, Agg>()
-  const empty = (): Agg => ({
-    gamesPlayed: 0,
-    goals: 0,
-    assists: 0,
-    points: 0,
-    plusMinus: 0,
-    pim: 0,
-    shots: 0,
-    hits: 0,
-    takeaways: 0,
-    giveaways: 0,
-    shotAttempts: 0,
-    faceoffWins: 0,
-    faceoffLosses: 0,
-    passes: 0,
-    passAttempts: 0,
-    toiSeconds: null,
-  })
-  const sumToi = (a: number | null, b: number | null): number | null =>
-    a === null && b === null ? null : (a ?? 0) + (b ?? 0)
-
-  for (const r of liveAgg) {
-    const cur = byPlayer.get(r.playerId) ?? empty()
-    byPlayer.set(r.playerId, {
-      gamesPlayed: cur.gamesPlayed + r.gamesPlayed,
-      goals: cur.goals + r.goals,
-      assists: cur.assists + r.assists,
-      points: cur.points + r.points,
-      plusMinus: cur.plusMinus + r.plusMinus,
-      pim: cur.pim + r.pim,
-      shots: cur.shots + r.shots,
-      hits: cur.hits + r.hits,
-      takeaways: cur.takeaways + r.takeaways,
-      giveaways: cur.giveaways + r.giveaways,
-      shotAttempts: cur.shotAttempts + r.shotAttempts,
-      faceoffWins: cur.faceoffWins + r.faceoffWins,
-      faceoffLosses: cur.faceoffLosses + r.faceoffLosses,
-      passes: cur.passes + r.passes,
-      passAttempts: cur.passAttempts + r.passAttempts,
-      toiSeconds: sumToi(cur.toiSeconds, r.toiSeconds),
+  const orZero = (v: number | null): number => v ?? 0
+  for (const r of eaRows) {
+    pushRow(r.playerId, {
+      gamesPlayed: r.gamesPlayed,
+      goals: r.goals,
+      assists: r.assists,
+      points: r.points,
+      plusMinus: r.plusMinus,
+      pim: r.pim,
+      shots: r.shots,
+      hits: r.hits,
+      takeaways: r.takeaways,
+      giveaways: r.giveaways,
+      shotAttempts: r.shotAttempts,
+      faceoffWins: orZero(r.faceoffWins),
+      faceoffLosses: orZero(r.faceoffLosses),
+      passCompletions: r.passCompletions,
+      passAttempts: r.passAttempts,
+      toiSeconds: r.toiSeconds,
     })
   }
-  for (const r of histAgg) {
-    const cur = byPlayer.get(r.playerId) ?? empty()
-    byPlayer.set(r.playerId, {
-      gamesPlayed: cur.gamesPlayed + r.gamesPlayed,
-      goals: cur.goals + r.goals,
-      assists: cur.assists + r.assists,
-      points: cur.points + r.points,
-      plusMinus: cur.plusMinus + r.plusMinus,
-      pim: cur.pim + r.pim,
-      shots: cur.shots + r.shots,
-      hits: cur.hits + r.hits,
-      takeaways: cur.takeaways + r.takeaways,
-      giveaways: cur.giveaways + r.giveaways,
-      shotAttempts: cur.shotAttempts + r.shotAttempts,
-      faceoffWins: cur.faceoffWins + r.faceoffWins,
-      faceoffLosses: cur.faceoffLosses + r.faceoffLosses,
-      passes: cur.passes + r.passCompletions,
-      passAttempts: cur.passAttempts + r.passAttempts,
-      toiSeconds: sumToi(cur.toiSeconds, r.toiSeconds),
+  for (const r of historicalRows) {
+    pushRow(r.playerId, {
+      gamesPlayed: r.gamesPlayed,
+      goals: r.goals,
+      assists: r.assists,
+      points: r.points,
+      plusMinus: r.plusMinus,
+      pim: r.pim,
+      shots: r.shots,
+      hits: r.hits,
+      takeaways: r.takeaways,
+      giveaways: r.giveaways,
+      shotAttempts: r.shotAttempts,
+      faceoffWins: orZero(r.faceoffWins),
+      faceoffLosses: orZero(r.faceoffLosses),
+      passCompletions: orZero(r.passCompletions),
+      passAttempts: orZero(r.passAttempts),
+      toiSeconds: r.toiSeconds,
     })
   }
 
-  const pct = (num: number, den: number): string | null =>
-    den > 0 ? ((num / den) * 100).toFixed(2) : null
-
-  const result: SkaterStatsRow[] = []
+  const result: CareerSkaterStatsRow[] = []
   for (const m of meta) {
-    const a = byPlayer.get(m.playerId)
-    if (!a || a.gamesPlayed === 0) continue
-    const foTotal = a.faceoffWins + a.faceoffLosses
+    const rows = rowsByPlayer.get(m.playerId)
+    if (rows === undefined) continue
+    const a = aggregateSkaterCareerRows(rows)
+    if (a.gamesPlayed === 0) continue
     result.push({
       playerId: m.playerId,
       gamertag: m.gamertag,
@@ -457,10 +453,12 @@ export async function getAllTimeSkaterStats(): Promise<SkaterStatsRow[]> {
       hits: a.hits,
       takeaways: a.takeaways,
       giveaways: a.giveaways,
-      faceoffPct: pct(a.faceoffWins, foTotal),
-      passPct: pct(a.passes, a.passAttempts),
+      faceoffPct: a.faceoffPct,
+      passPct: a.passPct,
       shotAttempts: a.shotAttempts,
       toiSeconds: a.toiSeconds,
+      toiCoverageGp: a.toiCoverageGp,
+      toiCoverage: a.toiCoverage,
     })
   }
   result.sort((a, b) => {
@@ -473,45 +471,67 @@ export async function getAllTimeSkaterStats(): Promise<SkaterStatsRow[]> {
 }
 
 /**
+ * Career goalie row: `GoalieStatsRow` plus TOI and GAA coverage metadata.
+ * `gaa` in the returned row is calculated only from same-row covered GA and
+ * TOI — see `aggregateGoalieCareerRows` in `career-coverage.ts`.
+ */
+export type CareerGoalieStatsRow = GoalieStatsRow & {
+  toiCoverageGp: number
+  toiCoverage: CareerCoverage
+  gaaCoveredGoalsAgainst: number | null
+  gaaCoverageGp: number
+  gaaCoverage: CareerCoverage
+}
+
+/**
  * All-time goalie totals across every game title.
  *
  * Combines EA member-season totals (live titles) with reviewed
- * historical_player_season_stats (older titles). SV% recomputed from
- * sum(saves)/sum(shots). GAA recomputed from sum(goals_against)*3600/sum(toi)
- * — null when TOI was not captured for any contributing season. Shape matches
- * `GoalieStatsRow` so the existing goalie table renders unchanged.
+ * historical_player_season_stats (older titles), applying the same
+ * player+title source precedence as `getAllTimeSkaterStats` (see
+ * `excludeHistoricalRowsCoveredByEa`).
+ *
+ * SV% and total-shots-against derivation are unaffected by TOI coverage —
+ * they still sum saves/GA across every selected row (see
+ * `aggregateGoalieCareerRows`). GAA, however, is computed only from GA and
+ * TOI captured on the SAME rows: reviewed NHL 22-25 player-card rows have GP
+ * and GA but no TOI, so the previous formula (GA summed across every row,
+ * divided by TOI summed across only the TOI-having rows) mismatched
+ * numerator and denominator and produced a badly inflated GAA (e.g. 39.41
+ * instead of the same-row-covered 4.87). Shape matches `GoalieStatsRow`
+ * (plus coverage metadata) so the existing goalie table renders unchanged
+ * for every other field.
  *
  * Filters to players with `goalieGp > 0`, sorted by SV% desc.
  */
-export async function getAllTimeGoalieStats(): Promise<GoalieStatsRow[]> {
-  const liveAgg = await db
+export async function getAllTimeGoalieStats(): Promise<CareerGoalieStatsRow[]> {
+  const eaRows = await db
     .select({
       playerId: eaMemberSeasonStats.playerId,
-      gamesPlayed: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieGp}), 0)::int`,
-      wins: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieWins}), 0)::int`,
-      losses: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieLosses}), 0)::int`,
-      otl: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieOtl}), 0)::int`,
-      shutouts: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieShutouts}), 0)::int`,
-      totalSaves: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieSaves}), 0)::int`,
-      totalShotsAgainst: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieShots}), 0)::int`,
-      totalGoalsAgainst: sql<number>`COALESCE(SUM(${eaMemberSeasonStats.goalieGoalsAgainst}), 0)::int`,
-      toiSeconds: sql<number | null>`SUM(${eaMemberSeasonStats.goalieToiSeconds})::int`,
+      gameTitleId: eaMemberSeasonStats.gameTitleId,
+      gamesPlayed: eaMemberSeasonStats.goalieGp,
+      wins: eaMemberSeasonStats.goalieWins,
+      losses: eaMemberSeasonStats.goalieLosses,
+      otl: eaMemberSeasonStats.goalieOtl,
+      shutouts: eaMemberSeasonStats.goalieShutouts,
+      totalSaves: eaMemberSeasonStats.goalieSaves,
+      totalGoalsAgainst: eaMemberSeasonStats.goalieGoalsAgainst,
+      toiSeconds: eaMemberSeasonStats.goalieToiSeconds,
     })
     .from(eaMemberSeasonStats)
-    .groupBy(eaMemberSeasonStats.playerId)
 
-  const histAgg = await db
+  const historicalRowsRaw = await db
     .select({
       playerId: historicalPlayerSeasonStats.playerId,
-      gamesPlayed: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.gamesPlayed}), 0)::int`,
-      wins: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.wins}), 0)::int`,
-      losses: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.losses}), 0)::int`,
-      otl: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.otl}), 0)::int`,
-      shutouts: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.shutouts}), 0)::int`,
-      totalSaves: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.totalSaves}), 0)::int`,
-      totalShotsAgainst: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.totalShotsAgainst}), 0)::int`,
-      totalGoalsAgainst: sql<number>`COALESCE(SUM(${historicalPlayerSeasonStats.totalGoalsAgainst}), 0)::int`,
-      toiSeconds: sql<number | null>`SUM(${historicalPlayerSeasonStats.toiSeconds})::int`,
+      gameTitleId: historicalPlayerSeasonStats.gameTitleId,
+      gamesPlayed: historicalPlayerSeasonStats.gamesPlayed,
+      wins: historicalPlayerSeasonStats.wins,
+      losses: historicalPlayerSeasonStats.losses,
+      otl: historicalPlayerSeasonStats.otl,
+      shutouts: historicalPlayerSeasonStats.shutouts,
+      totalSaves: historicalPlayerSeasonStats.totalSaves,
+      totalGoalsAgainst: historicalPlayerSeasonStats.totalGoalsAgainst,
+      toiSeconds: historicalPlayerSeasonStats.toiSeconds,
     })
     .from(historicalPlayerSeasonStats)
     .where(
@@ -521,70 +541,36 @@ export async function getAllTimeGoalieStats(): Promise<GoalieStatsRow[]> {
         eq(historicalPlayerSeasonStats.reviewStatus, 'reviewed'),
       ),
     )
-    .groupBy(historicalPlayerSeasonStats.playerId)
+
+  const historicalRows = excludeHistoricalRowsCoveredByEa(eaRows, historicalRowsRaw)
 
   const meta = await db.select({ playerId: players.id, gamertag: players.gamertag }).from(players)
 
-  interface Agg {
-    gamesPlayed: number
-    wins: number
-    losses: number
-    otl: number
-    shutouts: number
-    totalSaves: number
-    totalShotsAgainst: number
-    totalGoalsAgainst: number
-    toiSeconds: number | null
+  const rowsByPlayer = new Map<number, CareerGoalieCountRow[]>()
+  const pushRow = (playerId: number, row: CareerGoalieCountRow): void => {
+    const group = rowsByPlayer.get(playerId) ?? []
+    group.push(row)
+    rowsByPlayer.set(playerId, group)
   }
-  const byPlayer = new Map<number, Agg>()
-  const empty = (): Agg => ({
-    gamesPlayed: 0,
-    wins: 0,
-    losses: 0,
-    otl: 0,
-    shutouts: 0,
-    totalSaves: 0,
-    totalShotsAgainst: 0,
-    totalGoalsAgainst: 0,
-    toiSeconds: null,
-  })
-  const sumToi = (a: number | null, b: number | null): number | null =>
-    a === null && b === null ? null : (a ?? 0) + (b ?? 0)
-  const addAgg = (id: number, r: Agg) => {
-    const cur = byPlayer.get(id) ?? empty()
-    byPlayer.set(id, {
-      gamesPlayed: cur.gamesPlayed + r.gamesPlayed,
-      wins: cur.wins + r.wins,
-      losses: cur.losses + r.losses,
-      otl: cur.otl + r.otl,
-      shutouts: cur.shutouts + r.shutouts,
-      totalSaves: cur.totalSaves + r.totalSaves,
-      totalShotsAgainst: cur.totalShotsAgainst + r.totalShotsAgainst,
-      totalGoalsAgainst: cur.totalGoalsAgainst + r.totalGoalsAgainst,
-      toiSeconds: sumToi(cur.toiSeconds, r.toiSeconds),
+  for (const r of [...eaRows, ...historicalRows]) {
+    pushRow(r.playerId, {
+      gamesPlayed: r.gamesPlayed,
+      wins: r.wins,
+      losses: r.losses,
+      otl: r.otl,
+      shutouts: r.shutouts,
+      totalSaves: r.totalSaves,
+      totalGoalsAgainst: r.totalGoalsAgainst,
+      toiSeconds: r.toiSeconds,
     })
   }
 
-  for (const r of liveAgg) addAgg(r.playerId, r)
-  for (const r of histAgg) addAgg(r.playerId, r)
-
-  const result: GoalieStatsRow[] = []
+  const result: CareerGoalieStatsRow[] = []
   for (const m of meta) {
-    const a = byPlayer.get(m.playerId)
-    if (!a || a.gamesPlayed === 0) continue
-    // Compute SV% from saves / (saves + goals_against). Equivalent to saves /
-    // shots_against (shots = saves + GA) but robust to historical rows that
-    // captured goals_against without shots_against.
-    const svDenom = a.totalSaves + a.totalGoalsAgainst
-    const savePct = svDenom > 0 ? ((a.totalSaves / svDenom) * 100).toFixed(2) : null
-    const gaa =
-      a.toiSeconds !== null && a.toiSeconds > 0
-        ? ((a.totalGoalsAgainst * 3600) / a.toiSeconds).toFixed(2)
-        : null
-    // Historical rows captured saves + GA but not shots_against. Derive SA
-    // from saves + GA so the Advanced view shows a consistent total instead
-    // of an under-count. (Live rows already satisfy shots = saves + GA.)
-    const totalShotsAgainst = a.totalSaves + a.totalGoalsAgainst
+    const rows = rowsByPlayer.get(m.playerId)
+    if (rows === undefined) continue
+    const a = aggregateGoalieCareerRows(rows)
+    if (a.gamesPlayed === 0) continue
     result.push({
       playerId: m.playerId,
       gamertag: m.gamertag,
@@ -592,13 +578,18 @@ export async function getAllTimeGoalieStats(): Promise<GoalieStatsRow[]> {
       wins: a.wins,
       losses: a.losses,
       otl: a.otl,
-      savePct,
-      gaa,
+      savePct: a.savePct,
+      gaa: a.gaa,
       shutouts: a.shutouts,
       totalSaves: a.totalSaves,
-      totalShotsAgainst,
+      totalShotsAgainst: a.totalShotsAgainst,
       totalGoalsAgainst: a.totalGoalsAgainst,
       toiSeconds: a.toiSeconds,
+      toiCoverageGp: a.toiCoverageGp,
+      toiCoverage: a.toiCoverage,
+      gaaCoveredGoalsAgainst: a.gaaCoveredGoalsAgainst,
+      gaaCoverageGp: a.gaaCoverageGp,
+      gaaCoverage: a.gaaCoverage,
     })
   }
   result.sort((a, b) => {

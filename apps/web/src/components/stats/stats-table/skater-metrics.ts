@@ -1,5 +1,6 @@
 import { parseSupplied, fmtSuppliedPct, ratio } from './format.ts'
 import type { Metric, MetricMap } from './metrics.ts'
+import { toiCoverageAnnotation } from './notes.ts'
 import type { SkaterDisplayRow as R, SkaterExpanded } from './types.ts'
 
 const D2 = { format: 'd2' } as const
@@ -170,8 +171,12 @@ export const SKATER_METRICS: MetricMap<R> = {
   toigp: {
     key: 'toigp',
     label: 'TOI/GP',
-    full: 'Average time on ice per game (m:ss). EA reports total TOI in whole minutes, so per-game is approximate.',
-    value: (r) => ratio(r.toiSeconds, r.gamesPlayed),
+    full: 'Average time on ice per game (m:ss). EA reports total TOI in whole minutes, so per-game is approximate. Career rows divide by only the games with recorded time on ice — see the coverage note.',
+    // Career rows carry `toiCoverageGp` (GP from exactly the TOI-covered
+    // source rows); every other source leaves it undefined and falls back to
+    // total `gamesPlayed`, which is unchanged from before.
+    value: (r) => ratio(r.toiSeconds, r.toiCoverageGp ?? r.gamesPlayed),
     format: 'mmss',
+    annotate: (r) => toiCoverageAnnotation(r.toiCoverage),
   },
 }
