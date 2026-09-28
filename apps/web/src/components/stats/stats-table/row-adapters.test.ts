@@ -64,3 +64,60 @@ void test('goalie recordUnavailable is carried only when the source flags it', (
   assert.equal(flagged.wins, null)
   assert.equal(flagged.savePct, '81.82')
 })
+
+// ─── Archive club-member rows: fields the source never captures at all ─────
+
+const archiveSkaterIn = {
+  playerId: 2,
+  gamertag: 'silkyjoker85',
+  position: 'center',
+  gamesPlayed: 48,
+  goals: 10,
+  assists: 20,
+  points: 30,
+  plusMinus: 5,
+  pim: 4,
+  shots: null,
+  hits: 12,
+  takeaways: 3,
+  giveaways: 2,
+  passPct: '76.50',
+  // No shotAttempts / toiSeconds / faceoffPct keys at all — the club-member
+  // source never captures them.
+}
+
+void test('archive skater row: omitted fields adapt to null, not 0', () => {
+  const r = toSkaterDisplayRow(archiveSkaterIn)
+  assert.equal(r.shotAttempts, null)
+  assert.equal(r.toiSeconds, null)
+  assert.equal(r.faceoffPct, null)
+  // A genuinely uncaptured value (shots null on NHL 25 rows) stays null.
+  assert.equal(r.shots, null)
+  // Recorded values pass through unchanged.
+  assert.equal(r.goals, 10)
+  assert.equal(r.gamertag, 'silkyjoker85')
+})
+
+const archiveGoalieIn = {
+  playerId: 2,
+  gamertag: 'silkyjoker85',
+  gamesPlayed: 48,
+  wins: null,
+  losses: null,
+  otl: null,
+  savePct: '76.50',
+  gaa: '3.93',
+  shutouts: 2,
+  totalSaves: 587,
+  totalGoalsAgainst: 180,
+  // No totalShotsAgainst / toiSeconds keys at all.
+}
+
+void test('archive goalie row: omitted fields adapt to null, not 0', () => {
+  const r = toGoalieDisplayRow(archiveGoalieIn)
+  assert.equal(r.totalShotsAgainst, null)
+  assert.equal(r.toiSeconds, null)
+  assert.equal(r.recordUnavailable, false)
+  assert.equal(r.gamesPlayed, 48)
+  assert.equal(r.totalSaves, 587)
+})

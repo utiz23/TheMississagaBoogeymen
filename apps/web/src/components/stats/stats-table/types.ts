@@ -1,10 +1,13 @@
-import type { EAGoalieExpandedRow, EASkaterExpandedRow } from '@eanhl/db/queries'
+import type { CareerCoverage, EAGoalieExpandedRow, EASkaterExpandedRow } from '@eanhl/db/queries'
+
+export type { CareerCoverage }
 
 /** Where a table's rows come from. Sources are never merged. */
 export type StatsSourceKind =
   | 'ea-season'
   | 'local-tracked'
   | 'archive-club-member'
+  | 'archive-player-card'
   | 'career'
   | 'unspecified'
 
@@ -45,6 +48,11 @@ export interface SkaterDisplayRow extends BaseDisplayRow {
   shotAttempts: number | null
   toiSeconds: number | null
   expanded: SkaterExpanded | null
+  /** Set only on career (All Time) rows — the GP from exactly the TOI-covered
+   * source rows, the correct TOI/GP denominator. Undefined for every other
+   * source (EA, local, archive), which use `gamesPlayed` directly. */
+  toiCoverageGp?: number
+  toiCoverage?: CareerCoverage
 }
 
 export interface GoalieDisplayRow extends BaseDisplayRow {
@@ -61,4 +69,12 @@ export interface GoalieDisplayRow extends BaseDisplayRow {
   /** Set only by the local 6s/3s query: W/L/OTL withheld (player-wide, not goalie-only). */
   recordUnavailable: boolean
   expanded: GoalieExpanded | null
+  /** Career-only TOI coverage — see `SkaterDisplayRow.toiCoverageGp`. */
+  toiCoverageGp?: number
+  toiCoverage?: CareerCoverage
+  /** Career-only GAA coverage: GA/GP from exactly the rows with BOTH TOI and
+   * GA recorded — the correct GAA numerator/denominator pairing. */
+  gaaCoveredGoalsAgainst?: number | null
+  gaaCoverageGp?: number
+  gaaCoverage?: CareerCoverage
 }

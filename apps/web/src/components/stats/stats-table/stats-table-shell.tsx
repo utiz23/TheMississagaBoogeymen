@@ -14,8 +14,9 @@ import {
 } from './notes.ts'
 import { playerSubline, playerTooltip, type PlayerMeta } from './player-label.ts'
 import { RetryButton } from './retry-button.tsx'
+import { resolveScopeAvailability, resolveScopeState } from './scope-state.ts'
 import { nextSort, sortRows, type SortState } from './sort.ts'
-import type { BaseDisplayRow, StatsSource } from './types.ts'
+import type { BaseDisplayRow, CareerCoverage, StatsSource } from './types.ts'
 import { resolveViews, visibleKeysFor, type ViewSpec } from './views.ts'
 
 export interface ShellDataset<R> {
@@ -43,6 +44,15 @@ export interface StatsTableShellProps<R extends BaseDisplayRow> {
   playerMeta?: Record<number, PlayerMeta>
 }
 
+/**
+ * `state` above describes the CURRENT dataset's load result ONLY. It must
+ * never be read directly against the active scope — see `resolveScopeState`.
+ * A failed Current query stays an error while Current is selected, but must
+ * never keep showing once the viewer switches to a successfully loaded All
+ * Time dataset (All Time only ever renders when it is itself a genuine
+ * successful, non-empty result — see `resolveScopeAvailability`).
+ */
+
 const TAB_BASE =
   'px-3 py-2.5 font-condensed text-xs font-semibold uppercase tracking-widest transition-colors border-b-2 -mb-px whitespace-nowrap'
 const TAB_ON = 'border-accent text-accent'
@@ -56,7 +66,7 @@ const RAIL = [
 
 export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShellProps<R>) {
   const { role, title, metrics, views, current, allTime, allTimeUnavailable, playerMeta } = props
-  const state = props.state ?? 'ok'
+  const currentState = props.state ?? 'ok'
 
   const [scope, setScope] = useState<'current' | 'allTime'>('current')
   const [viewId, setViewId] = useState('all')
@@ -64,9 +74,12 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
   const [perGameMode, setPerGameMode] = useState(false)
   const [keyOpen, setKeyOpen] = useState(false)
 
-  const canAllTime = allTime !== undefined && allTime.rows.length > 0
-  const active: ShellDataset<R> = scope === 'allTime' && canAllTime ? allTime : current
-  const activeScope = active === current ? 'current' : 'allTime'
+  const { canAllTime, activeScope } = resolveScopeAvailability(scope, allTime?.rows.length ?? 0)
+  const active: ShellDataset<R> = activeScope === 'allTime' && allTime ? allTime : current
+  // The Current dataset's `state` never leaks into the All Time scope — see
+  // `resolveScopeState`. A failed Current query stays visible as an error
+  // only while Current is the active scope.
+  const state = resolveScopeState(activeScope, currentState)
 
   const resolved = useMemo(
     () => resolveViews(views, metrics, active.hasExpanded),
@@ -98,9 +111,15 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
     scope: activeScope,
     source: active.source,
     visibleKeys,
-    activeRows: active.rows.map((r) => ({
-      recordUnavailable: (r as { recordUnavailable?: boolean }).recordUnavailable === true,
-    })),
+    activeRows: active.rows.map((r) => {
+      const toiCoverage = (r as { toiCoverage?: CareerCoverage }).toiCoverage
+      const gaaCoverage = (r as { gaaCoverage?: CareerCoverage }).gaaCoverage
+      return {
+        recordUnavailable: (r as { recordUnavailable?: boolean }).recordUnavailable === true,
+        ...(toiCoverage !== undefined ? { toiCoverage } : {}),
+        ...(gaaCoverage !== undefined ? { gaaCoverage } : {}),
+      }
+    }),
   })
   if (expandedFailedNoteVisible(activeScope, props.expandedFailed === true)) {
     footnotes.push(EXPANDED_FETCH_FAILED_NOTE)
@@ -454,7 +473,19 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                                 groupStart ? 'border-l border-l-zinc-800' : '',
                               ].join(' ')}
                             >
-                              {c.text}
+                              {c.annotation ? (
+                                <span title={c.annotation.srText}>
+                                  {c.text}
+                                  {c.annotation.marker !== undefined && (
+                                    <span aria-hidden className="text-accent">
+                                      {c.annotation.marker}
+                                    </span>
+                                  )}
+                                  <span className="sr-only"> {c.annotation.srText}</span>
+                                </span>
+                              ) : (
+                                c.text
+                              )}
                             </td>
                           )
                         })}

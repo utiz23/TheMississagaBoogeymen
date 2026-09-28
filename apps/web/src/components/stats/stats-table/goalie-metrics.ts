@@ -1,5 +1,6 @@
 import { fmtSuppliedDecimal, fmtSuppliedPct, parseSupplied, ratio } from './format.ts'
 import type { Metric, MetricMap } from './metrics.ts'
+import { gaaCoverageAnnotation, toiCoverageAnnotation } from './notes.ts'
 import type { GoalieDisplayRow as R, GoalieExpanded } from './types.ts'
 
 const D1 = { format: 'd1' } as const
@@ -57,11 +58,12 @@ export const GOALIE_METRICS: MetricMap<R> = {
   gaa: {
     key: 'gaa',
     label: 'GAA',
-    full: 'Goals-against average as supplied by the source',
+    full: 'Goals-against average as supplied by the source. Career rows compute this only from source rows that contain both time on ice and goals against — see the coverage note.',
     value: (r) => parseSupplied(r.gaa),
     format: 'd2',
     text: (r) => fmtSuppliedDecimal(r.gaa),
     sortAsc: true,
+    annotate: (r) => gaaCoverageAnnotation(r.gaaCoverage),
   },
   so: count('so', 'SO', 'Shutouts', (r) => r.shutouts),
   sop: count('sop', 'SOP', 'Shutout periods (not the same as shutouts)', ex('shutoutPeriods'), {
@@ -120,15 +122,19 @@ export const GOALIE_METRICS: MetricMap<R> = {
   toi: {
     key: 'toi',
     label: 'TOI',
-    full: 'Total time in net (h:mm:ss). EA reports goalie TOI in whole minutes.',
+    full: 'Total time in net (h:mm:ss). EA reports goalie TOI in whole minutes. Career rows total only the games with recorded time on ice — see the coverage note.',
     value: (r) => r.toiSeconds,
     format: 'hms',
+    annotate: (r) => toiCoverageAnnotation(r.toiCoverage),
   },
   toigp: {
     key: 'toigp',
     label: 'TOI/GP',
-    full: 'Average time in net per appearance (m:ss)',
-    value: (r) => ratio(r.toiSeconds, r.gamesPlayed),
+    full: 'Average time in net per appearance (m:ss). Career rows divide by only the games with recorded time on ice — see the coverage note.',
+    // Career rows carry `toiCoverageGp`; every other source leaves it
+    // undefined and falls back to total `gamesPlayed`, unchanged from before.
+    value: (r) => ratio(r.toiSeconds, r.toiCoverageGp ?? r.gamesPlayed),
     format: 'mmss',
+    annotate: (r) => toiCoverageAnnotation(r.toiCoverage),
   },
 }

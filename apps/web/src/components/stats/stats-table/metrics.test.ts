@@ -171,6 +171,97 @@ void test('ascending defaults: skater PIM/GV; goalie L/OTL/GAA/GA', () => {
   }
 })
 
+// ─── Career TOI/GAA coverage (Phase 2 Unit C) ────────────────────────────
+
+void test('skater TOI/GP uses toiCoverageGp for career rows; ordinary rows keep using total GP', () => {
+  // Career-shaped row: total GP 210, but only 26 GP have recorded TOI.
+  const career = skater({ gamesPlayed: 210, toiSeconds: 69_420, toiCoverageGp: 26 })
+  // 69420 / 26 = 2670s = 44:30, NOT 69420 / 210 = 330s = 5:30
+  assert.equal(cell('toigp', career).text, '44:30')
+
+  // Ordinary row (no toiCoverageGp at all): unaffected, still divides by gamesPlayed.
+  const ordinary = skater({ gamesPlayed: 41, toiSeconds: 120_240 })
+  assert.equal(cell('toigp', ordinary).text, '48:53')
+})
+
+void test('skater TOI/GP annotation: complete/partial/unavailable text and marker', () => {
+  const complete = skater({
+    gamesPlayed: 46,
+    toiSeconds: 146_880,
+    toiCoverageGp: 46,
+    toiCoverage: { state: 'complete', coveredGp: 46, totalGp: 46 },
+  })
+  const completeCell = cell('toigp', complete)
+  assert.equal(completeCell.annotation?.marker, undefined)
+  assert.equal(completeCell.annotation?.srText, 'Based on all 46 GP with recorded time on ice.')
+
+  const partial = skater({
+    gamesPlayed: 210,
+    toiSeconds: 69_420,
+    toiCoverageGp: 26,
+    toiCoverage: { state: 'partial', coveredGp: 26, totalGp: 210 },
+  })
+  const partialCell = cell('toigp', partial)
+  assert.equal(partialCell.annotation?.marker, '*')
+  // `annotation` is narrowed non-undefined by the assertion above.
+  assert.equal(partialCell.annotation.srText, 'Based on 26 of 210 GP with recorded time on ice.')
+
+  const unavailable = skater({
+    gamesPlayed: 21,
+    toiSeconds: null,
+    toiCoverageGp: 0,
+    toiCoverage: { state: 'unavailable', coveredGp: 0, totalGp: 21 },
+  })
+  const unavailableCell = cell('toigp', unavailable)
+  assert.equal(unavailableCell.text, '—')
+  assert.equal(unavailableCell.annotation?.marker, undefined)
+  assert.equal(
+    unavailableCell.annotation?.srText,
+    'No time on ice was recorded for this player’s career history.',
+  )
+
+  // Ordinary rows never carry a coverage annotation.
+  assert.equal(cell('toigp', skater()).annotation, undefined)
+})
+
+void test('goalie career GAA is calculated only from same-row covered GA/TOI, with the frozen silkyjoker85 fixture', () => {
+  const career = goalie({
+    gamesPlayed: 210,
+    gaa: '4.87', // as the corrected getAllTimeGoalieStats would return
+    toiSeconds: 69_420,
+    toiCoverageGp: 26,
+    toiCoverage: { state: 'partial', coveredGp: 26, totalGp: 210 },
+    gaaCoveredGoalsAgainst: 94,
+    gaaCoverageGp: 26,
+    gaaCoverage: { state: 'partial', coveredGp: 26, totalGp: 210 },
+  })
+  assert.equal(gcell('gaa', career).text, '4.87')
+  assert.equal(gcell('toigp', career).text, '44:30')
+  const gaaCell = gcell('gaa', career)
+  assert.equal(gaaCell.annotation?.marker, '*')
+  // `annotation` is narrowed non-undefined by the assertion above.
+  assert.equal(
+    gaaCell.annotation.srText,
+    'Based on 26 of 210 GP with recorded time on ice and goals against.',
+  )
+
+  // Ordinary (non-career) goalie row: no coverage annotation, GAA unaffected.
+  const ordinary = goalie()
+  assert.equal(gcell('gaa', ordinary).text, '3.10')
+  assert.equal(gcell('gaa', ordinary).annotation, undefined)
+})
+
+void test('goalie career TOI cell shows the covered-only total and its own coverage annotation', () => {
+  const career = goalie({
+    gamesPlayed: 210,
+    toiSeconds: 69_420,
+    toiCoverageGp: 26,
+    toiCoverage: { state: 'partial', coveredGp: 26, totalGp: 210 },
+  })
+  assert.equal(gcell('toi', career).text, '19:17:00')
+  assert.equal(gcell('toi', career).annotation?.marker, '*')
+})
+
 void test('every view default sort is one of its own visible columns', () => {
   for (const [views, metrics] of [
     [SKATER_VIEWS, SKATER_METRICS],

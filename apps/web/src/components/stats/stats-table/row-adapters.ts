@@ -1,4 +1,8 @@
 import type {
+  ArchiveGoalieStatsRow,
+  ArchiveSkaterStatsRow,
+  CareerGoalieStatsRow,
+  CareerSkaterStatsRow,
   EAGoalieExpandedRow,
   EASkaterExpandedRow,
   GoalieStatsRow,
@@ -8,8 +12,16 @@ import type {
 } from '@eanhl/db/queries'
 import type { GoalieDisplayRow, GoalieExpanded, SkaterDisplayRow, SkaterExpanded } from './types.ts'
 
-export type SkaterInputRow = SkaterStatsRow | HistoricalSkaterStatsRow
-export type GoalieInputRow = GoalieStatsRow | HistoricalGoalieStatsRow
+export type SkaterInputRow =
+  | SkaterStatsRow
+  | HistoricalSkaterStatsRow
+  | ArchiveSkaterStatsRow
+  | CareerSkaterStatsRow
+export type GoalieInputRow =
+  | GoalieStatsRow
+  | HistoricalGoalieStatsRow
+  | ArchiveGoalieStatsRow
+  | CareerGoalieStatsRow
 
 function stripId<T extends { playerId: number }>(row: T | undefined): Omit<T, 'playerId'> | null {
   if (row === undefined) return null
@@ -21,7 +33,10 @@ function stripId<T extends { playerId: number }>(row: T | undefined): Omit<T, 'p
 /**
  * Normalise any accepted skater row (live EA, local, archive, career) into the
  * display row. Values pass through unchanged: this adapter never converts a
- * missing value into 0 or a 0 into missing.
+ * missing value into 0 or a 0 into missing. `ArchiveSkaterStatsRow` doesn't
+ * carry `shotAttempts`/`toiSeconds`/`faceoffPct` at all (the club-member
+ * source never captures them) — this adapter supplies explicit `null` for
+ * those fields so the shared display row renders "—" rather than a false 0.
  */
 export function toSkaterDisplayRow(
   row: SkaterInputRow,
@@ -43,14 +58,25 @@ export function toSkaterDisplayRow(
     hits: row.hits,
     takeaways: row.takeaways,
     giveaways: row.giveaways,
-    faceoffPct: row.faceoffPct,
+    faceoffPct: 'faceoffPct' in row ? row.faceoffPct : null,
     passPct: row.passPct,
-    shotAttempts: row.shotAttempts,
-    toiSeconds: row.toiSeconds,
+    shotAttempts: 'shotAttempts' in row ? row.shotAttempts : null,
+    toiSeconds: 'toiSeconds' in row ? row.toiSeconds : null,
     expanded,
+    // Career rows (`CareerSkaterStatsRow`) carry TOI coverage metadata; every
+    // other source leaves these undefined, so ordinary rows fall back to
+    // `gamesPlayed` in the TOI/GP metric (see skater-metrics.ts) and never
+    // show a coverage marker.
+    ...('toiCoverageGp' in row ? { toiCoverageGp: row.toiCoverageGp } : {}),
+    ...('toiCoverage' in row ? { toiCoverage: row.toiCoverage } : {}),
   }
 }
 
+/**
+ * `ArchiveGoalieStatsRow` doesn't carry `totalShotsAgainst`/`toiSeconds` at
+ * all (the club-member source never captures them) — this adapter supplies
+ * explicit `null` for those fields, same rationale as the skater adapter.
+ */
 export function toGoalieDisplayRow(
   row: GoalieInputRow,
   expandedById?: ReadonlyMap<number, EAGoalieExpandedRow>,
@@ -68,10 +94,19 @@ export function toGoalieDisplayRow(
     gaa: row.gaa,
     shutouts: row.shutouts,
     totalSaves: row.totalSaves,
-    totalShotsAgainst: row.totalShotsAgainst,
+    totalShotsAgainst: 'totalShotsAgainst' in row ? row.totalShotsAgainst : null,
     totalGoalsAgainst: row.totalGoalsAgainst,
-    toiSeconds: row.toiSeconds,
+    toiSeconds: 'toiSeconds' in row ? row.toiSeconds : null,
     recordUnavailable: (row as { recordUnavailable?: boolean }).recordUnavailable === true,
     expanded,
+    // Career rows (`CareerGoalieStatsRow`) carry TOI and GAA coverage
+    // metadata; every other source leaves these undefined.
+    ...('toiCoverageGp' in row ? { toiCoverageGp: row.toiCoverageGp } : {}),
+    ...('toiCoverage' in row ? { toiCoverage: row.toiCoverage } : {}),
+    ...('gaaCoveredGoalsAgainst' in row
+      ? { gaaCoveredGoalsAgainst: row.gaaCoveredGoalsAgainst }
+      : {}),
+    ...('gaaCoverageGp' in row ? { gaaCoverageGp: row.gaaCoverageGp } : {}),
+    ...('gaaCoverage' in row ? { gaaCoverage: row.gaaCoverage } : {}),
   }
 }

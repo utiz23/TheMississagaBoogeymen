@@ -1,6 +1,10 @@
+import { BrandedLoader } from '@/components/loading/branded-loader'
+
 export default function GamesLoading() {
   return (
-    <div className="space-y-1">
+    <div data-route-loading className="space-y-1">
+      <BrandedLoader compact />
+
       {Array.from({ length: 8 }).map((_, i) => (
         <div
           key={i}
