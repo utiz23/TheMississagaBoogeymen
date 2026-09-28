@@ -1,3 +1,5 @@
+import { BrandedLoader } from '@/components/loading/branded-loader'
+
 /**
  * Loading skeleton for the game sheet. Mirrors the real layout in `page.tsx`
  * (top bar → hero → mode tabs → 3/4 main + 1/4 rail → full-width tracker) so
@@ -10,7 +12,9 @@
  */
 export default function GameDetailLoading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="Loading game sheet">
+    <div data-route-loading className="space-y-4">
+      <BrandedLoader compact />
+
       {/* 1. Sub-nav — ALL GAMES chip + the segmented PREV|NEXT box. Boxed at
              the real 44px so the bar does not resize when the data lands. */}
       <div className="flex items-center justify-between gap-3">
