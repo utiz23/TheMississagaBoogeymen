@@ -22,7 +22,7 @@ class CLISmokeTests(unittest.TestCase):
                 "--screen",
                 "pre_game_lobby_state_1",
                 "--input",
-                str(ROOT / "ScreenShots" / "Pre-Game Lobby State 1.png"),
+                str(ROOT / "tests" / "fixtures" / "screen_classifier" / "Pre-Game Lobby State 1.png"),
                 "--output",
                 str(output),
             ]
@@ -45,7 +45,7 @@ class CLISmokeTests(unittest.TestCase):
                 "--screen",
                 "pre_game_lobby_state_1",
                 "--input",
-                str(ROOT / "ScreenShots" / "Pre-Game Lobby State 1.png"),
+                str(ROOT / "tests" / "fixtures" / "screen_classifier" / "Pre-Game Lobby State 1.png"),
                 "--output",
                 str(output),
                 "--no-use-gpu",

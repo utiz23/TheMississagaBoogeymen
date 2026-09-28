@@ -10,7 +10,7 @@
     "smoke:quick": "pnpm build && pnpm typecheck && pnpm --filter web lint",
     "test:db-importers": "pnpm --filter @eanhl/db test",
     "verify:ocr": "bash scripts/verify-ocr.sh",
-    "test:verify-safety": "node --test apps/worker/scripts/lib/test-db-guard.test.mjs apps/worker/scripts/lib/test-db-session.test.mjs apps/worker/scripts/lib/verify-ocr-orchestration.test.mjs .githooks/lib/classify-push.test.mjs .githooks/lib/pre-push-hook.test.mjs",
+    "test:verify-safety": "node --test apps/worker/scripts/lib/test-db-guard.test.mjs apps/worker/scripts/lib/test-db-session.test.mjs apps/worker/scripts/lib/verify-ocr-orchestration.test.mjs apps/worker/scripts/lib/build-deps.test.mjs .githooks/lib/classify-push.test.mjs .githooks/lib/pre-push-hook.test.mjs",
     "test:backup-producer": "node ops/backup/run-suite.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore --ignore-path .prettierignore",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore --ignore-path .prettierignore",

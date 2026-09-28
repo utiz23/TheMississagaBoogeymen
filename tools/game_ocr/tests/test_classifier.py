@@ -31,8 +31,7 @@ from game_ocr.classifier import (
 )
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-SCREENSHOTS = REPO_ROOT / "tools" / "game_ocr" / "ScreenShots"
+SCREENSHOTS = Path(__file__).resolve().parent / "fixtures" / "screen_classifier"
 
 NAMED_FIXTURES = {
     "Player Loadout View.png": "player_loadout_view",

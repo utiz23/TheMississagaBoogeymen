@@ -24,8 +24,7 @@ from game_ocr.ocr import OCRLine
 from game_ocr.regex_priors import RoiBbox, load_regex_priors
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-SCREENSHOTS = REPO_ROOT / "tools" / "game_ocr" / "ScreenShots"
+SCREENSHOTS = Path(__file__).resolve().parent / "fixtures" / "screen_classifier"
 
 RUN_E2E = os.environ.get("RUN_CLASSIFIER_E2E", "0") == "1"
 
