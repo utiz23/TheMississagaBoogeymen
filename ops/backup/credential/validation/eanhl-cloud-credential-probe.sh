@@ -20,10 +20,17 @@
 #     lockhold-detach      exec lockhold: leave a detached descendant (K2)
 #     busy-a … busy-d      must never acquire the lock (K1); fails if it does
 #     canary-nested        lockhold's internal canary; not launcher-startable
-#   provider: (only via eanhl-cloud-credential-provider-probe@.service, which
-#   E3J9D/E3J9E install under their own authorization; never in E3J9C)
+#   provider: (only via `eanhl-cloud-credential provider-probe`, E3J9D/E3J9E,
+#   each use under its own authorization; the launcher builds a fresh
+#   PrivateNetwork=no unit whose argument is always provider:<mode> from its
+#   closed table. There is no provider unit file and no other provider path.)
 #     provider, provider-freshcache, neg-nokey, neg-nostore
 #                          execute the Proton CLI
+#     e4-decoy             E4/N4: the parent unit carries the launcher's fixed
+#                          decoys; proves they reached the wrapper (the flock
+#                          parent) but not this child, that both private marker
+#                          directories stay empty, and that the CLI still
+#                          answers `ok` (it executes the Proton CLI)
 #
 # Output: only lines matching ^E3J9 [a-z_]+=[a-z0-9_.:-]+$. The first line is
 # always `probe_mode=<mode>` and exactly one `probe_result=` line is printed
@@ -53,6 +60,14 @@ readonly CLI_PIN=cf61c2688c45e1055d8add6221d9471a5a5b64bf3bcdb86460f5cb18414596c
 readonly ENTRY=$STORE/ch.proton.drive/drive-sdk-cli/auth-session.gpg
 readonly LOG_DIR=$SVC_HOME/.local/state/proton-drive-cli
 readonly CANARY_ENTRY=e3j9-canary/probe
+readonly PROC_ROOT=/proc
+# E4/N4 (e4-decoy): the launcher's fixed decoy set. The two directories are
+# created by this probe inside the unit's private /tmp; the values must equal
+# the launcher's E4_* constants.
+readonly E4_PDCACHE=/tmp/e3j9-e4-pdcache
+readonly E4_XDGCACHE=/tmp/e3j9-e4-xdgcache
+readonly E4_BASE_URL=http://127.0.0.1:9
+readonly E4_NONCE_RE='^e3j9nonce[0-9a-f]{32}$'
 
 # Must equal ops/backup/credential/credential-child-env.manifest. Used only to
 # rebuild a validation-only secondary environment with exactly one directory
@@ -120,7 +135,7 @@ case "$scope:$mode" in
     emit probe_mode "$mode"
     exec "$LOCKHOLD" busy
     ;;
-  provider:provider | provider:provider-freshcache | provider:neg-nokey | provider:neg-nostore) ;;
+  provider:provider | provider:provider-freshcache | provider:neg-nokey | provider:neg-nostore | provider:e4-decoy) ;;
   *)
     emit mode_refused true
     exit 64
@@ -359,6 +374,59 @@ run_provider() { # run_provider <expected-label> [VAR DIR]
   expect provider_result "$expected" "$label"
 }
 
+# E4/N4: the fixed decoys reached the wrapper's environment. This probe's
+# parent is the wrapper-exec'd flock, which keeps the wrapper's environment
+# (the relationship env-inspect's boundary mode proved on the host). The read
+# is limited to /proc/<this probe's PPID>/environ; names and values are
+# compared in memory, the array is unset straight after the check, and only
+# booleans and a count leave this function (never a name, value or byte).
+check_decoy_parent() {
+  local comm='' readable=false count=0 exact=true entry name value n
+  local pd=0 xdg=0 url=0 nonce=0
+  local -a parent=()
+  IFS= read -r comm 2>/dev/null <"$PROC_ROOT/$PPID/comm"
+  expect decoy_parent_is_flock true "$(tf test "$comm" = flock)"
+  if mapfile -d '' -t parent 2>/dev/null <"$PROC_ROOT/$PPID/environ" && [ "${#parent[@]}" -gt 0 ]; then
+    readable=true
+  fi
+  for entry in "${parent[@]}"; do
+    name=${entry%%=*}
+    value=${entry#*=}
+    case "$name" in
+      PROTON_DRIVE_CACHE_DIR)
+        pd=$((pd + 1))
+        [ "$value" = "$E4_PDCACHE" ] || exact=false
+        ;;
+      XDG_CACHE_HOME)
+        xdg=$((xdg + 1))
+        [ "$value" = "$E4_XDGCACHE" ] || exact=false
+        ;;
+      PROTON_DRIVE_BASE_URL)
+        url=$((url + 1))
+        [ "$value" = "$E4_BASE_URL" ] || exact=false
+        ;;
+      E3J9_INJECTED)
+        nonce=$((nonce + 1))
+        [[ $value =~ $E4_NONCE_RE ]] || exact=false
+        ;;
+    esac
+  done
+  unset parent entry name value
+  expect decoy_parent_env_readable true "$readable"
+  for n in "$pd" "$xdg" "$url" "$nonce"; do
+    [ "$n" -eq 0 ] || count=$((count + 1))
+    [ "$n" -le 1 ] || exact=false
+  done
+  [ "$count" -eq 4 ] || exact=false
+  expect decoy_parent_decoy_count 4 "$count"
+  expect decoy_parent_values_exact true "$exact"
+}
+
+# E4/N4: both marker directories are new (no -p: a pre-existing path fails).
+make_e4_markers() {
+  /usr/bin/mkdir -m 0700 -- "$E4_PDCACHE" 2>/dev/null && /usr/bin/mkdir -m 0700 -- "$E4_XDGCACHE" 2>/dev/null
+}
+
 finish() {
   if [ "$NESTED" -eq 1 ]; then
     emit canary_failures "$FAILURES"
@@ -430,6 +498,18 @@ case "$mode" in
     check_environment exact
     /usr/bin/mkdir -m 0700 -- "$T/nostore"
     run_provider login_required PASSWORD_STORE_DIR "$T/nostore"
+    check_metadata
+    ;;
+  e4-decoy)
+    check_environment exact
+    check_identity
+    check_decoy_parent
+    # Emitted names carry no digit: the launcher's vocabulary is ^E3J9 [a-z_]+=…
+    expect decoy_marker_dirs_created true "$(tf make_e4_markers)"
+    check_metadata
+    run_provider ok
+    expect decoy_pdcache_entry_count 0 "$(count_find "$E4_PDCACHE" -mindepth 1)"
+    expect decoy_xdgcache_entry_count 0 "$(count_find "$E4_XDGCACHE" -mindepth 1)"
     check_metadata
     ;;
 esac

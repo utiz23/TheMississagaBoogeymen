@@ -11,8 +11,12 @@ the template security review. **2026-09-26 (§19):** M2–M9 were done on the ho
 executed — validation tools, key and store) after a launcher working-directory
 defect was corrected; M10 was rerun after a probe vocabulary defect was
 corrected and passed in full (A6 by operator observation). **E3J9C PASSED for
-its credential-foundation and local-proof scope only.** U1 and E3J9 remain
-open. E3 remains unactivated and nothing is monitored.
+its credential-foundation and local-proof scope only.** **2026-09-28 (§20):**
+D1 was accepted; E3J9D stopped before any host access because the reviewed
+provider reader did not exist; **E3J9D-R (§20, local only)** supplies the
+launcher-owned provider runner and the E4/N4 vehicle, pending independent review
+(nothing installed). U1 and E3J9 remain open. E3 remains unactivated and nothing
+is monitored.
 
 This memo durably records the approved option-A design for a service-usable Proton
 Drive CLI credential on Hotel-Echo, and the separately authorized sessions that
@@ -36,7 +40,7 @@ resolve inside this file.
   credential store, `eanhl-cloud` system account, CLI installation, lock, wrapper,
   service unit or curated `PATH` comes into existence because of it. Every
   mechanism below is a specification, not a fact about the host.
-- U1 and E3J9 remain open; **D1 and D7 are unresolved**; E3 is unactivated; no Gate
+- U1 and E3J9 remain open; **D1 was accepted on 2026-09-28 (§20); D7 is unresolved**; E3 is unactivated; no Gate
   checkbox changes.
 
 ## Context
@@ -204,7 +208,7 @@ E3J9B-doc, not a new milestone:
 | CLI executable                 | `/opt/eanhl-cloud/bin/proton-drive`                                                                  | root:root               | 0755          | 0755                                                               | SHA-512 pinned; always invoked by absolute path                                                                                                                       |
 | **Lock + environment wrapper** | `/usr/local/lib/eanhl-cloud/credential-exec`                                                         | root:root               | 0755          | 0755                                                               | The **single definition** of the credential command's initial environment at the `env -i` boundary (§7) and the only entry point for credential-bearing commands (§4) |
 | Launcher                       | `/usr/local/sbin/eanhl-cloud-credential`                                                             | root:root               | 0755          | 0750                                                               | Root-only fixed subcommands; builds every transient unit (§4, §6)                                                                                                     |
-| Validation tooling             | `/usr/local/lib/eanhl-cloud/validation/` (probe, env-inspect, lockhold, PTY-marker, owned-inventory) | root:root               | 0755          | 0755                                                               | Removed after E3J9E (D8); for rollback, owned-inventory runs from a root-only temporary path                                                                          |
+| Validation tooling             | `/usr/local/lib/eanhl-cloud/validation/` (probe, env-inspect, lockhold, PTY-marker, owned-inventory) | root:root               | 0755          | 0755                                                               | Also holds `unit-publish` (E3J9D-R, root:root 0755). Removed after E3J9E (D8); for rollback, owned-inventory runs from a root-only temporary path                     |
 
 - **Root never reads inside the `eanhl-cloud`-owned trees directly** (E3J9C-R):
   launcher and helper reads, stats, searches and lock acquisitions there run as
@@ -356,9 +360,12 @@ environment> <absolute command> [args…]`**.
 - **The operator never types a `systemd-run` line.** The root-only launcher
   `/usr/local/sbin/eanhl-cloud-credential` has fixed subcommands: `keygen`,
   `pass-init`, `probe`, `probe-stop`, `pty-marker`, `env-proof`, `auth-login`,
-  `auth-logout`, and the rollback/recovery-only `entry-remove`, `canary-remove` and
+  `auth-logout`, the validation-only
+  `provider-probe run|schedule|collect|discard <closed argument>` (E3J9D-R,
+  §20), and the rollback/recovery-only `entry-remove`, `canary-remove` and
   `key-delete` (E3J9C-R: fixed, precondition-checked, each separately authorized
-  at use). Each builds the §8 property set with the wrapper as its command.
+  at use). Every unit they build carries the §8 property set with the wrapper as
+  its command.
 - **Exit status is the result (E3J9C-R correction).** Every subcommand exits 0
   **only** when every required operation and every stated postcondition
   succeeded. A printed line never stands in for success, and an unknown state
@@ -376,7 +383,18 @@ environment> <absolute command> [args…]`**.
   - `pty-marker`: the unit succeeded and there are exactly 0 journal hits;
   - `env-proof`: three passing steps and exactly 0 nonce hits;
   - `probe`/`probe-stop`: the accepted outcome **and** a successful cleanup
-    (§11).
+    (§11);
+  - `provider-probe` (E3J9D-R): exactly the outcomes, identity and provenance
+    checks and postconditions of §11 (stages 1–11) and §20.2, not restated
+    here. `run` exits 0 only for its mode's accepted outcome (`n3-busy`:
+    `busy`; every other mode: `pass`) together with a successful cleanup and
+    true postconditions; `schedule` only once its own fresh pair is attested
+    before it can fire (for `boot`: canonical bytes, attested enablement and
+    synced directories), otherwise it rolls back only that pair; `collect` only
+    for a `pass` read from a proven, fired pair that is then removed with
+    provenance, with the boot-id rule and the postconditions true; `discard`
+    only once a proven object is removed. An object whose provenance is not
+    proven is never touched (`pp_provenance=<reason>`).
 
   Presence checks distinguish `present`, `absent` and `error`; `error` fails.
 
@@ -584,9 +602,12 @@ environment> <absolute command> [args…]`**.
 - **Expected state created:** `auth-session.gpg` (0600),
   `data/proton-drive-cli/*.json`, `cache/proton-drive-cli/*.sqlite`, the
   secret-class log. **Never** `auth-session.json`.
-- **Verification without exposing contents:** in-tree metadata from a fixed
+- **Verification without exposing contents:** before the ceremony, the sha256 of
+  the three files reinstalled for E3J9D (launcher, probe, `unit-publish`) equals
+  the reviewed `main` commit's (§20.4); after it, in-tree metadata from a fixed
   expected-path table, plus per-directory counts of other entries; the sanitized
-  owned-inventory; then exactly one `/my-files` metadata `info` read (P0).
+  owned-inventory; then exactly one `/my-files` metadata `info` read (P0), run as
+  `eanhl-cloud-credential provider-probe run provider` (E3J9D-R, §20).
 - **Stop rules:** `unsafe_file`, keychain or secret-service text,
   `Failed to save session in pass`, any prompt other than the URL or mailbox
   password, a fallback file, `command not found`, or lock busy → Ctrl-C, stop, no
@@ -777,9 +798,9 @@ activation.
     as the sole entry (§4). **No `EnvironmentFile=` and no `Environment=`**; the
     credential command's initial environment comes only from the wrapper's literals
     (§7). The one exception: the validation-only `--setenv` nonce and decoys of
-    `pty-marker` and `env-proof` become the transient unit's `Environment=`. They
-    stay in the wrapper's own environment, are not secret, and exist only to prove
-    the boundary
+    `pty-marker`, `env-proof` and the provider mode `e4-decoy` (E3J9D-R, §20)
+    become the transient unit's `Environment=`. They stay in the wrapper's own
+    environment, are not secret, and exist only to prove the boundary
   - `WorkingDirectory=/var/lib/eanhl-cloud`, so any derived `PWD` is deterministic
     (the launcher passes it as `-p WorkingDirectory=…` for transient units, the
     ceremony and logout included)
@@ -799,10 +820,16 @@ activation.
   - `Type=oneshot` with a `TimeoutStartSec=` bound (for the uploader, larger than
     its lock `--wait`)
 - **Ordering:** `After=`/`Wants=network-online.target` only for units that start
-  the Proton CLI: `auth-login`, `auth-logout` and the provider probe template
-  (`eanhl-cloud-credential-provider-probe@.service`, installed only in
-  E3J9D/E3J9E). Local probe modes have no unit file; they run only through the
-  launcher's `probe` operation (§11).
+  the Proton CLI: `auth-login`, `auth-logout` and the provider probe units the
+  launcher's `provider-probe` builds (E3J9D-R, §20: transient units for `run` and
+  the delayed slots, a fresh generated pair published by `unit-publish` for the
+  boot slot; the former provider template was never installed and is deleted).
+  Local probe modes have no unit file; they run only through the launcher's
+  `probe` operation (§11).
+- **Unit environment (E3J9D-R):** only `pty-marker`, `env-proof` and the single
+  validation-only `e4-decoy` provider mode add unit environment, each an exact
+  fixed set whose marker the launcher generates; no provider unit carries any
+  other `Environment=` (§20).
 - **Stop/restart:** the lock is released when the `flock` parent exits (§4). Cgroup
   cleanup separately ends stragglers (agent included, **[VALIDATE]**). The next
   start cold-starts.
@@ -838,7 +865,8 @@ public sharing, CLI or SDK documentation.)
 the **primary** account's complete CLI snapshot under option A, on the statement
 above; or (b) use a **dedicated Proton account with sufficient quota**, whose quota
 and cost remain unresolved by U5/U6 (a free or Mail Plus account is not assumed
-sufficient). **D1 gates E3J9D only.**
+sufficient). **D1 gates E3J9D only.** **D1 was accepted on 2026-09-28: option (a),
+the primary account's complete CLI snapshot under option A (§20).**
 
 ## 10. Mutation and authorization inventory
 
@@ -852,18 +880,18 @@ Every row below is **[AUTH]**: none is authorized by this memo.
 | M4  | Curated PATH: root-owned symlinks for exactly the §3 manifest (including `cat`; never the old conditional trio); manifest sha256 recorded                                                                                                                                                                                          | root                 | no                          | remove literal links, `rmdir`                             | E3J9C                                                                                      |
 | M5  | Wrapper `credential-exec` (lock + `env -i` environment) and launcher `eanhl-cloud-credential`; sha256 recorded                                                                                                                                                                                                                     | root                 | no                          | remove after sha256 match                                 | E3J9C                                                                                      |
 | M6  | CLI 0.8.0 `linux-x64`: acquire, verify SHA-512 against the recorded pin, install root:root 0755, deployment record. **Never executed.** Acquisition is either an unauthenticated fetch from Proton's public download host (named explicitly in the authorization) or a transfer of the byte-identical pinned file from the main PC | root                 | download host only, or none | remove literal file                                       | E3J9C                                                                                      |
-| M7  | Validation tooling (probe, env-inspect, lockhold, PTY-marker, owned-inventory). **No unit file** in E3J9C: local modes run through the launcher's `probe`; the provider template is installed only in E3J9D/E3J9E, never enabled                                                                                                   | root                 | no                          | removed in M18                                            | E3J9C                                                                                      |
+| M7  | Validation tooling (probe, env-inspect, lockhold, PTY-marker, owned-inventory). **No unit file** in E3J9C: local modes run through the launcher's `probe`; E3J9D-R deletes the never-installed provider template and adds `unit-publish` (§20)                                                                                     | root                 | no                          | removed in M18                                            | E3J9C                                                                                      |
 | M8  | GPG key via `keygen`, then gpg.conf                                                                                                                                                                                                                                                                                                | root→svc             | no                          | §12 step 8                                                | E3J9C                                                                                      |
 | M9  | `pass init <fpr>` via `pass-init` on a proven-empty store (§5)                                                                                                                                                                                                                                                                     | root→svc             | no                          | §12 step 7                                                | E3J9C                                                                                      |
 | M10 | Local proofs: A1–A10, E1–E3, L1, L2, K1–K6                                                                                                                                                                                                                                                                                         | svc units / launcher | no                          | canary removed in-run with `pass rm -f`; absence verified | E3J9C                                                                                      |
 | M11 | **Operator `auth-login` ceremony** (§6)                                                                                                                                                                                                                                                                                            | root→svc, PTY        | **yes, authenticates**      | M19                                                       | E3J9D (**D1**)                                                                             |
-| M12 | Provider read `filesystem info /my-files` (metadata only, stdout→`/dev/null`)                                                                                                                                                                                                                                                      | svc unit             | **yes, one per run**        | none (read)                                               | E3J9D (exactly one, P0); E3J9E                                                             |
-| M13 | `eanhl-cloud-credential-probe-boot.timer` (`OnBootSec=10min`, no recurrence), starting a provider-template instance                                                                                                                                                                                                                | root                 | via M12                     | removed in M18                                            | E3J9E                                                                                      |
-| M14 | Transient one-shot timers (`--on-active=20min` / `6h15min`)                                                                                                                                                                                                                                                                        | root                 | via M12                     | self-removing; verified                                   | E3J9E                                                                                      |
+| M12 | Provider read `filesystem info /my-files` (metadata only, stdout→`/dev/null`) via `provider-probe run` (§20)                                                                                                                                                                                                                       | svc unit             | **yes, one per run**        | none (read)                                               | E3J9D (exactly one, P0); E3J9E                                                             |
+| M13 | a fresh launcher-generated pair `eanhl-cloud-cred-pprobe-boot-provider-<32 hex>.{service,timer}` (`OnBootSec=10min`, no recurrence) via `provider-probe schedule boot`, published by `unit-publish` (§20)                                                                                                                          | root                 | via M12                     | removed in M18                                            | E3J9E                                                                                      |
+| M14 | Transient one-shot timers (`--on-active=20min` / `6h15min`) via `provider-probe schedule t20m\|t6h15m` (§20)                                                                                                                                                                                                                       | root                 | via M12                     | `collect` / `discard` (provenance-checked)                | E3J9E                                                                                      |
 | M15 | Logout of all human sessions                                                                                                                                                                                                                                                                                                       | operator             | no                          | n/a                                                       | E3J9E                                                                                      |
 | M16 | **Reboot** of Hotel-Echo (restarts its parallel web/worker/db deployment); read-only pre-check of restart policies and main-PC ingestion health first                                                                                                                                                                              | root                 | no                          | n/a                                                       | E3J9E (**D7**)                                                                             |
-| M17 | Negative tests N1–N4                                                                                                                                                                                                                                                                                                               | svc units            | N1, N2, N4 may              | in-run temp dirs                                          | E3J9E                                                                                      |
-| M18 | Remove boot timer and all validation tooling/units; `daemon-reload` (D8)                                                                                                                                                                                                                                                           | root                 | no                          | —                                                         | E3J9E end                                                                                  |
+| M17 | Negative tests N1–N4 (N3 `run n3-busy`; N4 = E4 `run e4-decoy`, §20)                                                                                                                                                                                                                                                               | svc units            | N1, N2, N4 may              | in-run temp dirs                                          | E3J9E                                                                                      |
+| M18 | Remove the boot pair (`collect`/`discard boot`) and all validation tooling incl. `unit-publish`; `daemon-reload` (D8)                                                                                                                                                                                                              | root                 | no                          | —                                                         | E3J9E end                                                                                  |
 | M19 | Local `auth-logout` (`pass rm -f` + clear caches [SRC]; **local only**)                                                                                                                                                                                                                                                            | root→svc             | possibly (CLI start)        | —                                                         | rollback / rotation / recovery                                                             |
 | M20 | Remote session revocation through a verified Proton account control                                                                                                                                                                                                                                                                | operator only        | yes                         | —                                                         | rollback / incident                                                                        |
 | M21 | Account password change                                                                                                                                                                                                                                                                                                            | operator only        | yes                         | —                                                         | incident only, separately justified                                                        |
@@ -882,8 +910,10 @@ set (E3J9C-R):
   That operation always passes `local:<mode>`, in a `PrivateNetwork=yes` transient
   unit with no network dependency, and has no provider mode in its allowlist.
 - **Provider modes** (`provider`, `provider-freshcache`, `neg-nokey`,
-  `neg-nostore`) run only through the provider template, which always passes
-  `provider:%i` and is installed only in E3J9D/E3J9E.
+  `neg-nostore`, and E3J9D-R's `e4-decoy`) run only through
+  `eanhl-cloud-credential provider-probe`, which builds a fresh unit whose
+  argument is always `provider:<mode>` from its closed table (§20). The former
+  provider template is deleted.
 - The internal `canary-nested` form (used by `lockhold`) is not launcher-startable.
 
 It prints **only** lines matching `^E3J9 [a-z_]+=[a-z0-9_.:-]+$`. A value outside
@@ -894,37 +924,57 @@ prints exactly one `probe_result=` line (`lockhold` prints it for the lockhold
 modes).
 
 **The `probe` operation** (launcher, E3J9C-R) makes every result bound to one
-invocation, so stale output cannot be accepted. Each stage fails closed:
+invocation, so stale output cannot be accepted. E3J9D-R (§20) runs the same
+bound runner for `provider-probe` too, and adds the stages marked (R) to local
+and provider runs alike. Each stage fails closed:
 
 1. exact allowlisted mode, else refused before any unit exists;
-2. a fresh unit name (`eanhl-cloud-cred-probe-<mode>-<16 hex>`), refused unless
-   systemd reports it `not-found`;
+2. a fresh unit name (`eanhl-cloud-cred-probe-<mode>-<16 hex>`; provider:
+   `eanhl-cloud-cred-pprobe-<slot>-<mode>-<32 hex>`), refused unless systemd
+   reports it `not-found` and (R) the journal holds no record ever logged under
+   it (the never-reused proof);
 3. exactly one start (`systemd-run --no-block`, no `--collect`,
-   `RemainAfterExit=yes`); a failed start stops the unit and fails;
-4. its `InvocationID` bound within 10 s, else the unit is stopped and the run
-   fails;
+   `RemainAfterExit=yes`); a failed start fails, and (R) the unit is stopped only
+   if it attests as this launcher's (a racing foreign unit is never touched);
+4. its `InvocationID` bound within 10 s (`provider-probe run`: 30 s), else the
+   unit is stopped and the run fails;
 5. a bounded wait for `active/exited`, `failed` or `inactive` (expiry stops the
    unit and fails), then the `InvocationID` is re-read and a change fails;
-6. only records matching both `_SYSTEMD_UNIT=<unit>` and
+6. (R) attestation: the unit's fixed properties (identity, hardening,
+   `PrivateNetwork`, the single `ExecStart=` argv, `Environment`, description,
+   fragment path) must be the ones the launcher builds;
+7. (R) the single-invocation proof: a json view of every record ever logged
+   under the name, requesting only `_SYSTEMD_INVOCATION_ID` (never `MESSAGE`),
+   must show the bound id and the current `_BOOT_ID` on every record;
+8. only records matching both `_SYSTEMD_UNIT=<unit>` and
    `_SYSTEMD_INVOCATION_ID=<id>` are read; a `journalctl` failure fails;
-7. vocabulary lines are printed and every other record is only counted.
-   `pass` requires zero other records, the first record `probe_mode=<mode>`,
-   exactly one `probe_mode`, exactly one `probe_result=pass` and exit 0. `busy`
-   requires exit 75 and zero records. Everything else is `fail`. Each mode has
-   fixed accepted outcomes (`busy-*`: busy; `canary-a`/`-b`: pass or busy; the
-   rest: pass);
-8. **cleanup is part of the result** (E3J9C-R correction):
-   - A keep mode (`canary`, `lockhold-detach`, `lockhold-long`, for K2/K3/K5)
-     stays active only after it reached `pass`.
-   - Every other run, including a failed or indeterminate keep-mode run, is
-     stopped and reset. Cleanup succeeds only if the unit ends inactive or no
-     longer loaded; a show, stop or reset failure is a cleanup failure.
-   - `bound_cleanup_ok=true|false` is printed on every cleanup path (start
-     failure, unbound invocation, timeout, changed invocation, journal failure,
-     normal end). A failed cleanup turns any outcome into `fail`.
-   - A unit name that already existed is never stopped: it is not this run's.
-   - `probe-stop` requires the unit to be loaded (a typo never succeeds) and exits
-     0 only if the stop and the reset/cleanup succeed.
+9. vocabulary lines are printed and every other record is only counted.
+   (R) A provider run prints a vocabulary record only if its name is one the
+   mode's probe arm emits and its value is of that name's class
+   (`bound_disallowed_lines` counts the rest), and an independent classifier
+   decides (§20.2). `pass` requires zero other records, the first record
+   `probe_mode=<mode>`, exactly one `probe_mode`, exactly one
+   `probe_result=pass` and exit 0. `busy` requires exit 75 and zero records.
+   Everything else is `fail`. Each mode has fixed accepted outcomes (`busy-*`:
+   busy; `canary-a`/`-b`: pass or busy; `n3-busy`: busy; the rest: pass);
+10. **cleanup is part of the result** (E3J9C-R correction):
+    - A keep mode (`canary`, `lockhold-detach`, `lockhold-long`, for K2/K3/K5)
+      stays active only after it reached `pass`.
+    - Every other run, including a failed or indeterminate keep-mode run, is
+      stopped and reset. Cleanup succeeds only if the unit ends inactive or no
+      longer loaded; a show, stop or reset failure is a cleanup failure.
+    - `bound_cleanup_ok=true|false` is printed on every cleanup path (start
+      failure, unbound invocation, timeout, changed invocation, journal failure,
+      normal end). A failed cleanup turns any outcome into `fail`.
+    - A unit name that already existed is never stopped: it is not this run's.
+    - `probe-stop` requires the unit to be loaded (a typo never succeeds) and (R)
+      to attest as a kept local probe unit this launcher built, and exits 0 only
+      if the stop and the reset/cleanup succeed;
+
+11. (R) provider runs then check their postconditions: the entry still a 0600
+    regular file, no fallback file or extra store entry, no other active
+    credential unit or service process, and, for `e4-decoy`, zero journal hits
+    for its marker.
 
 `env-proof` uses the same mechanics for its three steps.
 
@@ -998,7 +1048,7 @@ operator inspects, and names never go to an agent.
 | E1 construction + initial exec environment              | E3J9C, pre-ceremony                   | (a) **Construction:** the installed wrapper's sha256 equals the repo template, and the repo test proves the template execs `/usr/bin/env -i` followed by exactly the twelve manifest literals, with no parent-value expansion. (b) **Exec boundary:** `env-inspect`, exec'd directly as the credential command, reads its exec-time environment from `/proc/self/environ` before doing anything else. The name set equals the twelve exactly, each value equals its literal (`env_initial_exact=true`), and every forbidden name is absent, systemd-added ones included                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | E2 wrapper side vs. downstream                          | E3J9C                                 | `env-proof` records, for the **wrapper's** own environment, the booleans `wrapper_has_invocation_id=true` and `wrapper_has_journal_stream=true`. Then, in the probe (a bash descendant) and in helper children that read their own `/proc/self/environ` (deterministic): `env_descendant_within_permitted=true` against the §7 union and its expected values, `env_pwd_is_workdir=true`, and none of `INVOCATION_ID`, `SYSTEMD_EXEC_PID`, `JOURNAL_STREAM` is present. pass's contribution is fixed statically: `pass_script_hash_match=true` (§3), A3 and E1(b) determine `GPG_TTY` = empty and `GIT_CEILING_DIRECTORIES` = `/var/lib/eanhl-cloud/password-store/..`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | E3 injected parent values have no effect on pass or GPG | E3J9C                                 | `env-proof` sets decoys on the unit via `--setenv`: `E3J9_INJECTED=<nonce>`, `GNUPGHOME=/nonexistent-e3j9`, `PASSWORD_STORE_DIR=/nonexistent-e3j9`, `PASSWORD_STORE_GPG_OPTS=--e3j9-invalid`, `PATH=/nonexistent-e3j9`, `GPG_TTY=/dev/e3j9-decoy`, `PROTON_DRIVE_BASE_URL=http://127.0.0.1:9`. **Required (all deterministic):** (a) E1(b) passes under the decoys, so the nonce and every decoy name are absent from the credential command's exec-time environment; (b) the L1 canary succeeds. Had the `GNUPGHOME` or `PASSWORD_STORE_DIR` decoy reached pass or gpg, the key or store would not be found; had `PASSWORD_STORE_GPG_OPTS` reached pass, gpg would reject the invalid option; had the `PATH` decoy reached the command, `/usr/bin/env bash` could not start pass; (c) the probe and its self-reporting helper children report `env_nonce_absent=true`. The base-URL decoy's effect is tested in E4, where the CLI runs; `GPG_TTY`'s is covered by (a) and the §7 static validation. **Supplementary only:** root may read `/proc/<pid>/environ` of a live `pass` or `gpg` during a `lockhold` canary. `proc_obs=not_observed` (the short-lived process was not caught) is recorded and is neither a pass nor proof. When observed, any nonce hit, forbidden name, non-empty `GPG_TTY` or unexpected `GIT_CEILING_DIRECTORIES` is a STOP |
-| E4 injected decoys have no effect on the Proton CLI     | E3J9E                                 | provider probe with parent decoys `PROTON_DRIVE_CACHE_DIR=<private-tmp marker dir>`, `XDG_CACHE_HOME=<another marker dir>`, `PROTON_DRIVE_BASE_URL=http://127.0.0.1:9` and `E3J9_INJECTED=<nonce>`: `env_initial_exact=true` and `env_nonce_absent=true`; result `ok` (a CLI using the loopback discard-port base URL could not reach the provider); both marker dirs stay empty                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| E4 injected decoys have no effect on the Proton CLI     | E3J9E                                 | provider probe with parent decoys `PROTON_DRIVE_CACHE_DIR=<private-tmp marker dir>`, `XDG_CACHE_HOME=<another marker dir>`, `PROTON_DRIVE_BASE_URL=http://127.0.0.1:9` and `E3J9_INJECTED=<nonce>`: `env_initial_exact=true` and `env_nonce_absent=true`; result `ok` (a CLI using the loopback discard-port base URL could not reach the provider); both marker dirs stay empty (vehicle: `provider-probe run e4-decoy`, E3J9D-R §20)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | L1 local key/store                                      | E3J9C                                 | canary match=true; then `pass rm -f`; absence verified; no pinentry process                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | L2 cold start                                           | E3J9C                                 | after stop/start: agent count 0 at start; L1 passes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | K1 contention across the whole foreground command       | E3J9C                                 | `lockhold` runs a foreground canary plus a fixed hold; second instances started at the beginning, middle and end all exit 75 / `credential_lock_busy` without starting pass or GPG (`probe_run_result=busy`: exit 75 and zero records)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -1008,7 +1058,7 @@ operator inspects, and names never go to an agent.
 | K5 stop releases                                        | E3J9C                                 | `systemctl stop` of a holding `lockhold` → after the stop completes, a nonblocking acquire succeeds; no process of that unit remains; the canary entry is intact or absent (the next `probe local` starts with `store_other_entry_count=0`). The stopped holder's own result is `fail` by design                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | K6 no simultaneous rewrite                              | E3J9C                                 | two concurrent canaries: exactly one runs, the other is busy; the entry is intact                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | K7 reboot + lock order                                  | E3J9E (reboot); E3J10 (static order)  | the first boot probe acquires nonblocking; E3J10 statically verifies the wrapper is first in `ExecStart=`, no `flock` exists in `ops/backup/lib`, and the run-lock acquisition is unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| P0 first provider read                                  | E3J9D, straight after the ceremony    | `ok`; entry 0600; no `auth-session.json`; owned-inventory match=true                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| P0 first provider read                                  | E3J9D, straight after the ceremony    | `ok` via `provider-probe run provider` (§20); entry 0600; no `auth-session.json`; owned-inventory match=true                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | P1 stop/start pair                                      | E3J9E                                 | both `ok`; agent count 0 at each start                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | P2 fresh empty cache                                    | E3J9E                                 | `ok`; new cache under the private `/tmp` only                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | P3 human sessions = 0                                   | E3J9E T0+20 min                       | `ok`, sessions=0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -1016,9 +1066,9 @@ operator inspects, and names never go to an agent.
 | P5 reboot                                               | E3J9E boot timer, no login since boot | `ok`, sessions=0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | N1 key unavailable                                      | E3J9E                                 | exit ≠ 0, `pass_load_failed`, no hang, no pinentry, no fallback file                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | N2 store unavailable                                    | E3J9E                                 | `login_required`; no URL-like output in the unit's journal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| N3 lock held                                            | E3J9E                                 | `credential_lock_busy`; pass and the CLI are never started                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| N3 lock held                                            | E3J9E                                 | `provider-probe run n3-busy` during a `lockhold-long` hold → `busy` (exit 75, zero records); pass and the CLI are never started (§20)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | N4                                                      | E3J9E                                 | = E4                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| J journal hygiene                                       | E3J9E end                             | every probe journal line is a systemd lifecycle line or matches the vocabulary regex                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| J journal hygiene                                       | E3J9E end                             | every provider run reports `bound_nonvocab_lines=0` and `bound_disallowed_lines=0` for its own invocation (no raw journal read, §20); local probes as before                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 - **Test isolation:** `neg-*` and `provider-freshcache` **cannot** use parent
   environment overrides; `env -i` discards them (E1 under the E3/E4 decoys proves
@@ -1039,9 +1089,9 @@ operator inspects, and names never go to an agent.
   from source. The generic `Failed to load` anchor was removed because it could
   mislabel an unrelated error as `pass_load_failed`. Unmatched text is `other`,
   which fails the expectation. The anchors are to be replaced from E3J9E evidence.
-- **Known template gap:** `env-proof` covers E1–E3 only. The E4/N4 decoy vehicle
-  would execute the CLI, so it is not built in E3J9C-R; it is prepared for E3J9E
-  under that session's authorization.
+- **Known template gap (closed by E3J9D-R, §20):** `env-proof` covers E1–E3; the
+  E4/N4 vehicle is the validation-only `e4-decoy` provider mode, run through
+  `provider-probe run e4-decoy` under E3J9E's authorization.
 - **What E3/E4 prove, and what they do not:** the listed effect-bearing decoys had
   no effect, and the boundary admitted none of them. A canary does **not** by
   itself prove the absence of every arbitrary variable; that rests on the `env -i`
@@ -1065,23 +1115,36 @@ operator inspects, and names never go to an agent.
   booleans and counts; owned-inventory and journal scans print booleans and counts,
   never paths or names; the sign-in URL is never handled by an agent; every recorded
   key fact is public metadata.
-- **Cleanup (end of E3J9E, D8):** remove the boot timer and all validation tooling
+- **Cleanup (end of E3J9E, D8):** remove the boot pair through
+  `provider-probe collect`/`discard boot` (§20), then all validation tooling
   and units from the host; verify transient timers are gone; `daemon-reload`. Repo
   copies remain under `validation/`, not installed.
 
 ## 12. Rollback (ordered; each step separately authorized)
 
-**From the current E3J9C-stopped state** (only M1 happened), only step 12 applies:
-review `apt-get -s remove pass tree`, confirm with `apt-cache rdepends --installed
-tree` that nothing else needs `tree`, read the M1 transaction in
-`/var/log/apt/history.log`, then remove **both** packages. Never run
-`autoremove`. Removing `pass` also removes its empty extensions directory. This
-rollback is **not** authorized by E3J9C-R.
+**Current state (E3J9C passed, §19.9):** M1–M10 were completed for the
+credential-foundation and local-proof scope only. No authentication (E3J9D),
+provider contact, persistence or reboot validation (E3J9E) or activation has
+happened, so no Proton entry exists: a rollback from this state follows the order
+below without steps 2–6, and step 1 applies only to objects a later session
+created. (While M1 was the only host change, §17, step 12 alone applied.)
 
-**From a fuller state**, in order:
+**Package removal (step 12):** review `apt-get -s remove pass tree`, confirm with
+`apt-cache rdepends --installed tree` that nothing else needs `tree`, read the M1
+transaction in `/var/log/apt/history.log`, then remove **both** packages. Never
+run `autoremove`. Removing `pass` also removes its empty extensions directory.
 
-1. Stop and disable only E3J9 units and timers (`probe-stop` for kept probe
-   units). Remove unit files by literal path after a sha256 match. `daemon-reload`.
+**Order**, each step separately authorized:
+
+1. Stop only E3J9 units: `probe-stop` for kept local probe units. **Every pprobe
+   object** (the `run`, `t20m` and `t6h15m` transient units and timers, and the
+   `boot` pair's unit files and wants link) is removed **only** through
+   `provider-probe discard <slot>`, which proves its provenance before touching
+   anything (§20); a refusal is a STOP for operator-only review, never a
+   literal-path, manual or old-launcher removal. No other E3J9 unit file is
+   installed (§10 M7); any other installed E3J9 file (the validation tooling at
+   M18, the step 10 files) is removed by literal path only after a sha256 match
+   with the repository.
 2. **Local logout:** `sudo /usr/local/sbin/eanhl-cloud-credential auth-logout`,
    under the lock with the §7 environment. Proven effect [SRC]: the local pass
    entry is removed (`pass rm -f`) and caches are cleared. **This is not remote
@@ -1126,16 +1189,17 @@ rollback is **not** authorized by E3J9C-R.
 **Sequence: E3J9B-doc → E3J9C → E3J9D → E3J9E.** D1 gates **only** E3J9D; D7 gates
 **only** E3J9E.
 
-| Session                                   | Authorized mutations                                                                                                                                                                                        | Prohibited                                                                                                                                                                                                                | Operator                                                            | Verification                                                                                                                                                     | Checkpoint                                                                                  |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **E3J9B-doc** (local)                     | Design doc + pointer edits                                                                                                                                                                                  | Any host/provider action; code                                                                                                                                                                                            | —                                                                   | `git diff --check`, sensitive-value and stale-claim scans                                                                                                        | docs commit (only if separately authorized). **Complete locally** once written and verified |
-| **E3J9C** host foundation + local proof   | M1–M10                                                                                                                                                                                                      | Proton CLI execution, authentication, provider contact (except an explicitly named M6 download), reboot                                                                                                                   | sudo                                                                | getent/`passwd -S` locked, no linger, `id -G`, directory table, the §3 pass acceptance rule, CLI sha512 = pin, A1–A10, E1–E3, L1, L2, K1–K6, public key metadata | docs + templates. **PASSED (credential foundation + local proof; §19.9)**                   |
-| **E3J9C-R** correction (local)            | Design memo, templates, local test harness, both external plan copies                                                                                                                                       | Any host, provider, credential, key, package or unit action; C1 or other E3J10 work; staging, commit, push                                                                                                                | —                                                                   | full-mode template test with mutation checks, `bash -n`, `systemd-analyze verify`, targeted Prettier, `git diff --check`                                         | docs + templates (§18). **Complete locally**; commit only if authorized                     |
-| **E3J9D** ceremony                        | M11, exactly one M12 (P0)                                                                                                                                                                                   | Upload/list/create/trash; a second login; the agent seeing ceremony output                                                                                                                                                | **ceremony; D1 accepted**; the A-series and E1 re-passed in-session | §6 pre-checks, metadata table, owned-inventory, P0                                                                                                               | docs                                                                                        |
-| **E3J9E** lifecycle validation            | M12–M18                                                                                                                                                                                                     | Upload or other provider mutation; production unit; schedules beyond M13/M14                                                                                                                                              | logout; **reboot (D7)**                                             | P1–P5, K7 (reboot), E4, N1–N4, J, then M18 cleanup verified                                                                                                      | docs; U1 disposition                                                                        |
-| Conditional local correction              | Observed credential-failure anchors (§0.8), only if E3J9E evidence warrants it                                                                                                                              | Host/provider                                                                                                                                                                                                             | —                                                                   | full `pnpm test:backup-producer` suite, mutation checks                                                                                                          | code commit                                                                                 |
-| **C1 mandatory Node-boundary correction** | Literal `ERROR` in `buildChildEnv()` + §7 tests                                                                                                                                                             | Host/provider                                                                                                                                                                                                             | —                                                                   | full backup test suite; the three §7 test groups                                                                                                                 | code commit. **Prerequisite of every CLI-executing or provider-contacting E3J10 step**      |
-| **E3J10**                                 | Containment, artifact permissions, production config/unit integration (wrapper as `ExecStart=`, uploader command id added by design revision, bounded `--wait`, K7 static order check), pin re-verification | **Before C1 is merged:** any step that executes the Proton CLI or can contact the provider, including integration and proving runs. **At any time without separate authorization:** production schedule, E3J8B activation | —                                                                   | containment proof etc.                                                                                                                                           | —                                                                                           |
+| Session                                   | Authorized mutations                                                                                                                                                                                        | Prohibited                                                                                                                                                                                                                | Operator                                                            | Verification                                                                                                                                                                                  | Checkpoint                                                                                  |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **E3J9B-doc** (local)                     | Design doc + pointer edits                                                                                                                                                                                  | Any host/provider action; code                                                                                                                                                                                            | —                                                                   | `git diff --check`, sensitive-value and stale-claim scans                                                                                                                                     | docs commit (only if separately authorized). **Complete locally** once written and verified |
+| **E3J9C** host foundation + local proof   | M1–M10                                                                                                                                                                                                      | Proton CLI execution, authentication, provider contact (except an explicitly named M6 download), reboot                                                                                                                   | sudo                                                                | getent/`passwd -S` locked, no linger, `id -G`, directory table, the §3 pass acceptance rule, CLI sha512 = pin, A1–A10, E1–E3, L1, L2, K1–K6, public key metadata                              | docs + templates. **PASSED (credential foundation + local proof; §19.9)**                   |
+| **E3J9C-R** correction (local)            | Design memo, templates, local test harness, both external plan copies                                                                                                                                       | Any host, provider, credential, key, package or unit action; C1 or other E3J10 work; staging, commit, push                                                                                                                | —                                                                   | full-mode template test with mutation checks, `bash -n`, `systemd-analyze verify`, targeted Prettier, `git diff --check`                                                                      | docs + templates (§18). **Complete locally**; commit only if authorized                     |
+| **E3J9D** ceremony                        | M11, exactly one M12 (P0)                                                                                                                                                                                   | Upload/list/create/trash; a second login; the agent seeing ceremony output                                                                                                                                                | **ceremony; D1 accepted**; the A-series and E1 re-passed in-session | §6 pre-checks with the E3J9D-R launcher, probe and `unit-publish` installed from a `main` commit after reauthorization; metadata table, owned-inventory, P0 via `provider-probe run provider` | docs                                                                                        |
+| **E3J9E** lifecycle validation            | M12–M18                                                                                                                                                                                                     | Upload or other provider mutation; production unit; schedules beyond M13/M14                                                                                                                                              | logout; **reboot (D7)**                                             | P1–P5, K7 (reboot), E4, N1–N4, J, then M18 cleanup verified                                                                                                                                   | docs; U1 disposition                                                                        |
+| **E3J9D-R** runner correction (local)     | Launcher `provider-probe`; probe `e4-decoy` and header; new `unit-publish`; provider template deleted; harness; docs                                                                                        | Any host, provider, credential, unit or install action; staging, commit, push                                                                                                                                             | —                                                                   | full harness ×3 with mutation checks, `--static-only`, `bash -n`, `perl -T -c`, `systemd-analyze verify`, targeted Prettier, `git diff --check`                                               | docs + templates (§20); review → checkpoint → merge to `main` → E3J9D reauthorization       |
+| Conditional local correction              | Observed credential-failure anchors (§0.8), only if E3J9E evidence warrants it                                                                                                                              | Host/provider                                                                                                                                                                                                             | —                                                                   | full `pnpm test:backup-producer` suite, mutation checks                                                                                                                                       | code commit                                                                                 |
+| **C1 mandatory Node-boundary correction** | Literal `ERROR` in `buildChildEnv()` + §7 tests                                                                                                                                                             | Host/provider                                                                                                                                                                                                             | —                                                                   | full backup test suite; the three §7 test groups                                                                                                                                              | code commit. **Prerequisite of every CLI-executing or provider-contacting E3J10 step**      |
+| **E3J10**                                 | Containment, artifact permissions, production config/unit integration (wrapper as `ExecStart=`, uploader command id added by design revision, bounded `--wait`, K7 static order check), pin re-verification | **Before C1 is merged:** any step that executes the Proton CLI or can contact the provider, including integration and proving runs. **At any time without separate authorization:** production schedule, E3J8B activation | —                                                                   | containment proof etc.                                                                                                                                                                        | —                                                                                           |
 
 **Dependency ordering:**
 
@@ -1171,10 +1235,13 @@ rollback is **not** authorized by E3J9C-R.
   `ops/backup/credential/pass-1.7.4-8.accepted-delta.escaped` and
   `ops/backup/credential/test/credential-templates.test.sh`; this memo; HANDOFF;
   journal; `ops/README.md`; both external plan copies (Revision 4).
-- **E3J9D:** this memo, HANDOFF, journal; the provider template is installed from the
-  repository (no repository change).
-- **E3J9E:** new `ops/backup/credential/validation/eanhl-cloud-credential-probe-boot.timer`;
-  results in this memo; U1 updates in the three planning memos; HANDOFF; journal.
+- **E3J9D-R (done locally, §20):** `eanhl-cloud-credential`, the probe, the new
+  `validation/unit-publish`, the deleted `validation/eanhl-cloud-credential-provider-probe@.service`,
+  the harness; this memo; README; `ops/README.md`; HANDOFF; journal.
+- **E3J9D:** this memo, HANDOFF, journal; the E3J9D-R launcher, probe and
+  `unit-publish` are installed from a `main` commit (no further repository change).
+- **E3J9E:** no committed boot-timer file (the launcher generates the boot pair,
+  §20); results in this memo; U1 updates in the three planning memos; HANDOFF; journal.
 - **Conditional correction:** `ops/backup/lib/internal/backup-cloud-cli-core.mjs`,
   `ops/backup/lib/backup-cloud-cli.test.mjs`,
   `ops/backup/lib/testdoubles/fake-proton-drive.mjs`, and an architecture-memo entry.
@@ -1197,7 +1264,7 @@ rollback is **not** authorized by E3J9C-R.
 | E3J9/E3J10 ownership irreconcilable                                                                                                                                                                                                                                                                                                                                                                                                                                | **Resolved** (D2)                                                                                                                                                                                                                                      |
 | A secret or the URL must enter the repo, command line, transcript, journal, logs or agent output                                                                                                                                                                                                                                                                                                                                                                   | **No, by design**, conditional on the A- and E-series passing. Residual: operator scrollback                                                                                                                                                           |
 | Unexpected `eanhl-cloud`-owned paths                                                                                                                                                                                                                                                                                                                                                                                                                               | **Stop**; operator-only inspection                                                                                                                                                                                                                     |
-| Risk acceptance broader than authorized                                                                                                                                                                                                                                                                                                                                                                                                                            | **OPEN, gating E3J9D only (D1)**                                                                                                                                                                                                                       |
+| Risk acceptance broader than authorized                                                                                                                                                                                                                                                                                                                                                                                                                            | **Resolved: D1 accepted on 2026-09-28 (§20)**                                                                                                                                                                                                          |
 
 ## 15. Operator decisions
 
@@ -1215,12 +1282,11 @@ rollback is **not** authorized by E3J9C-R.
 - D8: validation tooling, units and timers are removed from the host after E3J9E
   unless separately adopted.
 - D9: withdrawn; replaced by the curated-PATH design (§3).
+- D1: accepted on 2026-09-28 — option (a): store the primary account's complete
+  CLI snapshot under option A, on the §9 statement (§20).
 
 **Still open (no others):**
 
-- **D1 (gates E3J9D only):** accept storing the primary account's complete CLI
-  snapshot under option A (§9), **or** use a dedicated Proton account with
-  sufficient quota (quota and cost unresolved by U5/U6).
 - **D7 (gates E3J9E only):** reboot window on Hotel-Echo and acceptance of the
   impact on its parallel deployment.
 
@@ -1977,3 +2043,151 @@ sequence: E3J9D (the operator ceremony) is gated by D1; E3J9E (lifecycle and
 reboot) by D7; C1 must merge before any E3J10 step that executes the CLI or can
 contact Proton. U1/E3J9 stay open; E3 stays unactivated and nothing is
 monitored; no Gate checkbox changed.
+
+## 20. E3J9D stop and E3J9D-R provider-runner correction (2026-09-28) — local only
+
+**Outcome: E3J9D stopped before any host access; E3J9D-R is implemented locally
+and awaits independent review. Nothing was installed.** D1 was accepted by the
+operator on 2026-09-28: option (a), the primary account's complete CLI snapshot
+under option A (§9). U1 and E3J9 remain open, D7 still gates E3J9E, C1 still
+gates every E3J10 step that executes the CLI or can contact Proton, and E3
+remains unactivated and unmonitored. No Gate checkbox changed.
+
+### 20.1 E3J9D (stopped before host access)
+
+E3J9D was authorized for the operator ceremony and exactly one P0 read, from a
+fresh worktree at `671efb9` (then the `main` tip). Reading the committed templates
+showed that P0 had no approved path: the provider template (never installed)
+required, before its installation or start, a separately reviewed
+invocation-bound, vocabulary-filtered reader (§18 correction 6), and the
+launcher's `probe` operation accepts local modes only. Running P0 would have
+meant a raw `systemctl start` plus a journal read, or an unreviewed reader. The
+session stopped: no Hotel-Echo access, no ceremony, no provider contact.
+
+### 20.2 Design (the reviewed plan, option 1)
+
+- **One launcher-owned path.** `eanhl-cloud-credential provider-probe run <mode>`
+  (`provider`, `provider-freshcache`, `neg-nokey`, `neg-nostore`, `n3-busy`,
+  `e4-decoy`), `schedule <slot>` and `collect <slot>` (`t20m`, `t6h15m`, `boot`,
+  mode always `provider`), `discard <slot>` (also `now`). Exact whole-argument
+  matches against closed tables; anything else is refused before any system call.
+  The provider template is deleted; the local `probe` operation still has no
+  provider mode.
+- **Fresh identity.** `eanhl-cloud-cred-pprobe-<slot>-<mode>-<32 hex>` (16
+  `/dev/urandom` bytes, validated). Before any start: `LoadState` must be
+  `not-found` and the journal must hold no record for the name; no retry.
+- **The shared bound runner, now for local and provider units** (so the host
+  exercises every new format before any provider contact): exactly one start,
+  bound and rechecked `InvocationID`, bounded waits, a fixed property
+  attestation, and a single-invocation proof (a json view requesting only
+  `_SYSTEMD_INVOCATION_ID`; every record must carry the bound id and the expected
+  `_BOOT_ID`) before the unit-and-invocation `-o cat` read.
+- **Projection and classification.** A provider record is printed only if its
+  name is one the running mode's probe arm emits (`PROVIDER_MODE_NAMES`, tied to
+  the probe by a static test) and its value is of that name's class
+  (`PROVIDER_RECORD_NAMES`); everything else is counted, never printed. An
+  independent classifier requires the first record, exactly-once records, the
+  mode's `provider_result` label, `provider_rc` consistency, every required value,
+  unit state and, for scheduled slots, `human_sessions=0`. Cleanup is part of the
+  result; postconditions follow it.
+- **Provenance before every mutation.** Objects created by the invocation (after
+  the never-reused proof and one successful start or publication) may be cleaned
+  by it; any other object is stopped, reset, disabled or removed only after the
+  fixed property attestation (and, for the boot pair, byte equality with the
+  canonical renderer). Unproven objects are never touched
+  (`pp_provenance=ambiguous|missing|foreign|mismatch|unproven`). `probe-stop` now
+  attests its kept unit the same way.
+- **E4/N4 (`e4-decoy`).** The launcher gives the parent unit exactly four fixed
+  decoys (`PROTON_DRIVE_CACHE_DIR=/tmp/e3j9-e4-pdcache`,
+  `XDG_CACHE_HOME=/tmp/e3j9-e4-xdgcache`, `PROTON_DRIVE_BASE_URL=http://127.0.0.1:9`,
+  `E3J9_INJECTED=e3j9nonce<32 hex>` it generates); it attests the unit's
+  `Environment` and scans the journal for the marker. The probe reads only
+  `/proc/<its PPID>/environ` (the wrapper-exec'd `flock`) in memory, prints
+  booleans and a count, requires its own exact twelve literals, creates both
+  marker directories in its private `/tmp` and requires them empty after an `ok`
+  CLI run. This is the only provider-mode unit environment; production and the
+  other provider modes carry none.
+- **Boot id.** `/proc/sys/kernel/random/boot_id` must be exactly one canonical
+  lowercase UUID plus one LF (`read -d ''` must end at EOF); it is normalised to
+  32 lowercase hex (journald's `_BOOT_ID` form) and used only in that form in
+  unit descriptions, file pairs and journal checks.
+- **Boot pair publication.** A new validation-only helper,
+  `validation/unit-publish` (Perl, `-T`, core `Fcntl`/`POSIX`/`IO::Handle` only,
+  invoked under `env -i`), checks the `/etc/systemd/system` chain (real
+  directories, `root:root`, no group/other write), creates each file with
+  `O_EXCL|O_NOFOLLOW`, rechecks its identity, publishes it with `link(2)` (never
+  replacing a name), fsyncs files and the directory, rolls back only
+  identity-and-byte-proven own objects, and unpublishes only after proving both
+  files. The launcher enables the timer only after publication and attests the
+  enablement.
+- **Rejected:** a nonce-bearing template instance (the nonce would enter the
+  credential command's argv, and a persistent template is a second provider path)
+  and a fixed instance relying on `InvocationID` (it violates the fresh-name rule
+  and can accept a previous invocation's output).
+
+### 20.3 Corrections found while implementing the plan
+
+- The plan's three E4 record names contained a digit (`e4_marker_dirs_created`,
+  `e4_pdcache_entry_count`, `e4_xdgcache_entry_count`); the launcher's vocabulary
+  is `^E3J9 [a-z_]+=…`, so they would have been counted as non-vocabulary on the
+  host (the §19.6 defect class; the existing emitted-name check caught it). They
+  are `decoy_marker_dirs_created`, `decoy_pdcache_entry_count` and
+  `decoy_xdgcache_entry_count`.
+- A `busy` run has zero records, so the single-invocation proof requires "no
+  foreign record"; at least one record is required for `pass`, and exactly zero
+  for `busy`.
+- `O_CLOEXEC` is not exported by Perl's `Fcntl`; Perl marks every descriptor
+  above `$^F` close-on-exec itself and the helper executes nothing.
+- A delayed `schedule` or `collect` permits the other delayed slot's loaded
+  (active) timer in its active-unit checks, not only in the pprobe object check.
+- `n3-busy` runs during a `lockhold-long` hold, whose unit is `activating`; the
+  precondition accepts `activating|active`, attests the unit and requires the
+  lock to be held.
+
+### 20.4 Files and installed-file accounting
+
+| Repository file                                                                                                     | Change                                                                                                          | Host reinstall (after review, merge and reauthorization) |
+| ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `ops/backup/credential/eanhl-cloud-credential`                                                                      | modified; sha256 `0244f8eeb537f29130e71c129c3591aa0bf866e47e7e06ebc3d046b040f55de9` (was `dff64fa1…`)           | yes                                                      |
+| `ops/backup/credential/validation/eanhl-cloud-credential-probe.sh`                                                  | `e4-decoy`, header; sha256 `46b112c2334fc5d05395d3172d47addb5e80c92f75a7ef779e674e87694e11ed` (was `7a5807bf…`) | yes                                                      |
+| `ops/backup/credential/validation/unit-publish`                                                                     | new; sha256 `5acf467780e325078aa1462a96eef3fea44bf33ee29486b93eafae8b9eacdc69`                                  | yes (first used in E3J9E)                                |
+| `ops/backup/credential/validation/eanhl-cloud-credential-provider-probe@.service`                                   | deleted (never installed)                                                                                       | nothing to remove                                        |
+| `credential-exec`, `env-inspect`, `lockhold`, `owned-inventory`, `pty-marker`, manifests, `gpg.conf`, escaped delta | unchanged                                                                                                       | no; hashes re-verified                                   |
+
+### 20.5 Local evidence (hermetic)
+
+Fake `systemctl`, `systemd-run`, `journalctl`, `setpriv`, `pgrep`, `od`, boot-id
+file, `/proc` tree and CLI; no real systemd, journal, CLI, SSH or network. The
+authenticated inputs were upstream `password-store.sh@1.7.4` (`b48d710a…bcd7`)
+and `/usr/bin/pass` extracted from the Ubuntu `pass_1.7.4-8_all.deb`
+(`b0da432e…8632`), re-authenticated before every full run. Final verification
+on the final bytes, with the branch based on the exact commit `ab05da38`: three
+consecutive full harness runs, each **604 passed, 0 failed; mutations 72 killed
+(the 44 new plan targets plus the existing 28), 0 survived**, with identical
+output; one `--static-only` run, 600 passed, 0 failed, 72 killed, 0 survived
+(the four accepted-delta checks reported NOT RUN). `bash -n` (8 shell files),
+`perl -T -c` and `systemd-analyze verify` (only the not-installed executable)
+are clean.
+
+### 20.6 Boundary, limitations and next steps
+
+- **[VALIDATE] on Hotel-Echo, before any provider contact** (local bound runs in
+  the same-session pre-ceremony proofs): the journal json shape and `_BOOT_ID`;
+  the `systemctl show --value` formats used by attestation (`Environment` via
+  `env-proof`); the boot-id read. Timer formats are first exercised by
+  `schedule`, before the timer fires; after-fire formats first by `collect`
+  (a mismatch fails closed into operator review). perl-base module presence is
+  checked read-only before installation.
+- **Residuals:** root can change `/etc/systemd/system` between a check and an
+  `unlink` (identity and byte rechecks narrow, not close, the window; an
+  immediately recycled inode number defeats a dev/ino check, leaving only the byte
+  check); stopping a provider unit mid-run is the §4 stop window.
+- **Sequence:** independent review → authorized checkpoint → merge into `main`
+  → explicit E3J9D reauthorization → reinstall the three files from that `main`
+  commit (hashes recorded) → same-session pre-ceremony proofs (A1–A4, A10, E1(a),
+  `env-proof`, one `probe busy-a`) → operator ceremony → exactly one
+  `provider-probe run provider` (P0) → `owned-inventory`.
+- **Rollback:** revert the merge; on the host first `provider-probe discard` each
+  pprobe object (provenance-checked; a refusal is a STOP for operator-only review,
+  never a literal-path or manual removal), then reinstall the previous launcher and probe bytes
+  (`dff64fa1…`, `7a5807bf…`) and remove `unit-publish` after a hash match.

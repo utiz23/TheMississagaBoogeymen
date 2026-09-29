@@ -17,9 +17,18 @@ the other validation scripts (kept until E3J9E, D8), the pinned CLI (never
 executed), the service key with `gpg.conf`, and the initialised store
 (`.gpg-id` only). M10 passed in full, one step at a time (A6 by the operator's
 direct PTY observation), and the final owned-inventory matched. The staging
-directory was removed. U1 and E3J9 remain open; E3J9D needs D1, E3J9E needs D7,
-and C1 must merge before any E3J10 step that executes the CLI or can contact
-Proton. No authentication has happened and nothing is scheduled.
+directory was removed. U1 and E3J9 remain open.
+
+**2026-09-28 (design memo §20):** D1 was accepted. E3J9D stopped before any host
+access because no reviewed provider reader existed. **E3J9D-R (local, pending
+independent review)** adds the launcher-owned `provider-probe` operation, the
+probe's E4/N4 `e4-decoy` mode and the `unit-publish` helper, and deletes the
+never-installed provider template. Nothing new is installed: after review, an
+authorized checkpoint, the merge into `main` and explicit E3J9D reauthorization,
+the launcher, the probe and `unit-publish` are reinstalled from that `main`
+commit. E3J9E needs D7, and C1 must merge before any E3J10 step that executes
+the CLI or can contact Proton. No authentication has happened and nothing is
+scheduled.
 
 Nothing here is secret. The repository holds paths, command names, the twelve
 environment literals and public fingerprints only. Never add a key, a Proton
@@ -27,23 +36,25 @@ credential, canary plaintext, an authentication URL, a token or session content.
 
 ## Files
 
-| Repository file                                             | Host target                                                  | Owner / mode     |
-| ----------------------------------------------------------- | ------------------------------------------------------------ | ---------------- |
-| `credential-exec`                                           | `/usr/local/lib/eanhl-cloud/credential-exec`                 | root:root 0755   |
-| `eanhl-cloud-credential`                                    | `/usr/local/sbin/eanhl-cloud-credential`                     | root:root 0750   |
-| `credential-bin.manifest`                                   | symlinks in `/opt/eanhl-cloud/credential-bin/` (dir 0755)    | root:root        |
-| `credential-child-env.manifest`                             | none (reference copy of the wrapper's twelve literals)       | —                |
-| `gpg.conf`                                                  | `/var/lib/eanhl-cloud/gnupg/gpg.conf` (after `keygen`)       | eanhl-cloud 0600 |
-| `pass-1.7.4-8.accepted-delta.escaped`                       | none (evidence for the `pass` acceptance rule, §3)           | —                |
-| `validation/eanhl-cloud-credential-probe.sh`                | `/usr/local/lib/eanhl-cloud/validation/` (same name)         | root:root 0755   |
-| `validation/env-inspect`, `lockhold`, `pty-marker`          | `/usr/local/lib/eanhl-cloud/validation/` (same names)        | root:root 0755   |
-| `validation/owned-inventory`                                | same directory (rollback: a root-only temporary path)        | root:root 0755   |
-| `validation/eanhl-cloud-credential-provider-probe@.service` | `/etc/systemd/system/` — **E3J9D/E3J9E only**, never enabled | root:root 0644   |
-| `test/credential-templates.test.sh`                         | none (local template tests)                                  | —                |
+| Repository file                                    | Host target                                               | Owner / mode     |
+| -------------------------------------------------- | --------------------------------------------------------- | ---------------- |
+| `credential-exec`                                  | `/usr/local/lib/eanhl-cloud/credential-exec`              | root:root 0755   |
+| `eanhl-cloud-credential`                           | `/usr/local/sbin/eanhl-cloud-credential`                  | root:root 0750   |
+| `credential-bin.manifest`                          | symlinks in `/opt/eanhl-cloud/credential-bin/` (dir 0755) | root:root        |
+| `credential-child-env.manifest`                    | none (reference copy of the wrapper's twelve literals)    | —                |
+| `gpg.conf`                                         | `/var/lib/eanhl-cloud/gnupg/gpg.conf` (after `keygen`)    | eanhl-cloud 0600 |
+| `pass-1.7.4-8.accepted-delta.escaped`              | none (evidence for the `pass` acceptance rule, §3)        | —                |
+| `validation/eanhl-cloud-credential-probe.sh`       | `/usr/local/lib/eanhl-cloud/validation/` (same name)      | root:root 0755   |
+| `validation/env-inspect`, `lockhold`, `pty-marker` | `/usr/local/lib/eanhl-cloud/validation/` (same names)     | root:root 0755   |
+| `validation/owned-inventory`                       | same directory (rollback: a root-only temporary path)     | root:root 0755   |
+| `validation/unit-publish`                          | `/usr/local/lib/eanhl-cloud/validation/unit-publish`      | root:root 0755   |
+| `test/credential-templates.test.sh`                | none (local template tests)                               | —                |
 
-The validation tooling is removed from the host after E3J9E (D8). The provider
-probe unit is **not** installed in E3J9C: local probe modes run only through the
-launcher's `probe` operation.
+The validation tooling (including `unit-publish`) is removed from the host after
+E3J9E (D8). There is no probe unit file: local probe modes run only through the
+launcher's `probe` operation, provider modes only through its `provider-probe`
+operation (E3J9D-R; the former provider template is deleted and was never
+installed).
 
 ## The installed `pass` (acceptance rule, §3)
 
@@ -84,9 +95,11 @@ the extension directory (`pass_system_ext_dir_empty`).
   environment and any arguments, and is outside the protection boundary.
 - **`eanhl-cloud-credential`** (root only) has fixed subcommands, no generic
   runner: `keygen`, `pass-init <fpr>`, `probe <local-mode>`, `probe-stop <unit>`,
-  `pty-marker`, `env-proof`, `auth-login`, `auth-logout`, and the rollback-only
-  `entry-remove`, `canary-remove`, `key-delete <fpr>`. Local-only units get
-  `PrivateNetwork=yes`; only `auth-login`/`auth-logout` get network ordering.
+  `pty-marker`, `env-proof`, `auth-login`, `auth-logout`,
+  `provider-probe run|schedule|collect|discard <closed argument>` (E3J9D-R), and
+  the rollback-only `entry-remove`, `canary-remove`, `key-delete <fpr>`.
+  Local-only units get `PrivateNetwork=yes`; only `auth-login`/`auth-logout` and
+  the `provider-probe` units get network ordering.
   There is no `StateDirectory=`/`CacheDirectory=`: a missing M3 directory fails
   the unit instead of being created or re-owned by systemd. Root never reads
   inside the `eanhl-cloud`-owned trees directly; those reads run as
@@ -100,7 +113,13 @@ the extension directory (`pass_system_ext_dir_empty`).
   - `key-delete`: no secret key left and the revocation file gone;
   - `pty-marker`: the unit succeeded and there are exactly 0 journal hits;
   - `env-proof`: three passing steps and 0 nonce hits;
-  - `probe`/`probe-stop`: the accepted outcome and a successful cleanup.
+  - `probe`/`probe-stop`: the accepted outcome and a successful cleanup;
+  - `provider-probe` (E3J9D-R): each verb (`run`, `schedule`, `collect`,
+    `discard`) exits 0 only when every applicable requirement defined under
+    Provider probes below succeeds — its classified outcome, invocation and
+    boot binding, identity and provenance checks, cleanup, publication or
+    removal, and postconditions (design §11, §20). A refusal or an
+    indeterminate state (for example `pending`) exits non-zero.
 
   A presence check reports `present`, `absent` or `error`; `error` never counts
   as absent. The check runs as `eanhl-cloud` and walks a fixed relative path
@@ -161,7 +180,8 @@ Commands run from a checkout of this directory on Hotel-Echo.
    ```
 5. **M5/M7:** `sudo install -o root -g root -m 0755 credential-exec /usr/local/lib/eanhl-cloud/credential-exec`;
    `sudo install -o root -g root -m 0750 eanhl-cloud-credential /usr/local/sbin/eanhl-cloud-credential`;
-   each validation script (not the unit file) with
+   each validation script (E3J9D-R: including `unit-publish`; there is no unit
+   file) with
    `sudo install -o root -g root -m 0755 validation/<name> /usr/local/lib/eanhl-cloud/validation/<name>`.
    Record `sha256sum` of every installed file and compare with the repository.
 6. **M6 (never executed):** acquire the CLI as the authorization names; then
@@ -245,6 +265,43 @@ process's command line or environment. No agent runs the ceremony, sees its outp
 Open the URL on another device, never paste it anywhere, and clear scrollback
 afterwards. A timeout (900 s) is a STOP.
 
+**P0 (straight after a clean ceremony, exactly once, no retry):**
+`sudo eanhl-cloud-credential provider-probe run provider`. Accept only exit 0 with
+`provider_run_result=pass`, `bound_cleanup_ok=true`, `bound_single_invocation=true`,
+`bound_boot_id_match=true`, `bound_nonvocab_lines=0`, `bound_disallowed_lines=0`,
+`provider_result=ok` and every `pp_post_*` true or 0; then
+`sudo /usr/local/lib/eanhl-cloud/validation/owned-inventory` must report
+`owned_expected_set_match=true`. Any other outcome is a STOP.
+
+## Provider probes (E3J9D/E3J9E; design §20)
+
+`provider-probe` is the only path for a provider probe mode. Each verb is a
+capability, not an authorization; E3J9D uses only `run provider`.
+
+| Verb       | Argument (closed)                                                                                       | What it does                                                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `run`      | `provider`, `provider-freshcache`, `neg-nokey`, `neg-nostore`, `n3-busy`, `e4-decoy`                    | one fresh `eanhl-cloud-cred-pprobe-now-<mode>-<32 hex>` unit, started once, read through the invocation-bound runner, always cleaned up |
+| `schedule` | `t20m`, `t6h15m` (transient timer), `boot` (a generated pair published by `unit-publish`, then enabled) | one fresh pair, attested before it can fire; mode `provider`                                                                            |
+| `collect`  | `t20m`, `t6h15m`, `boot`                                                                                | proves the pair, reads the fired invocation (`pending` if it has not fired), removes the pair                                           |
+| `discard`  | `now`, `t20m`, `t6h15m`, `boot`                                                                         | provenance-checked removal only; never reads the journal                                                                                |
+
+- Preconditions refuse (exit 65) before any provider contact: CLI pin, one key
+  and `.gpg-id`, the entry `0600`, no extra store entry or `auth-session.json`, no
+  other active credential unit or pprobe object, no `eanhl-cloud` process, the
+  lock free (`n3-busy`: held by the attested `lockhold-long` unit), network-online
+  active (`run`), a valid boot id.
+- Output: only `^E3J9 [a-z_]+=…` lines; provider records only with a name the
+  mode's probe arm emits and a value of its class; everything else is counted.
+- Provenance: `collect`, `discard` and `probe-stop` touch only objects that
+  attest as the launcher's (and, for the boot pair, equal the canonical bytes);
+  an object that does not attest is never touched (`collect`/`discard`:
+  `pp_provenance=<reason>`, exit 65 when refused at discovery; `probe-stop`:
+  `probe_provenance=unproven`, exit 1). A refusal is a STOP for operator-only
+  review — never a manual or old-launcher removal.
+- Sequencing (enforced): `run` refuses while any pprobe object exists;
+  `schedule boot` refuses until the delayed pairs are collected; run
+  `owned-inventory` only when nothing is armed.
+
 ## Recovery and rotation (§5)
 
 There is no in-place re-encryption and no off-host key backup. Because `keygen`
@@ -262,16 +319,24 @@ requires an empty keyring and `pass-init` exactly one key, the order is:
 
 ## Rollback (§12; each step separately authorized)
 
-**From the current state (only M1 happened):** only the package step applies.
-Review `apt-get -s remove pass tree`; confirm with
+**Current state (E3J9C passed, design memo §19):** M1–M10 are done for the
+credential-foundation and local-proof scope only. No authentication, provider
+contact, persistence or reboot validation, or activation has happened, so no
+Proton entry exists: a rollback from this state follows the order below without
+steps 2–3, and step 1 applies only to objects a later session created. (While
+M1 was the only host change, the package step alone applied.)
+
+**Package step (step 9):** review `apt-get -s remove pass tree`; confirm with
 `apt-cache rdepends --installed tree` that nothing else needs `tree`; read the M1
 transaction in `/var/log/apt/history.log`; then remove both. **Never run
 `autoremove`.** Removing `pass` also removes its empty extensions directory.
 
-**From a fuller state**, in order:
+**Order** (each step separately authorized):
 
-1. Stop E3J9 units (`probe-stop` for kept probe units); remove any installed unit
-   file by literal path after a sha256 match; `daemon-reload`.
+1. Stop E3J9 units (`probe-stop` for kept probe units) and remove every pprobe
+   object with `provider-probe discard <slot>` (provenance-checked; a refusal is a
+   STOP for operator-only review, never a literal-path, manual or old-launcher
+   removal); `daemon-reload`.
 2. Local logout: `sudo eanhl-cloud-credential auth-logout` — **not** remote
    revocation; verify by metadata that the entry is gone. If it fails and the
    entry must go: `entry-remove`. A leftover canary: `canary-remove`.

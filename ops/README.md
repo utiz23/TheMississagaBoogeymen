@@ -253,14 +253,17 @@ Logs: `journalctl --user -u eanhl-verify.service -e`
   which run before any DB-backed step and prove the refusals above without a
   database.
 
-## Hotel-Echo Proton credential templates (E3J9, not deployed)
+## Hotel-Echo Proton credential templates (E3J9, foundation installed; not activated)
 
 `backup/credential/` holds the option-A credential mechanism's templates: the
 lock-and-environment wrapper, the root-only launcher, the manifests, `gpg.conf`
-and the validation-only probe tooling, plus the accepted `pass` delta and a local
+and the validation-only probe tooling (including the `unit-publish` helper for the
+boot probe pair), plus the accepted `pass` delta and a local
 template test (`backup/credential/test/credential-templates.test.sh`). Its README
 carries the install, acceptance, recovery, rotation and rollback runbook. Nothing
 there is secret, and nothing is installed by the repository. Every host step is
 separately authorized. Status and results:
 [`docs/planning/proton-drive-hotel-echo-credential-design.md`](../docs/planning/proton-drive-hotel-echo-credential-design.md)
-§17 (E3J9C stopped after M1) and §18 (E3J9C-R local correction).
+§17–§19 (E3J9C: the foundation is installed on Hotel-Echo and locally proven) and
+§20 (E3J9D stopped before host access; E3J9D-R provider runner, local, pending
+review). Nothing is activated or monitored.
