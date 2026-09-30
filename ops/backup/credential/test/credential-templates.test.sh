@@ -36,7 +36,6 @@ INSPECT_SRC=$V/env-inspect
 LOCKHOLD_SRC=$V/lockhold
 OINV_SRC=$V/owned-inventory
 PTY_SRC=$V/pty-marker
-UNIT_SRC=$V/eanhl-cloud-credential-provider-probe@.service
 DELTA_SRC=$C/pass-1.7.4-8.accepted-delta.escaped
 
 MODE=full
@@ -75,6 +74,7 @@ vocab_only() { ! printf '%s\n' "$1" | grep -v -E "$VOCAB" | grep -q .; }
 ME=$(id -un)
 MYGRP=$(id -gn)
 MYUID=$(id -u)
+MYGID=$(id -g)
 
 # mutant <src> <dst> <sed-script>: write a weakened copy; fail if unchanged.
 mutant() {
@@ -141,28 +141,126 @@ t "credential-bin manifest: 12 links, no uname/cut/tr/tty/tree" bash -c "
   lines=\$(grep -v -E '^(#|\$)' '$C/credential-bin.manifest'); [ \"\$(printf '%s\n' \"\$lines\" | wc -l)\" -eq 12 ] &&
   ! printf '%s\n' \"\$lines\" | grep -q -E '^(uname|cut|tr|tty|tree|which|git|xdg-open) '"
 
-# Units: local transient props vs the provider template.
+# Units: local transient props vs the provider properties. (E3J9D-R: the
+# provider unit template is deleted; its assertions are replaced by the same
+# assertions on PROVIDER_UNIT_PROPS and, in §10, on the rendered boot pair.)
 base_props=$(sed -n '/^readonly BASE_PROPS=(/,/^)/p' "$LAUNCHER_SRC")
 local_props=$(sed -n '/^readonly LOCAL_PROPS=(/,/^)/p' "$LAUNCHER_SRC")
+provider_props=$(sed -n '/^readonly PROVIDER_UNIT_PROPS=(/,/^)/p' "$LAUNCHER_SRC")
 t "LOCAL_PROPS has PrivateNetwork=yes" grep -q -F -- '--property=PrivateNetwork=yes' <<<"$local_props"
 t "BASE/LOCAL props have no network-online" bash -c "! grep -q network-online <<<\"\$1\"" _ "$base_props$local_props"
 t "NETWORK_PROPS used exactly twice (auth-login, auth-logout)" test "$(grep -c -F '"${NETWORK_PROPS[@]}"' "$LAUNCHER_SRC")" -eq 2
 t "NETWORK_PROPS only inside cmd_auth_login/cmd_auth_logout" bash -c "
   awk '/^cmd_auth_login\\(\\) \\{/,/^}/' '$LAUNCHER_SRC' | grep -q -F '\"\${NETWORK_PROPS[@]}\"' &&
   awk '/^cmd_auth_logout\\(\\) \\{/,/^}/' '$LAUNCHER_SRC' | grep -q -F '\"\${NETWORK_PROPS[@]}\"'"
-t "no StateDirectory/CacheDirectory in launcher code or unit" bash -c "! grep -h -v '^ *#' '$LAUNCHER_SRC' '$UNIT_SRC' | grep -q -E 'StateDirectory|CacheDirectory'"
-t "provider unit: ExecStart passes provider:%i" grep -q -x 'ExecStart=/usr/local/lib/eanhl-cloud/credential-exec --nonblock probe provider:%i' "$UNIT_SRC"
-t "provider unit: After= and Wants=network-online.target" bash -c "grep -q -x 'After=network-online.target' '$UNIT_SRC' && grep -q -x 'Wants=network-online.target' '$UNIT_SRC'"
-t "provider unit: WorkingDirectory, no Environment=, no [Install]" bash -c "
-  grep -q -x 'WorkingDirectory=/var/lib/eanhl-cloud' '$UNIT_SRC' &&
-  ! grep -q -E '^(Environment|EnvironmentFile)=' '$UNIT_SRC' && ! grep -q -x -F '[Install]' '$UNIT_SRC'"
+code_of() { sed -E -e 's/^[[:space:]]*#.*$//' "$1"; } # a template without its comment lines
+t "no StateDirectory/CacheDirectory in launcher code" bash -c "! grep -q -E 'StateDirectory|CacheDirectory' <<<\"\$1\"" _ "$(code_of "$LAUNCHER_SRC")"
+check_provider_props() { # the provider property table: network ordering, no private network, fixed hardening
+  local l
+  for l in After=network-online.target Wants=network-online.target PrivateNetwork=no Restart=no \
+    RemainAfterExit=yes StandardInput=null StandardOutput=journal StandardError=journal \
+    WorkingDirectory=/var/lib/eanhl-cloud UMask=0077 PrivateTmp=yes ProtectHome=yes \
+    ProtectSystem=strict NoNewPrivileges=yes KillMode=control-group Type=oneshot TimeoutStartSec=300; do
+    grep -q -x -E "[[:space:]]*$l" <<<"$provider_props" || return 1
+  done
+  ! grep -q -E 'PrivateNetwork=yes|Environment|--collect|StateDirectory|CacheDirectory' <<<"$provider_props"
+}
+t "provider props: network-online ordering, PrivateNetwork=no, Restart=no, fixed hardening, no Environment" check_provider_props
+t "provider units: ExecStart is the wrapper with the table's probe argument (run and boot renderer)" bash -c "
+  grep -q -F 'B_EXPECT_ARGV=\"\$WRAPPER --nonblock probe \$parg\"' '$LAUNCHER_SRC' &&
+  grep -q -F '\"ExecStart=\$WRAPPER --nonblock probe \$(pp_mode_field provider 2)\"' '$LAUNCHER_SRC'"
 t "no local probe unit template remains" test ! -e "$V/eanhl-cloud-credential-probe@.service"
+t "no provider probe unit template remains (E3J9D-R)" test ! -e "$V/eanhl-cloud-credential-provider-probe@.service"
 probe_modes=$(sed -n '/^readonly PROBE_MODES=(/,/^)/p' "$LAUNCHER_SRC")
-t "launcher PROBE_MODES has no provider mode or canary-nested" bash -c "! grep -q -E 'provider|neg-nokey|neg-nostore|canary-nested' <<<\"\$1\"" _ "$probe_modes"
+t "launcher PROBE_MODES has no provider mode or canary-nested" bash -c "! grep -q -E 'provider|neg-nokey|neg-nostore|canary-nested|e4-decoy|n3-busy' <<<\"\$1\"" _ "$probe_modes"
 t "launcher bound runner always passes local:<mode>" grep -q -F 'bound_start "probe-$mode" none --nonblock probe "local:$mode"' "$LAUNCHER_SRC"
 t "RESIDENT_AGENT_RULES is empty in the template (fail closed until M8/L2)" grep -q -x 'readonly RESIDENT_AGENT_RULES=()' "$LAUNCHER_SRC"
 t "preflight and agent rule never name cmdline/environ" bash -c "! awk '/^(preflight_auth_login|agent_rule_holds)\\(\\) \\{/,/^}/' '$LAUNCHER_SRC' | grep -q -E 'cmdline|environ'"
-t "provider unit carries no raw journalctl recipe" bash -c "! grep -q -E 'journalctl|-o cat' '$UNIT_SRC'"
+
+# ── 1b. provider-probe command surface (E3J9D-R, static) ────────────────────
+t "dispatch arms: the eleven subcommands plus provider-probe, nothing else" test \
+  "$(sed -n '/^case "\${1-}" in$/,/^esac$/p' "$LAUNCHER_SRC" | grep -o -E '^  [a-z-]+\)' | tr -d ' )' | tr '\n' ' ')" = \
+  'keygen pass-init probe probe-stop pty-marker env-proof auth-login auth-logout entry-remove canary-remove key-delete provider-probe '
+t "provider-probe verbs: exactly run, schedule|collect, discard" test \
+  "$(sed -n '/^cmd_provider_probe() {/,/^}/p' "$LAUNCHER_SRC" | grep -o -E '^    [a-z |]+\)' | tr -d ' )' | tr '\n' ' ')" = 'run schedule|collect discard '
+t "provider modes: exactly the six closed modes" test \
+  "$(sed -n '/^readonly PROVIDER_MODES=(/,/^)/p' "$LAUNCHER_SRC" | grep -o -E "^  '[a-z0-9-]+\|" | tr -d " '|" | tr '\n' ' ')" = \
+  'provider provider-freshcache neg-nokey neg-nostore n3-busy e4-decoy '
+t "slots: exactly now, t20m (20min), t6h15m (6h15min), boot (10min)" test \
+  "$(sed -n '/^readonly PP_SLOTS=(/,/^)/p' "$LAUNCHER_SRC" | grep -o -E "^  '[^']*'" | tr -d " '" | tr '\n' ' ')" = \
+  'now||| t20m|20min|OnActiveUSec|20min t6h15m|6h15min|OnActiveUSec|6h15min boot|10min|OnBootUSec|10min '
+t "'provider:' in launcher code: only PROVIDER_MODES and the one prefix strip in pp_probe_mode" test \
+  "$(code_of "$LAUNCHER_SRC" | grep 'provider:' | grep -v -E "^  '[a-z0-9-]+\|provider:")" = '  printf '"'"'%s'"'"' "${parg#provider:}"'
+check_setenv_surface() { # check_setenv_surface <launcher-src>: --setenv only in pty-marker, env-proof and the e4-decoy arm
+  local f=$1 lines want
+  lines=$(code_of "$f" | grep -o -E -- '--setenv=[A-Z0-9_]+=[^"]*' | sort)
+  want=$(printf '%s\n' '--setenv=E3J9_INJECTED=' '--setenv=GNUPGHOME=/nonexistent-e3j9' \
+    '--setenv=PASSWORD_STORE_DIR=/nonexistent-e3j9' '--setenv=PASSWORD_STORE_GPG_OPTS=--e3j9-invalid' \
+    '--setenv=PATH=/nonexistent-e3j9' '--setenv=GPG_TTY=/dev/e3j9-decoy' \
+    '--setenv=PROTON_DRIVE_BASE_URL=http://127.0.0.1:9' '--setenv=E3J9_PTY_NONCE=' \
+    '--setenv=PROTON_DRIVE_CACHE_DIR=$E4_PDCACHE' '--setenv=XDG_CACHE_HOME=$E4_XDGCACHE' \
+    '--setenv=PROTON_DRIVE_BASE_URL=$E4_BASE_URL' '--setenv=E3J9_INJECTED=e3j9nonce$e4_nonce' | sort)
+  [ "$lines" = "$want" ] || return 1
+  # The four E4 decoys exist only inside cmd_pp_run's e4-decoy branch; E4_DECOYS is assigned once.
+  [ "$(sed -n '/^cmd_pp_run() {/,/^}/p' "$f" | grep -c -E -- '--setenv=(PROTON_DRIVE_CACHE_DIR=\$E4|XDG_CACHE_HOME=\$E4|PROTON_DRIVE_BASE_URL=\$E4|E3J9_INJECTED=e3j9nonce\$e4)')" -eq 4 ] &&
+    [ "$(code_of "$f" | grep -c -E '^[[:space:]]*E4_DECOYS=\($')" -eq 1 ] &&
+    grep -q -x -F 'readonly E4_PDCACHE=/tmp/e3j9-e4-pdcache' "$f" && grep -q -x -F 'readonly E4_XDGCACHE=/tmp/e3j9-e4-xdgcache' "$f" &&
+    grep -q -x -F 'readonly E4_BASE_URL=http://127.0.0.1:9' "$f"
+}
+t "--setenv surface: pty-marker, env-proof and the e4-decoy arm only, exact names and fixed values" check_setenv_surface "$LAUNCHER_SRC"
+mutation "--setenv added to the provider arm (static)" "$LAUNCHER_SRC" 's/^  local decoys=()$/  local decoys=(--setenv=E3J9_EXTRA=1)/' check_setenv_surface
+t "E4 decoy constants: launcher == probe" bash -c "for n in E4_PDCACHE E4_XDGCACHE E4_BASE_URL; do [ \"\$(grep -x -E \"readonly \$n=.*\" '$LAUNCHER_SRC')\" = \"\$(grep -x -E \"readonly \$n=.*\" '$PROBE_SRC')\" ] || exit 1; done"
+check_e4_nonce_source() { # the E4 marker is generated by fresh_nonce, never read from the environment
+  [ "$(grep -c -F 'if ! e4_nonce=$(fresh_nonce 16); then' "$1")" -eq 1 ] && ! code_of "$1" | grep -q -E 'E4_NONCE|NONCE_OVERRIDE|\$\{?E3J9_'
+}
+t "E4 marker comes only from fresh_nonce (no environment input)" check_e4_nonce_source "$LAUNCHER_SRC"
+mutation "E4 nonce accepted from the environment (static)" "$LAUNCHER_SRC" 's/if ! e4_nonce=\$(fresh_nonce 16); then/if ! e4_nonce=${E4_NONCE_OVERRIDE:-$(fresh_nonce 16)}; then/' check_e4_nonce_source
+check_collect_count() { # --collect stays only in run_quiet, run_capture, pty-marker, auth-login and auth-logout
+  [ "$(code_of "$1" | grep -c -F -- '--collect')" -eq 5 ]
+}
+t "--collect only in run_quiet, run_capture, pty-marker, auth-login, auth-logout (never bound/provider units)" check_collect_count "$LAUNCHER_SRC"
+mutation "provider units gain --collect (static)" "$LAUNCHER_SRC" 's/  if ! "\$SYSTEMD_RUN" --quiet --no-block --unit="\$B_UNIT" --description="\$desc" \\/  if ! "$SYSTEMD_RUN" --quiet --no-block --collect --unit="$B_UNIT" --description="$desc" \\/' check_collect_count
+check_local_privnet() { sed -n '/^readonly LOCAL_PROPS=(/,/^)/p' "$1" | grep -q -F -- '--property=PrivateNetwork=yes'; }
+mutation "LOCAL_PROPS without PrivateNetwork=yes (static)" "$LAUNCHER_SRC" '/^readonly LOCAL_PROPS=(/,/^)/{/--property=PrivateNetwork=yes/d}' check_local_privnet
+t "launcher never runs systemctl start/restart/link/edit or enable --now" bash -c "! grep -q -E '\"\\\$SYSTEMCTL\" (start|restart|link|edit)|enable --now' <<<\"\$1\"" _ "$(code_of "$LAUNCHER_SRC")"
+t "systemctl enable/disable only in the boot schedule, rollback and cleanup functions" test \
+  "$(awk '/^[a-z_]+\(\) \{/{fn=$1} /"\$SYSTEMCTL" (enable|disable)/{print fn}' "$LAUNCHER_SRC" | sort -u | tr '\n' ' ')" = 'cmd_pp_schedule() pp_cleanup_pair() pp_schedule_rollback() '
+t "no rm/mv/ln/install/cp/tee or redirect write under the unit directories in the launcher" bash -c "
+  ! grep -E '(UNIT_DIR|WANTS_DIR)' <<<\"\$1\" | grep -q -E '(^|[^a-z_])(rm|mv|ln|install|cp|tee)[[:space:]]|>[[:space:]]*\"?\\\$(UNIT_DIR|WANTS_DIR)'" _ "$(code_of "$LAUNCHER_SRC")"
+check_journal_forms() { # every journalctl call is one of the fixed forms
+  local code n_all n_sync
+  code=$(code_of "$LAUNCHER_SRC")
+  n_all=$(grep -c -F '"$JOURNALCTL"' <<<"$code")
+  n_sync=$(grep -c -F '"$JOURNALCTL" --sync >/dev/null 2>&1' <<<"$code")
+  [ "$(grep -c -F '"$JOURNALCTL" --no-pager --quiet --since "@$1" -o json --all' <<<"$code")" -eq 1 ] &&
+    [ "$(grep -c -F '"$JOURNALCTL" --no-pager --quiet -o json --output-fields=_SYSTEMD_INVOCATION_ID \' <<<"$code")" -eq 1 ] &&
+    [ "$(grep -c -F '"$JOURNALCTL" --no-pager --quiet -o cat \' <<<"$code")" -eq 1 ] &&
+    [ "$n_all" -eq $((n_sync + 3)) ] &&
+    [ "$(grep -A1 -F -- '--output-fields=_SYSTEMD_INVOCATION_ID \' <<<"$code" | tail -1 | sed -E 's/^ +//')" = '"_SYSTEMD_UNIT=$1" 2>/dev/null) || return 1' ] &&
+    [ "$(grep -A1 -F -- '-o cat \' <<<"$code" | tail -1 | sed -E 's/^ +//')" = '"_SYSTEMD_UNIT=$B_UNIT.service" "_SYSTEMD_INVOCATION_ID=$B_ID" 2>/dev/null)' ] &&
+    ! grep -F '"$JOURNALCTL"' <<<"$code" | grep -q -E -- ' -f | --follow| -u '
+}
+t "every journalctl call is a fixed form (json proof: one _SYSTEMD_UNIT match; cat read: unit AND invocation)" check_journal_forms
+HELPER_SRC=$V/unit-publish
+t "unit-publish: perl -T -c" bash -c "perl -T -c '$HELPER_SRC' >/dev/null 2>&1"
+t "unit-publish: only Fcntl, POSIX and IO::Handle (plus strict/warnings)" test \
+  "$(grep -o -E '^use [A-Za-z:]+' "$HELPER_SRC" | sort | tr '\n' ' ')" = 'use Fcntl use IO::Handle use POSIX use strict use warnings '
+check_helper_no_exec() { # no program execution, pipe open, rename or glob in the helper's code
+  local code
+  code=$(code_of "$1")
+  ! grep -q -E '(^|[^a-z_$>])(system|exec|rename|glob)[[:space:]]*\(|(^|[^a-z_])qx[^a-z_]|`' <<<"$code" &&
+    ! grep -E '(^|[^a-z_])open\(' <<<"$code" | grep -q -F '|'
+}
+t "unit-publish: no system/exec/qx/backticks/pipe open/rename/glob in code" check_helper_no_exec "$HELPER_SRC"
+t "unit-publish: unlink only in the identity-proven removal paths" test \
+  "$(awk '/^sub [a-z_]+/{fn=$2} /unlink\(/{print fn}' "$HELPER_SRC" | sort -u | tr '\n' ' ')" = 'op_unpublish remove_proven '
+check_helper_opens() { # write-mode sysopen: O_EXCL|O_NOFOLLOW; the read re-open: O_NOFOLLOW
+  ! grep -E 'sysopen\(' "$1" | grep -E 'O_WRONLY' | grep -v -q -F 'O_CREAT | O_EXCL | O_NOFOLLOW' &&
+    grep -q -F 'sysopen(my $fh, $path, O_RDONLY | O_NOFOLLOW)' "$1"
+}
+t "unit-publish: every write-mode sysopen has O_EXCL|O_NOFOLLOW; the read re-open has O_NOFOLLOW" check_helper_opens "$HELPER_SRC"
+t "unit-publish: emitted names match ^[a-z_]+\$" bash -c "! grep -o -E \"emit\\('[^']*'\" '$HELPER_SRC' | sed -E \"s/^emit\\('//; s/'\\\$//\" | grep -v -x -E '[a-z_]+' | grep -q ."
+t "unit-publish: the stem grammar is the boot slot's provider grammar only" grep -q -F 'my $STEM_RE     = qr/\A(eanhl-cloud-cred-pprobe-boot-provider-[0-9a-f]{32})\z/;' "$HELPER_SRC"
 t "launcher has no trailing 'exit 0' masking a failed subcommand" bash -c "[ \"\$(tail -1 '$LAUNCHER_SRC')\" = esac ]"
 # Emitted-name grammar (E3J9C §19.6). The launcher accepts only ^E3J9 [a-z_]+=…
 # names. The previous extractor's class [a-z_"${}]+ stopped at the first digit
@@ -587,6 +685,172 @@ t "probe ext-dir pattern: accepts 755, rejects group/other write" bash -c "
   m 'directory root:root drwxr-xr-x' && ! m 'directory root:root drwxrwxr-x' && ! m 'directory root:root drwxr-xrwx' && ! m 'directory utiz:root drwxr-xr-x'"
 t "probe provider anchors: generic 'Failed to load' removed" bash -c "! grep -q -F \"'Failed to load'\" '$PROBE_SRC'"
 
+# 5b. E4/N4 probe arm and run_provider (E3J9D-R). The REAL probe code runs in a
+# sandbox copy: a sandbox /proc/<parent>, store, private-tmp marker directories
+# and a FAKE CLI (never the real one, never any network) that writes a unique
+# leak marker and a URL to both of its streams. Nothing may reach the probe's
+# stdout except closed vocabulary records.
+P4=$W/p4
+LEAK=e3j9leakmarkerzq
+mkdir -p "$P4/stub" "$P4/proc/parent" "$P4/home/password-store/ch.proton.drive/drive-sdk-cli" "$P4/cache" "$P4/tmp" "$P4/ptmp" "$P4/rt"
+printf 'entry-bytes\n' >"$P4/home/password-store/ch.proton.drive/drive-sdk-cli/auth-session.gpg"
+chmod 600 "$P4/home/password-store/ch.proton.drive/drive-sdk-cli/auth-session.gpg"
+cat >"$P4/cli" <<EOF
+#!/bin/sh
+# Fake Proton CLI for the harness: marker + URL on both streams; outcome from files.
+echo "stdout $LEAK https://example.invalid/auth?token=$LEAK"
+echo "stderr $LEAK https://example.invalid/auth?token=$LEAK" >&2
+[ ! -e "$P4/cli.anchor" ] || /usr/bin/cat "$P4/cli.anchor" >&2
+[ ! -e "$P4/cli.writes" ] || : >"$P4/tmp/e3j9-e4-pdcache/crossed"
+exit \$(/usr/bin/cat "$P4/cli.rc" 2>/dev/null || echo 0)
+EOF
+printf '#!/bin/sh\ncase "$1" in -un) echo eanhl-cloud ;; -u) echo 104 ;; -G | -g) echo 107 ;; *) exit 1 ;; esac\n' >"$P4/stub/id"
+printf '#!/bin/sh\nexit 0\n' >"$P4/stub/loginctl"
+printf '#!/bin/sh\necho 0\nexit 1\n' >"$P4/stub/pgrep"
+cat >"$P4/stub/env-inspect" <<'EOF'
+#!/bin/sh
+case "$1" in
+  stdin-boundary) printf 'E3J9 %s\n' env_initial_exact=true env_unexpected_count=0 env_forbidden_absent=true env_nonce_absent=true env_systemd_absent=true ;;
+  descendant) printf 'E3J9 %s\n' helper_env_descendant_within_permitted=true helper_env_pwd_is_workdir=true helper_env_unexpected_count=0 helper_env_wrong_value_count=0 helper_env_forbidden_absent=true helper_env_nonce_absent=true helper_env_systemd_absent=true ;;
+esac
+exit 0
+EOF
+chmod +x "$P4/cli" "$P4/stub/"*
+P4_CLI_SHA=$(sha512sum "$P4/cli" | cut -d ' ' -f 1)
+build_p4() { # build_p4 <probe-src> <dst>: the sandbox copy
+  sed -e "s#/usr/bin/id#$P4/stub/id#g" -e "s#/usr/bin/loginctl#$P4/stub/loginctl#g" -e "s#/usr/bin/pgrep#$P4/stub/pgrep#g" \
+    -e "s#^readonly ENV_INSPECT=.*#readonly ENV_INSPECT=$P4/stub/env-inspect#" \
+    -e "s#^readonly SVC_HOME=.*#readonly SVC_HOME=$P4/home#" -e "s#^readonly SVC_CACHE=.*#readonly SVC_CACHE=$P4/cache#" \
+    -e "s#^readonly STORE=.*#readonly STORE=$P4/home/password-store#" \
+    -e "s#^readonly CLI=.*#readonly CLI=$P4/cli#" -e "s#^readonly CLI_PIN=.*#readonly CLI_PIN=$P4_CLI_SHA#" \
+    -e "s#^readonly PROC_ROOT=.*#readonly PROC_ROOT=$P4/proc#" -e 's#"$PROC_ROOT/$PPID/#"$PROC_ROOT/parent/#g' \
+    -e "s#^readonly E4_PDCACHE=.*#readonly E4_PDCACHE=$P4/tmp/e3j9-e4-pdcache#" \
+    -e "s#^readonly E4_XDGCACHE=.*#readonly E4_XDGCACHE=$P4/tmp/e3j9-e4-xdgcache#" \
+    -e "s#/usr/bin/mktemp -d /tmp/e3j9-probe.XXXXXXXX#/usr/bin/mktemp -d $P4/ptmp/e3j9-probe.XXXXXXXX#" "$1" >"$2"
+  chmod +x "$2"
+}
+PR4=$W/probe-e4
+build_p4 "$PROBE_SRC" "$PR4"
+check_p4_copy() { # every sandbox constant of the e4 copy points into $P4; no real tool, /tmp or $PPID path left
+  local l
+  for l in "readonly CLI=$P4/cli" "readonly PROC_ROOT=$P4/proc" "readonly E4_PDCACHE=$P4/tmp/e3j9-e4-pdcache" \
+    "readonly E4_XDGCACHE=$P4/tmp/e3j9-e4-xdgcache" "readonly SVC_HOME=$P4/home" "readonly STORE=$P4/home/password-store" \
+    "readonly ENV_INSPECT=$P4/stub/env-inspect"; do
+    grep -q -x -F "$l" "$PR4" || return 1
+  done
+  ! grep -q -E '/usr/bin/(id|pgrep|loginctl)|mktemp -d /tmp/e3j9-probe\.|\$PROC_ROOT/\$PPID' "$PR4" && grep -q -F "mktemp -d $P4/ptmp/" "$PR4"
+}
+t "e4 probe copy: every sandbox constant substituted" check_p4_copy
+# The wrapper's environment as the flock parent holds it: the four fixed decoys.
+e4_parent() { # e4_parent [comm] [entries...]: default = flock + the exact decoys
+  local comm=${1:-flock}
+  shift || true
+  printf '%s\n' "$comm" >"$P4/proc/parent/comm"
+  if [ "$#" -eq 0 ]; then
+    set -- "PROTON_DRIVE_CACHE_DIR=$P4/tmp/e3j9-e4-pdcache" "XDG_CACHE_HOME=$P4/tmp/e3j9-e4-xdgcache" \
+      PROTON_DRIVE_BASE_URL=http://127.0.0.1:9 E3J9_INJECTED=e3j9nonce0123456789abcdef0123456789abcdef \
+      INVOCATION_ID=abc JOURNAL_STREAM=1:2
+  fi
+  printf '%s\0' "$@" >"$P4/proc/parent/environ"
+}
+e4_reset() { rm -rf "$P4/tmp"/* "$P4/cli.anchor" "$P4/cli.writes" "$P4/cli.rc"; e4_parent; }
+e4_run() { # e4_run <probe copy>: runs provider:e4-decoy; stdout in $P4/out, stderr in $P4/err
+  (cd "$P4" && "$1" provider:e4-decoy </dev/null >"$P4/out" 2>"$P4/err")
+  echo $? >"$P4/rc"
+}
+e4_rec() { grep -x -E "E3J9 $1=[a-z0-9_.:-]+" "$P4/out" | sed 's/^E3J9 [a-z_]*=//'; }
+e4_reset
+e4_run "$PR4"
+t "e4-decoy: clean run → probe_result=pass, exit 0, first line probe_mode=e4-decoy" bash -c "
+  [ \"\$(cat '$P4/rc')\" = 0 ] && [ \"\$(head -1 '$P4/out')\" = 'E3J9 probe_mode=e4-decoy' ] && grep -q -x 'E3J9 probe_result=pass' '$P4/out'"
+for want in decoy_parent_is_flock=true decoy_parent_env_readable=true decoy_parent_decoy_count=4 decoy_parent_values_exact=true \
+  decoy_marker_dirs_created=true decoy_pdcache_entry_count=0 decoy_xdgcache_entry_count=0 provider_rc=0 provider_result=ok entry_mode=600; do
+  t "e4-decoy clean run: $want" grep -q -x "E3J9 $want" "$P4/out"
+done
+t "e4-decoy: stdout vocabulary-only; no leak marker, URL or decoy value on stdout or stderr" bash -c "
+  ! grep -v -q -E '^E3J9 [a-z_]+=[a-z0-9_.:-]+\$' '$P4/out' && ! grep -q -E '$LEAK|example\\.invalid|127\\.0\\.0\\.1|e3j9nonce0123' '$P4/out' '$P4/err'"
+t "e4-decoy: each E4 record name appears exactly once" bash -c "for n in decoy_parent_is_flock decoy_parent_env_readable decoy_parent_decoy_count decoy_parent_values_exact decoy_marker_dirs_created decoy_pdcache_entry_count decoy_xdgcache_entry_count; do [ \"\$(grep -c \"^E3J9 \$n=\" '$P4/out')\" -eq 1 ] || exit 1; done"
+e4_expect_fail() { # e4_expect_fail <probe copy>: probe_result=fail, exit 1, no leak on stdout
+  e4_run "$1"
+  [ "$(cat "$P4/rc")" = 1 ] && grep -q -x 'E3J9 probe_result=fail' "$P4/out" && ! grep -q -E "$LEAK|example\\.invalid" "$P4/out"
+}
+check_e4_wrong_value() { # a decoy with a wrong fixed value → values_exact=false → fail
+  e4_reset
+  e4_parent flock "PROTON_DRIVE_CACHE_DIR=$P4/tmp/e3j9-e4-pdcache" "XDG_CACHE_HOME=$P4/tmp/e3j9-e4-xdgcache" \
+    PROTON_DRIVE_BASE_URL=http://127.0.0.1:8 E3J9_INJECTED=e3j9nonce0123456789abcdef0123456789abcdef
+  e4_expect_fail "$1" && [ "$(e4_rec decoy_parent_values_exact)" = false ]
+}
+t "e4-decoy: wrong decoy value → fail" check_e4_wrong_value "$PR4"
+sc_e4_not_flock() { e4_reset; e4_parent bash; e4_expect_fail "$1" && [ "$(e4_rec decoy_parent_is_flock)" = false ]; }
+sc_e4_unreadable() { e4_reset; rm -f "$P4/proc/parent/environ"; e4_expect_fail "$1" && [ "$(e4_rec decoy_parent_env_readable)" = false ] && [ "$(e4_rec decoy_parent_decoy_count)" = 0 ]; }
+sc_e4_three() {
+  e4_reset
+  e4_parent flock "PROTON_DRIVE_CACHE_DIR=$P4/tmp/e3j9-e4-pdcache" "XDG_CACHE_HOME=$P4/tmp/e3j9-e4-xdgcache" PROTON_DRIVE_BASE_URL=http://127.0.0.1:9
+  e4_expect_fail "$1" && [ "$(e4_rec decoy_parent_decoy_count)" = 3 ]
+}
+sc_e4_bad_marker() {
+  e4_reset
+  e4_parent flock "PROTON_DRIVE_CACHE_DIR=$P4/tmp/e3j9-e4-pdcache" "XDG_CACHE_HOME=$P4/tmp/e3j9-e4-xdgcache" PROTON_DRIVE_BASE_URL=http://127.0.0.1:9 E3J9_INJECTED=notanonce
+  e4_expect_fail "$1" && [ "$(e4_rec decoy_parent_values_exact)" = false ]
+}
+sc_e4_duplicate() {
+  e4_reset
+  e4_parent flock "PROTON_DRIVE_CACHE_DIR=$P4/tmp/e3j9-e4-pdcache" "PROTON_DRIVE_CACHE_DIR=$P4/tmp/e3j9-e4-pdcache" \
+    "XDG_CACHE_HOME=$P4/tmp/e3j9-e4-xdgcache" PROTON_DRIVE_BASE_URL=http://127.0.0.1:9 E3J9_INJECTED=e3j9nonce0123456789abcdef0123456789abcdef
+  e4_expect_fail "$1" && [ "$(e4_rec decoy_parent_values_exact)" = false ]
+}
+t "e4-decoy: parent is not flock → decoy_parent_is_flock=false, fail" sc_e4_not_flock "$PR4"
+t "e4-decoy: parent environment unreadable → env_readable=false, count 0, fail" sc_e4_unreadable "$PR4"
+t "e4-decoy: only three decoys → count 3, fail" sc_e4_three "$PR4"
+t "e4-decoy: marker not matching ^e3j9nonce[0-9a-f]{32}\$ → values_exact=false, fail" sc_e4_bad_marker "$PR4"
+t "e4-decoy: a duplicated decoy name → values_exact=false, fail" sc_e4_duplicate "$PR4"
+check_e4_marker_preexists() { # a pre-existing marker directory → decoy_marker_dirs_created=false → fail
+  e4_reset
+  mkdir -p "$P4/tmp/e3j9-e4-pdcache"
+  e4_expect_fail "$1" && [ "$(e4_rec decoy_marker_dirs_created)" = false ]
+}
+t "e4-decoy: a marker directory pre-exists → fail" check_e4_marker_preexists "$PR4"
+check_e4_crossed_decoy() { # the CLI writes into a marker directory (a crossed decoy) → count 1 → fail
+  e4_reset
+  : >"$P4/cli.writes"
+  e4_expect_fail "$1" && [ "$(e4_rec decoy_pdcache_entry_count)" = 1 ]
+}
+t "e4-decoy: a crossed cache decoy (marker directory populated) → fail" check_e4_crossed_decoy "$PR4"
+mutation "probe check_decoy_parent always true" "$PR4" 's/^check_decoy_parent() {$/check_decoy_parent() { expect decoy_parent_is_flock true true; expect decoy_parent_env_readable true true; expect decoy_parent_decoy_count 4 4; expect decoy_parent_values_exact true true; return 0/' check_e4_wrong_value
+mutation "probe skips the E4 marker-directory counts" "$PR4" '/expect decoy_pdcache_entry_count 0/d; /expect decoy_xdgcache_entry_count 0/d' check_e4_crossed_decoy
+mutation "probe marker mkdir with -p" "$PR4" 's#/usr/bin/mkdir -m 0700 -- "\$E4_PDCACHE"#/usr/bin/mkdir -p -m 0700 -- "$E4_PDCACHE"#' check_e4_marker_preexists
+e4_reset
+# run_provider: every exit path maps to its closed label; CLI text never leaves.
+RPF=$P4/rp-funcs.sh
+{
+  echo 'FAILURES=0'
+  sed -n '/^readonly CLI=/p; /^readonly CLI_PIN=/p' "$PR4"
+  sed -n '/^readonly CREDENTIAL_ENV=(/,/^)/p' "$PR4"
+  extract "$PR4" emit
+  grep -x -E 'tf\(\) \{.*\}' "$PR4"
+  extract "$PR4" expect
+  extract "$PR4" anchor_in
+  extract "$PR4" cli_pin_match
+  extract "$PR4" secondary
+  extract "$PR4" run_provider
+} >"$RPF"
+rp_case() { # rp_case <cli rc> <anchor text|''> <expected label>
+  rm -f "$P4/cli.anchor"
+  echo "$1" >"$P4/cli.rc"
+  [ -z "$2" ] || printf '%s\n' "$2" >"$P4/cli.anchor"
+  local out
+  out=$(bash -c ". '$RPF'; T='$P4/rt'; run_provider '$3'; echo \"FAILURES=\$FAILURES\"" 2>"$P4/rp.err")
+  grep -q -x "E3J9 provider_result=$3" <<<"$out" && grep -q -x 'FAILURES=0' <<<"$out" &&
+    ! grep -q -E "$LEAK|example\\.invalid" <<<"$out" && ! grep -q -E "$LEAK|example\\.invalid" "$P4/rp.err" &&
+    [ -z "$(ls -A "$P4/rt" 2>/dev/null | grep -v -x provider.err)" ]
+}
+t "run_provider: exit 0 → ok, CLI text never printed" rp_case 0 '' ok
+t "run_provider: exit 124 → timeout" rp_case 124 '' timeout
+t "run_provider: login anchor → login_required" rp_case 1 'You need to login first' login_required
+t "run_provider: decryption anchor → pass_load_failed" rp_case 1 'decryption failed' pass_load_failed
+t "run_provider: unknown text → other" rp_case 1 '' other
+rm -f "$P4/cli.rc" "$P4/cli.anchor"
+
 # ── 6. launcher (stubs; never real systemd/journal/setpriv/pgrep) ──────────
 L=$W/launcher
 SB=$W/lsbx
@@ -604,54 +868,263 @@ if [ "$#" -eq 1 ] && [ "$1" = -u ]; then echo 0; else exec /usr/bin/id "$@"; fi
 EOF
 cat >"$SB/stub/systemctl" <<'EOF'
 #!/usr/bin/bash
-# Per-unit state: $st/u/<unit> exists once systemd-run started it;
-# $st/u/<unit>.stopped after a successful stop. Overrides: loadstate (any
-# unit), stop_rc, reset_rc, gc_on_stop (unit unloaded once stopped).
+# Per-unit state: $st/u/<unit> exists once systemd-run started it (its argv in
+# $st/u/<stem>.service.argv); $st/u/<unit>.stopped after a successful stop.
+# Overrides: loadstate (any unit), stop_rc, reset_rc, gc_on_stop (unit
+# unloaded once stopped; transient provider units always are, as systemd
+# garbage-collects them, unless pprobe_no_gc).
+# E3J9D-R: properties are derived the way systemd renders them, from the
+# recorded argv (or, for the persistent boot pair, from the unit file in
+# $STUB_UNIT_DIR). Overrides: uprop.<unit>.<P> (one unit), prop.<service|timer>.<P>
+# (provider units), lprop.<P> (local units), result, nrestarts, netonline,
+# triggered (scheduled units fired), boot_timer_state; enable_rc,
+# disable_rc, reload_rc; units / units_rc as before, now filtered by the
+# pattern and --state, plus the live provider units.
 st=$STUB_STATE
 echo "systemctl $*" >>"$st/calls"
 mkdir -p "$st/u"
+is_pprobe() { [[ $1 == eanhl-cloud-cred-pprobe-* ]]; }
+is_scheduled() { [[ $1 == eanhl-cloud-cred-pprobe-t20m-* || $1 == eanhl-cloud-cred-pprobe-t6h15m-* || $1 == eanhl-cloud-cred-pprobe-boot-* ]]; }
+stem_of() { local u=${1%.service}; printf '%s' "${u%.timer}"; }
+file_of() { [ -n "${STUB_UNIT_DIR-}" ] && [ -f "$STUB_UNIT_DIR/$1" ] && printf '%s' "$STUB_UNIT_DIR/$1"; }
+gone_after_stop() { [ -e "$st/gc_on_stop" ] || { is_pprobe "$1" && [ -z "$(file_of "$1")" ] && [ ! -e "$st/pprobe_no_gc" ]; }; }
+loadstate() {
+  if [ -e "$st/loadstate" ]; then cat "$st/loadstate"
+  elif [ -e "$st/u/$1.stopped" ] && gone_after_stop "$1"; then echo not-found
+  elif [ -e "$st/u/$1" ] || [ -n "$(file_of "$1")" ]; then echo loaded
+  else echo not-found; fi
+}
+state_of() { # ActiveState without side effects
+  if [ -e "$st/u/$1.stopped" ]; then echo inactive
+  elif is_pprobe "$1" && [[ $1 == *.timer ]]; then
+    if [ -n "$(file_of "$1")" ]; then cat "$st/boot_timer_state" 2>/dev/null || echo inactive; else echo active; fi
+  elif is_scheduled "$1" && [ ! -e "$st/triggered" ]; then echo inactive
+  else cat "$st/active" 2>/dev/null || echo active; fi
+}
+fmt_span() { case "$1" in 6h15min) printf '6h 15min' ;; *) printf '%s' "$1" ;; esac; }
+derive() { # derive <unit> <property>: systemd's --value rendering
+  local u=$1 p=$2 kind=service stem f a k v line cmd='' env='' onactive='' onboot='' i
+  local -a args=() rest=()
+  local -A P=()
+  [[ $u == *.timer ]] && kind=timer
+  if [ -e "$st/uprop.$u.$p" ]; then cat "$st/uprop.$u.$p"; return; fi
+  if is_pprobe "$u"; then
+    if [ -e "$st/prop.$kind.$p" ]; then cat "$st/prop.$kind.$p"; return; fi
+  elif [ -e "$st/lprop.$p" ]; then
+    cat "$st/lprop.$p"
+    return
+  fi
+  stem=$(stem_of "$u")
+  if [ -f "$st/u/$stem.service.argv" ]; then
+    mapfile -d '' -t args <"$st/u/$stem.service.argv"
+    for ((i = 0; i < ${#args[@]}; i++)); do
+      a=${args[$i]}
+      case "$a" in
+        --uid=*) P[User]=${a#--uid=} ;;
+        --gid=*) P[Group]=${a#--gid=} ;;
+        --description=*) P[Description]=${a#--description=} ;;
+        --property=*)
+          k=${a#--property=}
+          v=${k#*=}
+          k=${k%%=*}
+          case "$k" in After | Wants) P[$k]="${P[$k]:+${P[$k]} }$v" ;; *) P[$k]=$v ;; esac
+          ;;
+        --setenv=*) env="${env:+$env }${a#--setenv=}" ;;
+        --on-active=*) onactive=${a#--on-active=} ;;
+        --timer-property=*)
+          k=${a#--timer-property=}
+          P[T_${k%%=*}]=${k#*=}
+          ;;
+        -*) ;;
+        *)
+          cmd=$a
+          rest=("${args[@]:$((i + 1))}")
+          break
+          ;;
+      esac
+    done
+    P[Environment]=$env
+    P[FragmentPath]=/run/systemd/transient/$u
+    P[UnitFileState]=transient
+  elif f=$(file_of "$u"); then
+    while IFS= read -r line; do
+      case "$line" in
+        '' | '['* | '#'*) ;;
+        ExecStart=*)
+          v=${line#ExecStart=}
+          cmd=${v%% *}
+          read -r -a rest <<<"${v#"$cmd"}"
+          ;;
+        OnBootSec=*) onboot=${line#OnBootSec=} ;;
+        *=*)
+          k=${line%%=*}
+          v=${line#*=}
+          case "$k" in
+            After | Wants) P[$k]="${P[$k]:+${P[$k]} }$v" ;;
+            RemainAfterElapse | Persistent | Unit) P[T_$k]=$v ;;
+            *) P[$k]=$v ;;
+          esac
+          ;;
+      esac
+    done <"$f"
+    P[FragmentPath]=$f
+    if [ -L "$STUB_WANTS_DIR/$u" ]; then P[UnitFileState]=enabled; else P[UnitFileState]=disabled; fi
+  fi
+  if [ "$kind" = timer ]; then
+    case "$p" in
+      Unit) printf '%s\n' "${P[T_Unit]:-$stem.service}" ;;
+      TimersMonotonic)
+        if [ -n "$onactive" ]; then
+          printf '{ OnActiveUSec=%s ; next_elapse=%s }\n' "$(fmt_span "$onactive")" "$([ -e "$st/triggered" ] && echo 0 || echo '19min 59.5s')"
+        elif [ -n "$onboot" ]; then
+          printf '{ OnBootUSec=%s ; next_elapse=%s }\n' "$onboot" '9min 58.1s'
+        else
+          printf '\n'
+        fi
+        ;;
+      TimersCalendar) printf '\n' ;;
+      RemainAfterElapse) printf '%s\n' "${P[T_RemainAfterElapse]:-yes}" ;;
+      Persistent) printf '%s\n' "${P[T_Persistent]:-no}" ;;
+      LastTriggerUSecMonotonic) if [ -e "$st/triggered" ]; then echo '20min 1.2s'; else echo 0; fi ;;
+      *) printf '%s\n' "${P[$p]-}" ;;
+    esac
+    return
+  fi
+  case "$p" in
+    UMask) printf '%s\n' "${P[UMask]:-0022}" ;;
+    PrivateTmp | ProtectHome | ProtectSystem | NoNewPrivileges | RemainAfterExit | PrivateNetwork | Restart) printf '%s\n' "${P[$p]:-no}" ;;
+    KillMode) printf '%s\n' "${P[KillMode]:-control-group}" ;;
+    Type) printf '%s\n' "${P[Type]:-simple}" ;;
+    StandardInput) printf '%s\n' "${P[StandardInput]:-null}" ;;
+    StandardOutput) printf '%s\n' "${P[StandardOutput]:-journal}" ;;
+    StandardError) printf '%s\n' "${P[StandardError]:-inherit}" ;;
+    After) printf 'sysinit.target %ssystem.slice basic.target\n' "${P[After]:+${P[After]} }" ;;
+    ExecStart)
+      if [ -n "$cmd" ]; then
+        printf '{ path=%s ; argv[]=%s ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }\n' "$cmd" "$cmd${rest[*]:+ ${rest[*]}}"
+      else
+        printf '\n'
+      fi
+      ;;
+    Result) cat "$st/result" 2>/dev/null || echo success ;;
+    NRestarts) cat "$st/nrestarts" 2>/dev/null || echo 0 ;;
+    *) printf '%s\n' "${P[$p]-}" ;;
+  esac
+}
+live_units() { # the live provider units (transient records and boot files)
+  local f u
+  for f in "$st"/u/eanhl-cloud-cred-pprobe-*; do
+    [ -e "$f" ] || continue
+    u=${f##*/}
+    case "$u" in *.argv | *.stopped) continue ;; esac
+    [ "$(loadstate "$u")" = loaded ] || continue
+    printf '%s loaded %s x\n' "$u" "$(state_of "$u")"
+  done
+  if [ -n "${STUB_UNIT_DIR-}" ]; then
+    for f in "$STUB_UNIT_DIR"/eanhl-cloud-cred-pprobe-*.service "$STUB_UNIT_DIR"/eanhl-cloud-cred-pprobe-*.timer; do
+      [ -f "$f" ] || continue
+      u=${f##*/}
+      [ -e "$st/u/$u" ] && continue
+      printf '%s loaded %s x\n' "$u" "$(state_of "$u")"
+    done
+  fi
+}
 case "$1" in
   show)
     unit=$6
     case "$3" in
-      LoadState)
-        if [ -e "$st/loadstate" ]; then cat "$st/loadstate"
-        elif [ -e "$st/u/$unit.stopped" ] && [ -e "$st/gc_on_stop" ]; then echo not-found
-        elif [ -e "$st/u/$unit" ]; then echo loaded
-        else echo not-found; fi ;;
+      LoadState) loadstate "$unit" ;;
       InvocationID)
-        if [ -e "$st/waited" ] && [ -e "$st/invid_after" ]; then cat "$st/invid_after"; else cat "$st/invid" 2>/dev/null; fi ;;
+        if is_scheduled "$unit" && [ ! -e "$st/triggered" ]; then echo
+        elif [ -e "$st/waited" ] && [ -e "$st/invid_after" ]; then cat "$st/invid_after"
+        else cat "$st/invid" 2>/dev/null; fi
+        ;;
       ActiveState)
+        if [ "$unit" = network-online.target ]; then
+          cat "$st/netonline" 2>/dev/null || echo active
+          exit 0
+        fi
         touch "$st/waited"
-        if [ -e "$st/u/$unit.stopped" ]; then echo inactive; else cat "$st/active" 2>/dev/null || echo active; fi ;;
+        state_of "$unit"
+        ;;
       SubState) cat "$st/sub" 2>/dev/null || echo exited ;;
       ExecMainStatus) cat "$st/status" 2>/dev/null || echo 0 ;;
-    esac ;;
+      *) derive "$unit" "$3" ;;
+    esac
+    ;;
   list-units)
-    cat "$st/units" 2>/dev/null
-    exit "$(cat "$st/units_rc" 2>/dev/null || echo 0)" ;;
+    rc=$(cat "$st/units_rc" 2>/dev/null || echo 0)
+    [ "$rc" = 0 ] || exit "$rc"
+    pat='' states=''
+    for a in "${@:2}"; do
+      case "$a" in
+        --state=*) states=${a#--state=} ;;
+        -*) ;;
+        *) pat=$a ;;
+      esac
+    done
+    { cat "$st/units" 2>/dev/null; live_units; } | while read -r name load active rest; do
+      [ -n "$name" ] || continue
+      # shellcheck disable=SC2053 # a glob pattern, as systemctl matches it
+      [ -z "$pat" ] || [[ $name == $pat ]] || continue
+      [ -z "$states" ] || [[ ",$states," == *",$active,"* ]] || continue
+      printf '%s %s %s %s\n' "$name" "$load" "$active" "$rest"
+    done
+    exit 0
+    ;;
   stop)
     rc=$(cat "$st/stop_rc" 2>/dev/null || echo 0)
     [ "$rc" = 0 ] && touch "$st/u/$3.stopped"
     exit "$rc" ;;
   reset-failed)
     exit "$(cat "$st/reset_rc" 2>/dev/null || echo 0)" ;;
+  enable)
+    rc=$(cat "$st/enable_rc" 2>/dev/null || echo 0)
+    [ "$rc" = 0 ] && ln -s "$STUB_UNIT_DIR/$3" "$STUB_WANTS_DIR/$3"
+    exit "$rc" ;;
+  disable)
+    rm -f "$STUB_WANTS_DIR/$3"
+    exit "$(cat "$st/disable_rc" 2>/dev/null || echo 0)" ;;
+  daemon-reload)
+    exit "$(cat "$st/reload_rc" 2>/dev/null || echo 0)" ;;
 esac
 exit 0
 EOF
 cat >"$SB/stub/systemd-run" <<'EOF'
 #!/usr/bin/bash
-# Records the unit; simulates the key/store effects of the few commands the
-# launcher runs, driven by files in $STUB_STATE; $STUB_STORE is the sandbox store.
+# Records the unit (and, E3J9D-R, its complete argv for property derivation;
+# --on-active also creates the transient timer); simulates the key/store
+# effects of the few commands the launcher runs, driven by files in
+# $STUB_STATE; $STUB_STORE is the sandbox store.
 st=$STUB_STATE
 echo "systemd-run $*" >>"$st/run_calls"
 mkdir -p "$st/u"
+unit='' timer=0
 for a in "$@"; do
   case "$a" in
-    --unit=*) touch "$st/u/${a#--unit=}.service" ;;
+    --unit=*)
+      unit=${a#--unit=}
+      touch "$st/u/$unit.service"
+      ;;
+    --on-active=*) timer=1 ;;
     --setenv=E3J9_PTY_NONCE=* | --setenv=E3J9_INJECTED=*) printf '%s\n' "${a#--setenv=*=}" >"$st/nonce" ;;
   esac
 done
+if [ -n "$unit" ]; then
+  printf '%s\0' "$@" >"$st/u/$unit.service.argv"
+  [ "$timer" -eq 0 ] || touch "$st/u/$unit.timer"
+fi
+# Provider-run side effects for the postcondition tests (the CLI rewriting the
+# entry with another mode, a fallback file, an extra entry, a lingering process).
+if [[ $unit == eanhl-cloud-cred-pprobe-* ]]; then
+  [ ! -e "$st/post_entry_mode" ] || chmod "$(cat "$st/post_entry_mode")" "$STUB_STORE/ch.proton.drive/drive-sdk-cli/auth-session.gpg"
+  [ ! -e "$st/post_fallback" ] || : >"$STUB_STORE/../auth-session.json"
+  [ ! -e "$st/post_extra" ] || : >"$STUB_STORE/extra.gpg"
+  if [ -e "$st/pids_after" ]; then
+    cp "$st/pids_after" "$st/pids"
+    echo 0 >"$st/pgrep_rc"
+  fi
+fi
 case " $* " in *' --quick-generate-key '*) touch "$st/generated" ;; esac
 case " $* " in *' --delete-secret-and-public-key '*) touch "$st/deleted" ;; esac
 case " $* " in
@@ -681,6 +1154,35 @@ cat >"$SB/stub/journalctl" <<'EOF'
 st=$STUB_STATE
 echo "journalctl $*" >>"$st/calls"
 [ "$1" = --sync ] && exit 0
+# E3J9D-R per-unit id view (never-reused and single-invocation proofs): only
+# the invocation-id field is requested; journald adds cursor, timestamps and
+# _BOOT_ID. Before the unit exists only history.tsv is visible; afterwards
+# idjson.tsv (if present) or journal.tsv. Knobs: idjson_rc, json_boot (every
+# record's _BOOT_ID), json_noinv (records lack the invocation id).
+case " $* " in
+  *' --output-fields=_SYSTEMD_INVOCATION_ID '*)
+    rc=$(cat "$st/idjson_rc" 2>/dev/null || echo 0)
+    [ "$rc" = 0 ] || exit "$rc"
+    unit=''
+    for a in "$@"; do case "$a" in _SYSTEMD_UNIT=*) unit=${a#_SYSTEMD_UNIT=} ;; esac; done
+    if [ -e "$st/idjson_fail_started" ] && { [ -e "$st/u/$unit" ] || [ -f "${STUB_UNIT_DIR:-/nonexistent}/$unit" ]; }; then exit 1; fi
+    src=$st/journal.tsv
+    [ -f "$st/idjson.tsv" ] && src=$st/idjson.tsv
+    if [ ! -e "$st/u/$unit" ] && ! [ -f "${STUB_UNIT_DIR:-/nonexistent}/$unit" ]; then src=$st/history.tsv; fi
+    [ -f "$src" ] || exit 0
+    boot=$(tr -d '\n-' <"$STUB_BOOT_FILE")
+    [ -e "$st/json_boot" ] && boot=$(cat "$st/json_boot")
+    while IFS=$'\t' read -r rinv rprefix msg; do
+      case "$unit" in "$rprefix"*) ;; *) continue ;; esac
+      if [ -e "$st/json_noinv" ]; then
+        printf '{"__CURSOR":"s=1","__REALTIME_TIMESTAMP":"1","__MONOTONIC_TIMESTAMP":"1","_BOOT_ID":"%s"}\n' "$boot"
+      else
+        printf '{"__CURSOR":"s=1","__REALTIME_TIMESTAMP":"1","__MONOTONIC_TIMESTAMP":"1","_BOOT_ID":"%s","_SYSTEMD_INVOCATION_ID":"%s"}\n' "$boot" "$rinv"
+      fi
+    done <"$src"
+    exit 0
+    ;;
+esac
 rc=$(cat "$st/journal_rc" 2>/dev/null || echo 0)
 [ "$rc" = 0 ] || exit "$rc"
 case " $* " in
@@ -730,7 +1232,28 @@ st=$STUB_STATE
 cat "$st/pids" 2>/dev/null
 exit "$(cat "$st/pgrep_rc" 2>/dev/null || echo 1)"
 EOF
+cat >"$SB/stub/od" <<'EOF'
+#!/usr/bin/bash
+# /dev/urandom through od, unless od_out forces the output (nonce tests).
+st=$STUB_STATE
+if [ -f "$st/od_out" ]; then
+  cat "$st/od_out"
+  exit 0
+fi
+exec /usr/bin/od "$@"
+EOF
 chmod +x "$SB/stub/"*
+# E3J9D-R sandbox: the boot id (canonical, one LF) and a root-like
+# /etc/systemd/system chain owned by the test user, modes 0755.
+BOOT_UUID=0123abcd-4567-89ab-cdef-0123456789ab
+BOOT_HEX=0123abcd456789abcdef0123456789ab
+printf '%s\n' "$BOOT_UUID" >"$SB/boot_id"
+ER=$SB/etcroot
+UD=$ER/etc/systemd/system
+WD=$UD/timers.target.wants
+mkdir -p "$WD"
+chmod 755 "$ER" "$ER/etc" "$ER/etc/systemd" "$UD" "$WD"
+UPL=$W/unit-publish-launcher
 sed -e "s#^readonly SVC=.*#readonly SVC=$ME#" \
   -e "s#^readonly WRAPPER=.*#readonly WRAPPER=$SB/wrapper#" \
   -e "s#^readonly VALIDATION_DIR=.*#readonly VALIDATION_DIR=$SB/val#" \
@@ -747,6 +1270,14 @@ sed -e "s#^readonly SVC=.*#readonly SVC=$ME#" \
   -e "s#^readonly JOURNALCTL=.*#readonly JOURNALCTL=$SB/stub/journalctl#" \
   -e "s#^readonly SETPRIV=.*#readonly SETPRIV=$SB/stub/setpriv#" \
   -e "s#^readonly PGREP=.*#readonly PGREP=$SB/stub/pgrep#" \
+  -e "s#^readonly OD=.*#readonly OD=$SB/stub/od#" \
+  -e "s#^readonly BOOT_ID_FILE=.*#readonly BOOT_ID_FILE=$SB/boot_id#" \
+  -e "s#^readonly UNIT_DIR=.*#readonly UNIT_DIR=$UD#" \
+  -e "s#^readonly WANTS_DIR=.*#readonly WANTS_DIR=$WD#" \
+  -e "s#^readonly UNIT_PUBLISH=.*#readonly UNIT_PUBLISH=$UPL#" \
+  -e "s#^readonly ROOT_UID=.*#readonly ROOT_UID=$MYUID#" \
+  -e "s#^readonly ROOT_GID=.*#readonly ROOT_GID=$MYGID#" \
+  -e "s#^readonly PP_WAIT=.*#readonly PP_WAIT=2#" \
   -e "s#/usr/bin/id#$SB/stub/id#g" \
   -e "s#/usr/bin/sleep#/usr/bin/true#g" \
   -e "s#bound_wait_read 330#bound_wait_read 2#g" \
@@ -759,10 +1290,20 @@ chmod +x "$L"
 t "launcher test copy: resident-agent rules injected (test values only)" grep -q -F 'readonly RESIDENT_AGENT_RULES=("/usr/bin/gpg-agent|1|' "$L"
 t "launcher test copy: every stubbed constant substituted" bash -c "! grep -q -E '^readonly (SYSTEMCTL|SYSTEMD_RUN|JOURNALCTL|SETPRIV|PGREP)=/usr/bin' '$L' && ! grep -q '/usr/bin/id' '$L'"
 export STUB_STATE=$ST
+t "launcher test copy: every E3J9D-R constant substituted (od, boot id, unit dirs, helper, root ids, wait)" bash -c "
+  for l in 'readonly OD=$SB/stub/od' 'readonly BOOT_ID_FILE=$SB/boot_id' 'readonly UNIT_DIR=$UD' 'readonly WANTS_DIR=$WD' \
+    'readonly UNIT_PUBLISH=$UPL' 'readonly ROOT_UID=$MYUID' 'readonly ROOT_GID=$MYGID' 'readonly PP_WAIT=2'; do grep -q -x -F \"\$l\" '$L' || exit 1; done
+  ! grep -q -E '^readonly (UNIT_DIR|WANTS_DIR|BOOT_ID_FILE)=/(etc|proc)' '$L'"
+export STUB_UNIT_DIR=$UD STUB_WANTS_DIR=$WD STUB_BOOT_FILE=$SB/boot_id
 export STUB_STORE=$SB/home/password-store
 libify() { sed '/^case "\${1-}" in$/,$d' "$1" >"$2"; }
 LLIB=$W/launcher-lib
 libify "$L" "$LLIB"
+stub_register_local() { # stub_register_local <unit> <local mode>: the unit exists exactly as the launcher builds it
+  mkdir -p "$ST/u"
+  touch "$ST/u/$1.service"
+  bash -c ". '$LLIB'; printf '%s\0' --quiet --no-block --unit='$1' --description=\"\$BOUND_DESC\" \"\${LOCAL_BOUND_PROPS[@]}\" \"\$WRAPPER\" --nonblock probe 'local:$2'" >"$ST/u/$1.service.argv"
+}
 FPR=AAAABBBBCCCCDDDDEEEEFFFF0000111122223333
 keylist() { printf '%s\n' 'sec:u:255:22:0123456789ABCDEF:1790000000:::u:::scESC:::+::ed25519:::0:' "fpr:::::::::$FPR:" 'grp:::::::::0000000000000000000000000000000000000000:' 'uid:u::::1790000000::HASH::EANHL cloud uploader credential store (Hotel-Echo)::::::::::0:' 'ssb:u:255:18:FEDCBA9876543210:1790000000::::::e:::+::cv25519::' 'fpr:::::::::9999888877776666555544443333222211110000:' 'grp:::::::::1111111111111111111111111111111111111111:'; }
 reset_state() {
@@ -930,6 +1471,9 @@ check_stale_excluded() { # check_stale_excluded <launcher>: stale records must n
   jrec "$OLD" eanhl-cloud-cred-probe-local- 'E3J9 probe_mode=local'
   jrec "$OLD" eanhl-cloud-cred-probe-local- 'E3J9 probe_result=pass'
   jrec "$INV" eanhl-cloud-cred-other- 'E3J9 probe_result=pass'
+  # E3J9D-R: isolate the bound read's invocation filter from the single-
+  # invocation proof, which alone also rejects these records (tested below).
+  printf '%s\t%s\t%s\n' "$INV" eanhl-cloud-cred-probe-local- x >"$ST/idjson.tsv"
   run_probe "$1" local
   [ "$(res):$(rc_of)" = fail:1 ]
 }
@@ -1021,6 +1565,7 @@ run_probe "$L" canary
 t "probe op: keep mode (canary, K3) is left running" bash -c "grep -q -x 'E3J9 probe_unit_kept=true' '$ST/out' && ! grep -q '^systemctl stop' '$ST/calls'"
 reset_state
 echo loaded >"$ST/loadstate"
+stub_register_local eanhl-cloud-cred-probe-canary-00112233aabbccdd canary
 out=$("$L" probe-stop 'eanhl-cloud-cred-probe-canary-00112233aabbccdd')
 rc=$?
 t "probe-stop: loaded unit stopped and reset → exit 0" bash -c "[ $rc -eq 0 ] && grep -q -x 'E3J9 probe_stopped=true' <<<\"\$1\"" _ "$out"
@@ -1448,6 +1993,7 @@ t "cleanup paths print only vocabulary" vocab_only "$(cat "$ST/out")"
 check_probe_stop_fail() { # check_probe_stop_fail <launcher> <state-file> <value>
   reset_state
   echo loaded >"$ST/loadstate"
+  stub_register_local eanhl-cloud-cred-probe-canary-00112233aabbccdd canary
   echo "$3" >"$ST/$2"
   "$1" probe-stop eanhl-cloud-cred-probe-canary-00112233aabbccdd >"$ST/out"
   [ "$?" -eq 1 ] && grep -q -x 'E3J9 probe_stopped=false' "$ST/out"
@@ -1619,6 +2165,1091 @@ t "README M8 command: reads the checkout gpg.conf (not /gpg.conf), setpriv cwd /
 t "README M8 command: target mode 0600 (umask 077 kept)" test "$(stat -c %a "$M8/gnupg/gpg.conf" 2>/dev/null)" = 600
 (cd "$M8/checkout" && bash -c "$m8_cmd") 2>/dev/null
 t "README M8 command: set -C still refuses an existing gpg.conf" test "$?" -ne 0
+
+
+# ── 10. provider-probe (E3J9D-R) — stubs only: never real systemd, journal, CLI or network ──
+# 10a. The bound runner's new proofs on LOCAL runs. On Hotel-Echo these run in
+# the same-session pre-ceremony proofs, before any provider contact.
+check_single_invocation() { # the json id view alone rejects a second invocation id of the same fresh name
+  probe_setup local
+  pass_records local
+  printf '%s\t%s\t%s\n' "$INV" eanhl-cloud-cred-probe-local- x "$OLD" eanhl-cloud-cred-probe-local- x >"$ST/idjson.tsv"
+  run_probe "$1" local
+  [ "$(res):$(rc_of)" = fail:1 ] && grep -q -x 'E3J9 bound_single_invocation=false' "$ST/out"
+}
+t "local run: a second invocation id under the same name → bound_single_invocation=false, fail" check_single_invocation "$L"
+mutation "single-invocation proof disabled" "$L" 's/if \[ "\$J_FOREIGN" -ne 0 \]; then/if false; then/' check_single_invocation
+check_boot_record() { # a record from another boot → bound_boot_id_match=false
+  probe_setup local
+  pass_records local
+  echo ffffffffffffffffffffffffffffffff >"$ST/json_boot"
+  run_probe "$1" local
+  [ "$(res):$(rc_of)" = fail:1 ] && grep -q -x 'E3J9 bound_boot_id_match=false' "$ST/out"
+}
+t "local run: a record whose _BOOT_ID is not the current boot → fail" check_boot_record "$L"
+mutation "_BOOT_ID check disabled" "$L" 's/if \[ "\$J_BOOT_BAD" -ne 0 \]; then/if false; then/' check_boot_record
+check_history() { # journal history under the candidate name → never started
+  probe_setup local
+  printf '%s\t%s\t%s\n' "$OLD" eanhl-cloud-cred-probe-local- x >"$ST/history.tsv"
+  run_probe "$1" local
+  grep -q -x 'E3J9 bound_unit_history_count=1' "$ST/out" && grep -q -x 'E3J9 bound_unit_collision=true' "$ST/out" &&
+    [ ! -e "$ST/run_calls" ] && [ "$(rc_of)" = 70 ]
+}
+t "local run: journal history under the candidate name → collision, never started" check_history "$L"
+mutation "never-reused history check disabled" "$L" 's/^  if \[ "\$hist" != 0 \]; then$/  if false; then/' check_history
+probe_setup local
+echo 1 >"$ST/idjson_rc"
+run_probe "$L" local
+t "local run: history query fails → refused, never started" bash -c "grep -q -x 'E3J9 bound_unit_history_count=invalid' '$ST/out' && [ ! -e '$ST/run_calls' ] && [ \"\$(cat '$ST/rc')\" = 70 ]"
+probe_setup local
+pass_records local
+touch "$ST/idjson_fail_started"
+run_probe "$L" local
+t "local run: the json proof fails after the start → fail, cleaned up" bash -c "grep -q -x 'E3J9 bound_single_invocation=false' '$ST/out' && grep -q -x 'E3J9 bound_cleanup_ok=true' '$ST/out' && [ \"\$(sed -n 's/^E3J9 probe_run_result=//p' '$ST/out')\" = fail ]"
+probe_setup local
+pass_records local
+touch "$ST/json_noinv"
+run_probe "$L" local
+t "local run: a json record without an invocation id → fail" test "$(res):$(rc_of)" = fail:1
+check_local_attest() { # a unit whose properties are not the launcher's → attest false, fail
+  probe_setup local
+  pass_records local
+  echo root >"$ST/lprop.User"
+  run_probe "$1" local
+  [ "$(res):$(rc_of)" = fail:1 ] && grep -q -x 'E3J9 bound_attest_ok=false' "$ST/out"
+}
+t "local attestation: User not the service identity → fail" check_local_attest "$L"
+probe_setup local
+pass_records local
+printf '%s\n' '{ path=/bin/sh ; argv[]=/bin/sh -c x ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }' >"$ST/lprop.ExecStart"
+run_probe "$L" local
+t "local attestation: a foreign ExecStart → fail" bash -c "grep -q -x 'E3J9 bound_attest_ok=false' '$ST/out' && [ \"\$(cat '$ST/rc')\" = 1 ]"
+probe_setup local
+pass_records local
+echo yes >"$ST/lprop.PrivateNetwork"
+run_probe "$L" local
+t "local attestation: the unit it attests is its own (PrivateNetwork=yes, local argv) → pass" test "$(res):$(rc_of)" = pass:0
+check_rand() { # a non-hex or short urandom read → rand_failed, nothing started
+  probe_setup local
+  printf ' AB CD EF 01 23 45 67 89\n' >"$ST/od_out"
+  run_probe "$1" local
+  grep -q -x 'E3J9 launcher_failed=rand_failed' "$ST/out" && [ ! -e "$ST/run_calls" ]
+}
+t "nonce: an uppercase urandom read → rand_failed, nothing started" check_rand "$L"
+mutation "rand_hex validation removed" "$L" 's/^  \[\[ \$h =~ .*|| return 1$/  :/' check_rand
+probe_setup local
+printf ' 00 11 22\n' >"$ST/od_out"
+run_probe "$L" local
+t "nonce: a short urandom read → rand_failed" grep -q -x 'E3J9 launcher_failed=rand_failed' "$ST/out"
+probe_setup local
+mv "$SB/boot_id" "$SB/boot_id.off"
+run_probe "$L" local
+mv "$SB/boot_id.off" "$SB/boot_id"
+t "local run: boot id unreadable → refused before any start" bash -c "grep -q -x 'E3J9 bound_boot_id_ok=false' '$ST/out' && [ ! -e '$ST/run_calls' ]"
+# read_boot_id: one representation (32 lowercase hex), strict input.
+check_bid_canonical() { printf '%s\n' "$BOOT_UUID" >"$SB/boot_id"; [ "$(bash -c ". '$1'; read_boot_id")" = "$BOOT_HEX" ]; }
+check_bid_rejects() { # every malformed boot_id content is refused
+  local c rc=0
+  for c in '0123ABCD-4567-89AB-CDEF-0123456789AB\n' '0123abcd456789abcdef0123456789ab\n' \
+    '0123abcd-4567-89ab-cdef-0123456789ab \n' ' 0123abcd-4567-89ab-cdef-0123456789ab\n' \
+    '0123abcd-4567-89ab-cdef-0123456789ab\n0123abcd-4567-89ab-cdef-0123456789ab\n' '' \
+    '0123abcd-4567-89ab-cdef-0123456789ab' '0123abcd-4567-89ab-cdef-0123456789ab\n\n' \
+    '0123abcd-4567-89ab-cdef-01234567\x0089ab\n' '0123abcd-4567-89ab-cdef-0123456789a\n'; do
+    printf '%b' "$c" >"$SB/boot_id"
+    if bash -c ". '$1'; read_boot_id" >/dev/null 2>&1; then rc=1; fi
+  done
+  rm -f "$SB/boot_id"
+  if bash -c ". '$1'; read_boot_id" >/dev/null 2>&1; then rc=1; fi
+  printf '%s\n' "$BOOT_UUID" >"$SB/boot_id"
+  return "$rc"
+}
+t "boot id: the canonical UUID + LF normalises to 32 lowercase hex" check_bid_canonical "$LLIB"
+t "boot id: uppercase, no hyphens, whitespace, two lines, empty, no LF, extra LF, NUL, short, unreadable → refused" check_bid_rejects "$LLIB"
+printf '%s\n' "$BOOT_UUID" >"$SB/boot_id"
+mutation "boot id compared hyphenated (normalisation removed)" "$LLIB" 's/^  id=\${id\/\/-\/}$/  :/' check_bid_canonical
+printf '%s\n' "$BOOT_UUID" >"$SB/boot_id"
+mutation "boot id regex validation removed" "$LLIB" 's/^  \[\[ \$content =~ \$BOOT_ID_RE \]\] || return 1$/  :/' check_bid_rejects
+printf '%s\n' "$BOOT_UUID" >"$SB/boot_id"
+# probe-stop provenance: never stop a unit only because its name matches.
+check_probe_stop_provenance() {
+  reset_state
+  echo loaded >"$ST/loadstate"
+  stub_register_local eanhl-cloud-cred-probe-canary-00112233aabbccdd canary
+  echo root >"$ST/lprop.User"
+  "$1" probe-stop eanhl-cloud-cred-probe-canary-00112233aabbccdd >"$ST/out"
+  [ "$?" -eq 1 ] && grep -q -x 'E3J9 probe_provenance=unproven' "$ST/out" && ! grep -q '^systemctl stop' "$ST/calls"
+}
+t "probe-stop: a unit whose User is not the service identity → refused, not stopped" check_probe_stop_provenance "$L"
+mutation "probe-stop skips attestation" "$L" 's/ && attest_local_keep "\$unit" "\$m"; then/; then/' check_probe_stop_provenance
+reset_state
+echo loaded >"$ST/loadstate"
+stub_register_local eanhl-cloud-cred-probe-canary-00112233aabbccdd local
+"$L" probe-stop eanhl-cloud-cred-probe-canary-00112233aabbccdd >"$ST/out"
+t "probe-stop: a canary-named unit running another argv → refused, not stopped" bash -c "[ $? -eq 1 ] && grep -q -x 'E3J9 probe_provenance=unproven' '$ST/out' && ! grep -q '^systemctl stop' '$ST/calls'"
+
+# 10b. The record projection tables are tied to the probe's case arms.
+fn_names() { # fn_names <probe function>: the names it emits (complete tokens)
+  emit_call_tokens <(extract "$PROBE_SRC" "$1") | tr -d '"' | grep -x -E '[a-z_]+'
+}
+env_names() { # the env-inspect names the probe's check_environment reaches ("" boundary + helper_ descendant)
+  emit_call_tokens <(extract "$INSPECT_SRC" print_boundary) | sed -E 's/^"\$\{p\}//; s/"$//'
+  emit_call_tokens <(extract "$INSPECT_SRC" print_descendant) | sed -E 's/^"\$\{p\}/helper_/; s/"$//'
+}
+probe_arm_names() { # probe_arm_names <probe mode>: every name the provider arm can emit
+  local arm fn
+  arm=$(sed -n "/^  $1)\$/,/^    ;;\$/p" "$PROBE_SRC")
+  [ -n "$arm" ] || return 1
+  {
+    echo probe_mode
+    echo probe_tmp_ok
+    fn_names check_pinentry_and_cmds
+    fn_names finish | grep -v '^canary_'
+    emit_call_tokens <(printf '%s\n' "$arm") | tr -d '"'
+    for fn in check_environment check_identity check_metadata run_provider check_decoy_parent; do
+      grep -q -E "^[[:space:]]*$fn( |\$)" <<<"$arm" || continue
+      if [ "$fn" = check_environment ]; then env_names; else fn_names "$fn"; fi
+    done
+  } | sort -u
+}
+rules_names() { # rules_names <launcher file> <probe mode>: the names of its PROVIDER_MODE_NAMES groups
+  local f=$1 groups g
+  groups=$(sed -n '/^readonly PROVIDER_MODE_NAMES=(/,/^)/p' "$f" | grep -o -E "'$2\|[A-Z0-9 ]+'" | sed -E "s/^'$2\|//; s/'\$//")
+  [ -n "$groups" ] || return 1
+  for g in $groups; do
+    awk -v s="readonly PP_RULES_$g=(" 'index($0, s) == 1 {f = 1} f {print} f && /\)$/ {exit}' "$f" |
+      grep -o -E "'[a-z_]+ [a-z]+(=[^']*)?'" | sed -E "s/^'//; s/ .*//"
+  done | sort -u
+}
+check_mode_names_tied() { # check_mode_names_tied <launcher file>: per mode, rules names == probe arm names
+  local m
+  for m in provider provider-freshcache neg-nokey neg-nostore e4-decoy; do
+    [ "$(rules_names "$1" "$m")" = "$(probe_arm_names "$m")" ] || { echo "     mismatch: $m"; return 1; }
+  done
+}
+t "PROVIDER_MODE_NAMES: every mode's rule names == the names its probe arm emits" check_mode_names_tied "$LAUNCHER_SRC"
+mutation "a mode's required-name set loses one name" "$LAUNCHER_SRC" "s/ 'gpg_agent_count_at_start req=0'//" check_mode_names_tied
+check_record_names_tied() { # PROVIDER_RECORD_NAMES == the union of the provider arms' names; every class exists
+  local union table classes c m
+  union=$(for m in provider provider-freshcache neg-nokey neg-nostore e4-decoy; do probe_arm_names "$m"; done | sort -u)
+  table=$(sed -n '/^readonly PROVIDER_RECORD_NAMES=(/,/^)/p' "$LAUNCHER_SRC" | grep -o -E '[a-z_]+:[a-z_]+' | sed 's/:.*//' | sort -u)
+  [ -n "$union" ] && [ "$union" = "$table" ] || return 1
+  classes=$(sed -n '/^readonly PROVIDER_RECORD_NAMES=(/,/^)/p' "$LAUNCHER_SRC" | grep -o -E '[a-z_]+:[a-z_]+' | sed 's/.*://' | sort -u)
+  for c in $classes; do grep -q -E "^  \[$c\]='" "$LAUNCHER_SRC" || return 1; done
+}
+t "PROVIDER_RECORD_NAMES == the union of the provider arms' names; every class exists" check_record_names_tied
+
+# 10c. Provider fixtures: a post-login store and a clean pass record set per mode.
+PSP=$SB/home/password-store
+pp_setup() {
+  reset_state
+  chmod -R u+rwx "$PSP" 2>/dev/null
+  rm -rf "$PSP/ch.proton.drive" "$PSP/.gpg-id" "$PSP/extra.gpg" "$PSP/stray" "$SB/home/auth-session.json"
+  printf '%s\n' "$FPR" >"$PSP/.gpg-id"
+  chmod 600 "$PSP/.gpg-id"
+  mkdir -p "$PSP/ch.proton.drive/drive-sdk-cli"
+  printf 'entry-bytes\n' >"$PSP/ch.proton.drive/drive-sdk-cli/auth-session.gpg"
+  chmod 600 "$PSP/ch.proton.drive/drive-sdk-cli/auth-session.gpg"
+  rm -f "$SB/home/locks/credential.lock"
+  : >"$SB/home/locks/credential.lock"
+  printf 'cli-bytes\n' >"$SB/cli"
+  printf '%s\n' "$BOOT_UUID" >"$SB/boot_id"
+  rm -f "$UD"/eanhl-cloud-cred-pprobe-* "$UD"/.eanhl-cloud-cred-pprobe-* "$WD"/eanhl-cloud-cred-pprobe-*
+  echo "$INV" >"$ST/invid"
+}
+pp_pass_lines() { # pp_pass_lines <probe mode>: a complete clean record set, in the probe arm's order
+  local m=$1
+  meta() { printf 'E3J9 %s\n' entry_present=true entry_mode=600 entry_size=12 entry_mtime=1790000000 fallback_file_count=0 log_count=0 cli_present=true cli_pin_match=true; }
+  printf 'E3J9 probe_mode=%s\n' "$m"
+  printf 'E3J9 %s\n' env_initial_exact=true env_unexpected_count=0 env_forbidden_absent=true env_nonce_absent=true env_systemd_absent=true \
+    helper_env_descendant_within_permitted=true helper_env_pwd_is_workdir=true helper_env_unexpected_count=0 \
+    helper_env_wrong_value_count=0 helper_env_forbidden_absent=true helper_env_nonce_absent=true helper_env_systemd_absent=true
+  case "$m" in provider | provider-freshcache | e4-decoy)
+    printf 'E3J9 %s\n' identity_is_svc=true groups_only_primary=true stdin_is_tty=false run_user_absent=true "human_sessions=${HS:-0}" gpg_agent_count_at_start=0 ;;
+  esac
+  [ "$m" != e4-decoy ] || printf 'E3J9 %s\n' decoy_parent_is_flock=true decoy_parent_env_readable=true decoy_parent_decoy_count=4 decoy_parent_values_exact=true decoy_marker_dirs_created=true
+  case "$m" in provider | e4-decoy) meta ;; esac
+  case "$m" in
+    neg-nokey) printf 'E3J9 %s\n' provider_rc=1 provider_result=pass_load_failed ;;
+    neg-nostore) printf 'E3J9 %s\n' provider_rc=1 provider_result=login_required ;;
+    *) printf 'E3J9 %s\n' provider_rc=0 provider_result=ok ;;
+  esac
+  [ "$m" != provider-freshcache ] || printf 'E3J9 freshcache_entry_count=2\n'
+  [ "$m" != e4-decoy ] || printf 'E3J9 %s\n' decoy_pdcache_entry_count=0 decoy_xdgcache_entry_count=0
+  case "$m" in provider | neg-nokey | neg-nostore | e4-decoy) meta ;; esac
+  printf 'E3J9 %s\n' pinentry_count=0 pass_cmd_not_found=false probe_failures=0 probe_result=pass
+}
+pp_records() { # pp_records <unit prefix> <probe mode> [sed script]: jrec a (modified) pass set
+  local l
+  while IFS= read -r l; do jrec "$INV" "$1" "$l"; done < <(pp_pass_lines "$2" | sed -e "${3:-}")
+}
+pp_run() { "$1" provider-probe run "$2" >"$ST/out" 2>"$ST/err"; echo $? >"$ST/rc"; }
+pres() { sed -n 's/^E3J9 provider_run_result=//p' "$ST/out"; }
+now_prefix() { printf 'eanhl-cloud-cred-pprobe-now-%s-' "$1"; }
+pmode_of() { case "$1" in n3-busy) echo provider ;; *) echo "$1" ;; esac; }
+
+# 10d. run: each mode.
+check_run_argv() { # check_run_argv <mode> <probe argument>: exactly one provider start with the fixed properties
+  local line
+  [ "$(grep -c -- '--unit=eanhl-cloud-cred-pprobe-' "$ST/run_calls")" -eq 1 ] || return 1
+  line=$(grep -- '--unit=eanhl-cloud-cred-pprobe-' "$ST/run_calls")
+  [[ $line == *" --nonblock probe $2" ]] || return 1
+  for p in After=network-online.target Wants=network-online.target PrivateNetwork=no Restart=no RemainAfterExit=yes \
+    StandardInput=null StandardOutput=journal StandardError=journal "User=$ME" TimeoutStartSec=300; do
+    [[ $line == *" --property=$p "* ]] || return 1
+  done
+  [[ $line != *PrivateNetwork=yes* ]] && [[ $line != *--collect* ]] || return 1
+  if [ "$1" = e4-decoy ]; then [ "$(grep -o -- '--setenv=' <<<"$line" | wc -l)" -eq 4 ]; else [[ $line != *--setenv* ]]; fi
+}
+for m in provider provider-freshcache neg-nokey neg-nostore e4-decoy; do
+  pp_setup
+  pp_records "$(now_prefix "$m")" "$m"
+  pp_run "$L" "$m"
+  t "run $m: pass, exit 0" test "$(pres):$(rc_of)" = pass:0
+  t "run $m: one provider start: table argument, network ordering, PrivateNetwork=no, Restart=no, no --collect, --setenv only for e4-decoy" check_run_argv "$m" "provider:$m"
+  t "run $m: cleaned up, postconditions true, output vocabulary-only, stderr empty" bash -c "
+    grep -q '^systemctl stop -- eanhl-cloud-cred-pprobe-now-$m-' '$ST/calls' && grep -q -x 'E3J9 bound_cleanup_ok=true' '$ST/out' &&
+    grep -q -x 'E3J9 pp_post_entry_meta_ok=true' '$ST/out' && grep -q -x 'E3J9 pp_post_no_active_unit=true' '$ST/out' &&
+    ! grep -v -q -E '^E3J9 [a-z_]+=[a-z0-9_.:-]+\$' '$ST/out' && [ ! -s '$ST/err' ]"
+done
+t "run e4-decoy: the parent unit carried exactly this run's decoys; zero journal hits for its marker" bash -c "
+  grep -q -x 'E3J9 pp_decoy_env_attested=true' '$ST/out' && grep -q -x 'E3J9 pp_decoy_nonce_journal_hits=0' '$ST/out' &&
+  ! grep -q -F \"\$(cat '$ST/nonce')\" '$ST/out' '$ST/err' && ! grep -q -E '127\\.0\\.0\\.1|e3j9-e4-' '$ST/out'"
+check_e4_positive() { pp_setup; pp_records "$(now_prefix e4-decoy)" e4-decoy; pp_run "$1" e4-decoy; [ "$(pres):$(rc_of)" = pass:0 ]; }
+mutation "e4-decoy without the --setenv decoys" "$L" 's/^    decoys=("\${E4_DECOYS\[@\]}")$/    decoys=()/' check_e4_positive
+check_e4_env_exact() { # a pattern-valid decoy set whose marker is not this run's → fail
+  pp_setup
+  pp_records "$(now_prefix e4-decoy)" e4-decoy
+  printf '%s\n' "PROTON_DRIVE_CACHE_DIR=/tmp/e3j9-e4-pdcache XDG_CACHE_HOME=/tmp/e3j9-e4-xdgcache PROTON_DRIVE_BASE_URL=http://127.0.0.1:9 E3J9_INJECTED=e3j9nonce00000000000000000000000000000000" >"$ST/prop.service.Environment"
+  pp_run "$1" e4-decoy
+  [ "$(pres):$(rc_of)" = fail:1 ] && grep -q -x 'E3J9 pp_decoy_env_attested=false' "$ST/out"
+}
+t "run e4-decoy: the unit's marker is not this run's → pp_decoy_env_attested=false, fail" check_e4_env_exact "$L"
+mutation "drop the E4 Environment attestation" "$L" 's/^      e4_ok=0$/      :/' check_e4_env_exact
+pp_setup
+pp_records "$(now_prefix e4-decoy)" e4-decoy
+printf '%s\n' 'PROTON_DRIVE_CACHE_DIR=/tmp/e3j9-e4-pdcache XDG_CACHE_HOME=/tmp/e3j9-e4-xdgcache PROTON_DRIVE_BASE_URL=http://127.0.0.1:9' >"$ST/prop.service.Environment"
+pp_run "$L" e4-decoy
+t "run e4-decoy: a decoy missing from the unit → attestation false, fail" test "$(pres):$(rc_of)" = fail:1
+check_e4_nonce_hits() {
+  pp_setup
+  pp_records "$(now_prefix e4-decoy)" e4-decoy
+  touch "$ST/leak_nonce"
+  pp_run "$1" e4-decoy
+  [ "$(pres):$(rc_of)" = fail:1 ] && grep -q -x 'E3J9 pp_decoy_nonce_journal_hits=1' "$ST/out"
+}
+t "run e4-decoy: the marker found in the journal → fail" check_e4_nonce_hits "$L"
+mutation "drop the E4 nonce journal-hit check" "$L" 's/^    \[ "\$hits" = 0 \] || bad=1$/    :/' check_e4_nonce_hits
+# n3-busy: during a lockhold-long hold (K4-style), the provider unit is refused by the lock.
+LH_UNIT=eanhl-cloud-cred-probe-lockhold-long-0011223344556677
+n3_setup() { # n3_setup [keep-lock-free]: the attested lockhold-long unit, and the lock held unless asked
+  pp_setup
+  stub_register_local "$LH_UNIT" lockhold-long
+  echo "$LH_UNIT.service loaded activating start" >"$ST/units"
+  if [ -z "${1-}" ]; then
+    /usr/bin/flock --exclusive "$SB/home/locks/credential.lock" /usr/bin/sleep 30 &
+    N3_HOLDER=$!
+    BG_PIDS+=("$N3_HOLDER")
+    for _ in $(seq 1 30); do /usr/bin/flock --nonblock "$SB/home/locks/credential.lock" /usr/bin/true || break; sleep 0.1; done
+  fi
+}
+n3_done() { [ -z "${N3_HOLDER-}" ] || { kill "$N3_HOLDER" 2>/dev/null; wait "$N3_HOLDER" 2>/dev/null; }; N3_HOLDER=''; }
+n3_setup
+echo 75 >"$ST/status"
+echo failed >"$ST/active"
+pp_run "$L" n3-busy
+n3_done
+t "run n3-busy: lock held by the attested lockhold unit → busy, exit 0" bash -c "[ \"\$(sed -n 's/^E3J9 provider_run_result=//p' '$ST/out'):\$(cat '$ST/rc')\" = busy:0 ] && grep -q -x 'E3J9 pp_pre_lock_held=true' '$ST/out' && grep -q -x 'E3J9 pp_pre_lockhold_unit_ok=true' '$ST/out'"
+check_n3_rejects_pass() { # n3-busy accepts only busy
+  n3_setup
+  pp_records "$(now_prefix n3-busy)" provider
+  pp_run "$1" n3-busy
+  n3_done
+  [ "$(pres):$(rc_of)" = pass:1 ]
+}
+t "run n3-busy: a pass outcome is not accepted (exit 1)" check_n3_rejects_pass "$L"
+mutation "n3-busy accepts pass" "$L" "s/^  'n3-busy|provider:provider|busy|run|ok'\$/  'n3-busy|provider:provider|pass,busy|run|ok'/" check_n3_rejects_pass
+pp_setup
+pp_run "$L" n3-busy
+t "run n3-busy: no lockhold-long unit → refused 65, never started" bash -c "[ \"\$(cat '$ST/rc')\" = 65 ] && grep -q -x 'E3J9 pp_pre_lockhold_unit_ok=false' '$ST/out' && ! grep -q -- '--unit=eanhl-cloud-cred-pprobe-' '$ST/run_calls' 2>/dev/null"
+n3_setup free
+pp_run "$L" n3-busy
+t "run n3-busy: the lock is not held → refused 65" bash -c "[ \"\$(cat '$ST/rc')\" = 65 ] && grep -q -x 'E3J9 pp_pre_lock_held=false' '$ST/out'"
+check_provider_rejects_busy() {
+  pp_setup
+  echo 75 >"$ST/status"
+  echo failed >"$ST/active"
+  pp_run "$1" provider
+  [ "$(pres):$(rc_of)" = busy:1 ]
+}
+t "run provider: busy is not an accepted outcome" check_provider_rejects_busy "$L"
+mutation "provider accepts busy" "$L" "s/^  'provider|provider:provider|pass|run,schedule|ok'\$/  'provider|provider:provider|pass,busy|run,schedule|ok'/" check_provider_rejects_busy
+
+# 10e. Arguments: closed tables, whole-argument matches, refused before any system call.
+arg_case() { # arg_case <argument...>: refused as usage, exit 64, before any system call
+  reset_state
+  "$L" provider-probe "$@" >"$ST/out" 2>/dev/null
+  local rc=$?
+  t "provider-probe $(printf '%q ' "$@")→ usage, exit 64, no system call" bash -c "
+    [ $rc -eq 64 ] && grep -q -x 'E3J9 launcher_refused=usage' '$ST/out' && [ ! -e '$ST/calls' ] && [ ! -e '$ST/run_calls' ]"
+}
+arg_case run
+arg_case run ''
+arg_case run PROVIDER
+arg_case run 'provider '
+arg_case run $'provider\n'
+arg_case run 'provider;id'
+arg_case run --unit=x
+arg_case run -- provider
+arg_case run canary
+arg_case run local
+arg_case run provider:provider
+arg_case run e4
+arg_case run e4-decoy=1
+arg_case schedule 20min
+arg_case schedule now
+arg_case schedule provider
+arg_case collect now
+arg_case collect 't20m extra'
+arg_case discard sshd
+arg_case discard ''
+arg_case start provider
+arg_case ''
+reset_state
+"$L" provider-probe >"$ST/out"
+t "provider-probe with no verb → usage" grep -q -x 'E3J9 launcher_refused=usage' "$ST/out"
+"$L" provider-probe schedule t20m provider >"$ST/out"
+t "provider-probe schedule t20m provider (extra argument) → usage" grep -q -x 'E3J9 launcher_refused=usage' "$ST/out"
+for m in provider provider-freshcache neg-nokey neg-nostore n3-busy e4-decoy; do
+  reset_state
+  "$L" probe "$m" >"$ST/out"
+  t "local probe op refuses provider mode $m" bash -c "grep -q -x 'E3J9 launcher_refused=usage' '$ST/out' && [ ! -e '$ST/run_calls' ]"
+done
+
+# 10f. Records: the name/value projection and the independent classifier.
+pp_variant() { # pp_variant <launcher> <mode> <sed script>: run with a modified pass set
+  pp_setup
+  pp_records "$(now_prefix "$2")" "$(pmode_of "$2")" "$3"
+  pp_run "$1" "$2"
+}
+pp_fails() { [ "$(pres):$(rc_of)" = fail:1 ]; }
+pp_setup
+pp_run "$L" provider
+t "records: none → fail" pp_fails
+for v in '/probe_mode=/d' '1a E3J9 probe_mode=provider' '1{h;d};$G' 's/^E3J9 probe_mode=provider$/E3J9 probe_mode=neg-nokey/' \
+  '/probe_result=/d' '$a E3J9 probe_result=pass' '$a E3J9 probe_result=fail' '$a E3J9 provider_result=ok' \
+  's/provider_result=ok/provider_result=login_required/' 's/entry_mode=600/entry_mode=644/' \
+  's/gpg_agent_count_at_start=0/gpg_agent_count_at_start=1/' 's/pinentry_count=0/pinentry_count=invalid/' \
+  's/^E3J9 env_nonce_absent=true/E3J9 env_nonce_absent=false/' 's/probe_failures=0/probe_failures=1/' '/provider_rc=/d'; do
+  pp_variant "$L" provider "$v"
+  t "records (provider, sed '$v') → fail" pp_fails
+done
+pp_variant "$L" neg-nostore 's/provider_rc=1/provider_rc=0/'
+t "records: provider_rc=0 together with login_required → fail" pp_fails
+pp_variant "$L" provider-freshcache '$a E3J9 entry_mode=600'
+t "records: a name the mode's arm never emits (entry_mode in provider-freshcache) → disallowed, fail" bash -c "[ \"\$(sed -n 's/^E3J9 provider_run_result=//p' '$ST/out')\" = fail ] && grep -q -x 'E3J9 bound_disallowed_lines=1' '$ST/out'"
+check_first_line() { pp_variant "$1" provider '1{h;d};$G'; pp_fails; }
+mutation "classifier without the first-line rule" "$L" '/^classify_provider() {/,/^}/{/\[ "\${B_RECORDS\[0\]}" = "E3J9 probe_mode=\$pmode" \]/d}' check_first_line
+check_exactly_once() { pp_variant "$1" provider '$a E3J9 probe_result=pass'; pp_fails; }
+mutation "classifier without the exactly-once rule" "$L" 's/^      once) \[ "\$n" -eq 1 \]/      once) [ "$n" -ge 1 ]/' check_exactly_once
+check_mode_label() { pp_variant "$1" neg-nokey 's/provider_rc=1/provider_rc=0/; s/provider_result=pass_load_failed/provider_result=ok/'; pp_fails; }
+t "records: neg-nokey answering ok → fail (the mode's expected label)" check_mode_label "$L"
+mutation "classifier without the mode label rule" "$L" 's/pp_rules_hold "\$pmode" "\$label"/pp_rules_hold "$pmode" ok/' check_mode_label
+check_disallowed() { pp_variant "$1" provider-freshcache '$a E3J9 entry_mode=600'; pp_fails; }
+mutation "record_allowed always true" "$L" 's/^record_allowed() {$/record_allowed() { return 0/' check_disallowed
+# Leak marker: never on any launcher output surface; always counted, and the run fails.
+check_leak() { # check_leak <launcher> <line> [marker]
+  pp_setup
+  pp_records "$(now_prefix provider)" provider
+  jrec "$INV" "$(now_prefix provider)" "$2"
+  pp_run "$1" provider
+  pp_fails && ! grep -q -F "${3:-$LEAK}" "$ST/out" "$ST/err"
+}
+t "leak marker as a vocabulary-shaped record with an unknown name → never printed, fail" check_leak "$L" 'E3J9 zzleakmarker=1' zzleakmarker
+for line in "free text $LEAK https://example.invalid/?t=$LEAK" "E3J9 $LEAK=1" "E3J9 provider_result=$LEAK" "E3J9 probe_mode=$LEAK" "E3J9 entry_size=$LEAK"; do
+  t "leak marker as '${line%% *} …' → never printed, counted, fail" check_leak "$L" "$line"
+done
+check_leak_value() { check_leak "$1" "E3J9 provider_result=$LEAK"; }
+mutation "value-class check removed" "$L" 's/^  \[\[ \$value =~ \${PP_CLASS_RE\[\$class\]} \]\]$/  true/' check_leak_value
+pp_setup
+pp_records "$(now_prefix provider)" provider
+jrec "$INV" "$(now_prefix provider)" "free text $LEAK"
+jrec "$INV" "$(now_prefix provider)" "E3J9 zzleakmarker=1"
+pp_run "$L" provider
+t "leak lines are counted: nonvocab 1, disallowed 1" bash -c "grep -q -x 'E3J9 bound_nonvocab_lines=1' '$ST/out' && grep -q -x 'E3J9 bound_disallowed_lines=1' '$ST/out'"
+
+# 10g. Unit state, start, bind, wait, cleanup and postconditions.
+for s in nrestarts:1 result:exit-code status:1; do
+  pp_setup
+  pp_records "$(now_prefix provider)" provider
+  echo "${s#*:}" >"$ST/${s%%:*}"
+  pp_run "$L" provider
+  t "unit state ${s%%:*}=${s#*:} with clean records → fail" pp_fails
+done
+pp_setup
+pp_records "$(now_prefix provider)" provider
+echo 75 >"$ST/status"
+echo failed >"$ST/active"
+pp_run "$L" provider
+t "exit 75 with records → fail (never busy)" pp_fails
+pp_setup
+pp_records "$(now_prefix provider)" provider 's/probe_result=pass/probe_result=fail/'
+pp_run "$L" provider
+t "exit 0 with probe_result=fail → fail" pp_fails
+pp_setup
+pp_records "$(now_prefix provider)" provider
+echo root >"$ST/prop.service.User"
+pp_run "$L" provider
+t "provider attestation: User not the service identity → attest false, fail" bash -c "grep -q -x 'E3J9 bound_attest_ok=false' '$ST/out' && [ \"\$(sed -n 's/^E3J9 provider_run_result=//p' '$ST/out')\" = fail ]"
+pp_setup
+pp_records "$(now_prefix provider)" provider
+echo yes >"$ST/prop.service.PrivateNetwork"
+pp_run "$L" provider
+t "provider attestation: PrivateNetwork=yes is not a provider unit → fail" pp_fails
+check_start_fail_unattested() { # a failed start leaves an unattested unit untouched
+  pp_setup
+  echo 1 >"$ST/run_rc"
+  echo root >"$ST/prop.service.User"
+  pp_run "$1" provider
+  [ "$(rc_of)" = 70 ] && grep -q -x 'E3J9 bound_start_ok=false' "$ST/out" && grep -q -x 'E3J9 pp_provenance=unproven' "$ST/out" &&
+    ! grep -q '^systemctl stop' "$ST/calls"
+}
+t "start fails and the name's unit does not attest → untouched, unproven, exit 70" check_start_fail_unattested "$L"
+mutation "start-failure cleanup without attestation" "$L" 's/if \[ "\$load" = loaded \] && attest_bound; then/if [ "$load" = loaded ]; then/' check_start_fail_unattested
+pp_setup
+echo 1 >"$ST/run_rc"
+pp_run "$L" provider
+t "start fails and the unit attests as ours → stopped and reset, exit 70" bash -c "[ \"\$(cat '$ST/rc')\" = 70 ] && grep -q '^systemctl stop' '$ST/calls' && grep -q -x 'E3J9 bound_cleanup_ok=true' '$ST/out'"
+for inv in '' 0123456789ABCDEF0123456789ABCDEF 0123; do
+  pp_setup
+  echo "$inv" >"$ST/invid"
+  pp_run "$L" provider
+  t "invocation id '$inv' never bound → stopped, exit 70" bash -c "grep -q -x 'E3J9 bound_invocation=false' '$ST/out' && [ \"\$(cat '$ST/rc')\" = 70 ] && grep -q '^systemctl stop' '$ST/calls'"
+done
+pp_setup
+pp_records "$(now_prefix provider)" provider
+echo "$OLD" >"$ST/invid_after"
+pp_run "$L" provider
+t "invocation changed during the wait → fail" bash -c "grep -q -x 'E3J9 bound_invocation_changed=true' '$ST/out' && [ \"\$(sed -n 's/^E3J9 provider_run_result=//p' '$ST/out')\" = fail ]"
+for st_sub in activating:start active:running deactivating:stop inactive:dead; do
+  pp_setup
+  pp_records "$(now_prefix provider)" provider
+  echo "${st_sub%%:*}" >"$ST/active"
+  echo "${st_sub#*:}" >"$ST/sub"
+  pp_run "$L" provider
+  t "unit state ${st_sub} → fail, cleaned up" bash -c "[ \"\$(sed -n 's/^E3J9 provider_run_result=//p' '$ST/out')\" = fail ] && grep -q '^systemctl stop' '$ST/calls'"
+done
+pp_setup
+pp_records "$(now_prefix provider)" provider
+echo 5 >"$ST/stop_rc"
+pp_run "$L" provider
+t "cleanup: stop fails after a clean pass → fail" bash -c "[ \"\$(sed -n 's/^E3J9 provider_run_result=//p' '$ST/out')\" = fail ] && grep -q -x 'E3J9 bound_cleanup_ok=false' '$ST/out'"
+check_pp_cleanup() { # stopped (inactive) but the reset fails on a still-loaded unit: only the cleanup result can fail the run
+  pp_setup
+  pp_records "$(now_prefix provider)" provider
+  touch "$ST/pprobe_no_gc"
+  echo 1 >"$ST/reset_rc"
+  pp_run "$1" provider
+  pp_fails && grep -q -x 'E3J9 bound_cleanup_ok=false' "$ST/out" && grep -q -x 'E3J9 pp_post_no_active_unit=true' "$ST/out"
+}
+t "cleanup: reset fails on a still-loaded, stopped unit (postconditions otherwise true) → fail" check_pp_cleanup "$L"
+mutation "provider run ignores the cleanup result" "$L" 's/^  pp_cleanup_bound || outcome=fail$/  pp_cleanup_bound || :/' check_pp_cleanup
+check_post_entry() { # the entry changed mode during the run → postcondition fails
+  pp_setup
+  pp_records "$(now_prefix provider)" provider
+  echo 644 >"$ST/post_entry_mode"
+  pp_run "$1" provider
+  pp_fails && grep -q -x 'E3J9 pp_post_entry_meta_ok=false' "$ST/out"
+}
+t "postcondition: the entry is no longer 0600 → fail" check_post_entry "$L"
+mutation "provider run ignores the postcondition entry check" "$L" '/^    emit pp_post_entry_meta_ok false$/{n;s/^    bad=1$/    :/}' check_post_entry
+for post in post_fallback post_extra pids_after; do
+  pp_setup
+  pp_records "$(now_prefix provider)" provider
+  echo 4242 >"$ST/$post"
+  pp_run "$L" provider
+  t "postcondition: $post → fail" pp_fails
+done
+
+# 10h. Preconditions: each refuses before any provider start.
+pp_pre_refused() { [ "$(rc_of)" = 65 ] && grep -q -x 'E3J9 launcher_refused=preconditions_failed' "$ST/out" && ! grep -q -- '--unit=eanhl-cloud-cred-pprobe-' "$ST/run_calls" 2>/dev/null; }
+pre_case() { # pre_case <label> <setup commands>
+  pp_setup
+  eval "$2"
+  pp_run "$L" provider
+  t "precondition: $1 → refused 65, never started" pp_pre_refused
+}
+pre_case 'CLI pin mismatch' 'printf other >"$SB/cli"'
+pre_case 'no secret key' ': >"$ST/keylist"'
+pre_case '.gpg-id names another key' 'printf "%s\n" 9999888877776666555544443333222211110000 >"$PSP/.gpg-id"'
+pre_case 'auth entry missing' 'rm -f "$PSP/ch.proton.drive/drive-sdk-cli/auth-session.gpg"'
+pre_case 'auth entry 0644' 'chmod 644 "$PSP/ch.proton.drive/drive-sdk-cli/auth-session.gpg"'
+pre_case 'auth entry a symlink' 'mv "$PSP/ch.proton.drive/drive-sdk-cli/auth-session.gpg" "$SB/entry.real"; ln -s "$SB/entry.real" "$PSP/ch.proton.drive/drive-sdk-cli/auth-session.gpg"'
+pre_case 'an extra store entry' ': >"$PSP/extra.gpg"'
+pre_case 'auth-session.json fallback' ': >"$SB/home/auth-session.json"'
+pre_case 'an active credential unit' 'echo "eanhl-cloud-cred-x.service loaded active running" >"$ST/units"'
+pre_case 'an eanhl-cloud process' 'echo 4242 >"$ST/pids"; echo 0 >"$ST/pgrep_rc"'
+pre_case 'network-online inactive' 'echo inactive >"$ST/netonline"'
+pre_case 'boot id unreadable' 'rm -f "$SB/boot_id"'
+pre_case 'a leftover pprobe unit file' ': >"$UD/eanhl-cloud-cred-pprobe-boot-provider-0123456789abcdef0123456789abcdef.timer"'
+check_pre_pprobe() {
+  pp_setup
+  echo 'eanhl-cloud-cred-pprobe-now-provider-0123456789abcdef0123456789abcdef.service loaded failed failed' >"$ST/units"
+  pp_run "$1" provider
+  pp_pre_refused
+}
+t "precondition: a leftover pprobe unit → refused 65" check_pre_pprobe "$L"
+mutation "drop the no-pprobe-object precondition" "$L" 's/^  pp_check_objects "\$verb" "\$slot" || return 1$/  :/' check_pre_pprobe
+pp_setup
+/usr/bin/flock --exclusive "$SB/home/locks/credential.lock" /usr/bin/sleep 20 &
+held=$!
+BG_PIDS+=("$held")
+for _ in $(seq 1 30); do /usr/bin/flock --nonblock "$SB/home/locks/credential.lock" /usr/bin/true || break; sleep 0.1; done
+pp_run "$L" provider
+kill "$held" 2>/dev/null
+wait "$held" 2>/dev/null
+t "precondition: the credential lock is held → refused 65" pp_pre_refused
+printf '%s\n' "$BOOT_UUID" >"$SB/boot_id"
+
+# 10i. Freshness: fresh 128-bit names, never reused, never retried.
+pp_setup
+echo loaded >"$ST/loadstate"
+pp_run "$L" provider
+t "fresh name: the candidate is loaded → collision, never started, exit 70" bash -c "grep -q -x 'E3J9 bound_unit_collision=true' '$ST/out' && [ \"\$(cat '$ST/rc')\" = 70 ] && ! grep -q -- '--unit=eanhl-cloud-cred-pprobe-' '$ST/run_calls' 2>/dev/null"
+pp_setup
+printf '%s\t%s\t%s\n' "$OLD" "$(now_prefix provider)" x >"$ST/history.tsv"
+pp_run "$L" provider
+t "fresh name: journal history under the candidate → collision, never started" bash -c "grep -q -x 'E3J9 bound_unit_history_count=1' '$ST/out' && ! grep -q -- '--unit=eanhl-cloud-cred-pprobe-' '$ST/run_calls' 2>/dev/null"
+pp_setup
+pp_records "$(now_prefix provider)" provider
+printf ' 00 11 22 33 44 55 66 77\n 88 99 aa bb cc dd ee ff\n' >"$ST/od_out"
+pp_run "$L" provider
+first=$(sed -n 's/^E3J9 bound_unit=//p' "$ST/out")
+rm -f "$ST/run_calls"
+pp_run "$L" provider
+t "fresh name: a forced identical nonce is refused the second time (journal history), never started" bash -c "
+  [ '$first' = 'eanhl-cloud-cred-pprobe-now-provider-00112233445566778899aabbccddeeff' ] &&
+  grep -q -x 'E3J9 bound_unit_collision=true' '$ST/out' && ! grep -q -- '--unit=eanhl-cloud-cred-pprobe-' '$ST/run_calls' 2>/dev/null"
+
+# 10j. Cancellation: a signal during the wait cleans up and fails; no retry.
+LC=$W/launcher-cancel
+sed 's#^readonly PP_WAIT=2$#readonly PP_WAIT=30#' "$L" >"$LC"
+chmod +x "$LC"
+check_cancel() {
+  pp_setup
+  echo activating >"$ST/active"
+  echo start >"$ST/sub"
+  "$1" provider-probe run provider >"$ST/out" 2>"$ST/err" &
+  local lp=$!
+  for _ in $(seq 1 100); do grep -q -x 'E3J9 bound_invocation=true' "$ST/out" 2>/dev/null && break; sleep 0.05; done
+  kill -TERM "$lp" 2>/dev/null
+  wait "$lp"
+  local rc=$?
+  [ "$rc" -ne 0 ] && grep -q -x 'E3J9 pp_cancelled=true' "$ST/out" && grep -q '^systemctl stop' "$ST/calls" &&
+    grep -q -x 'E3J9 provider_run_result=fail' "$ST/out" && [ "$(grep -c -- '--unit=eanhl-cloud-cred-pprobe-' "$ST/run_calls")" -eq 1 ]
+}
+t "cancel: TERM during the wait → pp_cancelled, stopped, fail, one start only" check_cancel "$LC"
+mutation "trap removed" "$LC" '/trap pp_on_signal INT TERM HUP/d' check_cancel
+
+# 10k. Scheduled probes: delayed slots (transient timers).
+sched_stem() { sed -n 's/^E3J9 bound_unit=//p' "$ST/out"; }
+pp_setup
+"$L" provider-probe schedule t20m >"$ST/out" 2>"$ST/err"
+echo $? >"$ST/rc"
+T20=$(sched_stem)
+t "schedule t20m: fixed --on-active=20min, attested before firing, scheduled, exit 0" bash -c "
+  [ \"\$(cat '$ST/rc')\" = 0 ] && grep -q -x 'E3J9 pp_attest_ok=true' '$ST/out' && grep -q -x 'E3J9 pp_scheduled=true' '$ST/out' &&
+  grep -- '--unit=$T20' '$ST/run_calls' | grep -q -- ' --on-active=20min --timer-property=RemainAfterElapse=yes ' &&
+  [[ '$T20' =~ ^eanhl-cloud-cred-pprobe-t20m-provider-[0-9a-f]{32}\$ ]] && ! grep -q '^systemctl stop' '$ST/calls'"
+"$L" provider-probe collect t20m >"$ST/out"
+echo $? >"$ST/rc"
+t "collect t20m before it fired → pending 65, nothing stopped, nothing read" bash -c "
+  [ \"\$(cat '$ST/rc')\" = 65 ] && grep -q -x 'E3J9 provider_run_result=pending' '$ST/out' && ! grep -q '^systemctl stop' '$ST/calls' && ! grep -q -- '-o cat' '$ST/calls'"
+"$L" provider-probe schedule t6h15m >"$ST/out"
+T6=$(sched_stem)
+t "schedule t6h15m while t20m is armed → scheduled (the other delayed slot is permitted)" bash -c "grep -q -x 'E3J9 pp_scheduled=true' '$ST/out' && grep -- '--unit=$T6' '$ST/run_calls' | grep -q -- ' --on-active=6h15min '"
+"$L" provider-probe schedule t20m >"$ST/out"
+t "schedule t20m again while one is armed → refused 65" grep -q -x 'E3J9 launcher_refused=preconditions_failed' "$ST/out"
+touch "$ST/triggered"
+pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider
+"$L" provider-probe collect t20m >"$ST/out"
+echo $? >"$ST/rc"
+t "collect t20m after it fired → pass, pair removed, the t6h15m pair left alone" bash -c "
+  [ \"\$(cat '$ST/rc')\" = 0 ] && grep -q -x 'E3J9 provider_run_result=pass' '$ST/out' &&
+  grep -q '^systemctl stop -- $T20.timer' '$ST/calls' && grep -q '^systemctl stop -- $T20.service' '$ST/calls' &&
+  ! grep -q '^systemctl stop -- $T6' '$ST/calls' && grep -q -x 'E3J9 pp_post_no_active_unit=true' '$ST/out'"
+rm -f "$ST/journal.tsv"
+pp_records "eanhl-cloud-cred-pprobe-t6h15m-provider-" provider
+"$L" provider-probe collect t6h15m >"$ST/out"
+t "collect t6h15m → pass" grep -q -x 'E3J9 provider_run_result=pass' "$ST/out"
+check_hs() { # a scheduled probe that ran with a human session → fail
+  pp_setup
+  "$1" provider-probe schedule t20m >/dev/null
+  touch "$ST/triggered"
+  HS=1 pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider
+  "$1" provider-probe collect t20m >"$ST/out"
+  [ "$?" -eq 1 ] && grep -q -x 'E3J9 provider_run_result=fail' "$ST/out"
+}
+t "collect: human_sessions=1 → fail" check_hs "$L"
+mutation "scheduled slots without the human_sessions=0 rule" "$L" 's/^  \[ "\$1" != now \] || return 0$/  return 0/' check_hs
+pp_setup
+"$L" provider-probe schedule t20m >/dev/null
+touch "$ST/triggered"
+pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider
+printf '%s\n' ffffffff-4567-89ab-cdef-0123456789ab >"$SB/boot_id"
+"$L" provider-probe collect t20m >"$ST/out"
+printf '%s\n' "$BOOT_UUID" >"$SB/boot_id"
+t "collect t20m after a reboot (boot id changed) → fail" grep -q -x 'E3J9 provider_run_result=fail' "$ST/out"
+pp_setup
+printf '%s\n' '{ OnActiveUSec=21min ; next_elapse=20min }' >"$ST/prop.timer.TimersMonotonic"
+"$L" provider-probe schedule t20m >"$ST/out"
+echo $? >"$ST/rc"
+t "schedule: attestation fails before firing → in-process rollback of its own pair, exit 70" bash -c "
+  [ \"\$(cat '$ST/rc')\" = 70 ] && grep -q -x 'E3J9 pp_attest_ok=false' '$ST/out' && grep -q -x 'E3J9 pp_rollback_complete=true' '$ST/out' &&
+  grep -q '^systemctl stop -- eanhl-cloud-cred-pprobe-t20m-provider-.*\\.timer' '$ST/calls'"
+
+# 10l. Boot slot: the persistent pair (the real unit-publish helper in the sandbox chain).
+build_up() { # build_up <helper-src> <dst> <root> <hooks>: the sandbox chain, owner ids, test points
+  sed -e "s#^my \$UNIT_DIR    = .*#my \$UNIT_DIR    = '$3/etc/systemd/system';#" \
+    -e "s#^my \$WANTS_DIR   = .*#my \$WANTS_DIR   = '$3/etc/systemd/system/timers.target.wants';#" \
+    -e "s#^my @TRUST_CHAIN = .*#my @TRUST_CHAIN = ('$3', '$3/etc', '$3/etc/systemd', '$3/etc/systemd/system');#" \
+    -e "s#^my \$OWNER_UID   = .*#my \$OWNER_UID   = $MYUID;#" -e "s#^my \$OWNER_GID   = .*#my \$OWNER_GID   = $MYGID;#" \
+    -e "s|^\( *\)# TEST-POINT \([a-z_]*\) \(.*\)\$|\1test_point('\2', \3);|" -e "s|^\( *\)# TEST-POINT \([a-z_]*\)\$|\1test_point('\2', '');|" \
+    -e 's/\$dh->sync/hsync($dh, "dir")/g' -e 's/\$fh->sync/hsync($fh, "file")/g' "$1" >"$2"
+  sed "s#__HOOKS__#$4#g" >>"$2" <<'PERL'
+# ── test-only hooks (harness copy only; never in the template) ──
+our $HOOKS;
+BEGIN { $HOOKS = '__HOOKS__'; } # compile time: the main program exits before the end of the file
+sub hook_read {
+    my ($n) = @_;
+    open(my $f, '<', "$HOOKS/$n") or return;
+    my $l = <$f>;
+    close $f;
+    return unless defined $l;
+    my ($v) = $l =~ /\A([A-Za-z0-9._\/-]+)\n?\z/;
+    return $v;
+}
+sub hook_log { my ($t) = @_; if (open(my $f, '>>', "$HOOKS/calls")) { print $f "$t\n"; close $f; } return; }
+sub hsync {
+    my ($h, $tag) = @_;
+    hook_log("sync-$tag");
+    if (-e "$HOOKS/fail-sync-$tag") { unlink("$HOOKS/fail-sync-$tag"); return 0; }
+    return $h->sync;
+}
+sub test_point {
+    my ($tag, $arg) = @_;
+    hook_log("tp-$tag");
+    if ($tag eq 'before_link') {
+        my $want = hook_read('race');
+        my ($p) = defined $arg ? $arg =~ /\A(.*)\z/s : ();
+        if (defined $want && defined $p && $p =~ m{/\Q$want\E\z}) {
+            if (sysopen(my $f, $p, O_WRONLY | O_CREAT | O_EXCL, 0644)) { print $f "racer\n"; close $f; }
+        }
+    } elsif ($tag eq 'rollback') {
+        my $nb = hook_read('foreign-newinode');
+        if (defined $nb) {
+            my $p = "$UNIT_DIR/$nb";
+            # The replacement is created BEFORE the original goes away, so its inode
+            # number cannot be the original's (an immediately recycled inode number
+            # would defeat any dev/ino identity check; only the byte check remains then).
+            if (open(my $f, '<', $p)) {
+                local $/;
+                my $c = <$f>;
+                close $f;
+                if (open(my $g, '>', "$p.new")) { print $g $c; close $g; chmod 0644, "$p.new"; rename("$p.new", $p); }
+            }
+        }
+        my $ip = hook_read('foreign-inplace');
+        if (defined $ip) { my $p = "$UNIT_DIR/$ip"; if (open(my $g, '+<', $p)) { print $g 'X'; close $g; } }
+    } elsif ($tag eq 'after_lstat') {
+        my $want = hook_read('swap');
+        my ($p) = defined $arg ? $arg =~ /\A(.*)\z/s : ();
+        if (defined $want && defined $p && $p =~ m{/\Q$want\E\z}) {
+            unlink("$HOOKS/swap");
+            rename($p, "$p.moved");
+            symlink("$p.moved", $p);
+        }
+    }
+    return;
+}
+PERL
+}
+UPHOOKS=$W/uphooks-launcher
+mkdir -p "$UPHOOKS"
+build_up "$HELPER_SRC" "$UPL" "$ER" "$UPHOOKS"
+t "unit-publish launcher copy: perl -T -c" bash -c "perl -T -c '$UPL' >/dev/null 2>&1"
+render_boot() { # render_boot <service|timer> <stem> <armed>: the launcher's canonical bytes
+  bash -c ". '$LLIB'; pp_render_$1 '$2' '$3'"
+}
+pp_setup
+"$L" provider-probe schedule boot >"$ST/out" 2>"$ST/err"
+echo $? >"$ST/rc"
+BOOT_STEM=$(sched_stem)
+t "schedule boot: published, attested, enabled, synced, exit 0" bash -c "
+  [ \"\$(cat '$ST/rc')\" = 0 ] && grep -q -x 'E3J9 pp_scheduled=true' '$ST/out' && grep -q -x 'E3J9 pp_enable_attested=true' '$ST/out' &&
+  [[ '$BOOT_STEM' =~ ^eanhl-cloud-cred-pprobe-boot-provider-[0-9a-f]{32}\$ ]]"
+t "schedule boot: both files are the canonical bytes, 0644, no temporary files" bash -c "
+  cmp -s '$UD/$BOOT_STEM.service' <(bash -c \". '$LLIB'; pp_render_service '$BOOT_STEM' '$BOOT_HEX'\") &&
+  cmp -s '$UD/$BOOT_STEM.timer' <(bash -c \". '$LLIB'; pp_render_timer '$BOOT_STEM' '$BOOT_HEX'\") &&
+  [ \"\$(stat -c %a '$UD/$BOOT_STEM.service') \$(stat -c %a '$UD/$BOOT_STEM.timer')\" = '644 644' ] &&
+  ! ls -A '$UD' | grep -q '\\.tmp\$' && [ -L '$WD/$BOOT_STEM.timer' ]"
+t "schedule boot: order daemon-reload → enable, never start" bash -c "
+  grep -n -E '^systemctl (daemon-reload|enable)' '$ST/calls' | head -2 | cut -d: -f2 | tr '\n' ' ' | grep -q -x 'systemctl daemon-reload systemctl enable -- $BOOT_STEM.timer ' &&
+  ! grep -q -E '^systemctl start|enable --now' '$ST/calls'"
+t "schedule boot: the helper synced the unit directory and the wants directory" bash -c "[ \"\$(grep -c -x 'sync-dir' '$UPHOOKS/calls')\" -ge 2 ]"
+"$L" provider-probe schedule boot >"$ST/out"
+t "schedule boot while a pair exists → refused 65" grep -q -x 'E3J9 launcher_refused=preconditions_failed' "$ST/out"
+# the reboot: a new boot id; the timer fired once in the new boot
+printf '%s\n' 99990000-1111-2222-3333-444455556666 >"$SB/boot_id"
+touch "$ST/triggered"
+echo active >"$ST/boot_timer_state"
+pp_records "eanhl-cloud-cred-pprobe-boot-provider-" provider
+"$L" provider-probe collect boot >"$ST/out"
+echo $? >"$ST/rc"
+t "collect boot after the reboot → pass, boot id changed, pair unpublished, link removed" bash -c "
+  [ \"\$(cat '$ST/rc')\" = 0 ] && grep -q -x 'E3J9 provider_run_result=pass' '$ST/out' && grep -q -x 'E3J9 pp_boot_id_changed=true' '$ST/out' &&
+  [ ! -e '$UD/$BOOT_STEM.service' ] && [ ! -e '$UD/$BOOT_STEM.timer' ] && [ ! -e '$WD/$BOOT_STEM.timer' ] &&
+  grep -q '^systemctl disable -- $BOOT_STEM.timer' '$ST/calls'"
+printf '%s\n' "$BOOT_UUID" >"$SB/boot_id"
+check_boot_unchanged() { # the boot probe ran in the boot it was armed in → fail
+  pp_setup
+  "$1" provider-probe schedule boot >/dev/null
+  touch "$ST/triggered"
+  pp_records "eanhl-cloud-cred-pprobe-boot-provider-" provider
+  "$1" provider-probe collect boot >"$ST/out"
+  [ "$?" -eq 1 ] && grep -q -x 'E3J9 pp_boot_id_changed=false' "$ST/out"
+}
+t "collect boot without a reboot → fail" check_boot_unchanged "$L"
+mutation "drop the boot-changed rule" "$L" 's/^    \[ -n "\$cur" \] && \[ "\$cur" != "\$PP_ARMED" \] || outcome=fail$/    :/' check_boot_unchanged
+pp_setup
+echo 1 >"$ST/enable_rc"
+"$L" provider-probe schedule boot >"$ST/out"
+echo $? >"$ST/rc"
+t "schedule boot: enable fails → disable, link absent, pair unpublished by bytes, rollback complete, exit 70" bash -c "
+  [ \"\$(cat '$ST/rc')\" = 70 ] && grep -q -x 'E3J9 pp_rollback_complete=true' '$ST/out' &&
+  [ -z \"\$(ls -A '$UD' | grep eanhl-cloud-cred-pprobe)\" ] && [ -z \"\$(ls -A '$WD')\" ]"
+pp_setup
+echo 1 >"$ST/reload_rc"
+"$L" provider-probe schedule boot >"$ST/out"
+t "schedule boot: daemon-reload fails → own pair unpublished, rollback honestly incomplete (the reload still fails), exit 70" bash -c "
+  grep -q -x 'E3J9 pp_rollback_complete=false' '$ST/out' && grep -q -x 'E3J9 pp_scheduled=false' '$ST/out' && [ -z \"\$(ls -A '$UD' | grep eanhl-cloud-cred-pprobe)\" ]"
+pp_setup
+ln -s "$SB/nowhere" "$UD/eanhl-cloud-cred-pprobe-boot-provider-ffffffffffffffffffffffffffffffff.service"
+"$L" provider-probe schedule boot >"$ST/out"
+t "schedule boot: a pprobe symlink in the unit directory → refused, symlink untouched" bash -c "grep -q -x 'E3J9 launcher_refused=preconditions_failed' '$ST/out' && [ -L '$UD/eanhl-cloud-cred-pprobe-boot-provider-ffffffffffffffffffffffffffffffff.service' ]"
+rm -f "$UD/eanhl-cloud-cred-pprobe-boot-provider-ffffffffffffffffffffffffffffffff.service"
+# rendered pair: allowed keys only; systemd-analyze verify (production paths)
+VR=$W/verify
+mkdir -p "$VR"
+VSTEM=eanhl-cloud-cred-pprobe-boot-provider-0123456789abcdef0123456789abcdef
+render_boot service "$VSTEM" "$BOOT_HEX" | sed -e "s#$SB/wrapper#/usr/local/lib/eanhl-cloud/credential-exec#" -e "s#=$ME\$#=eanhl-cloud#" >"$VR/$VSTEM.service"
+render_boot timer "$VSTEM" "$BOOT_HEX" >"$VR/$VSTEM.timer"
+t "rendered timer: exactly OnBootSec=10min, RemainAfterElapse, Persistent=no, Unit=, WantedBy; no other trigger" test \
+  "$(grep -o -E '^[A-Za-z]+=' "$VR/$VSTEM.timer" | tr '\n' ' ')" = 'Description= OnBootSec= RemainAfterElapse= Persistent= Unit= WantedBy= '
+t "rendered service: After/Wants in [Unit], no [Install], no Environment, WorkingDirectory, the wrapper ExecStart" bash -c "
+  sed -n '/^\\[Unit\\]/,/^\\[Service\\]/p' '$VR/$VSTEM.service' | grep -q -x 'After=network-online.target' &&
+  ! grep -q -E '^\\[Install\\]|^Environment|StateDirectory|CacheDirectory' '$VR/$VSTEM.service' &&
+  grep -q -x 'WorkingDirectory=/var/lib/eanhl-cloud' '$VR/$VSTEM.service' &&
+  grep -q -x 'ExecStart=/usr/local/lib/eanhl-cloud/credential-exec --nonblock probe provider:provider' '$VR/$VSTEM.service'"
+if command -v systemd-analyze >/dev/null 2>&1; then
+  vout=$(systemd-analyze verify --man=no "$VR/$VSTEM.service" "$VR/$VSTEM.timer" 2>&1)
+  t "systemd-analyze verify: only the not-installed executable is reported" bash -c "
+    [ -n \"\$1\" ] && ! grep -v -q -F 'Command /usr/local/lib/eanhl-cloud/credential-exec is not executable: No such file or directory' <<<\"\$1\"" _ "$vout"
+else
+  printf 'NOTE systemd-analyze not installed: the rendered pair was NOT verified (not counted as passed)\n'
+fi
+
+# 10m. Provenance: collect and discard never touch an object they cannot prove.
+mut_calls() { if [ -f "$ST/calls" ]; then grep -c -E '^systemctl (stop|reset-failed|disable)' "$ST/calls"; else echo 0; fi; }
+prov_case() { # prov_case <launcher> <verb> <slot> <reason>: refused 65 with <reason>, nothing mutated
+  local before
+  before=$(mut_calls)
+  "$1" provider-probe "$2" "$3" >"$ST/out"
+  local rc=$?
+  [ "$rc" -eq 65 ] && grep -q -x "E3J9 pp_provenance=$4" "$ST/out" && [ "$(mut_calls)" = "$before" ]
+}
+sched_t20m() { pp_setup; "$1" provider-probe schedule t20m >/dev/null; T20=$(grep -o -E 'eanhl-cloud-cred-pprobe-t20m-provider-[0-9a-f]{32}' "$ST/run_calls" | head -1); }
+for kv in 'User=root' 'ExecStart={ path=x ; argv[]=x --nonblock probe local:local ; ignore_errors=no }' 'FragmentPath=/etc/systemd/system/x.service' 'PrivateNetwork=yes'; do
+  for verb in collect discard; do
+    sched_t20m "$L"
+    printf '%s\n' "${kv#*=}" >"$ST/prop.service.${kv%%=*}"
+    t "$verb t20m: service ${kv%%=*} mismatch → mismatch, nothing touched" prov_case "$L" "$verb" t20m mismatch
+  done
+done
+for kv in 'Unit=other.service' 'TimersMonotonic={ OnActiveUSec=21min ; next_elapse=1s }' 'TimersCalendar={ OnCalendar=daily ; next_elapse=1d }'; do
+  sched_t20m "$L"
+  printf '%s\n' "${kv#*=}" >"$ST/prop.timer.${kv%%=*}"
+  t "discard t20m: timer ${kv%%=*} mismatch → mismatch, nothing touched" prov_case "$L" discard t20m mismatch
+done
+check_discard_attest() { sched_t20m "$1"; echo root >"$ST/prop.service.User"; prov_case "$1" discard t20m mismatch; }
+check_discard_ok() { sched_t20m "$1"; "$1" provider-probe discard t20m >"$ST/out"; [ "$?" -eq 0 ] && grep -q -x 'E3J9 pp_discarded=true' "$ST/out"; }
+t "discard t20m: a proven pair → removed, exit 0" check_discard_ok "$L"
+mutation "discard skips attestation" "$L" '/pp_discarded false; exit 65; fi$/s/ && pp_attest_found "\$slot"//' check_discard_ok
+check_collect_ok() { sched_t20m "$1"; touch "$ST/triggered"; pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider; "$1" provider-probe collect t20m >"$ST/out"; [ "$?" -eq 0 ]; }
+mutation "collect skips attestation" "$L" '/emit provider_run_result fail; exit 65; fi$/s/ && pp_attest_found "\$slot"//' check_collect_ok
+check_ambiguous() { # two stems under one slot → ambiguous
+  sched_t20m "$1"
+  echo 'eanhl-cloud-cred-pprobe-t20m-provider-ffffffffffffffffffffffffffffffff.service loaded inactive dead' >"$ST/units"
+  prov_case "$1" discard t20m ambiguous
+}
+t "discard t20m: two stems → ambiguous, nothing touched" check_ambiguous "$L"
+mutation "discovery accepts two stems" "$L" 's/^  if \[ "\${#stems\[@\]}" -ne 1 \]; then$/  if [ "${#stems[@]}" -lt 1 ]; then/' check_ambiguous
+pp_setup
+echo 'eanhl-cloud-cred-pprobe-boot-provider-XYZ.service loaded active running' >"$ST/units"
+t "collect boot: a foreign name under the prefix → foreign, nothing touched" prov_case "$L" collect boot foreign
+pp_setup
+echo 'eanhl-cloud-cred-pprobe-t20m-neg-nokey-0123456789abcdef0123456789abcdef.service loaded inactive dead' >"$ST/units"
+t "discard t20m: a non-provider mode under a scheduled slot → foreign" prov_case "$L" discard t20m foreign
+pp_setup
+t "discard t20m: nothing there → missing, exit 65" prov_case "$L" discard t20m missing
+sched_t20m "$L"
+rm -f "$ST/u/$T20.timer"
+t "discard t20m: the timer is missing → missing, nothing touched" prov_case "$L" discard t20m missing
+# boot pair provenance: bytes, ids and the wants link
+sched_boot() { pp_setup; "$1" provider-probe schedule boot >/dev/null; BOOT_STEM=$(ls "$UD" | grep -o -E '^eanhl-cloud-cred-pprobe-boot-provider-[0-9a-f]{32}' | head -1); }
+check_boot_bytes() { # an extra ExecStartPost= line (not an attested property) → mismatch, nothing touched
+  sched_boot "$1"
+  printf 'ExecStartPost=/usr/bin/true\n' >>"$UD/$BOOT_STEM.service"
+  prov_case "$1" discard boot mismatch && grep -q -x 'ExecStartPost=/usr/bin/true' "$UD/$BOOT_STEM.service"
+}
+t "discard boot: an extra unit-file line → mismatch, bytes intact, nothing touched" check_boot_bytes "$L"
+mutation "skip the boot byte-compare" "$L" 's/^    \[ "\$have" = "\$want" \] || return 1$/    :/' check_boot_bytes
+for tamper in 'printf "\n" >>"$UD/$BOOT_STEM.timer"' 'sed -i "s/^Persistent=no\$/Persistent=no\r/" "$UD/$BOOT_STEM.timer"' \
+  'sed -i "s/armed-boot $BOOT_HEX/armed-boot ffffffffffffffffffffffffffffffff/" "$UD/$BOOT_STEM.timer"' \
+  'sed -i "s/armed-boot $BOOT_HEX/armed-boot $BOOT_UUID/" "$UD/$BOOT_STEM.service" "$UD/$BOOT_STEM.timer"' \
+  'sed -i "s/armed-boot $BOOT_HEX/armed-boot ${BOOT_HEX^^}/" "$UD/$BOOT_STEM.service" "$UD/$BOOT_STEM.timer"' \
+  'rm -f "$WD/$BOOT_STEM.timer"; ln -s /elsewhere "$WD/$BOOT_STEM.timer"' \
+  'echo root >"$ST/prop.service.User"'; do
+  sched_boot "$L"
+  eval "$tamper"
+  t "discard boot after: $tamper → mismatch, nothing touched" prov_case "$L" discard boot mismatch
+done
+sched_boot "$L"
+: >"$WD/eanhl-cloud-cred-pprobe-boot-provider-ffffffffffffffffffffffffffffffff.timer"
+t "discard boot: an extra wants entry (a second stem) → ambiguous, nothing touched" prov_case "$L" discard boot ambiguous
+rm -f "$WD/eanhl-cloud-cred-pprobe-boot-provider-ffffffffffffffffffffffffffffffff.timer"
+sched_boot "$L"
+rm -f "$WD/$BOOT_STEM.timer"
+t "discard boot: the wants link removed → missing, nothing touched" prov_case "$L" discard boot missing
+sched_boot "$L"
+"$L" provider-probe discard boot >"$ST/out"
+t "discard boot: a proven pair → disabled, unpublished, exit 0" bash -c "[ $? -eq 0 ] && grep -q -x 'E3J9 pp_discarded=true' '$ST/out' && [ -z \"\$(ls -A '$UD' | grep eanhl-cloud-cred-pprobe)\" ] && [ -z \"\$(ls -A '$WD')\" ]"
+# the SIGKILL orphan: a `now` unit left loaded (its cleanup failed) is removed by `discard now` with provenance
+pp_setup
+pp_records "$(now_prefix e4-decoy)" e4-decoy
+echo 5 >"$ST/stop_rc"
+pp_run "$L" e4-decoy
+rm -f "$ST/stop_rc"
+"$L" provider-probe discard now >"$ST/out"
+t "discard now: an orphaned e4-decoy run unit (persisted provenance with the E4 pattern) → removed, exit 0" bash -c "[ $? -eq 0 ] && grep -q -x 'E3J9 pp_discarded=true' '$ST/out'"
+pp_setup
+pp_records "$(now_prefix provider)" provider
+echo 5 >"$ST/stop_rc"
+pp_run "$L" provider
+rm -f "$ST/stop_rc"
+echo root >"$ST/prop.service.User"
+t "discard now: an orphan that does not attest → mismatch, never stopped" prov_case "$L" discard now mismatch
+
+# 10n. One execution identity per probe across P1 x2, P3, P4, P5.
+pp_setup
+names=()
+for _ in 1 2; do
+  rm -f "$ST/journal.tsv"
+  pp_records "$(now_prefix provider)" provider
+  pp_run "$L" provider
+  names+=("$(sed -n 's/^E3J9 bound_unit=//p' "$ST/out")")
+done
+for slot in t20m t6h15m; do
+  "$L" provider-probe schedule "$slot" >"$ST/out"
+  names+=("$(sched_stem)")
+done
+touch "$ST/triggered"
+pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider
+pp_records "eanhl-cloud-cred-pprobe-t6h15m-provider-" provider
+"$L" provider-probe collect t20m >/dev/null
+"$L" provider-probe collect t6h15m >/dev/null
+rm -f "$ST/triggered"
+"$L" provider-probe schedule boot >"$ST/out"
+names+=("$(sched_stem)")
+t "P1 x2, P3, P4, P5: five distinct fresh names, each grammar-valid" bash -c "
+  [ \"\$(printf '%s\n' \"\$@\" | sort -u | wc -l)\" -eq 5 ] &&
+  for n in \"\$@\"; do [[ \$n =~ ^eanhl-cloud-cred-pprobe-(now|t20m|t6h15m|boot)-provider-[0-9a-f]{32}\$ ]] || exit 1; done" _ "${names[@]}"
+"$L" provider-probe discard boot >/dev/null
+
+# ── 11. unit-publish helper (E3J9D-R): real files in a sandbox chain, test-user owned ──
+UPS=$W/ups
+UR=$UPS/root
+UUD=$UR/etc/systemd/system
+UWD=$UUD/timers.target.wants
+UH=$UPS/hooks
+mkdir -p "$UWD" "$UH"
+chmod 755 "$UR" "$UR/etc" "$UR/etc/systemd" "$UUD" "$UWD"
+UPT=$W/unit-publish-test
+build_up "$HELPER_SRC" "$UPT" "$UR" "$UH"
+USTEM=eanhl-cloud-cred-pprobe-boot-provider-00112233445566778899aabbccddeeff
+printf '[Unit]\nDescription=svc %s\n' "$LEAK" >"$UPS/svc.in"
+printf '[Unit]\nDescription=timer\n' >"$UPS/tmr.in"
+up_reset() { chmod -R u+rwx "$UR" 2>/dev/null; rm -rf "$UUD"/* "$UUD"/.[!.]* "$UH"/*; mkdir -p "$UWD"; chmod 755 "$UUD" "$UWD"; }
+up() { # up <helper copy> <op> [stem]: fds 3/4 from the fixed inputs; stdout in $UPS/out, rc in $UPS/rc
+  local h=$1
+  shift
+  perl -T -- "$h" "$@" 3<"$UPS/svc.in" 4<"$UPS/tmr.in" >"$UPS/out" 2>"$UPS/err"
+  echo $? >"$UPS/rc"
+}
+urc() { cat "$UPS/rc"; }
+ureason() { sed -n 's/^E3J9 unit_publish_reason=//p' "$UPS/out"; }
+no_tmp() { ! ls -A "$UUD" | grep -q '\.tmp$'; }
+up_reset
+up "$UPT" publish-pair "$USTEM"
+t "helper publish: ok, both files 0644 with the exact bytes, no temporary file, directory synced" bash -c "
+  [ \"\$(cat '$UPS/rc')\" = 0 ] && cmp -s '$UPS/svc.in' '$UUD/$USTEM.service' && cmp -s '$UPS/tmr.in' '$UUD/$USTEM.timer' &&
+  [ \"\$(stat -c '%a %h' '$UUD/$USTEM.service') \$(stat -c '%a %h' '$UUD/$USTEM.timer')\" = '644 1 644 1' ] &&
+  ! ls -A '$UUD' | grep -q '\\.tmp\$' && grep -q -x sync-dir '$UH/calls' && grep -q -x sync-file '$UH/calls'"
+t "helper: output vocabulary-only; the payload's marker never printed" bash -c "! grep -v -q -E '^E3J9 [a-z_]+=[a-z0-9_.:-]+\$' '$UPS/out' && ! grep -q '$LEAK' '$UPS/out' '$UPS/err'"
+up "$UPT" publish-pair "$USTEM"
+t "helper publish over an existing pair → refused dest_exists, bytes unchanged" bash -c "[ \"\$(cat '$UPS/rc')\" = 65 ] && grep -q -x 'E3J9 unit_publish_reason=dest_exists' '$UPS/out' && cmp -s '$UPS/svc.in' '$UUD/$USTEM.service'"
+up "$UPT" unpublish-pair "$USTEM"
+t "helper unpublish: both proven and removed, exit 0" bash -c "[ \"\$(cat '$UPS/rc')\" = 0 ] && [ ! -e '$UUD/$USTEM.service' ] && [ ! -e '$UUD/$USTEM.timer' ]"
+up_reset
+ln -s "$UPS/nowhere" "$UUD/$USTEM.service"
+up "$UPT" publish-pair "$USTEM"
+t "helper publish: destination is a dangling symlink → refused, symlink untouched, nothing written" bash -c "
+  [ \"\$(cat '$UPS/rc')\" = 65 ] && [ \"\$(readlink '$UUD/$USTEM.service')\" = '$UPS/nowhere' ] && [ ! -e '$UPS/nowhere' ] && [ ! -e '$UUD/$USTEM.timer' ]"
+up_reset
+printf 'victim\n' >"$UPS/victim"
+ln -s "$UPS/victim" "$UUD/$USTEM.timer"
+up "$UPT" publish-pair "$USTEM"
+t "helper publish: destination symlinks to a file → refused, target unchanged, no service written" bash -c "
+  [ \"\$(cat '$UPS/rc')\" = 65 ] && [ \"\$(cat '$UPS/victim')\" = victim ] && [ ! -e '$UUD/$USTEM.service' ]"
+up_reset
+printf 'existing timer\n' >"$UUD/$USTEM.timer"
+up "$UPT" publish-pair "$USTEM"
+t "helper publish: partial pair (timer exists) → nothing published, the timer untouched" bash -c "
+  [ \"\$(cat '$UPS/rc')\" = 65 ] && [ ! -e '$UUD/$USTEM.service' ] && [ \"\$(cat '$UUD/$USTEM.timer')\" = 'existing timer' ]"
+check_up_race() { # a racing file appears at the timer name between the check and link(2)
+  up_reset
+  echo "$USTEM.timer" >"$UH/race"
+  up "$1" publish-pair "$USTEM"
+  [ "$(urc)" = 70 ] && [ "$(ureason)" = dest_exists ] && grep -q -x 'E3J9 unit_publish_rollback_complete=true' "$UPS/out" &&
+    [ "$(cat "$UUD/$USTEM.timer")" = racer ] && [ ! -e "$UUD/$USTEM.service" ] && no_tmp
+}
+t "helper publish: destination race → link refuses, own service rolled back, racing file untouched" check_up_race "$UPT"
+mutation "helper publishes with rename instead of link" "$UPT" 's/unless (link(\$rec->{path}, \$final)) {/unless (rename($rec->{path}, $final)) {/' check_up_race
+check_up_trust() { # a group-writable unit directory → refused, nothing written
+  up_reset
+  chmod 775 "$UUD"
+  up "$1" publish-pair "$USTEM"
+  local rc
+  rc=$(urc)
+  chmod 755 "$UUD"
+  [ "$rc" = 65 ] && [ "$(ureason)" = untrusted_directory ] && [ ! -e "$UUD/$USTEM.service" ]
+}
+t "helper: a group-writable unit directory → untrusted, refused" check_up_trust "$UPT"
+mutation "helper trust check ignores the group/other write bit" "$UPT" 's/^    return 0 if S_IMODE(\$st\[2\]) & 022;$/    1;/' check_up_trust
+up_reset
+chmod 757 "$UR/etc"
+up "$UPT" publish-pair "$USTEM"
+chmod 755 "$UR/etc"
+t "helper: an other-writable chain directory → refused" bash -c "[ \"\$(cat '$UPS/rc')\" = 65 ] && [ ! -e '$UUD/$USTEM.service' ]"
+UPTO=$W/unit-publish-owner
+sed "s/^my \$OWNER_UID   = .*/my \$OWNER_UID   = $((MYUID + 1));/" "$UPT" >"$UPTO"
+up_reset
+up "$UPTO" publish-pair "$USTEM"
+t "helper: a chain directory not owned by the expected owner → refused" bash -c "[ \"\$(cat '$UPS/rc')\" = 65 ] && grep -q -x 'E3J9 unit_publish_reason=untrusted_directory' '$UPS/out'"
+UR2=$UPS/root2
+mkdir -p "$UR2/etc/systemd"
+chmod 755 "$UR2" "$UR2/etc" "$UR2/etc/systemd"
+ln -s "$UUD" "$UR2/etc/systemd/system"
+UPTL=$W/unit-publish-symlinkdir
+build_up "$HELPER_SRC" "$UPTL" "$UR2" "$UH"
+up_reset
+up "$UPTL" publish-pair "$USTEM"
+t "helper: the unit directory is a symlink → refused, nothing written through it" bash -c "[ \"\$(cat '$UPS/rc')\" = 65 ] && [ ! -e '$UUD/$USTEM.service' ]"
+# Deterministic temporary names (fixed urandom bytes) for the O_EXCL / O_NOFOLLOW cases.
+printf '\x00\x01\x02\x03\x04\x05\x06\x07' >"$UPS/urandom"
+UPTR=$W/unit-publish-fixed
+sed "s#^my \$URANDOM     = .*#my \$URANDOM     = '$UPS/urandom';#" "$UPT" >"$UPTR"
+TMPNAME=".$USTEM.service.0001020304050607.tmp"
+check_up_excl() { # a pre-existing hard link at the temporary name is never written through
+  up_reset
+  printf 'victim\n' >"$UPS/victim"
+  ln "$UPS/victim" "$UUD/$TMPNAME"
+  up "$1" publish-pair "$USTEM"
+  [ "$(urc)" = 70 ] && [ "$(cat "$UPS/victim")" = victim ] && [ ! -e "$UUD/$USTEM.service" ]
+}
+t "helper: the temporary name exists (hard link to a victim) → O_EXCL refuses, victim unchanged" check_up_excl "$UPTR"
+mutation "helper without O_EXCL" "$UPTR" 's/O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600/O_WRONLY | O_CREAT | O_NOFOLLOW, 0600/' check_up_excl
+up_reset
+ln -s "$UPS/victim2" "$UUD/$TMPNAME"
+up "$UPTR" publish-pair "$USTEM"
+t "helper: the temporary name is a symlink → refused, nothing written through it" bash -c "[ \"\$(cat '$UPS/rc')\" = 70 ] && [ ! -e '$UPS/victim2' ] && [ ! -e '$UUD/$USTEM.service' ]"
+check_up_sync() { # the directory fsync fails → full rollback, exit 70
+  up_reset
+  : >"$UH/fail-sync-dir"
+  up "$1" publish-pair "$USTEM"
+  [ "$(urc)" = 70 ] && [ "$(ureason)" = dir_sync_failed ] && grep -q -x 'E3J9 unit_publish_rollback_complete=true' "$UPS/out" &&
+    [ ! -e "$UUD/$USTEM.service" ] && [ ! -e "$UUD/$USTEM.timer" ] && no_tmp
+}
+t "helper: directory fsync fails → both files rolled back, exit 70" check_up_sync "$UPT"
+mutation "helper skips the directory fsync" "$UPT" "s/^    hsync(\$dh, \"dir\") or failed_rollback('dir_sync_failed');\$/    1;/" check_up_sync
+check_up_foreign_newinode() { # our service replaced by a NEW inode with the same bytes → never removed
+  up_reset
+  echo "$USTEM.timer" >"$UH/race"
+  echo "$USTEM.service" >"$UH/foreign-newinode"
+  up "$1" publish-pair "$USTEM"
+  [ "$(urc)" = 71 ] && grep -q -x 'E3J9 unit_publish_rollback_complete=false' "$UPS/out" && cmp -s "$UPS/svc.in" "$UUD/$USTEM.service"
+}
+t "helper rollback: a same-bytes file with another identity is left in place, exit 71" check_up_foreign_newinode "$UPT"
+mutation "helper rollback without the identity check" "$UPT" 's/ && \$l\[0\] == \$rec->{dev} && \$l\[1\] == \$rec->{ino};$/;/' check_up_foreign_newinode
+check_up_foreign_inplace() { # our service's bytes changed in place (same inode) → never removed
+  up_reset
+  echo "$USTEM.timer" >"$UH/race"
+  echo "$USTEM.service" >"$UH/foreign-inplace"
+  up "$1" publish-pair "$USTEM"
+  [ "$(urc)" = 71 ] && [ -e "$UUD/$USTEM.service" ] && ! cmp -s "$UPS/svc.in" "$UUD/$USTEM.service"
+}
+t "helper rollback: bytes changed in place are left in place, exit 71" check_up_foreign_inplace "$UPT"
+mutation "helper rollback without the byte check" "$UPT" 's/^    return 0 unless defined \$have && \$have eq \$rec->{bytes};$/    return 0 unless defined $have;/' check_up_foreign_inplace
+up_pair() { up_reset; up "$UPT" publish-pair "$USTEM"; }
+check_up_unpublish_changed() { # one byte changed in the TIMER → neither file removed
+  up_pair
+  printf 'X' >>"$UUD/$USTEM.timer"
+  up "$1" unpublish-pair "$USTEM"
+  [ "$(urc)" = 65 ] && [ -e "$UUD/$USTEM.service" ] && [ -e "$UUD/$USTEM.timer" ]
+}
+t "helper unpublish: the timer changed → refused, neither removed" check_up_unpublish_changed "$UPT"
+mutation "unpublish checks only the first file before unlinking" "$UPT" 's/^    for my \$suffix (qw(service timer)) { # prove both before removing either$/    for my $suffix (qw(service)) {/' check_up_unpublish_changed
+up_pair
+printf 'X' >>"$UUD/$USTEM.service"
+up "$UPT" unpublish-pair "$USTEM"
+t "helper unpublish: the service changed → refused, neither removed" bash -c "[ \"\$(cat '$UPS/rc')\" = 65 ] && [ -e '$UUD/$USTEM.service' ] && [ -e '$UUD/$USTEM.timer' ]"
+check_up_swap() { # between lstat and open the service becomes a symlink to the moved original → refused
+  up_pair
+  echo "$USTEM.service" >"$UH/swap"
+  up "$1" unpublish-pair "$USTEM"
+  [ "$(urc)" = 65 ] && [ -e "$UUD/$USTEM.timer" ] && [ -e "$UUD/$USTEM.service.moved" ]
+}
+t "helper unpublish: a symlink swapped in after lstat → O_NOFOLLOW refuses, nothing removed" check_up_swap "$UPT"
+mutation "helper without O_NOFOLLOW on the re-read" "$UPT" 's/sysopen(my \$fh, \$path, O_RDONLY | O_NOFOLLOW)/sysopen(my $fh, $path, O_RDONLY)/' check_up_swap
+up_reset
+up "$UPT" publish-pair not-a-stem
+t "helper: a stem outside the grammar → usage 64" bash -c "[ \"\$(cat '$UPS/rc')\" = 64 ]"
+up "$UPT" publish-pair "$USTEM" extra
+t "helper: an extra argument → usage 64" bash -c "[ \"\$(cat '$UPS/rc')\" = 64 ]"
+perl -T -- "$UPT" publish-pair "$USTEM" >"$UPS/out" 2>/dev/null 3<&- 4<&-
+rc=$?
+t "helper: missing input descriptors → refused input_invalid" bash -c "[ $rc -eq 65 ] && grep -q -x 'E3J9 unit_publish_reason=input_invalid' '$UPS/out'"
+printf 'a\0b\n' >"$UPS/nul.in"
+perl -T -- "$UPT" publish-pair "$USTEM" 3<"$UPS/nul.in" 4<"$UPS/tmr.in" >"$UPS/out" 2>/dev/null
+rc=$?
+t "helper: a NUL in the payload → refused input_invalid" bash -c "[ $rc -eq 65 ] && [ ! -e '$UUD/$USTEM.service' ]"
+up_reset
+up "$UPT" fsync-wants
+t "helper fsync-wants: trusted wants directory → synced, exit 0" bash -c "[ \"\$(cat '$UPS/rc')\" = 0 ]"
+chmod 777 "$UWD"
+up "$UPT" fsync-wants
+chmod 755 "$UWD"
+t "helper fsync-wants: a world-writable wants directory → refused" bash -c "[ \"\$(cat '$UPS/rc')\" = 65 ]"
+up_reset
 
 printf '\n%d passed, %d failed (mutations: %d killed, %d survived)\n' "$pass" "$fail" "$killed" "$survived"
 [ "$MODE" = static ] && printf 'NOTE: --static-only — the accepted-delta regeneration did NOT run.\n'

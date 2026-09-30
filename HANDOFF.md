@@ -24,6 +24,18 @@ audits not started. Gate 3 not started. Checkbox detail: the roadmap doc.
 
 ## Latest Verified Checkpoint
 
+**2026-09-28 — E3J9D stopped pre-access; E3J9D-R locally implemented, fully
+verified and independently reviewed.** D1 was accepted. E3J9D stopped before
+any Hotel-Echo access: the committed provider template required a reviewed
+invocation-bound reader that did not exist. E3J9D-R (branch
+`feat/e3j9d-primary-auth`, based on the exact `main` commit `ab05da38`;
+checkpointed on feat/e3j9d-primary-auth; not yet merged into main) adds the
+launcher's `provider-probe`, the probe's E4/N4 `e4-decoy`, the `unit-publish`
+helper and deletes the template; final hermetic harness 604/604 in three
+consecutive runs, `--static-only` 600/600, 72/72 mutations killed. Nothing
+installed; no Proton contact. Record:
+[memo §20](docs/planning/proton-drive-hotel-echo-credential-design.md).
+
 **2026-09-26 — E3J9C PASSED (credential foundation + local proof only).**
 E3J9C-R is committed and pushed (`835b3ece`). On Hotel-Echo: `pass` + `tree`,
 the locked `eanhl-cloud` identity, §2 directories and lock, 12 curated links,
@@ -35,8 +47,8 @@ working directory; the probe's digit-containing record name). M10 then passed
 in full, one row at a time: A1–A10 (A6 by the operator's direct PTY
 observation), E1–E3, L1–L2, K1–K6 and owned-inventory. `gpg-agent` lives only
 inside a running unit. Staging removed. The E3J9C work since `835b3ece`
-(corrected templates, harness, docs) is checkpointed on the dedicated branch
-`feat/e3j9c-credential-foundation`, **not yet merged into main**. Network: public
+(corrected templates, harness, docs; branch `feat/e3j9c-credential-foundation`)
+is in `main`: the `main` commit `ab05da38` contains it (via `671efb9`). Network: public
 upstream/Ubuntu downloads only; no Proton/provider contact. Record:
 [memo §19](docs/planning/proton-drive-hotel-echo-credential-design.md).
 
@@ -86,7 +98,8 @@ there). Detail: the architecture memo and ops docs under Immediate Blockers.
   open; E3J9C passed its local scope, lifecycle/reboot unproven); real-CLI schema verification; U12-U14
   (readback ceilings/containment, timeouts/retries, remote root and flat
   layout); U15 partly resolved (emitter built, no provider object, receipt
-  test unrun). **D1** gates E3J9D; **D7** gates E3J9E; **C1** must merge
+  test unrun). D1 is accepted; E3J9D waits for E3J9D-R (merge into main,
+  reauthorization, reinstall; review and feature-branch checkpoint done); **D7** gates E3J9E; **C1** must merge
   before any E3J10 step that executes the CLI or can contact Proton. Detail:
   [credential memo](docs/planning/proton-drive-hotel-echo-credential-design.md),
   [`backup-monitoring-export.md`](docs/operations/backup-monitoring-export.md),
@@ -107,12 +120,12 @@ there). Detail: the architecture memo and ops docs under Immediate Blockers.
 
 ## Next 1-3 Actions
 
-1. **Backup credential path:** the E3J9C work (corrected launcher, `lockhold`,
-   probe, harness 337/337, docs) is checkpointed on the dedicated branch
-   `feat/e3j9c-credential-foundation`, not yet merged into main. Then E3J9D
-   (operator ceremony) needs **D1**;
-   E3J9E (lifecycle, reboot) needs **D7**; **C1** must merge before any E3J10
-   step that executes the CLI or can contact Proton.
+1. **Backup credential path:** E3J9D-R (memo §20) is independently reviewed and
+   checkpointed on the feature branch; next the merge into `main` and explicit
+   E3J9D reauthorization (reinstall the launcher, probe and `unit-publish`; ceremony;
+   one P0 via `provider-probe run provider`). E3J9E (lifecycle, reboot) needs
+   **D7**; **C1** must merge before any E3J10 step that executes the CLI or can
+   contact Proton.
 2. Gate 2 reliability items: automated backups, restore drill, alerting, log
    retention, rollback docs — all unstarted and blocking Gate 2.
 3. Disable and verify Cloudflare Web Analytics.
