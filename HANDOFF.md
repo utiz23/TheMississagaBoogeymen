@@ -24,16 +24,17 @@ audits not started. Gate 3 not started. Checkbox detail: the roadmap doc.
 
 ## Latest Verified Checkpoint
 
-**2026-09-28 — E3J9D stopped pre-access; E3J9D-R locally implemented, fully
-verified and independently reviewed.** D1 was accepted. E3J9D stopped before
+**2026-09-30 — E3J9D-R independently reviewed, checkpointed at `ef32c885` and
+integrated into `main` by local merge commit `1ec6c330`.** D1 was accepted. E3J9D stopped before
 any Hotel-Echo access: the committed provider template required a reviewed
 invocation-bound reader that did not exist. E3J9D-R (branch
 `feat/e3j9d-primary-auth`, based on the exact `main` commit `ab05da38`;
-checkpointed on feat/e3j9d-primary-auth; not yet merged into main) adds the
+checkpoint `ef32c885`, merged into `main` as above) adds the
 launcher's `provider-probe`, the probe's E4/N4 `e4-decoy`, the `unit-publish`
 helper and deletes the template; final hermetic harness 604/604 in three
 consecutive runs, `--static-only` 600/600, 72/72 mutations killed. Nothing
-installed; no Proton contact. Record:
+installed; E3J9D has not begun; E3 remains unactivated and nothing is
+monitored; no Proton contact. Record:
 [memo §20](docs/planning/proton-drive-hotel-echo-credential-design.md).
 
 **2026-09-26 — E3J9C PASSED (credential foundation + local proof only).**
@@ -98,8 +99,8 @@ there). Detail: the architecture memo and ops docs under Immediate Blockers.
   open; E3J9C passed its local scope, lifecycle/reboot unproven); real-CLI schema verification; U12-U14
   (readback ceilings/containment, timeouts/retries, remote root and flat
   layout); U15 partly resolved (emitter built, no provider object, receipt
-  test unrun). D1 is accepted; E3J9D waits for E3J9D-R (merge into main,
-  reauthorization, reinstall; review and feature-branch checkpoint done); **D7** gates E3J9E; **C1** must merge
+  test unrun). D1 is accepted; E3J9D-R is reviewed, checkpointed and merged into `main`;
+  E3J9D waits for explicit reauthorization (then reinstall); **D7** gates E3J9E; **C1** must merge
   before any E3J10 step that executes the CLI or can contact Proton. Detail:
   [credential memo](docs/planning/proton-drive-hotel-echo-credential-design.md),
   [`backup-monitoring-export.md`](docs/operations/backup-monitoring-export.md),
@@ -120,8 +121,8 @@ there). Detail: the architecture memo and ops docs under Immediate Blockers.
 
 ## Next 1-3 Actions
 
-1. **Backup credential path:** E3J9D-R (memo §20) is independently reviewed and
-   checkpointed on the feature branch; next the merge into `main` and explicit
+1. **Backup credential path:** E3J9D-R (memo §20) is independently reviewed,
+   checkpointed at `ef32c885` and integrated into `main`; next is explicit
    E3J9D reauthorization (reinstall the launcher, probe and `unit-publish`; ceremony;
    one P0 via `provider-probe run provider`). E3J9E (lifecycle, reboot) needs
    **D7**; **C1** must merge before any E3J10 step that executes the CLI or can

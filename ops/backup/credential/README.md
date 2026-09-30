@@ -20,11 +20,11 @@ direct PTY observation), and the final owned-inventory matched. The staging
 directory was removed. U1 and E3J9 remain open.
 
 **2026-09-28 (design memo §20):** D1 was accepted. E3J9D stopped before any host
-access because no reviewed provider reader existed. **E3J9D-R (local, pending
-independent review)** adds the launcher-owned `provider-probe` operation, the
+access because no reviewed provider reader existed. **E3J9D-R (independently
+reviewed, checkpointed at `ef32c885` and integrated into `main`)** adds the launcher-owned `provider-probe` operation, the
 probe's E4/N4 `e4-decoy` mode and the `unit-publish` helper, and deletes the
-never-installed provider template. Nothing new is installed: after review, an
-authorized checkpoint, the merge into `main` and explicit E3J9D reauthorization,
+never-installed provider template. Nothing has been installed from E3J9D-R: review, checkpoint and the merge
+into `main` are done, and after explicit E3J9D reauthorization (still required)
 the launcher, the probe and `unit-publish` are reinstalled from that `main`
 commit. E3J9E needs D7, and C1 must merge before any E3J10 step that executes
 the CLI or can contact Proton. No authentication has happened and nothing is

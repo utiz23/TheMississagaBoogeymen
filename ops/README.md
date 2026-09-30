@@ -265,5 +265,7 @@ there is secret, and nothing is installed by the repository. Every host step is
 separately authorized. Status and results:
 [`docs/planning/proton-drive-hotel-echo-credential-design.md`](../docs/planning/proton-drive-hotel-echo-credential-design.md)
 §17–§19 (E3J9C: the foundation is installed on Hotel-Echo and locally proven) and
-§20 (E3J9D stopped before host access; E3J9D-R provider runner, local, pending
-review). Nothing is activated or monitored.
+§20 (E3J9D stopped before host access; E3J9D-R provider runner independently
+reviewed, checkpointed at `ef32c885` and integrated into `main`; nothing has been
+installed from it and E3J9D still requires explicit authorization). Nothing is
+activated or monitored.
