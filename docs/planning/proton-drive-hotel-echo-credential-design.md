@@ -22,8 +22,11 @@ pasted its sign-in URL and output to another agent (Codex), so the session
 STOPPED before P0 (`p0_attempt_count=0`; no provider contact after the
 ceremony). The operator revoked the specific new CLI session; the local
 credential state was removed and the service key and store rotated without
-running the CLI. **E3J9D did not pass** and needs a newly
-authorized ceremony. U1 and E3J9 remain open. E3 remains unactivated and nothing
+running the CLI. That first attempt did not pass. **A newly authorized
+re-run (§22) PASSED for the ceremony and single-P0 scope:** every pre-ceremony
+proof passed, a new ceremony completed, and exactly one P0 returned
+`provider_result=ok` (`p0_attempt_count=1`); the session entry is retained for
+E3J9E. U1 and E3J9 remain open pending E3J9E. E3 remains unactivated and nothing
 is monitored.
 
 This memo durably records the approved option-A design for a service-usable Proton
@@ -48,7 +51,8 @@ resolve inside this file.
   credential store, `eanhl-cloud` system account, CLI installation, lock, wrapper,
   service unit or curated `PATH` comes into existence because of it. Every
   mechanism below is a specification, not a fact about the host.
-- U1 and E3J9 remain open; **D1 was accepted on 2026-09-28 (§20); D7 is unresolved**; E3 is unactivated; no Gate
+- U1 and E3J9 remain open; **D1 was accepted on 2026-09-28 (§20); D7 was
+  accepted on 2026-09-30 (§15)**; E3 is unactivated; no Gate
   checkbox changes.
 
 ## Context
@@ -1157,8 +1161,11 @@ created. (While M1 was the only host change, §17, step 12 alone applied.)
 **Update (E3J9D, §21), superseding "no authentication" above:** one
 authentication happened and its session was revoked by the operator (step 3);
 the entry was removed with `entry-remove`, the CLI state deleted and the key and
-store rotated (step 6). So again no Proton entry exists, and a rollback from
-this state still follows the order below without steps 2–6.
+store rotated (step 6). **Update (§22):** a new authenticated session now
+exists (the encrypted entry plus CLI data, cache and log state, retained for
+E3J9E), so a full rollback from the current state follows steps 1–3 (steps 4
+and 5 as they apply) and then 7–12 in order; step 1 currently has no pprobe
+object to remove.
 
 **Package removal (step 12):** review `apt-get -s remove pass tree`, confirm with
 `apt-cache rdepends --installed tree` that nothing else needs `tree`, read the M1
@@ -1314,13 +1321,19 @@ run `autoremove`. Removing `pass` also removes its empty extensions directory.
 - D8: validation tooling, units and timers are removed from the host after E3J9E
   unless separately adopted.
 - D9: withdrawn; replaced by the curated-PATH design (§3).
-- D1: accepted on 2026-09-28 — option (a): store the primary account's complete
+- D1: accepted on 2026-09-28 — option (a): store the complete primary-account
   CLI snapshot under option A, on the §9 statement (§20).
+- D7: accepted on 2026-09-30 — permit one controlled Hotel-Echo reboot after
+  the ≥6 h 15 min persistence probe passes, accepting up to 15 minutes of
+  interruption to the parallel web, worker and database deployment. Before
+  reboot, read-only checks must prove main-PC production ingestion is healthy,
+  Hotel-Echo container restart policies and database state are suitable, no
+  credential/provider unit or process is active, the credential lock is free,
+  and no unrelated host work is in progress. Any failed precondition is a STOP.
+  This decision does not authorize E3J9E itself; that session remains separately
+  authorized.
 
-**Still open (no others):**
-
-- **D7 (gates E3J9E only):** reboot window on Hotel-Echo and acceptance of the
-  impact on its parallel deployment.
+**Still open:** none of D1–D9. U1 and E3J9 remain open pending E3J9E.
 
 ## 16. Source basis
 
@@ -2417,3 +2430,126 @@ exactly one P0). Never done in this session: P0 or any provider-probe unit,
 provider contact after the ceremony, `auth-logout`, Proton CLI execution during
 cleanup, upload, listing, create, move, trash or deletion of Proton data,
 scheduling, timers, reboot, activation, E3J9E, C1 or E3J10.
+
+## 22. E3J9D re-run (2026-09-30) — PASSED for the ceremony and single-P0 scope
+
+**Outcome: E3J9D PASSED for its ceremony-and-single-read scope only.** A newly
+authorized session repeated the same-session pre-ceremony proofs, the operator
+performed a new ceremony, and exactly one P0 (`provider-probe run provider`, the
+metadata-only `/my-files` `filesystem info` read) passed. **`p0_attempt_count=1`.**
+This does **not** close U1 or E3J9: persistence, the scheduled probes and reboot
+(E3J9E) remain unproven. D7 is accepted under §15, but E3J9E remains separately
+authorized. C1 must merge before any E3J10 step that executes the CLI or can
+contact Proton, and E3 remains unactivated and unmonitored. No Gate checkbox
+changed.
+
+Source: the clean worktree on branch `integrate/e3j9d-r-2026-09-30` at
+`7b3a379849dad3517cf092dda17a9da29c67ee69` (= `origin/main` as recorded
+locally); only `.venv-1` untracked; template hashes equal to §21.1. No files
+were installed or changed on the host before the ceremony; every host command
+had normal per-command approval.
+
+### 22.1 Preflight (passed)
+
+- **H0** as §21.1.
+- **Installed state:** the launcher (`0244f8ee…`, root:root 0750), probe
+  (`46b112c2…`), `unit-publish` (`5acf4677…`), wrapper (`19fd0828…`),
+  `env-inspect`, `lockhold`, `owned-inventory` and `pty-marker` equal to the
+  repository with their recorded owners and modes; the validation directory
+  exactly those six files; CLI regular root:root 0755, SHA-512 = pin; curated
+  links unchanged.
+- **Credential state (the §21.4 rotation result):** identity locked, own group
+  only, `nologin`, no linger; 0 active/loaded credential units, 0 unit files,
+  0 pprobe files and 0 pprobe unit names in the journal (P0 never run); 0
+  service or CLI processes; lock free; store exactly `.gpg-id`, one line,
+  matching the single key (1 revocation file, 2 private-key files); `gpg.conf`
+  equal to the repository; 0 `auth-session.*`; data, config and cache empty;
+  no `.local`; `owned-inventory` match, 0 unexpected, code 0.
+
+### 22.2 Same-session pre-ceremony proofs (all passed, one row at a time)
+
+A1 (identical to the §19.4 baseline; `/usr/bin/pass` hash accepted), A2 (25
+paths non-writable), `probe precheck`, `probe local`, `probe neg-uninit`, A7,
+A8, E1(a) (host bytes equal to `7b3a379`), `env-proof` (three steps pass, 0
+nonce journal hits, supplementary `/proc` observed and clean), L2 (no unit or
+process before; agent count 0; pass), the busy overlap (`lockhold-hold` pass;
+one `busy-a` `busy`, exit 75, zero records; nothing left; lock free), the
+§20.6 host formats (boot id canonical; 28 json records, one invocation id,
+current `_BOOT_ID`, no `MESSAGE` field; `show --value` formats; `unit-publish`
+`perl -T -c` and modules) and the auth preconditions as metadata. Every row:
+exit 0, cleanup ok, 0 bound and 0 local non-vocabulary lines. No row was
+re-run.
+
+### 22.3 Ceremony
+
+- The operator ran `auth-login` in their own terminal; the agent did not run
+  it. The launcher's preflight lines were all clean (pin, one key, store,
+  `.gpg-id` match, 0 fallback files, no active unit, 0 resident agents, no
+  unexpected process, lock free), and the final record was exactly
+  `E3J9 auth_login_unit_rc=0` with `ssh_rc=0`. The ceremony contacted Proton.
+- **Reporting deviation:** the operator first reported only "Authentication
+  successful", then the three fields without `ssh_rc`; the agent did not
+  proceed. The operator then pasted the terminal transcript into the Claude
+  session with the URL's query string redacted, which established `ssh_rc=0`.
+  No sign-in token was disclosed, and nothing from the transcript is recorded
+  here beyond the sanitized records above.
+- **Post-ceremony metadata (read-only):** 0 units, pprobe objects, service or
+  CLI processes; lock free; the encrypted entry a regular 0600 service-owned
+  file; no `auth-session.json`; CLI state within the expected set
+  (`data/proton-drive-cli` with 2 `.json`, the cache's `proton-drive-cli` with 2
+  `.sqlite`, `.local/state/proton-drive-cli` with 1 log), 0 unexpected paths,
+  every object service-owned 0600/0700; `network-online.target` active.
+
+### 22.4 P0 (exactly one; passed)
+
+`p0_attempt_count` was recorded as 0 immediately before, and 1 after, the
+single invocation of `sudo /usr/local/sbin/eanhl-cloud-credential provider-probe
+run provider`. It was not retried. Closed-vocabulary result:
+
+- **Preconditions:** CLI pin, one key, `.gpg-id` match, entry 0600, 0 store
+  extras, 0 fallback files, 0 pprobe objects, no active unit, 0 service
+  processes, lock free, network online, boot id valid.
+- **Runner:** fresh name, `bound_unit_history_count=0`, one start, invocation
+  bound, `bound_exit_status=0`, `bound_nrestarts=0`, `bound_attest_ok=true`,
+  `bound_single_invocation=true`, `bound_boot_id_match=true`,
+  `bound_nonvocab_lines=0`, `bound_disallowed_lines=0`,
+  `bound_cleanup_ok=true`.
+- **Probe records:** first record `probe_mode=provider`; the twelve-literal
+  boundary and helper environment checks true; identity booleans true;
+  `gpg_agent_count_at_start=0`; entry present 0600; 0 fallback files; 1 log, 0
+  non-private; CLI pin match; `provider_rc=0`; **`provider_result=ok`**;
+  `pinentry_count=0`; `pass_cmd_not_found=false`; `probe_failures=0`;
+  `probe_result=pass`.
+- **Postconditions:** `pp_post_entry_meta_ok=true`,
+  `pp_post_fallback_file_count=0`, `pp_post_store_extra_count=0`,
+  `pp_post_no_active_unit=true`, `pp_post_svc_process_count=0`.
+- **`provider_run_result=pass`, exit 0.** Provider stdout was discarded by the
+  reviewed boundary; no raw output, path or account data was exposed.
+- **Observation:** the encrypted entry's size and mtime changed between the
+  probe's before and after records (still a 0600 regular file), consistent
+  with the CLI saving a refreshed session through pass. This is the first host
+  evidence that the CLI rewrites the entry during a read.
+
+This was the **first host run of the provider projection and classifier**
+(§20.2): the runner's provider-record filter, the per-name value classes and the
+independent classifier all accepted the run with 0 disallowed records.
+
+### 22.5 After P0 (passed)
+
+- `owned-inventory`: match, 0 unexpected, code 0.
+- Final metadata: the entry a regular 0600 file, not a symlink, and the only
+  `.gpg` entry; 0 `auth-session.json`; 0 non-`.gpg` files in the store besides
+  `.gpg-id`; 0 active/loaded credential units, 0 unit files, 0 pprobe files or
+  loaded pprobe units (1 pprobe unit name in the journal: the P0), 0
+  `eanhl-cloud` timers; 0 service or CLI processes; lock free.
+
+### 22.6 State and next step
+
+On Hotel-Echo: the foundation, the E3J9D-R tooling (kept until E3J9E, D8), the
+rotated service key and an encrypted Proton session entry with the CLI's data,
+cache and log state, **retained for E3J9E**. No unit, timer or schedule. **Not
+done:** a second P0, upload, download, listing beyond P0, create, move, trash,
+deletion, logout, revocation, reboot, scheduling, timer enablement, E3J9E, C1,
+E3J10, backup or monitoring activation. **D7 is accepted under §15. Next:** a
+separately authorized E3J9E (lifecycle: P1–P5, N1–N4, E4, one controlled
+reboot); C1 before any E3J10 step that executes the CLI or can contact Proton.

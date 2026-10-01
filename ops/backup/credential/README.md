@@ -25,7 +25,7 @@ reviewed, checkpointed at `ef32c885` and integrated into `main`)** adds the laun
 probe's E4/N4 `e4-decoy` mode and the `unit-publish` helper, and deletes the
 never-installed provider template.
 
-**2026-09-30 (design memo §21): E3J9D did not pass.** The E3J9D-R launcher,
+**2026-09-30, first attempt (design memo §21): did not pass.** The E3J9D-R launcher,
 probe and `unit-publish` are installed on Hotel-Echo (from `main` `8c76a2c`),
 and every same-session pre-ceremony proof passed. One authentication ceremony
 completed; its sign-in URL was then accidentally disclosed to Codex, and the
@@ -34,10 +34,18 @@ observed, no password change). **P0 did not run** (`p0_attempt_count=0`); the
 ceremony was the only Proton contact. The local auth entry and the CLI data,
 cache and log state were removed, and the service key and store were rotated
 without running the CLI: the store now holds only the fresh `.gpg-id`, and no
-Proton session exists. E3J9D remains incomplete and requires a newly authorized
-ceremony. E3J9E needs D7, and C1 must merge before any E3J10 step that executes
-the CLI or can contact Proton. E3 remains unactivated and unmonitored; nothing
-is scheduled.
+Proton session existed afterwards.
+
+**2026-09-30, re-run (design memo §22): E3J9D PASSED for its ceremony and
+single-P0 scope only.** With the files already installed, every same-session
+pre-ceremony proof passed again; a new operator ceremony completed
+(`ssh_rc=0`, `auth_login_unit_rc=0`); exactly one P0 (`provider-probe run
+provider`) gave `provider_run_result=pass` and `provider_result=ok`
+(`p0_attempt_count=1`); owned-inventory matched. The encrypted session entry and
+the CLI's data, cache and log state are retained for E3J9E. U1 and E3J9 remain
+open. D7 is accepted under design memo §15; E3J9E still requires separate
+authorization. C1 must merge before any E3J10 step that executes the CLI or can
+contact Proton. E3 remains unactivated and unmonitored; nothing is scheduled.
 
 Nothing here is secret. The repository holds paths, command names, the twelve
 environment literals and public fingerprints only. Never add a key, a Proton
@@ -340,15 +348,15 @@ requires an empty keyring and `pass-init` exactly one key, the order is:
 
 ## Rollback (§12; each step separately authorized)
 
-**Current state (E3J9C passed, design memo §19; E3J9D stopped, §21):** M1–M10
+**Current state (E3J9C passed, design memo §19; E3J9D passed, §22):** M1–M10
 are done for the credential-foundation and local-proof scope only, and the
-E3J9D-R files are installed. One E3J9D authentication happened; that session
-was remotely revoked (step 3), its local entry and CLI state were removed and
-the key and store rotated, so again no Proton entry exists. No persistence or
-reboot validation or activation has happened. A rollback from this state
-follows the order below without steps 2–3, and step 1 applies only to objects a
-later session created. (While M1 was the only host change, the package step
-alone applied.)
+E3J9D-R files are installed. The first E3J9D session was remotely revoked and
+its local state removed with a key/store rotation (§21); the re-run's
+authenticated session now exists (encrypted entry plus CLI data, cache and log
+state, retained for E3J9E). No persistence or reboot validation or activation
+has happened. A full rollback from this state follows the order below
+including steps 2–3; step 1 currently has no pprobe object to remove. (While
+M1 was the only host change, the package step alone applied.)
 
 **Package step (step 9):** review `apt-get -s remove pass tree`; confirm with
 `apt-cache rdepends --installed tree` that nothing else needs `tree`; read the M1
