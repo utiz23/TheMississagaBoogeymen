@@ -880,6 +880,8 @@ cat >"$SB/stub/systemctl" <<'EOF'
 # triggered (scheduled units fired), boot_timer_state; enable_rc,
 # disable_rc, reload_rc; units / units_rc as before, now filtered by the
 # pattern and --state, plus the live provider units.
+# E3J9E-R: uactive.<unit> / usub.<unit> (a per-unit ActiveState / SubState,
+# for the lockhold-long unit's activating/start hold).
 st=$STUB_STATE
 echo "systemctl $*" >>"$st/calls"
 mkdir -p "$st/u"
@@ -1045,9 +1047,11 @@ case "$1" in
           exit 0
         fi
         touch "$st/waited"
-        state_of "$unit"
+        if [ -e "$st/uactive.$unit" ]; then cat "$st/uactive.$unit"; else state_of "$unit"; fi
         ;;
-      SubState) cat "$st/sub" 2>/dev/null || echo exited ;;
+      SubState)
+        if [ -e "$st/usub.$unit" ]; then cat "$st/usub.$unit"; else cat "$st/sub" 2>/dev/null || echo exited; fi
+        ;;
       ExecMainStatus) cat "$st/status" 2>/dev/null || echo 0 ;;
       *) derive "$unit" "$3" ;;
     esac
@@ -1113,6 +1117,37 @@ done
 if [ -n "$unit" ]; then
   printf '%s\0' "$@" >"$st/u/$unit.service.argv"
   [ "$timer" -eq 0 ] || touch "$st/u/$unit.timer"
+fi
+# E3J9E-R lock model ($st/lock_model): every call whose command is the wrapper
+# logs its command id in $st/cred_calls. With --nonblock it takes the real
+# credential lock for an instant, as the wrapper's flock does. Busy: a --pipe
+# call exits 75 with no output; a unit start records a failed unit with status
+# 75 and no journal records (the CLI never starts). Any other lock mode is
+# modelled as acquiring the lock (a bounded wait that outlasts the hold). A
+# provider probe that gets the lock touches $st/cli_started.
+if [ -e "$st/lock_model" ]; then
+  wr=0 lmode='' cid=''
+  for a in "$@"; do
+    if [ "$wr" = 0 ]; then
+      [ "$a" != "$STUB_WRAPPER" ] || wr=1
+    elif [ -z "$lmode" ]; then
+      lmode=$a
+    elif [ -z "$cid" ]; then
+      cid=$a
+    fi
+  done
+  if [ "$wr" = 1 ]; then
+    printf '%s\n' "$cid" >>"$st/cred_calls"
+    busy=0
+    if [ "$lmode" = --nonblock ]; then /usr/bin/flock --nonblock "$STUB_LOCK" /usr/bin/true || busy=1; fi
+    if [ "$busy" = 1 ]; then
+      case " $* " in *' --pipe '*) exit 75 ;; esac
+      echo 75 >"$st/status"
+      echo failed >"$st/active"
+      exit 0
+    fi
+    if [ "$cid" = probe ]; then case " $* " in *' probe provider:'*) touch "$st/cli_started" ;; esac; fi
+  fi
 fi
 # Provider-run side effects for the postcondition tests (the CLI rewriting the
 # entry with another mode, a fallback file, an extra entry, a lingering process).
@@ -1296,6 +1331,7 @@ t "launcher test copy: every E3J9D-R constant substituted (od, boot id, unit dir
   ! grep -q -E '^readonly (UNIT_DIR|WANTS_DIR|BOOT_ID_FILE)=/(etc|proc)' '$L'"
 export STUB_UNIT_DIR=$UD STUB_WANTS_DIR=$WD STUB_BOOT_FILE=$SB/boot_id
 export STUB_STORE=$SB/home/password-store
+export STUB_WRAPPER=$SB/wrapper STUB_LOCK=$SB/home/locks/credential.lock
 libify() { sed '/^case "\${1-}" in$/,$d' "$1" >"$2"; }
 LLIB=$W/launcher-lib
 libify "$L" "$LLIB"
@@ -2439,26 +2475,230 @@ check_e4_nonce_hits() {
 }
 t "run e4-decoy: the marker found in the journal → fail" check_e4_nonce_hits "$L"
 mutation "drop the E4 nonce journal-hit check" "$L" 's/^    \[ "\$hits" = 0 \] || bad=1$/    :/' check_e4_nonce_hits
-# n3-busy: during a lockhold-long hold (K4-style), the provider unit is refused by the lock.
+# n3-busy (E3J9E-R): during a lockhold-long hold (K4-style) the provider unit is
+# refused by the lock. The preconditions may not need that lock (no key listing),
+# and only the attested in-hold unit with a live process may be the holder.
 LH_UNIT=eanhl-cloud-cred-probe-lockhold-long-0011223344556677
-n3_setup() { # n3_setup [keep-lock-free]: the attested lockhold-long unit, and the lock held unless asked
+LH_UNIT2=eanhl-cloud-cred-probe-lockhold-long-8899aabbccddeeff
+N3_LOCK=$SB/home/locks/credential.lock
+lock_on() { : >"$ST/lock_model"; }
+pp_has() { grep -q -x "E3J9 $1" "$ST/out"; }
+n3_refused() { [ "$(rc_of)" = 65 ] && pp_has launcher_refused=preconditions_failed && ! grep -q -- '--unit=eanhl-cloud-cred-pprobe-' "$ST/run_calls" 2>/dev/null; }
+n3_unit_state() { # n3_unit_state <unit> [stale]: the systemd state of a lockhold-long unit (a Type=oneshot, RemainAfterExit=yes unit)
+  if [ "${2-}" = stale ]; then
+    echo active >"$ST/uactive.$1.service"
+    echo exited >"$ST/usub.$1.service"
+  else
+    echo activating >"$ST/uactive.$1.service"
+    echo start >"$ST/usub.$1.service"
+  fi
+}
+n3_proc() { # n3_proc <pid> <unit>: a live eanhl-cloud process (sandbox /proc/<pid>/cgroup) that pgrep lists
+  mkdir -p "$SB/proc/$1"
+  printf '0::/system.slice/%s.service\n' "$2" >"$SB/proc/$1/cgroup"
+  printf '%s\n' "$1" >>"$ST/pids"
+  echo 0 >"$ST/pgrep_rc"
+}
+n3_setup() { # n3_setup [free] [noproc] [stale]: the attested lockhold-long unit in its hold with a live process, and the lock really held
+  local a free=0 noproc=0 stale=''
+  for a in "$@"; do
+    case "$a" in free) free=1 ;; noproc) noproc=1 ;; stale) stale=stale ;; esac
+  done
   pp_setup
   stub_register_local "$LH_UNIT" lockhold-long
-  echo "$LH_UNIT.service loaded activating start" >"$ST/units"
-  if [ -z "${1-}" ]; then
-    /usr/bin/flock --exclusive "$SB/home/locks/credential.lock" /usr/bin/sleep 30 &
+  if [ -n "$stale" ]; then echo "$LH_UNIT.service loaded active exited" >"$ST/units"; else echo "$LH_UNIT.service loaded activating start" >"$ST/units"; fi
+  n3_unit_state "$LH_UNIT" "$stale"
+  [ "$noproc" = 1 ] || n3_proc 7101 "$LH_UNIT"
+  if [ "$free" = 0 ]; then
+    /usr/bin/flock --exclusive "$N3_LOCK" /usr/bin/sleep 30 &
     N3_HOLDER=$!
     BG_PIDS+=("$N3_HOLDER")
-    for _ in $(seq 1 30); do /usr/bin/flock --nonblock "$SB/home/locks/credential.lock" /usr/bin/true || break; sleep 0.1; done
+    for _ in $(seq 1 30); do /usr/bin/flock --nonblock "$N3_LOCK" /usr/bin/true || break; sleep 0.1; done
   fi
 }
 n3_done() { [ -z "${N3_HOLDER-}" ] || { kill "$N3_HOLDER" 2>/dev/null; wait "$N3_HOLDER" 2>/dev/null; }; N3_HOLDER=''; }
-n3_setup
-echo 75 >"$ST/status"
-echo failed >"$ST/active"
-pp_run "$L" n3-busy
-n3_done
-t "run n3-busy: lock held by the attested lockhold unit → busy, exit 0" bash -c "[ \"\$(sed -n 's/^E3J9 provider_run_result=//p' '$ST/out'):\$(cat '$ST/rc')\" = busy:0 ] && grep -q -x 'E3J9 pp_pre_lock_held=true' '$ST/out' && grep -q -x 'E3J9 pp_pre_lockhold_unit_ok=true' '$ST/out'"
+n3_run() { # n3_run <launcher>: run n3-busy, then record whether the holder lives and the lock is still held
+  pp_run "$1" n3-busy
+  N3_ALIVE=0 N3_BUSY=0
+  [ -z "${N3_HOLDER-}" ] || ! kill -0 "$N3_HOLDER" 2>/dev/null || N3_ALIVE=1
+  /usr/bin/flock --nonblock "$N3_LOCK" /usr/bin/true || N3_BUSY=1
+  n3_done
+}
+check_t1() { # corrected n3-busy, a real lock held for the whole run
+  n3_setup
+  lock_on
+  n3_run "$1"
+  [ "$(pres):$(rc_of)" = busy:0 ] && pp_has pp_pre_keylist_skipped=true && pp_has pp_pre_lockhold_unit_ok=true && pp_has pp_pre_lock_held=true &&
+    [[ $(sed -n 's/^E3J9 pp_pre_lockhold_process_count=//p' "$ST/out") =~ ^[1-9][0-9]*$ ]] &&
+    ! grep -q -E '^E3J9 pp_pre_(keylist_ok|key_secret_count|gpg_id_match)=' "$ST/out" &&
+    ! grep -q -- ' --pipe ' "$ST/run_calls" &&
+    [ "$(grep -c -x -E 'gpg|pass|proton-drive' "$ST/cred_calls")" = 0 ] && [ "$(grep -c -x probe "$ST/cred_calls")" = 1 ] &&
+    [ ! -e "$ST/cli_started" ] && [ "$N3_ALIVE" = 1 ] && [ "$N3_BUSY" = 1 ]
+}
+t "T1: n3-busy, real lock held: busy, exit 0, no key listing, the unit start refused by the lock, no CLI, holder alive and lock still held" check_t1 "$L"
+check_t2() { # no lockhold-long unit
+  pp_setup
+  lock_on
+  pp_run "$1" n3-busy
+  n3_refused && pp_has pp_pre_lockhold_unit_ok=false
+}
+t "T2: n3-busy, no lockhold-long unit → refused 65, never started" check_t2 "$L"
+check_t3() { # a wrong holder or a malformed unit name
+  local name
+  for name in eanhl-cloud-cred-probe-lockhold-hold-0011223344556677 eanhl-cloud-cred-probe-lockhold-long-00112233445566zz \
+    eanhl-cloud-cred-probe-lockhold-long-001122334455667 eanhl-cloud-cred-probe-lockhold-long-0011223344556677aa; do
+    n3_setup
+    lock_on
+    stub_register_local "$name" lockhold-long
+    echo "$name.service loaded activating start" >"$ST/units"
+    n3_unit_state "$name"
+    n3_run "$1"
+    n3_refused && pp_has pp_pre_lockhold_unit_ok=false || return 1
+  done
+}
+t "T3: n3-busy, a lockhold-hold unit or a malformed lockhold-long name → refused 65, never started" check_t3 "$L"
+check_t4() { # two lockhold-long units
+  n3_setup
+  lock_on
+  stub_register_local "$LH_UNIT2" lockhold-long
+  echo "$LH_UNIT2.service loaded activating start" >>"$ST/units"
+  n3_unit_state "$LH_UNIT2"
+  n3_run "$1"
+  n3_refused && pp_has pp_pre_lockhold_unit_ok=false
+}
+t "T4: n3-busy, two lockhold-long units → refused 65" check_t4 "$L"
+check_t5() { # an unattested holder: each attested property wrong in turn
+  local v
+  for v in 'PrivateNetwork=no' 'Environment=FOO=bar' 'FragmentPath=/etc/systemd/system/eanhl-cloud-cred-probe-lockhold-long-0011223344556677.service' \
+    'ExecStart={ path=/usr/bin/true ; argv[]=/usr/bin/true ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }'; do
+    n3_setup
+    lock_on
+    printf '%s\n' "${v#*=}" >"$ST/uprop.$LH_UNIT.service.${v%%=*}"
+    n3_run "$1"
+    n3_refused && pp_has pp_pre_lockhold_unit_ok=false || return 1
+  done
+}
+t "T5: n3-busy, an unattested holder (PrivateNetwork=no, an Environment, a wrong ExecStart argv, a wrong FragmentPath) → refused 65" check_t5 "$L"
+check_t6() { # a stale holder: the hold ended (active/exited) while another process holds the lock
+  n3_setup stale
+  lock_on
+  n3_run "$1"
+  n3_refused && pp_has pp_pre_lockhold_unit_ok=false
+}
+t "T6: n3-busy, a stale holder (active/exited) with the lock held by another process → refused 65" check_t6 "$L"
+check_t7() { # the holder unit has no live process in its cgroup
+  n3_setup noproc
+  lock_on
+  n3_run "$1"
+  n3_refused && pp_has pp_pre_lockhold_process_count=0
+}
+t "T7: n3-busy, the holder unit has no live process → refused 65, pp_pre_lockhold_process_count=0" check_t7 "$L"
+check_t8() { # the holder is valid but the lock is free
+  n3_setup free
+  lock_on
+  n3_run "$1"
+  n3_refused && pp_has pp_pre_lock_held=false
+}
+t "T8: n3-busy, the lock is not held → refused 65, pp_pre_lock_held=false" check_t8 "$L"
+check_t9() { # the lock path a symlink; the lock file missing
+  n3_setup
+  lock_on
+  mv "$N3_LOCK" "$N3_LOCK.real"
+  ln -s "$N3_LOCK.real" "$N3_LOCK"
+  n3_run "$1"
+  n3_refused || return 1
+  rm -f "$N3_LOCK.real"
+  n3_setup
+  lock_on
+  rm -f "$N3_LOCK"
+  n3_run "$1"
+  n3_refused
+}
+t "T9: n3-busy, the lock path a symlink or the lock file missing → refused 65" check_t9 "$L"
+check_t10() { # another credential unit active
+  n3_setup
+  lock_on
+  echo "eanhl-cloud-cred-x.service loaded active running" >>"$ST/units"
+  n3_run "$1"
+  n3_refused && pp_has pp_pre_no_active_unit=false
+}
+t "T10: n3-busy, another eanhl-cloud-* unit active → refused 65, pp_pre_no_active_unit=false" check_t10 "$L"
+check_t11() { # an eanhl-cloud process outside the holder's cgroup
+  n3_setup
+  lock_on
+  n3_proc 7102 eanhl-cloud-cred-other
+  n3_run "$1"
+  n3_refused && pp_has pp_pre_svc_process_count=1
+}
+t "T11: n3-busy, an eanhl-cloud process outside the holder cgroup → refused 65, pp_pre_svc_process_count=1" check_t11 "$L"
+check_t12_case() { # check_t12_case <launcher> <label>: one retained n3-busy check fails
+  local rec
+  n3_setup
+  lock_on
+  case "$2" in
+    'CLI pin') printf other >"$SB/cli" ;;
+    'store directory mode') chmod 755 "$PSP" ;;
+    'entry metadata') chmod 644 "$PSP/ch.proton.drive/drive-sdk-cli/auth-session.gpg" ;;
+    'store extra') : >"$PSP/extra.gpg" ;;
+    'fallback file') : >"$SB/home/auth-session.json" ;;
+    'pprobe object') : >"$UD/eanhl-cloud-cred-pprobe-boot-provider-0123456789abcdef0123456789abcdef.timer" ;;
+    'network offline') echo inactive >"$ST/netonline" ;;
+    'invalid boot id') rm -f "$SB/boot_id" ;;
+  esac
+  n3_run "$1"
+  chmod 700 "$PSP"
+  printf '%s\n' "$BOOT_UUID" >"$SB/boot_id"
+  case "$2" in
+    'CLI pin') rec=pp_pre_cli_pin_match=false ;;
+    'store directory mode') rec=pp_pre_store_dir_ok=false ;;
+    'entry metadata') rec=pp_pre_entry_meta_ok=false ;;
+    'store extra') rec='pp_pre_store_extra_count=[1-9][0-9]*' ;;
+    'fallback file') rec='pp_pre_fallback_file_count=[1-9][0-9]*' ;;
+    'pprobe object') rec='pp_pre_pprobe_object_count=[1-9][0-9]*' ;;
+    'network offline') rec=pp_pre_network_online=false ;;
+    'invalid boot id') rec=pp_boot_id_ok=false ;;
+  esac
+  n3_refused && grep -q -x -E "E3J9 $rec" "$ST/out"
+}
+for lbl in 'CLI pin' 'store directory mode' 'entry metadata' 'store extra' 'fallback file' 'pprobe object' 'network offline' 'invalid boot id'; do
+  t "T12: n3-busy, retained check fails ($lbl) → refused 65 with that record false or non-zero, never started" check_t12_case "$L" "$lbl"
+done
+check_t13_mode() { # check_t13_mode <launcher> <run mode | schedule>: every non-N3 path still lists the keys
+  pp_setup
+  lock_on
+  if [ "$2" = schedule ]; then
+    "$1" provider-probe schedule t20m >"$ST/out" 2>"$ST/err"
+  else
+    pp_records "$(now_prefix "$2")" "$2"
+    pp_run "$1" "$2"
+  fi
+  [ "$(grep -c -- ' --pipe ' "$ST/run_calls")" = 1 ] && [ "$(grep -c -x gpg "$ST/cred_calls")" = 1 ] &&
+    pp_has pp_pre_key_secret_count=1 && pp_has pp_pre_gpg_id_match=true && ! grep -q '^E3J9 pp_pre_keylist_skipped=' "$ST/out"
+}
+check_t13() { local m; for m in provider provider-freshcache neg-nokey neg-nostore e4-decoy schedule; do check_t13_mode "$1" "$m" || return 1; done; }
+for m in provider provider-freshcache neg-nokey neg-nostore e4-decoy schedule; do
+  t "T13: run/schedule $m, lock model on and the lock free: one key-listing call, key count 1, .gpg-id match, no skip record" check_t13_mode "$L" "$m"
+done
+check_t14() { # provider with the lock held: the lock model is consulted
+  pp_setup
+  lock_on
+  /usr/bin/flock --exclusive "$N3_LOCK" /usr/bin/sleep 30 &
+  N3_HOLDER=$!
+  BG_PIDS+=("$N3_HOLDER")
+  for _ in $(seq 1 30); do /usr/bin/flock --nonblock "$N3_LOCK" /usr/bin/true || break; sleep 0.1; done
+  pp_run "$1" provider
+  n3_done
+  n3_refused && pp_has pp_pre_keylist_ok=false
+}
+t "T14: provider, lock held, lock model on → refused 65, pp_pre_keylist_ok=false" check_t14 "$L"
+check_t15() { # provider with a non-matching .gpg-id
+  pp_setup
+  lock_on
+  printf '%s\n' 9999888877776666555544443333222211110000 >"$PSP/.gpg-id"
+  pp_run "$1" provider
+  n3_refused && pp_has pp_pre_gpg_id_match=false
+}
+t "T15: provider, a non-matching .gpg-id → refused 65, pp_pre_gpg_id_match=false" check_t15 "$L"
 check_n3_rejects_pass() { # n3-busy accepts only busy
   n3_setup
   pp_records "$(now_prefix n3-busy)" provider
@@ -2466,14 +2706,34 @@ check_n3_rejects_pass() { # n3-busy accepts only busy
   n3_done
   [ "$(pres):$(rc_of)" = pass:1 ]
 }
-t "run n3-busy: a pass outcome is not accepted (exit 1)" check_n3_rejects_pass "$L"
+t "T16: n3-busy, a pass outcome is not accepted (exit 1)" check_n3_rejects_pass "$L"
 mutation "n3-busy accepts pass" "$L" "s/^  'n3-busy|provider:provider|busy|run|ok'\$/  'n3-busy|provider:provider|pass,busy|run|ok'/" check_n3_rejects_pass
-pp_setup
-pp_run "$L" n3-busy
-t "run n3-busy: no lockhold-long unit → refused 65, never started" bash -c "[ \"\$(cat '$ST/rc')\" = 65 ] && grep -q -x 'E3J9 pp_pre_lockhold_unit_ok=false' '$ST/out' && ! grep -q -- '--unit=eanhl-cloud-cred-pprobe-' '$ST/run_calls' 2>/dev/null"
-n3_setup free
-pp_run "$L" n3-busy
-t "run n3-busy: the lock is not held → refused 65" bash -c "[ \"\$(cat '$ST/rc')\" = 65 ] && grep -q -x 'E3J9 pp_pre_lock_held=false' '$ST/out'"
+check_t17() { # check_t17 <launcher source>: the n3-busy key-listing branch of pp_preconditions needs no lock and runs no gpg, pass or CLI
+  local branch
+  branch=$(sed -n '/^pp_preconditions() {/,/^}/p' "$1" | awk '/^  if \[ "\$lmode" = n3-busy \]; then$/ { on = 1; next } on && /^  else$/ { exit } on' | grep -v '^[[:space:]]*#')
+  [ -n "$branch" ] && ! grep -q -E 'list_secret_keys|run_capture|run_quiet|\$WRAPPER|proton-drive|\bgpg\b|\bpass\b' <<<"$branch"
+}
+t "T17: static — the n3-busy branch of pp_preconditions contains no list_secret_keys, run_capture, run_quiet, \$WRAPPER, gpg, pass or proton-drive" check_t17 "$LAUNCHER_SRC"
+rm -rf "$SB/proc/7101" "$SB/proc/7102"
+# E3J9E-R mutations: each must be killed.
+mutation "X1: reintroduce the key listing for n3-busy" "$L" 's/^    emit pp_pre_keylist_skipped true$/    list_secret_keys >\/dev\/null || { emit pp_pre_keylist_ok false; return 1; }\n&/' check_t1
+mutation "X2: n3-busy emits pp_pre_key_secret_count=1 and pp_pre_gpg_id_match=true" "$L" 's/^    emit pp_pre_keylist_skipped true$/&; emit pp_pre_key_secret_count 1; emit pp_pre_gpg_id_match true/' check_t1
+mutation "X3: pp_find_lockhold without attest_local_keep" "$L" 's/^  attest_local_keep "\$found" lockhold-long || return 1$/  :/' check_t5
+mutation "X4: pp_find_lockhold without the ActiveState/SubState check" "$L" '/^  \[ "\$(unit_prop "\$found.service" \(ActiveState\|SubState\))" = \(activating\|start\) \] || return 1$/d' check_t6
+mutation "X5: n3-busy accepts a free lock" "$L" 's/^    if \[ "\$rc" -eq 75 \]; then emit pp_pre_lock_held true; else$/    if [ "$rc" -eq 75 ] || [ "$rc" -eq 0 ]; then emit pp_pre_lock_held true; else/' check_t8
+mutation "X6: ignore processes outside the holder" "$L" '/^  emit pp_pre_svc_process_count "\$n"$/{n;s/^  \[ "\$n" = 0 \] || return 1$/  :/}' check_t11
+mutation "X7: drop the live-holder count check" "$L" 's/^    \[\[ \$n =~ \^\[1-9\]\[0-9\]{0,5}\$ \]\] || return 1$/    :/' check_t7
+mutation "X8: the key-listing skip applied to every mode" "$L" '0,/^  if \[ "\$lmode" = n3-busy \]; then$/s//  if true; then/' check_t13
+mutation "X9: the provider unit started with --wait=60 instead of --nonblock" "$L" '/^  if ! bound_launch "\$PP_PREFIX-now-\$lmode-\$nonce"/{n;s/--nonblock probe/--wait=60 probe/}' check_t1
+mutation "X10: the active-unit allowlist accepts any unit" "$L" '/^pp_active_units_ok() {$/,/^}$/s/^    \[ "\$ok" -eq 1 \] || return 1$/    :/' check_t10
+mutation "X11: the n3-busy branch without store_dir_ok" "$L" '0,/^    store_dir_ok || { emit pp_pre_store_dir_ok false; return 1; }$/s//    :/' check_t12_case 'store directory mode'
+check_t14_with_stub() { # check_t14_with_stub <stub>: T14 against a launcher copy that runs <stub> as systemd-run
+  local lx=$W/launcher-x12
+  sed "s#^readonly SYSTEMD_RUN=.*#readonly SYSTEMD_RUN=$1#" "$L" >"$lx"
+  chmod +x "$lx"
+  check_t14 "$lx"
+}
+mutation "X12: the fake systemd-run lock model disabled" "$SB/stub/systemd-run" 's/^if \[ -e "\$st\/lock_model" \]; then$/if false; then/' check_t14_with_stub
 check_provider_rejects_busy() {
   pp_setup
   echo 75 >"$ST/status"
