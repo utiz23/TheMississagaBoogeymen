@@ -11,7 +11,8 @@ reproduce the linked documents.
 - Gate 1-3 checklist:
   [`docs/planning/operational-v1-roadmap.md`](docs/planning/operational-v1-roadmap.md).
 - Dated work diary (per-milestone detail and test counts):
-  [`docs/journal/2026-09.md`](docs/journal/2026-09.md).
+  [`docs/journal/2026-09.md`](docs/journal/2026-09.md),
+  [`docs/journal/2026-10.md`](docs/journal/2026-10.md).
 - Workflow policy:
   [`docs/operations/agent-manager-workflow.md`](docs/operations/agent-manager-workflow.md).
 
@@ -23,6 +24,20 @@ unpublished; reliability/backup automation not started; product-readiness
 audits not started. Gate 3 not started. Checkbox detail: the roadmap doc.
 
 ## Latest Verified Checkpoint
+
+**2026-10-01 — E3J9E stopped at N3; E3J9E-R correction implemented (G1),
+awaiting review.** N3 was refused before any CLI execution: its precondition
+key listing needed the lock the attested `lockhold-long` holder owns. Branch
+`fix/e3j9e-r-n3-lock-preflight` (base `51650dc`; launcher, harness and docs
+only) makes `n3-busy` lock-free, refuses a stale holder, requires a live holder
+process and lock state 75. Static harness: 625 passed, 84 mutations killed. G2
+is complete; three byte-identical full runs each passed 629 with 84 mutations
+killed, accepted-delta regeneration and both input-hash checks. External
+review, commit, merge and the Hotel-Echo install are not done. Ledger
+`p1a p1b p2 e4 n3` (4 of 9 CLI executions). Record:
+[memo §23](docs/planning/proton-drive-hotel-echo-credential-design.md).
+
+- E3J9E run4 evidence: 11 of the 18 files recovered hash-exact after a reboot (recovered bundle, not an original snapshot); 7 were not reconstructed; P1b/P2/E4 survive only as reported results; reduced evidence boundary accepted (OD-1).
 
 **2026-09-30 — E3J9D PASSED for the ceremony + single-P0 scope only.** From
 `7b3a379` (worktree `integrate/e3j9d-r-2026-09-30`), with the E3J9D-R launcher
@@ -101,7 +116,7 @@ there). Detail: the architecture memo and ops docs under Immediate Blockers.
   received. E3J8B (activation; steps in the monitoring ops doc §9, own
   authorization) is blocked on backup scheduling. Also open:
   hard containment on the real host; unattended credential persistence (U1
-  open; E3J9C and E3J9D passed their scopes, lifecycle/reboot unproven); real-CLI schema verification; U12-U14
+  open; E3J9C and E3J9D passed their scopes, E3J9E stopped at N3, lifecycle/reboot unproven); real-CLI schema verification; U12-U14
   (readback ceilings/containment, timeouts/retries, remote root and flat
   layout); U15 partly resolved (emitter built, no provider object, receipt
   test unrun). D1 is accepted; E3J9D passed (ceremony + one P0; session
@@ -129,10 +144,11 @@ there). Detail: the architecture memo and ops docs under Immediate Blockers.
 ## Next 1-3 Actions
 
 1. **Backup credential path:** E3J9D passed (memo §22), and **D7 is accepted**
-   under memo §15. Next is a separately authorized E3J9E (P1–P5, N1–N4, E4,
-   one controlled reboot; validation tooling
-   removed at its end) to close U1/E3J9; **C1** must merge before any E3J10
-   step that executes the CLI or can contact Proton.
+   under memo §15. E3J9E stopped at N3 (memo §23); G2 and full local
+   verification passed. Next: external review/G3 acceptance, then the G4/G5
+   checkpoint, revised E3J9E plan, single-file launcher install and exactly one
+   `n3r`, each separately authorized, to resume toward closing U1/E3J9; **C1**
+   must merge before any E3J10 step that executes the CLI or can contact Proton.
 2. Gate 2 reliability items: automated backups, restore drill, alerting, log
    retention, rollback docs — all unstarted and blocking Gate 2.
 3. Disable and verify Cloudflare Web Analytics.

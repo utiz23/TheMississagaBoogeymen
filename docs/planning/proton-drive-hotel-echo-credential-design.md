@@ -2553,3 +2553,117 @@ deletion, logout, revocation, reboot, scheduling, timer enablement, E3J9E, C1,
 E3J10, backup or monitoring activation. **D7 is accepted under §15. Next:** a
 separately authorized E3J9E (lifecycle: P1–P5, N1–N4, E4, one controlled
 reboot); C1 before any E3J10 step that executes the CLI or can contact Proton.
+
+## 23. E3J9E N3 precondition defect, run4 evidence loss and E3J9E-R correction (2026-10-01)
+
+**Outcome: E3J9E stopped at N3; U1 and E3J9 remain open.** The run (run4)
+passed Phase 0 and Phase 1 and, as reported during the session, P1a, P1b, P2
+and E4. N3 was then attempted once and refused (exit 65,
+`pp_pre_keylist_ok=false`) **before any CLI execution**. Hotel-Echo was returned
+to a clean state: nothing armed, the lock free, 0 credential units, 0 credential
+processes. The provider-call ledger is `p1a p1b p2 e4 n3` (recovered verbatim):
+4 of 9 permitted CLI executions and 4 of 7 authenticated reads were used. N3
+started no CLI, and nothing was retried. E3 remains unactivated and unmonitored.
+
+### 23.1 Root cause
+
+`pp_preconditions` ran the secret-key listing before its `n3-busy` branch. That
+listing is a transient unit whose command is the credential wrapper, so it takes
+the credential lock with `flock --nonblock`. During N3 the attested
+`lockhold-long` unit holds that lock by design, the listing exits 75, and the
+launcher refused before it could attest the holder. N3 could never pass. The
+harness missed it because its fake `systemd-run` returned the fake key listing
+regardless of lock state, and the earlier N3 test held a real lock only for the
+lock-state probe.
+
+### 23.2 Correction (E3J9E-R; `n3-busy` only)
+
+- **No lock-requiring step for `n3-busy`.** It skips the key listing and emits
+  `pp_pre_keylist_skipped=true` instead of `pp_pre_keylist_ok`,
+  `pp_pre_key_secret_count` and `pp_pre_gpg_id_match`. The other `n3-busy`
+  checks are unchanged and none needs the lock: CLI pin, store directory, entry
+  metadata, store-extra and fallback counts, holder discovery and attestation,
+  pprobe objects, the active-unit allowlist, processes outside the holder,
+  network-online and the boot id. Every other mode, and `schedule`, keep today's
+  key listing, one-key check and `.gpg-id` match, with unchanged calls, record
+  names and order.
+- **Stale holder refused.** The attested `lockhold-long` unit must report
+  `ActiveState=activating` and `SubState=start`, systemd's state for a
+  `Type=oneshot`, `RemainAfterExit=yes` unit whose command is still running.
+  When the hold ends the unit becomes `active`/`exited`; that is stale and is
+  refused.
+- **Live holder required.** At least one `eanhl-cloud` process must be inside
+  the holder's cgroup (`pp_pre_lockhold_process_count`, metadata only), and none
+  outside it. The lock state must be exactly 75, so the unchanged
+  `--nonblock probe provider:provider` start is refused by the wrapper's flock
+  (`provider_run_result=busy`) and the CLI never starts.
+- **Harness.** The fake `systemd-run` gains a lock model (`$ST/lock_model`):
+  wrapper calls are logged, a `--nonblock` call takes the real lock for an
+  instant, a busy `--pipe` call exits 75 with no output, a busy unit start
+  records a failed unit with status 75, and a provider probe that gets the lock
+  records that the CLI started. The fake `systemctl` gains per-unit
+  `ActiveState`/`SubState`. Tests T1–T17 cover the positive case against a real
+  held lock, each refusal, every non-N3 path and the static shape; mutations
+  X1–X12 each must be killed.
+
+**Residual (documented, not closed):** the launcher does not read `/proc/locks`
+to bind the flock to a specific process. A root-owned or other-uid process
+holding the lock file would look identical. Only root can do that, and root is
+outside the protection boundary (§9).
+
+### 23.3 Evidence loss and the reduced evidence boundary
+
+**Evidence loss (2026-10-01).** The stopped run's 18 sanitized evidence files were kept only in the session scratchpad under `/tmp` and were lost in a main-PC reboot before the planned durable snapshot (G0) ran. A bounded local reconstruction audit recovered 11 of the 18 files with exact SHA-256 matches from records printed during the session (8 verbatim, 3 hash-identical). They are kept in a recovered bundle, `~/.local/state/eanhl/e3j9e/run4-n3-stop-recovered`, which is not an original snapshot. The other seven — the P1b, P2 and E4 run records, their §M results, and the §M result after N3 — are unavailable and were not reconstructed. P1b, P2 and E4 therefore survive only as contemporaneously reported results. Fresh read-only state proofs, taken immediately before the launcher install and again immediately before `n3r`, replace their use as continuation gates but do not recreate their execution evidence. The operator accepted this reduced evidence boundary (decision OD-1) before the correction was implemented.
+
+The operator's decision, recorded verbatim:
+
+> OD-1: I accept the E3J9E run4 evidence loss. Seven detailed artifacts —
+> 21-p1b.out, 21-p1b-m.out, 22-p2.out, 22-p2-m.out, 23-e4.out, 23-e4-m.out and
+> 24-n3-m.out — are permanently lost and were not reconstructed. P1b, P2 and E4
+> survive only as contemporaneously reported results. The fresh read-only state
+> proofs replace their use as continuation gates but do not recreate their
+> execution evidence. U1 may close only with this limitation recorded
+> permanently.
+
+- **Recovered (11 of 18, hash-exact):** the baseline and P1a metadata, the only
+  provider row with full records (P1a), the ledger, the N3 kept-holder,
+  failure and stop records, the three post-N3 state records and the run4 script
+  hashes.
+- **Lost (7 of 18):** the seven artifacts named in OD-1. They are not
+  reconstructed and never will be.
+- **Evidence kinds, never mixed:** recovered exact evidence; contemporaneous
+  reported observations (P1b, P2, E4); fresh read-only state proofs, which gate
+  continuation. The fresh proofs establish current state and continuity since
+  P1a. They cannot establish that P1b, P2 or E4 executed as reported, nor
+  provider-side session validity (only the next authenticated read shows that).
+- **U1 closure rule.** After OD-1, U1 may close only if every remaining E3J9E
+  row passes on its stated criteria. The closure text is fixed and is never
+  shortened or removed:
+
+> U1 closed for the service-readable credential design (credential-mechanism
+> Option A) over the observed intervals only, with a reduced evidence boundary
+> (E3J9E run4 evidence loss, decision OD-1): P1b, P2 and E4 passed as
+> contemporaneously reported results whose detailed records were lost in a
+> main-PC reboot; 11 of the 18 run4 artifacts were recovered hash-exact and 7
+> are unavailable.
+
+### 23.4 State and next step
+
+**Status after G2:** the correction is implemented and verified locally on branch
+`fix/e3j9e-r-n3-lock-preflight` (base `51650dc`): the static harness passes with
+625 passed, 0 failed and 84 mutations killed (0 survived), and the same harness
+fails T1 against the old launcher bytes with `pp_pre_keylist_ok=false`. G2 used
+the public upstream `password-store.sh@1.7.4`
+(`b48d710a8da2473b83491bd3c1971256f4c17c067dab1e9a7a3ac453170bbcd7`)
+and Ubuntu `/usr/bin/pass`
+(`b0da432e8d377a67c7a74a9111c6b32889cce62f6e4f506a7bbdba817a268632`).
+Three sequential full runs were byte-identical; each passed 629 tests with 0
+failures and 84 mutations killed (0 survived), and each ran accepted-delta
+regeneration plus both input-hash checks. Each 716-line, 46,950-byte log hashes
+to `b6fa9b0d2cd57573b94c35ce3c2a254d0f284e9396533374ad68914b81e1c05d`.
+Not done: external review/G3 acceptance, commit, merge, any install on
+Hotel-Echo, FP-A/FP-B, `n3r`, P3–P5, N1, N2, the reboot (O2) and the E3J9E
+documentation commit (O5). The installed launcher is unchanged. **Next:**
+external review/G3 acceptance, then the revised E3J9E plan and the single-file
+launcher install, each separately authorized. No further P1b, P2 or E4
+execution will occur. The one permitted retry is `n3r`, and it starts no CLI.

@@ -307,6 +307,18 @@ capability, not an authorization; E3J9D uses only `run provider`.
   other active credential unit or pprobe object, no `eanhl-cloud` process, the
   lock free (`n3-busy`: held by the attested `lockhold-long` unit), network-online
   active (`run`), a valid boot id.
+- `n3-busy` (E3J9E-R; design §23) runs while the attested `lockhold-long` unit
+  holds the credential lock, so its preconditions take no step that needs that
+  lock: it lists no keys (it emits `pp_pre_keylist_skipped=true` and no
+  key-count, `.gpg-id` or key-listing record). It requires exactly one attested
+  `lockhold-long` unit still inside its hold (`ActiveState=activating`,
+  `SubState=start`; an `active`/`exited` unit is stale and refused), at least
+  one live `eanhl-cloud` process inside that unit
+  (`pp_pre_lockhold_process_count`) and none outside it, no other active
+  credential unit or pprobe object, and the lock held (exactly exit 75). The
+  provider unit start is then refused by the wrapper's lock
+  (`provider_run_result=busy`) and the CLI never starts. Every other mode, and
+  `schedule`, keeps the key listing, the one-key check and the `.gpg-id` match.
 - Output: only `^E3J9 [a-z_]+=…` lines; provider records only with a name the
   mode's probe arm emits and a value of its class; everything else is counted.
 - Provenance: `collect`, `discard` and `probe-stop` touch only objects that
