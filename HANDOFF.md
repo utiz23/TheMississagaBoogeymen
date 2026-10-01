@@ -24,18 +24,22 @@ audits not started. Gate 3 not started. Checkbox detail: the roadmap doc.
 
 ## Latest Verified Checkpoint
 
-**2026-09-30 — E3J9D-R independently reviewed, checkpointed at `ef32c885` and
-integrated into `main` by local merge commit `1ec6c330`.** D1 was accepted. E3J9D stopped before
-any Hotel-Echo access: the committed provider template required a reviewed
-invocation-bound reader that did not exist. E3J9D-R (branch
-`feat/e3j9d-primary-auth`, based on the exact `main` commit `ab05da38`;
-checkpoint `ef32c885`, merged into `main` as above) adds the
-launcher's `provider-probe`, the probe's E4/N4 `e4-decoy`, the `unit-publish`
-helper and deletes the template; final hermetic harness 604/604 in three
-consecutive runs, `--static-only` 600/600, 72/72 mutations killed. Nothing
-installed; E3J9D has not begun; E3 remains unactivated and nothing is
-monitored; no Proton contact. Record:
-[memo §20](docs/planning/proton-drive-hotel-echo-credential-design.md).
+**2026-09-30 — E3J9D STOPPED before P0; credential revoked, removed and
+rotated. E3J9D did not pass.** From `main` `8c76a2c`: the E3J9D-R launcher
+(`0244f8ee…`), probe (`46b112c2…`) and `unit-publish` (`5acf4677…`) are
+installed, and every same-session pre-ceremony proof passed (A1–A4, A7, A8,
+A10, E1(a), `env-proof`, L2, one busy overlap, host formats, auth
+preconditions). The operator's ceremony completed (it contacted Proton), but
+the operator then accidentally pasted its URL and output to Codex, so the
+session stopped: **P0 never attempted (`p0_attempt_count=0`)**, no
+provider-probe unit ran, no provider contact after the ceremony. The operator
+revoked that specific CLI session (no unexpected sessions, no password change).
+Local cleanup and rotation, without running the CLI or contacting Proton:
+`entry-remove`, CLI data/cache/log deleted, store recreated, old key deleted,
+GNUPGHOME residue cleared, new key + `gpg.conf` + `pass-init`, staging removed;
+`probe local` and owned-inventory pass. No credential material in the repo. Host now: foundation + fresh key + store with only
+`.gpg-id`, no Proton session, nothing scheduled. Record:
+[memo §21](docs/planning/proton-drive-hotel-echo-credential-design.md).
 
 **2026-09-26 — E3J9C PASSED (credential foundation + local proof only).**
 E3J9C-R is committed and pushed (`835b3ece`). On Hotel-Echo: `pass` + `tree`,
@@ -53,7 +57,8 @@ is in `main`: the `main` commit `ab05da38` contains it (via `671efb9`). Network:
 upstream/Ubuntu downloads only; no Proton/provider contact. Record:
 [memo §19](docs/planning/proton-drive-hotel-echo-credential-design.md).
 
-Earlier (detail in the journal): E3J9C-R 09-25 (exact `pass` acceptance rule,
+Earlier (detail in the journal): E3J9D-R 09-28/30 (provider runner,
+`ef32c885`, merged into `main` by `1ec6c330`, memo §20); E3J9C-R 09-25 (exact `pass` acceptance rule,
 template corrections, memo §18); E3J9C first run 09-24 (stopped after M1:
 `pass` + `tree`, memo §17); E3J9B-doc 09-24 (`c99598e`, option-A design);
 E3J9A 09-24 (read-only feasibility); E3J8A 09-23 (`9ea391a`, Healthchecks
@@ -99,8 +104,9 @@ there). Detail: the architecture memo and ops docs under Immediate Blockers.
   open; E3J9C passed its local scope, lifecycle/reboot unproven); real-CLI schema verification; U12-U14
   (readback ceilings/containment, timeouts/retries, remote root and flat
   layout); U15 partly resolved (emitter built, no provider object, receipt
-  test unrun). D1 is accepted; E3J9D-R is reviewed, checkpointed and merged into `main`;
-  E3J9D waits for explicit reauthorization (then reinstall); **D7** gates E3J9E; **C1** must merge
+  test unrun). D1 is accepted; E3J9D-R is installed; E3J9D stopped before P0
+  (URL disclosure, credential revoked and rotated) and needs a newly authorized
+  ceremony; **D7** gates E3J9E; **C1** must merge
   before any E3J10 step that executes the CLI or can contact Proton. Detail:
   [credential memo](docs/planning/proton-drive-hotel-echo-credential-design.md),
   [`backup-monitoring-export.md`](docs/operations/backup-monitoring-export.md),
@@ -121,10 +127,10 @@ there). Detail: the architecture memo and ops docs under Immediate Blockers.
 
 ## Next 1-3 Actions
 
-1. **Backup credential path:** E3J9D-R (memo §20) is independently reviewed,
-   checkpointed at `ef32c885` and integrated into `main`; next is explicit
-   E3J9D reauthorization (reinstall the launcher, probe and `unit-publish`; ceremony;
-   one P0 via `provider-probe run provider`). E3J9E (lifecycle, reboot) needs
+1. **Backup credential path:** a newly authorized E3J9D (memo §21): repeat the
+   same-session pre-ceremony proofs (files already installed), a new operator
+   ceremony whose output never reaches any agent, then exactly one P0 via
+   `provider-probe run provider` and owned-inventory. E3J9E (lifecycle, reboot) needs
    **D7**; **C1** must merge before any E3J10 step that executes the CLI or can
    contact Proton.
 2. Gate 2 reliability items: automated backups, restore drill, alerting, log

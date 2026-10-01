@@ -15,7 +15,15 @@ its credential-foundation and local-proof scope only.** **2026-09-28 (§20):**
 D1 was accepted; E3J9D stopped before any host access because the reviewed
 provider reader did not exist; **E3J9D-R (§20, local only)** supplies the
 launcher-owned provider runner and the E4/N4 vehicle, independently reviewed and
-checkpointed at `ef32c885` and integrated into `main` (nothing installed). U1 and E3J9 remain open. E3 remains unactivated and nothing
+checkpointed at `ef32c885` and integrated into `main`. **2026-09-30 (§21):**
+E3J9D reinstalled those files and passed every pre-ceremony proof; the operator
+ceremony completed (contacting Proton), but the operator then accidentally
+pasted its sign-in URL and output to another agent (Codex), so the session
+STOPPED before P0 (`p0_attempt_count=0`; no provider contact after the
+ceremony). The operator revoked the specific new CLI session; the local
+credential state was removed and the service key and store rotated without
+running the CLI. **E3J9D did not pass** and needs a newly
+authorized ceremony. U1 and E3J9 remain open. E3 remains unactivated and nothing
 is monitored.
 
 This memo durably records the approved option-A design for a service-usable Proton
@@ -530,18 +538,36 @@ environment> <absolute command> [args…]`**.
   2. remove the old store contents (metadata-proven) and recreate the store
      directory empty (`install -d`);
   3. **delete the old key** (`key-delete`): after step 2 it protects nothing;
-  4. generate a new key;
-  5. `pass-init` on the proven-empty store;
-  6. **a new operator login**.
+  4. **clear the GNUPGHOME residue** (E3J9D evidence, §21.4): `key-delete`
+     removes the key and its revocation file but leaves residue (on Hotel-Echo:
+     5 regular files, `gpg.conf` among them, and 2 empty subdirectories),
+     while `keygen` refuses unless GNUPGHOME is empty. Before any deletion, a
+     metadata-only inventory run as `eanhl-cloud` (types, modes, owners and
+     counts; never names or contents) must show only service-owned regular
+     files (0600) and empty directories (0700), with no symlink, socket or
+     FIFO, and no `eanhl-cloud` process may be running (`pgrep -u` reports
+     none). Then clear only the descendants, as
+     `eanhl-cloud` through `setpriv` from `/`, with the literal root:
+     `find /var/lib/eanhl-cloud/gnupg -xdev -depth -mindepth 1 -type f,d -delete`.
+     The GNUPGHOME top directory itself is preserved (it must remain the M3
+     directory, 0700, service-owned); prove it holds 0 entries before
+     `keygen`. Any unexpected type, owner, mode or running process is a
+     **STOP**;
+  5. generate a new key (`keygen`, whose own preconditions are unchanged: the
+     M3 directory, empty, and an empty keyring), then install `gpg.conf` as
+     `eanhl-cloud` with the M8 command (step 4 removed the old copy);
+  6. `pass-init` on the proven-empty store;
+  7. **a new operator login**.
 
   There is no in-place re-encryption.
 
 - **Rotation:** triggered by suspected compromise, host rebuild or identity change.
   The sequence is the same as recovery: local logout → old store removed → **new
-  empty store** → **old key deleted** → new key → `pass-init` → **new operator
-  login**. (An earlier revision deleted the old key last; that order is impossible
-  under the `keygen`/`pass-init` guards.) Rotation never runs `pass init` over
-  existing entries.
+  empty store** → **old key deleted** → **GNUPGHOME residue cleared (step 4
+  above)** → new key + `gpg.conf` → `pass-init` → **new operator login**. (An
+  earlier revision deleted the old key last; that order is impossible under the
+  `keygen`/`pass-init` guards.) Rotation never runs `pass init` over existing
+  entries.
 - **Not claimed:** encrypting to a key the same identity can use gives no secrecy
   against that identity or root. It gives the only non-keychain, non-plaintext CLI
   backend, key/store separation, and the standing `unsafe_file` rejection.
@@ -1128,6 +1154,11 @@ provider contact, persistence or reboot validation (E3J9E) or activation has
 happened, so no Proton entry exists: a rollback from this state follows the order
 below without steps 2–6, and step 1 applies only to objects a later session
 created. (While M1 was the only host change, §17, step 12 alone applied.)
+**Update (E3J9D, §21), superseding "no authentication" above:** one
+authentication happened and its session was revoked by the operator (step 3);
+the entry was removed with `entry-remove`, the CLI state deleted and the key and
+store rotated (step 6). So again no Proton entry exists, and a rollback from
+this state still follows the order below without steps 2–6.
 
 **Package removal (step 12):** review `apt-get -s remove pass tree`, confirm with
 `apt-cache rdepends --installed tree` that nothing else needs `tree`, read the M1
@@ -1158,7 +1189,8 @@ run `autoremove`. Removing `pass` also removes its empty extensions directory.
 5. If step 2 failed, keep the key: local cleanup may still need it. Retry only under
    new authorization.
 6. **Recovery or rotation, when the service is to continue:** follow the §5 sequence
-   (store removed → **old key deleted** → new key → `pass-init` → new operator
+   (store removed → **old key deleted** → GNUPGHOME residue cleared under its
+   inventory and STOP rules → new key + `gpg.conf` → `pass-init` → new operator
    login). There is **no in-place re-encryption** of the old store.
 7. Password store: only if metadata shows exactly `.gpg-id` plus empty directories,
    remove them (as in step 9). Otherwise stop for operator-only review.
@@ -2193,3 +2225,195 @@ are clean.
   pprobe object (provenance-checked; a refusal is a STOP for operator-only review,
   never a literal-path or manual removal), then reinstall the previous launcher and probe bytes
   (`dff64fa1…`, `7a5807bf…`) and remove `unit-publish` after a hash match.
+
+## 21. E3J9D execution (2026-09-30) — STOPPED after the ceremony; P0 not run; credential revoked, removed and rotated
+
+**Outcome: E3J9D did NOT pass.** The reinstall and every pre-ceremony proof
+passed, and the operator's ceremony completed. The operator then reported that
+they had accidentally pasted the sign-in URL and terminal output to another
+agent (Codex), and stopped the session before P0.
+
+- **Disclosure boundary.** The Claude execution agent did not receive the
+  ceremony URL or the raw ceremony output before the operator reported the
+  sanitized result; the disclosure was to Codex. No credential material (URL,
+  ceremony output, session content, token or fingerprint) is recorded in this
+  repository.
+- **Provider-contact boundary.** The ceremony itself contacted Proton. **P0 was
+  never attempted (`p0_attempt_count=0`)**, no provider-probe unit ran, and
+  there was no provider contact after the ceremony. The local cleanup and
+  rotation (§21.4) neither executed the Proton CLI nor contacted Proton.
+
+The operator revoked the specific new CLI session at Proton (no unexpected
+sessions observed, no password change), and a separately authorized local scope
+then removed the local credential state and rotated the service key and store. E3J9D remains incomplete and needs a newly
+authorized ceremony. U1 and E3J9 remain open, D7 gates E3J9E, C1 remains the
+E3J10 prerequisite, and E3 remains unactivated and unmonitored. No Gate
+checkbox changed.
+
+Source: the clean worktree at `main` commit
+`8c76a2c6286fef7a07f5cf0123f1a66d4445e5dd`. The dirty primary checkout was
+fingerprinted read-only and not touched. Host access used only the `hotel-echo`
+SSH alias. Two earlier attempts were refused locally by the agent tool's
+auto-mode classifier before reaching the host; they were not routed around, and
+the session resumed with normal per-command approval.
+
+### 21.1 Preflight and reinstall (passed)
+
+- **H0:** hostname `hotel-echo`; the archived Stage D identity marker matched
+  (no address printed); `utiz` uid/gid 1000, `/home/utiz`, `/bin/bash`.
+- **Pre-install (read-only):** `eanhl-cloud` locked, own group only, `nologin`,
+  no linger, no sudoers reference; 0 active/loaded `eanhl-cloud*` units and 0
+  unit files; no CLI process, no service process, no pprobe object, the old
+  provider template never installed; lock free; store exactly `.gpg-id`; no
+  `auth-session.*`; data, config and cache empty; CLI regular root:root 0755,
+  SHA-512 = pin; installed launcher `dff64fa1…` and probe `7a5807bf…`;
+  `unit-publish` absent; `network-online.target` active; the `unit-publish`
+  Perl modules present (perl 5.40.1).
+- **Install (only these three files):** a fresh `utiz` 0700 staging directory,
+  each file transferred no-clobber and re-hashed on the host, then
+  `install -T` to a temporary name, re-hashed, `mv -T`:
+
+  | Installed path                                                          | Owner / mode   | sha256                                                             |
+  | ----------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------ |
+  | `/usr/local/sbin/eanhl-cloud-credential`                                | root:root 0750 | `0244f8eeb537f29130e71c129c3591aa0bf866e47e7e06ebc3d046b040f55de9` |
+  | `/usr/local/lib/eanhl-cloud/validation/eanhl-cloud-credential-probe.sh` | root:root 0755 | `46b112c2334fc5d05395d3172d47addb5e80c92f75a7ef779e674e87694e11ed` |
+  | `/usr/local/lib/eanhl-cloud/validation/unit-publish`                    | root:root 0755 | `5acf467780e325078aa1462a96eef3fea44bf33ee29486b93eafae8b9eacdc69` |
+
+  All regular files (not symlinks) and executable; `perl -T -c` on
+  `unit-publish` rc 0. The wrapper, the other validation tools, the
+  directories, the curated links and the CLI were unchanged against a baseline
+  taken before installation. No unit file was installed and no `daemon-reload`
+  ran.
+
+### 21.2 Same-session pre-ceremony proofs (all passed, one row at a time)
+
+| Row                  | Result                                                                                                                                                                                                                                                                                                                                 |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1                   | 12 links, exactly the manifest, directory root:root 0755; targets, final paths, packages and root-owned hops identical to the §19.4 baseline                                                                                                                                                                                           |
+| A2                   | 25 paths, each `test -w` as `eanhl-cloud` exit 1 (safe-cwd form); every final target root-owned, not group/world-writable                                                                                                                                                                                                              |
+| `probe precheck`     | `probe_run_result=pass` (A3/A4/E2 helpers), `bound_nonvocab_lines=0`, cleanup ok                                                                                                                                                                                                                                                       |
+| `probe local`        | pass: canary insert/show/match/`rm -f` and removal, absent-entry anchor                                                                                                                                                                                                                                                                |
+| `probe neg-uninit`   | pass (A10)                                                                                                                                                                                                                                                                                                                             |
+| A7 / A8              | CLI SHA-512 = pin, not executed / `lock_free_nonblock=true`                                                                                                                                                                                                                                                                            |
+| E1(a)                | installed wrapper (`19fd0828…`) and the three reinstalled files equal the repository bytes                                                                                                                                                                                                                                             |
+| `env-proof`          | three `envproof_step_result=pass`, `envproof_nonce_journal_hits=0`, `envproof_result=pass`; boundary booleans exact; supplementary `/proc` observed with 0 nonce hits, 0 forbidden names, 0 wrong values, `GPG_TTY` empty, `GIT_CEILING_DIRECTORIES` as expected (not cited as proof)                                                  |
+| L2                   | no unit or service process before; `gpg_agent_count_at_start=0`; `probe local` pass                                                                                                                                                                                                                                                    |
+| Busy                 | one `lockhold-hold` (pass) overlapped by one `busy-a`: `busy`, exit 75, zero records; cleanup ok; afterwards 0 probe units and 0 service processes                                                                                                                                                                                     |
+| Host formats (§20.6) | boot id canonical and normalised to 32 hex; the json single-invocation view gave 28 records, each with one well-formed invocation id (1 distinct) and the current `_BOOT_ID`, no `MESSAGE` field; `systemctl show --value` formats as expected; attestation passed on every bound run (incl. `Environment` under the env-proof decoys) |
+| Auth preconditions   | one key (1 revocation file, 2 private-key files, keybox), store exactly `.gpg-id` matching it, 0 `auth-session.*`, no active unit, no service or CLI process, lock free, CLI pin exact                                                                                                                                                 |
+
+- **This is the first host evidence for the E3J9D-R bound-runner formats**
+  (never-reused name, single-invocation and `_BOOT_ID` proofs, attestation)
+  on local units. No provider unit ever ran, so the provider projection and
+  classifier remain host-unproven.
+- **Agent-side evaluation defects (no host finding).** The agent's own local
+  output filter or check scripts mishandled output four times: `precheck` was
+  first evaluated with a filter that dropped non-vocabulary lines without
+  counting them, so that local-only row was re-run once with counting (0 lines,
+  pass both times). The busy row's post-check lock line was mislabelled and
+  counted as one non-vocabulary line (the row's own criteria all passed; the
+  lock was free at the next check). The read-only host-format check was re-run
+  twice (agent-chosen record names containing a digit or capital, a zero-record
+  sample unit, and a bash `BASH_REMATCH` ordering bug). Lesson, the same class
+  as §19.6: ad-hoc check names must match `^[a-z_]+$`.
+
+### 21.3 Ceremony and stop
+
+- The operator ran `auth-login` in their own terminal; the Claude execution
+  agent did not run it. Operator report, sanitized: completed; `ssh_rc=0`;
+  final record exactly `E3J9 auth_login_unit_rc=0`. The ceremony contacted
+  Proton.
+- The operator then reported that they had accidentally pasted the sign-in URL
+  and terminal output to Codex, and stopped the session. The Claude execution
+  agent had not received the URL or the raw output before that report. **P0
+  was never attempted, no provider-probe unit ran, and there was no provider
+  contact after the ceremony; no further host action followed until the
+  separately authorized cleanup.** No URL, ceremony output or other credential
+  material is recorded in this repository.
+- **Remote revocation (operator, §12 step 3):** completed; coverage the
+  specific new CLI session; no unexpected sessions seen; no password change
+  (§12 step 4 not judged necessary).
+
+### 21.4 Local cleanup and key/store rotation (separately authorized; passed)
+
+This scope neither executed the Proton CLI nor contacted Proton: `auth-logout`
+was deliberately not used because it runs the CLI with network access.
+
+1. **Reconfirmation:** 0 active or loaded credential units, 0 pprobe files and
+   0 pprobe unit names in the journal (P0 never attempted), 0 service or CLI
+   processes, lock free, installed hashes as §21.1. Metadata inventory (counts,
+   types, modes, never names): the encrypted entry (0600) at its fixed path;
+   `data/proton-drive-cli` with 2 `.json` files; the cache's `proton-drive-cli`
+   with 2 `.sqlite` files; `.local/state/proton-drive-cli` with 1 log; 0
+   unexpected paths; every object service-owned with mode 0600/0700;
+   `owned-inventory` match, 0 unexpected, code 0.
+2. **`entry-remove`** (local `pass rm -f`, `PrivateNetwork=yes`):
+   `entry_remove_unit_rc=0`, `entry_after=absent`; the empty entry directories
+   went with it.
+3. **CLI state:** three literal tops (`/var/lib/eanhl-cloud/data/proton-drive-cli`,
+   `/var/cache/eanhl-cloud/proton-drive-cli`, `/var/lib/eanhl-cloud/.local`),
+   each proven a real directory, then deleted as `eanhl-cloud` with the §12
+   step 9 command (`find <top> -xdev -depth -type f,d -delete`); each absent
+   afterwards; `data` and the cache empty.
+4. **Store:** shape proven (`.gpg-id` only, one line, equal to the single
+   revocation name); the store top deleted as `eanhl-cloud` (§12 step 7), then
+   recreated empty with the M3 `install -d` line (0700, service-owned, 0
+   entries).
+5. **`key-delete <FPR>`**, the fingerprint derived on the host from the single
+   revocation file name and never printed: `key_secret_count=1` → `0`,
+   revocation file absent, `key_delete_postconditions_ok=true`.
+6. **GNUPGHOME residue:** `key-delete` leaves keyring files behind, and
+   `keygen` requires an empty GNUPGHOME. Inventory: 5 regular files and 2 empty
+   directories, service-owned, correct modes, no symlink, socket or FIFO, no
+   service process. Cleared as `eanhl-cloud` with the §12 step 9 command plus
+   `-mindepth 1`, keeping the M3 directory itself; afterwards 0 entries and
+   the directory still 0700 and service-owned. **Design gap (now corrected in
+   §5 and the README):** the rotation sequence did not state this step; it is
+   required by the `keygen` precondition.
+7. **`keygen`:** ed25519 sign/certify primary, cv25519 encryption subkey, one
+   secret key, one matching UID, no expiry, `key_topology_ok=true`,
+   `keygen_postconditions_ok=true`. Fingerprints are not recorded.
+8. **`gpg.conf`** installed with the README M8 command (as `eanhl-cloud`,
+   `set -C`): regular 0600, service-owned, sha256 equal to the repository file.
+9. **`pass-init <new FPR>`** (host-derived, never printed): store empty before,
+   key match, `.gpg-id` 0600 single line, no other entry,
+   `pass_init_postconditions_ok=true`.
+10. **Staging:** `/home/utiz/e3j9d-stage-2026-09-30` proven to hold exactly the
+    three files (`utiz` 0600, reviewed hashes), removed by literal paths;
+    absence confirmed.
+11. **Acceptance:** `probe local` against the new key and store passed (canary
+    round trip, `gpg_agent_count_at_start=0`, no auth entry, 0 logs, 0 fallback
+    files). Final state: every installed file equal to the repository, CLI pin
+    exact, curated links unchanged; store exactly `.gpg-id` matching the new
+    key (1 revocation file, 2 private-key files); 0 `auth-session.*`; data,
+    config and cache empty; no `.local`; 0 active/loaded units, 0 unit files, 0
+    pprobe journal units; 0 service or CLI processes; lock free; no linger;
+    `owned-inventory` match, 0 unexpected, code 0.
+
+**Agent-side evaluation/process defects during the cleanup (not host
+findings).**
+
+- In two read-only checks, agent-chosen check names contained digits (an
+  inventory class named for the M3 directories; two GNUPGHOME mode-check
+  names), so the agent's own vocabulary filter suppressed those lines. The
+  first was covered by the same check's `owned-inventory` result (code 0, which
+  requires the M3 directories to be correct) and again by the final
+  `owned-inventory`; the second by a read-only rerun with valid names (0 bad
+  modes) before anything was deleted.
+- The `gpg.conf` installation and its verification were issued together
+  instead of being evaluated as separate rows.
+- The final hash, mode, ownership, key/store checks and `owned-inventory`
+  (step 11) nevertheless all passed.
+
+### 21.5 State and next step
+
+On Hotel-Echo: the E3J9C foundation with the E3J9D-R launcher, probe and
+`unit-publish` installed (validation tooling kept until E3J9E, D8), a fresh
+service key with `gpg.conf`, and an initialised store holding only `.gpg-id`.
+No Proton session, no CLI data, cache or log, no unit, timer or schedule.
+**Next:** a newly authorized E3J9D (the same pre-ceremony proofs, a new
+operator ceremony with the ceremony output kept away from every agent, then
+exactly one P0). Never done in this session: P0 or any provider-probe unit,
+provider contact after the ceremony, `auth-logout`, Proton CLI execution during
+cleanup, upload, listing, create, move, trash or deletion of Proton data,
+scheduling, timers, reboot, activation, E3J9E, C1 or E3J10.

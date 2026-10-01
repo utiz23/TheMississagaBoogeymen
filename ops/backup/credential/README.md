@@ -23,12 +23,21 @@ directory was removed. U1 and E3J9 remain open.
 access because no reviewed provider reader existed. **E3J9D-R (independently
 reviewed, checkpointed at `ef32c885` and integrated into `main`)** adds the launcher-owned `provider-probe` operation, the
 probe's E4/N4 `e4-decoy` mode and the `unit-publish` helper, and deletes the
-never-installed provider template. Nothing has been installed from E3J9D-R: review, checkpoint and the merge
-into `main` are done, and after explicit E3J9D reauthorization (still required)
-the launcher, the probe and `unit-publish` are reinstalled from that `main`
-commit. E3J9E needs D7, and C1 must merge before any E3J10 step that executes
-the CLI or can contact Proton. No authentication has happened and nothing is
-scheduled.
+never-installed provider template.
+
+**2026-09-30 (design memo §21): E3J9D did not pass.** The E3J9D-R launcher,
+probe and `unit-publish` are installed on Hotel-Echo (from `main` `8c76a2c`),
+and every same-session pre-ceremony proof passed. One authentication ceremony
+completed; its sign-in URL was then accidentally disclosed to Codex, and the
+operator remotely revoked that specific new CLI session (no unexpected sessions
+observed, no password change). **P0 did not run** (`p0_attempt_count=0`); the
+ceremony was the only Proton contact. The local auth entry and the CLI data,
+cache and log state were removed, and the service key and store were rotated
+without running the CLI: the store now holds only the fresh `.gpg-id`, and no
+Proton session exists. E3J9D remains incomplete and requires a newly authorized
+ceremony. E3J9E needs D7, and C1 must merge before any E3J10 step that executes
+the CLI or can contact Proton. E3 remains unactivated and unmonitored; nothing
+is scheduled.
 
 Nothing here is secret. The repository holds paths, command names, the twelve
 environment literals and public fingerprints only. Never add a key, a Proton
@@ -313,18 +322,33 @@ requires an empty keyring and `pass-init` exactly one key, the order is:
    directory empty (`install -d`);
 3. **delete the old key** (`key-delete <old-fpr>`) — after step 2 it protects
    nothing;
-4. `keygen`;
-5. `pass-init` on the proven-empty store;
-6. **a new operator login**.
+4. **clear the GNUPGHOME residue** (design §5 step 4, E3J9D evidence):
+   `key-delete` leaves residue files (`gpg.conf` among them) and empty subdirectories, and `keygen`
+   refuses unless GNUPGHOME is empty. First a metadata-only inventory as
+   `eanhl-cloud` (types, modes, owners, counts; never names or contents) must
+   show only service-owned regular files (0600) and empty directories (0700),
+   no symlink, socket or FIFO, and no `eanhl-cloud` process. Then delete only
+   the descendants with the rollback step 6 command form below, using the
+   literal top `/var/lib/eanhl-cloud/gnupg`, `-mindepth 1` after `-depth`, and
+   the reviewed types `f,d`. Keep the GNUPGHOME directory itself (it must stay
+   the M3 directory) and prove it holds 0 entries. Any unexpected type, owner,
+   mode or process is a STOP;
+5. `keygen` (its preconditions are unchanged), then reinstall `gpg.conf` with
+   the M8 command (step 4 removed it);
+6. `pass-init` on the proven-empty store;
+7. **a new operator login**.
 
 ## Rollback (§12; each step separately authorized)
 
-**Current state (E3J9C passed, design memo §19):** M1–M10 are done for the
-credential-foundation and local-proof scope only. No authentication, provider
-contact, persistence or reboot validation, or activation has happened, so no
-Proton entry exists: a rollback from this state follows the order below without
-steps 2–3, and step 1 applies only to objects a later session created. (While
-M1 was the only host change, the package step alone applied.)
+**Current state (E3J9C passed, design memo §19; E3J9D stopped, §21):** M1–M10
+are done for the credential-foundation and local-proof scope only, and the
+E3J9D-R files are installed. One E3J9D authentication happened; that session
+was remotely revoked (step 3), its local entry and CLI state were removed and
+the key and store rotated, so again no Proton entry exists. No persistence or
+reboot validation or activation has happened. A rollback from this state
+follows the order below without steps 2–3, and step 1 applies only to objects a
+later session created. (While M1 was the only host change, the package step
+alone applied.)
 
 **Package step (step 9):** review `apt-get -s remove pass tree`; confirm with
 `apt-cache rdepends --installed tree` that nothing else needs `tree`; read the M1
