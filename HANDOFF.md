@@ -18,12 +18,23 @@ reproduce the linked documents.
 
 ## Current Objective / Status
 
-Operational V1 launch readiness, target 2026-10-01. Gate 1 complete. Gate 2
-in progress: hosting/domain/NHL 26-27 cutover decided; legal docs drafted but
-unpublished; reliability/backup automation not started; product-readiness
-audits not started. Gate 3 not started. Checkbox detail: the roadmap doc.
+Limited Public Launch preparation under the 2026-10-02 Fast Credible Launch
+amendment. L0 repository reconciliation is recorded, but L0 remains open
+pending a read-only main-PC production inventory and an explicit safe-pause
+statement from the separate E3 conversation. L1-L7 are not complete. Full
+Operational V1 remains a later milestone. Checkbox detail: the roadmap doc.
 
 ## Latest Verified Checkpoint
+
+**2026-10-03 — LPL L0 repository reconciliation and isolated control baseline.**
+The refreshed baseline is
+`b8fb23ffea64dff7c5521a06a7194341a380ee7a` on
+`integrate/lpl-2026-10-02`, in the separate `lpl-control` worktree. The
+roadmap amendment was preserved byte-for-byte at SHA-256
+`3f5626f85462bdf9777efbb6a367be221653a0ece05e79c02a1d787c2b61dd58`.
+The dirty primary checkout was not modified. No production, Hotel-Echo,
+provider, credential or database access occurred. Launch remains stopped.
+Evidence: [L0 reconciliation](docs/planning/lpl-l0-reconciliation-2026-10-03.md).
 
 **2026-10-01 — E3J9E stopped at N3; E3J9E-R correction implemented (G1),
 awaiting review.** N3 was refused before any CLI execution: its precondition
@@ -143,15 +154,13 @@ there). Detail: the architecture memo and ops docs under Immediate Blockers.
 
 ## Next 1-3 Actions
 
-1. **Backup credential path:** E3J9D passed (memo §22), and **D7 is accepted**
-   under memo §15. E3J9E stopped at N3 (memo §23); G2 and full local
-   verification passed. Next: external review/G3 acceptance, then the G4/G5
-   checkpoint, revised E3J9E plan, single-file launcher install and exactly one
-   `n3r`, each separately authorized, to resume toward closing U1/E3J9; **C1**
-   must merge before any E3J10 step that executes the CLI or can contact Proton.
-2. Gate 2 reliability items: automated backups, restore drill, alerting, log
-   retention, rollback docs — all unstarted and blocking Gate 2.
-3. Disable and verify Cloudflare Web Analytics.
+1. Complete L0 with an authorized read-only main-PC production inventory and
+   an explicit safe-pause statement from the separate E3 conversation.
+2. Implement the L1 title-control split on its isolated branch: independent
+   ingestion/default/chronology, one resolver, NHL 26 history and correct
+   cross-title labels/precedence.
+3. Select the physically separate interim-backup destination, then implement
+   and prove the non-E3 L2 recovery path and its L5 freshness/failure signal.
 
 Pick one item per session. Update this file in place at the natural stopping
 point and log the milestone in the journal — see `agent-manager-workflow.md`

@@ -38,6 +38,195 @@ The launch/access posture (public, members-only, or mixed) must be decided by
 the September 14 gate. That decision controls indexing, authentication,
 analytics, cookie, and privacy requirements; it must not be left implicit.
 
+## Fast credible launch amendment — 2026-10-02
+
+The October 1 target was missed. Finishing every unchecked item below before
+allowing any public traffic is no longer the active critical path. This
+amendment introduces an earlier milestone, **Limited Public Launch (LPL)**,
+without relabelling it as completed Operational V1.
+
+The original Gate 2 and Gate 3 checklists remain the definition of full
+Operational V1 and remain auditable below. An unchecked item is not made true
+by this amendment. Items explicitly deferred from LPL become dated post-launch
+work; everything in the LPL gate is mandatory.
+
+### LPL posture and assumptions
+
+- Launch as a clearly described public beta: no account/login promise, no
+  admin or diagnostic surface, no advertising, and no analytics or
+  nonessential tracking.
+- Keep the currently operating main-PC deployment as the initial production
+  host unless preflight shows it is unsuitable. Migrating primary production
+  to Hotel-Echo is post-launch work. A host change requires its own reviewed
+  cutover plan and is not smuggled into this fast path.
+- Keep public search indexing disabled for LPL with page-level `noindex` plus
+  consistent robots/sitemap behavior. Deliberate indexing, canonical/OG
+  polish, search-console ownership and structured data move to the full-V1
+  follow-up.
+- Proton/E3 remains valuable but is not the only acceptable way to satisfy the
+  launch backup requirement. LPL instead requires a smaller interim backup
+  path that is automated, encrypted, stored off the production host, monitored
+  and proven by a restore drill. E3 continues independently after launch.
+- No deadline overrides a failed safety check. If a mandatory LPL item cannot
+  be proved, launch stops or the operator records a new explicit scope/risk
+  decision; silence is not approval.
+
+### LPL gate — all items mandatory
+
+#### L0 — reconcile and freeze
+
+- [ ] Reconcile this roadmap against actual repository and production state;
+      close only items backed by current evidence.
+- [ ] Freeze non-launch feature work and name the exact launch commit, current
+      production host, deployment artifact/image, database, and rollback
+      artifact.
+- [ ] Finish or deliberately pause the active E3J9E branch at a safe local
+      checkpoint. Its partial launcher must not be installed merely to meet the
+      launch date.
+
+#### L1 — data correctness and core product
+
+- [ ] Implement and verify the decided NHL 26/27 separation: ingestion
+      eligibility, frontend default and chronological ordering are independent;
+      `/` and `/games` use the same resolver behavior.
+- [ ] Prove one real NHL 27 match end to end through ingestion, association,
+      OCR/review boundaries and public presentation.
+- [ ] Verify NHL 26 remains reachable as history and that cross-title career
+      totals retain their source/title labels without double counting.
+- [ ] Production-smoke `/`, `/games`, one game detail, `/roster`, one player
+      profile and `/stats`, including loading, empty, not-found and unavailable
+      data behavior.
+
+#### L2 — interim backup and recovery
+
+- [ ] Schedule at least daily PostgreSQL backups to an operator-approved
+      destination physically separate from the production host. Transfer and
+      storage must be encrypted; files and credentials must be least-privilege
+      and outside Git.
+- [ ] Record integrity metadata, bounded retention, failure visibility and a
+      clear owner. A successful command with no usable artifact is a failure.
+- [ ] Restore a launch-candidate artifact into a disposable database and
+      verify critical table counts plus representative application reads.
+- [ ] Write the exact backup-failure, host-loss, database-restore and deployment
+      rollback procedures. Exercise the rollback and database restore steps;
+      prose alone does not pass.
+
+#### L3 — exposure and security
+
+- [ ] Verify the production domain, HTTPS enforcement, certificate renewal and
+      deliberate apex/`www` redirect behavior against the chosen launch host.
+- [ ] Prove PostgreSQL and worker/management endpoints are not publicly
+      reachable; expose only the intended web surface through the approved
+      edge/tunnel path.
+- [ ] Verify production secrets are outside Git, images and browser bundles;
+      run repository and built-artifact secret scans.
+- [ ] Remove or deny production access to account, admin, diagnostic, preview
+      and development-only routes. Review every remaining public input/API
+      boundary and apply rate limits where abuse can cause material harm.
+- [ ] Verify CSP, HSTS, frame-ancestor/frame protection, MIME-sniffing and
+      referrer-policy headers. Run the dependency/security audit; unresolved
+      critical findings block launch.
+- [ ] Verify public 404/500 behavior exposes no stack trace, internal path,
+      source map, secret or diagnostic payload.
+
+#### L4 — legal and tracking
+
+- [ ] Publish Privacy, Data Collection, Terms of Use and EA/NHL attribution /
+      non-affiliation pages with final production URLs.
+- [ ] Add the global footer with working policy links,
+      `webmaster@boogeymen.app`, and an automatic current year.
+- [ ] Disable Cloudflare Web Analytics and verify that the deployed product has
+      no analytics, advertising or nonessential tracking. If this changes, stop
+      and reassess consent and policy requirements before launch.
+- [ ] Run a broken-link check across normal navigation, footer, contact and
+      legal destinations.
+
+#### L5 — monitoring and host safety
+
+- [ ] Enable uptime/application-error monitoring and receive a real test
+      notification at the operator-owned destination.
+- [ ] Alert on stale worker state, ingestion gaps and accumulating
+      `raw_match_payloads.transform_status='error'` rows; exercise each signal
+      or a faithful non-production test of it.
+- [ ] Configure log retention/rotation and verify database, container and
+      application logs cannot silently exhaust the production disk.
+- [ ] Monitor the interim backup schedule and artifact freshness. A website
+      uptime check is not backup monitoring.
+
+#### L6 — minimum UX and compatibility
+
+- [ ] Verify core routes at 375 px and one representative desktop width with no
+      page-level overflow, clipped primary controls or unusable dense tables.
+- [ ] Verify navigation and every launch-critical control with touch, keyboard,
+      Escape, visible focus and focus return. Correct critical labels, heading
+      order, contrast and meaningful image alternatives.
+- [ ] Test current Chrome and Firefox desktop plus one real mobile Safari
+      device. Record noncritical browser defects with an owner and follow-up;
+      broken core navigation or unreadable core data blocks launch.
+- [ ] Run a production-mode performance pass on the core route set. Severe
+      regressions, request waterfalls that prevent normal use, obvious N+1
+      behavior or oversized assets that make mobile use impractical block
+      launch; full route-by-route Lighthouse optimization is deferred.
+
+#### L7 — release and observation
+
+- [ ] Finish on a clean, reviewed and pushed `main`. Record commit and image
+      identifiers, database migration state, exact deployment command,
+      rollback criteria and rollback command.
+- [ ] Deploy only the pinned launch artifact, rerun L1 smoke checks through the
+      public domain, verify headers/exposure, and confirm monitoring and backup
+      schedules remain healthy.
+- [ ] Update `HANDOFF.md` and the dated journal with evidence, known defects,
+      explicit deferrals, owners and calendar due dates.
+- [ ] Start a 48-hour enhanced-observation window with named checks and an
+      operator response path. Serious correctness, exposure, backup,
+      monitoring or availability failures trigger rollback or public closure.
+
+### LPL stop conditions
+
+Launch does not proceed when any of these is true:
+
+- no independently stored backup has passed a real restore drill;
+- rollback cannot be performed from the recorded artifact and instructions;
+- the public domain, TLS, port exposure or secret boundary is ambiguous;
+- a critical/high reachable security finding remains without explicit operator
+  acceptance and a containment that is already deployed;
+- NHL 27 core data is materially wrong, NHL 26 history is lost, or core routes
+  fail their public smoke checks;
+- required legal pages are absent, analytics contradicts the approved policy,
+  or the webmaster path fails;
+- monitoring cannot deliver a test notification or host disk exhaustion is
+  unbounded.
+
+### Explicit LPL deferrals
+
+These items remain required for full Operational V1 but do not block LPL once
+L0-L7 pass. At launch, replace each relative deadline with a calendar date in
+`HANDOFF.md`; the project operator owns all items until another owner is named.
+
+| Deferred work | Reason for LPL deferral | Follow-up deadline |
+|---|---|---|
+| Complete Proton/E3 lifecycle, real-CLI/schema validation, retention and monitored cloud backup | Interim independent backup plus restore provides the immediate recovery control; unfinished E3 code is not installed | 14 days after LPL |
+| Migrate sole production from the main PC to Hotel-Echo | Avoid combining host migration with an already-late public cutover | 14 days after LPL |
+| Full per-parser NHL 27 matrix and retained labeled benchmark | LPL requires one real end-to-end proof and is explicitly beta; broader regression evidence follows | 7 days after LPL |
+| Full width/browser/accessibility matrix and route-by-route Lighthouse targets | LPL retains minimum real-device, keyboard, mobile and performance blockers | 14 days after LPL |
+| Search indexing, canonical/OG polish, search-console ownership, structured data and AI-crawler policy | LPL is `noindex`; discovery work cannot block safe public access | 14 days after LPL |
+| Historical club/team review-queue completion | Not required to keep current NHL 27 data correct or NHL 26 history available | 30 days after LPL |
+| Noncritical performance and visual polish | Only defects that prevent normal core-route use block LPL | 30 days after LPL |
+
+### Fast critical path
+
+1. Reconcile evidence and freeze the launch candidate (L0).
+2. Complete L1, L2, L4 and L5 without allowing one stream to waive another.
+3. Run L3 and L6 against the frozen candidate; fix only launch-blocking
+   findings and rerun affected checks.
+4. Execute L7 deployment, public-domain smoke and evidence capture.
+5. Begin the 48-hour observation window and the dated post-launch backlog.
+
+Passing LPL authorizes the limited public beta described here. It does **not**
+authorize calling the project Operational V1 complete; that claim still
+requires the original gates below.
+
 ### Gate 1 — stable source baseline by Friday, 2026-09-04
 
 No new feature work belongs in this gate.
