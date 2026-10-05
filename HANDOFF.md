@@ -40,6 +40,11 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
   America/Edmonton: dump → restore test → `K:\eanhl-backups` → Backblaze B2 →
   Healthchecks.io check-in. Restores from the local disk and from B2 matched
   (435 = 435 matches); down/up alert emails received. **Codex review of the backup is owed:** four attempts failed on tooling (latest: "Reviewer failed to output a response"). To run it: check out `feat/nightly-backup`, then `/codex:review --wait --base 0ec6989`.
+- The main PC's website and worker were rebuilt from `main` (they had been
+  running Aug 16 / Sep 2 builds): core pages, legal pages and footer load;
+  login is gone; worker cycles cleanly; no web errors. Compose also recreated
+  `db` once (clean ~1 s restart, data intact); the redeploy skill now uses
+  `--no-deps`.
 - `main` now matches GitHub plus the backup work and the 2026-10-03 launch
   reconciliation docs. 11 extra worktrees and 17 already-merged local branch
   names were removed. September leftovers are parked on the local branches
@@ -50,6 +55,11 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
 - **Production is the main PC** (web, worker, db, backup via Docker Compose).
   Hotel-Echo runs a parallel, not-yet-migrated copy that also ingests NHL 27.
+- Main PC web + worker run `main` at `fde8e20` (deployed 2026-10-05; images
+  `ffb6c34a1b0f` / `c992dcccedc4`). Rollback images are tagged
+  `eanhl-team-website-web:rollback-2026-08-16` and
+  `eanhl-team-website-worker:rollback-2026-09-02` (steps: `docker-redeploy`
+  skill).
 - Domain `boogeymen.app` is on Cloudflare; `webmaster@boogeymen.app` works
   both ways.
 - The Cloudflare tunnel is deliberately **off** on both hosts (the `public`

@@ -23,7 +23,7 @@ If the container creation timestamp is older than the commit timestamp, the imag
 
 ```bash
 docker compose build worker
-docker compose up -d worker
+docker compose up -d --no-deps worker
 ```
 
 Verify new code is running — look for log lines that only exist in the new version:
@@ -42,7 +42,7 @@ For member stats ingestion, the signal is:
 
 ```bash
 docker compose build web
-docker compose up -d web
+docker compose up -d --no-deps web
 ```
 
 Verify the web container started cleanly:
@@ -55,7 +55,7 @@ docker logs eanhl-team-website-web-1 --tail 20
 
 ```bash
 docker compose build worker web
-docker compose up -d worker web
+docker compose up -d --no-deps worker web
 ```
 
 ## Container Reference
@@ -75,4 +75,10 @@ The DB host port is `5433` (not `5432`) because port 5432 is occupied by another
 
 - Always tail logs after restart to confirm the new build is actually running.
 - Do not skip the build step — `docker compose up -d` without `build` reuses the old image.
+- Always pass `--no-deps`. Without it Compose may also recreate `db` (and restart
+  PostgreSQL) when it considers that container out of date — this happened on
+  2026-10-05; data was intact, but a database restart should never be a side effect.
+- Before rebuilding, tag the running images as a rollback point, e.g.
+  `docker tag eanhl-team-website-web:latest eanhl-team-website-web:rollback-<date>`.
+  Rollback = retag that image as `:latest` and `docker compose up -d --no-deps web`.
 - If the worker crashes on startup, check `docker logs eanhl-team-website-worker-1` for the first error line.
