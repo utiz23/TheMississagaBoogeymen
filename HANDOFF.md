@@ -51,6 +51,10 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
   before the live run). Review caught one bug (archive titles on `/` and
   `/games` showed empty pages), fixed in `538d956`. Career label now reads
   oldest→newest (e.g. "NHL 22–NHL 27").
+- Launch item 3 code side done (`6f5d75b`, `e93e24a`): `/preview/*` removed
+  (404), noindex meta + `X-Robots-Tag` on everything, `robots.txt`, no
+  `X-Powered-By`; branded error page (shows only an opaque reference) and the
+  operator's scoreboard 404 design. Forced-error test leaked nothing.
 - `main` now matches GitHub plus the backup work and the 2026-10-03 launch
   reconciliation docs. 11 extra worktrees and 17 already-merged local branch
   names were removed. September leftovers are parked on the local branches
@@ -61,12 +65,12 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
 - **Production is the main PC** (web, worker, db, backup via Docker Compose).
   Hotel-Echo runs a parallel, not-yet-migrated copy that also ingests NHL 27.
-- Main PC web + worker run `main` at `538d956` (deployed 2026-10-05 13:40;
-  images `2e5f4390c4a6` / `7c4f7054ea52`). Rollback: rebuild `6f6c309` (the
-  morning's images were not kept), or the older tagged images
-  `eanhl-team-website-web:rollback-2026-08-16` /
-  `eanhl-team-website-worker:rollback-2026-09-02`. Old code runs fine on the
-  0057 schema. Steps: `docker-redeploy` skill.
+- Main PC web runs `main` at `e93e24a` (image `79e5190a1a30`), worker at `538d956`
+  (`7c4f7054ea52`), deployed 2026-10-05. Web rollback images, newest first:
+  `eanhl-team-website-web:rollback-2026-10-05-item3` (before the scoreboard
+  404), `:rollback-2026-10-05-titles` (before item 3), `:rollback-2026-08-16`;
+  worker: `eanhl-team-website-worker:rollback-2026-09-02`. Old code runs fine
+  on the 0057 schema. Steps: `docker-redeploy` skill.
 - Domain `boogeymen.app` is on Cloudflare; `webmaster@boogeymen.app` works
   both ways.
 - The Cloudflare tunnel is deliberately **off** on both hosts (the `public`
@@ -105,8 +109,8 @@ None. Open decisions:
 
 ## Next 1-3 Actions
 
-1. Launch item 3 (nothing private exposed): remove `/preview/*`, add
-   `noindex` + `robots.txt`, check error pages and what the tunnel exposes.
+1. Finish launch item 3: the operator checks the Cloudflare tunnel's Public
+   Hostname list (expect only `boogeymen.app` → `http://web:3000`).
 2. Launch items 4–5 (legal pages live, analytics off; stale-ingestion alert,
    Docker log limits).
 3. Finish the workflow cleanup: rewrite `AGENTS.md` and the workflow doc for

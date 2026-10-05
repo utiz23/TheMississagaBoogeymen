@@ -25,7 +25,7 @@ make that limitation explicit.
 | `Boogeymen privacy policy page.zip` | `Privacy Policy.dc.html` | Visual/layout reference only; replace the prototype copy with the E2-approved privacy draft | E2 drafting reference, then optional early Gate 3 page implementation |
 | `Boogeymen Terms of Use.zip` | `Terms of Use.dc.html` | Visual/layout reference only; replace the prototype copy with the E2-approved Terms draft | E2 drafting reference, then optional early Gate 3 page implementation |
 | `Boogeymen page loader animation.zip` | `Boogeymen Page Loader.dc.html` | Optional loading-experience reference; unrelated to the Gate 2 legal drafts | Later Gate 3 product polish |
-| `Custom 404 scoreboard design.zip` | `404 Page.dc.html` | Reference for the required branded custom 404 | Later Gate 3 error-handling work |
+| `Custom 404 scoreboard design.zip` | `404 Page.dc.html` | Reference for the required branded custom 404 | **Implemented 2026-10-05** as `apps/web/src/app/not-found.tsx` (`e93e24a`) |
 
 ### Content boundary
 

@@ -32,6 +32,10 @@ An item is done when its proof is written in the journal.
    reachable; error pages show no internals; search engines are told not to
    index the site (`noindex` and `robots.txt`). Proof: checks against the
    public URL.
+   _2026-10-05: code side done and verified locally (preview pages gone,
+   noindex everywhere, `robots.txt`, no framework header, error pages leak
+   nothing, scoreboard 404). Open: the operator's Cloudflare tunnel check, and
+   re-checking against the public URL once the tunnel is on (item 7)._
 4. **Legal pages live, no tracking.** The legal pages switch from Draft to
    Published with their final URLs, footer links work, and Cloudflare Web
    Analytics is turned off.
