@@ -69,10 +69,12 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup on `main` at `1445569` (images web `9f7586c4c159`,
-  worker `bd8cd0838396`, backup `04445d8ef79a`). Its live DB holds 449
+  and nightly backup on `main` at `3b9dd32` (container logs capped at
+  3 × 10 MB; worker heartbeat built in, inactive until `HC_WORKER_PING_URL`
+  is set in its `.env`). Its live DB holds 449
   matches = both hosts' union. Rollback: images
-  `:rollback-he-2026-09-04` and the old Hotel-Echo database kept as
+  `:rollback-he-2026-10-05-pre-logs` / `:rollback-he-2026-09-04` and the old
+  Hotel-Echo database kept as
   `eanhl_he_old`; the main-PC fallback below.
 - **Main PC = stopped fallback + video-OCR box.** Its web, worker and backup
   are stopped and its `COMPOSE_PROFILES=backup` line is commented out; its db
@@ -109,17 +111,21 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
   video-stats work in files without "ocr" in the path, push with
   `EANHL_PRE_PUSH_FULL=1`.
 - **Proton/E3 cloud backup is parked.** Hotel-Echo keeps E3's installed
-  credential tooling and a logged-in Proton session from 2026-09-30; nothing
-  is scheduled. Full E3 state: the archived handoff and the
+  credential tooling; its Proton session was logged out locally on
+  2026-10-05 (`auth-logout`, entry proven absent). Remote revocation in
+  Proton's session settings is the operator's step. Nothing is scheduled. Full E3 state: the archived handoff and the
   [credential memo](docs/planning/proton-drive-hotel-echo-credential-design.md).
 - Main-PC secrets were rotated 2026-09-03; the dead old value remains in git
   history.
 
 ## Immediate Blockers
 
-None. Open decisions:
+None. Open operator steps:
 
-- Whether to log out Hotel-Echo's retained Proton session (parked E3).
+- Revoke the Sept 30 Proton CLI session in Proton's web settings.
+- Turn off Cloudflare Web Analytics (item 4).
+- Create the collector's Healthchecks check and supply its ping URL (item 6).
+- Decide how the legal pages go live (item 4).
 
 ## Next 1-3 Actions
 

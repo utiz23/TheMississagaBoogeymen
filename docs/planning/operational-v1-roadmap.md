@@ -40,8 +40,9 @@ carried into this list without being re-asked.
    public URL.
    _2026-10-05: code side done (preview pages gone, noindex everywhere,
    `robots.txt`, no framework header, error pages leak nothing, scoreboard
-   404). Cloudflare: no CIDR routes. Open: the tunnel's Published application
-   routes, and re-checking against the public URL at item 8._
+   404). Cloudflare: no CIDR routes; Published application routes are exactly
+   `boogeymen.app` and `www.boogeymen.app` → `http://web:3000`, catch-all 404.
+   Open: re-checking against the public URL at item 8._
 4. **Legal pages live, no tracking.** The legal pages switch from Draft to
    Published with their final URLs, footer links work, and Cloudflare Web
    Analytics is turned off.
@@ -58,6 +59,11 @@ carried into this list without being re-asked.
    collected for too long or failed transforms pile up (a missed EA window
    loses games for good), and size limits on Docker's log files. Proof: one
    test alert received.
+   _2026-10-05: log limits live on Hotel-Echo (3 × 10 MB per service); the
+   worker heartbeat (`HC_WORKER_PING_URL`, `3b9dd32`) is deployed and waits
+   for its Healthchecks check. "No new games" itself is not alerted — gaps
+   between sessions are normal; the alert fires when the collector stops
+   working or transforms fail._
 7. **Looks right.** The operator checks the core pages on a phone and on a
    desktop and signs off.
 8. **Open it up.** The operator approves, then on Hotel-Echo: move the
