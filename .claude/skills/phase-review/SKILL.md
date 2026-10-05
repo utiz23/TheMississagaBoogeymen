@@ -2,8 +2,7 @@
 
 Use this skill for milestone reviews of completed work — not as a mandatory
 checkpoint after every phase or commit. See
-`docs/operations/agent-manager-workflow.md` for when a milestone review vs.
-continuing in the same conversation is the better call.
+`docs/operations/agent-manager-workflow.md` for how process is sized to risk.
 
 ## Goal
 
@@ -15,8 +14,7 @@ Produce a reviewer-style assessment with findings first and summary second.
    work being reviewed (prior command output, test results, a completion
    report). Rerun only what's missing, what no longer applies because the
    code changed since that evidence was produced, or what a specific concern
-   justifies rechecking — see `docs/operations/agent-manager-workflow.md`
-   §6. Don't re-run a clean gate just to re-run it.
+   justifies rechecking. Don't re-run a clean gate just to re-run it.
 2. Inspect the code paths touched by the phase.
 3. Identify:
    - correctness bugs

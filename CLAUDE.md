@@ -190,31 +190,21 @@ still-open blocker or decision. Full detail:
 
 ## Workflow Policy
 
-The full workflow policy — session/objective scope, when to use Plan Mode,
-the Codex/Claude authority model, discovery and delegation defaults,
-self-review expectations, verification scope, compaction, and the completion
-report format — lives in `docs/operations/agent-manager-workflow.md`. That
-document is the canonical reference; do not restate or fork it here.
-
-In short: keep one coherent objective per conversation (inspection,
-implementation, verification, self-review, and authorized checkpointing
-normally stay together), use Plan Mode when the risk or ambiguity of a
-change actually warrants it rather than on a time threshold, default to
-doing discovery yourself instead of proactively delegating, and self-review
-your own diff before reporting work as done.
+How we work — roles (the operator decides, Claude leads, Codex is an optional
+second-opinion reviewer), process sized to risk, reporting, and when to stop
+and ask — is one page: `docs/operations/agent-manager-workflow.md`. Don't
+restate it here.
 
 ## Commit Protocol
 
-Commit behavior in this repo follows `AGENTS.md`. If `CLAUDE.md` and `AGENTS.md` disagree, `AGENTS.md` wins.
+This section is the single home for commit and push rules; `AGENTS.md` points here.
 
 ### Default rules
 
-- Do not commit automatically just because code changed.
-- Commit when the user explicitly asks for a commit, asks for a backup/sync point, or when the current work has reached a stable verified checkpoint and the user has indicated that checkpointing is desired.
-- A reasonable cadence is one focused commit per logical unit of work after the user has indicated they want checkpointing.
+- Commit each verified step of work the operator asked for — one focused commit per logical unit. Don't commit work nobody asked for, or exploratory changes, without asking.
 - Do not commit something broken (failing typecheck, failing tests, half-applied migration). If a checkpoint isn't verifiable, finish or revert first.
 - Do not include unrelated dirty files in a focused commit. If the working tree has unrelated drift, either stash it, leave it alone, or commit it separately with its own message.
-- If in doubt about scope or whether something should ship, ask. The default is not to commit unless the user wants that checkpoint.
+- If in doubt about scope or whether something should ship, ask.
 
 ### Before any commit
 
@@ -253,9 +243,8 @@ Avoid useless messages like:
 
 ### Push behavior
 
-- Do not push automatically unless the user explicitly asks for push/backup/sync.
-- If the user asks for a backup on GitHub or another machine, commit **and** push.
-- A local-only commit is not a real backup for that request.
+- Push verified commits on `main` after each step (operator practice since 2026-10-05): GitHub is the off-site copy of the code, and a local-only commit is not a backup.
+- Never push broken work. Pushing a new branch, force-pushing, or pushing anything the operator hasn't seen described needs the operator's OK.
 
 ### Branching guidance
 

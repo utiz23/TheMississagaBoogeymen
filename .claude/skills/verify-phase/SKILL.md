@@ -3,7 +3,7 @@
 Use this skill whenever a milestone or significant chunk of work needs
 validation before it's reported as done. Match verification to what actually
 changed rather than always running the full default list — see
-`docs/operations/agent-manager-workflow.md` §7.
+`docs/operations/agent-manager-workflow.md` ("Doing the work").
 
 ## Documentation-only changes
 

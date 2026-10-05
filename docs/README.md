@@ -24,8 +24,6 @@ into the narrowest matching directory instead of the repository root.
 
 - [`operations/`](operations/) — recurring operator and agent workflows.
 - [`runbook/`](runbook/) — one-off repair and backfill procedures.
-- [`session-playbook.md`](session-playbook.md) — session boundaries and handoff
-  conventions.
 - [`journal/`](journal/) — dated work diary (`YYYY-MM.md`), one authoritative
   home for session-milestone detail that `HANDOFF.md` links to instead of
   repeating.

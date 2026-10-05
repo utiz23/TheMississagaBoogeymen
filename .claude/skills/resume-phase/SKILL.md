@@ -1,8 +1,8 @@
 # Resume Phase
 
 Use this skill when resuming work after a pause, compact, or handoff — see
-`docs/operations/agent-manager-workflow.md` §8 for what to carry forward
-through a compaction in the first place.
+`docs/operations/agent-manager-workflow.md` ("Project memory") for what to
+carry forward through a compaction in the first place.
 
 ## Goal
 

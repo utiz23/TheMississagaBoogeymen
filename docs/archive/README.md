@@ -53,3 +53,12 @@ expected to be.
 - [`lpl-l0-reconciliation-2026-10-03.md`](lpl-l0-reconciliation-2026-10-03.md)
   — **superseded 2026-10-05** by the same launch plan. Moved here unchanged
   from `docs/planning/`.
+- [`agent-manager-workflow-2026-10-05.md`](agent-manager-workflow-2026-10-05.md)
+  — **superseded 2026-10-05** by the one-page
+  [`docs/operations/agent-manager-workflow.md`](../operations/agent-manager-workflow.md)
+  (Codex-as-manager workflow, unchanged).
+- [`AGENTS-2026-10-05.md`](AGENTS-2026-10-05.md) — **superseded 2026-10-05** by
+  the short reviewer-role [`AGENTS.md`](../../AGENTS.md) (unchanged copy).
+- [`session-playbook-2026-10-05.md`](session-playbook-2026-10-05.md) —
+  **retired 2026-10-05**: copy-paste prompt templates for the old
+  operator-relayed workflow. Moved here unchanged from `docs/`.

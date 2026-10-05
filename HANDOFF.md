@@ -12,19 +12,12 @@ documents, not here.
   (archive links resolve from the repo root — see
   [`docs/archive/README.md`](docs/archive/README.md)).
 
-## How We Work Now (2026-10-04 workflow review)
+## How We Work
 
-- Claude Code leads from the operator's plain-language requests. Codex is an
-  optional second opinion through the official Codex plugin, for the riskiest
-  changes only. If Codex is unavailable, work continues and the review is
-  recorded as owed.
-- Process scales with risk: UI/docs → build it and show it; database,
-  ingestion or real data → short plan, backup first, review; secrets,
-  network exposure or deletion → plan, and the operator approves each
-  irreversible step.
-- `AGENTS.md` and `docs/operations/agent-manager-workflow.md` still describe
-  the old Codex-as-manager relay and are **outdated** until rewritten. Where
-  they conflict with this section, this section wins.
+The operator decides; Claude Code leads; Codex is an optional second-opinion
+reviewer. Process is sized to risk. One page:
+[`docs/operations/agent-manager-workflow.md`](docs/operations/agent-manager-workflow.md);
+commit/push rules in `CLAUDE.md`.
 
 ## Current Objective / Status
 
@@ -121,6 +114,5 @@ None.
    emails, nightly backups on Hotel-Echo (item 1 closes after three green
    nights), teammates' feedback.
 2. Run the owed Codex review of the nightly backup when Codex is available.
-3. Workflow cleanup: rewrite `AGENTS.md` and the workflow doc for the new
-   model (about one page); then decide on video-stats OCR writing to
-   Hotel-Echo's database over Tailscale.
+3. Decide how video-stats OCR (main PC) writes to Hotel-Echo's database —
+   over Tailscale, which means opening the database to the tailnet.
