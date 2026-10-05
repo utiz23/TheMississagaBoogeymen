@@ -1,16 +1,27 @@
 import { Suspense } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { listGameTitles } from '@eanhl/db/queries'
+import { listAllGameTitles, type GameTitleListing } from '@eanhl/db/queries'
+import { pickDefaultTitle, switcherTitles } from '@/lib/title-resolver'
 import { NavDrawer, NavDrawerFallback } from './nav-drawer'
 import { NavLinks, NavLinksFallback } from './nav-links'
 
-async function fetchGameTitles() {
+/**
+ * Switcher titles (live titles plus the explicit default, newest first) and the
+ * default's slug, from the same title policy as the pages. The switcher is a
+ * Client Component and cannot reach the DB-backed resolver, so the default is
+ * computed here rather than guessed from list order.
+ */
+async function fetchTitleSwitcher(): Promise<{
+  titles: GameTitleListing[]
+  defaultSlug: string | null
+}> {
   try {
-    return await listGameTitles()
+    const all = await listAllGameTitles()
+    return { titles: switcherTitles(all), defaultSlug: pickDefaultTitle(all)?.slug ?? null }
   } catch {
     // DB unavailable — drawer renders without its switcher
-    return []
+    return { titles: [], defaultSlug: null }
   }
 }
 
@@ -24,10 +35,9 @@ async function fetchGameTitles() {
  * 8px/16px, CTA 9px/20px, burger 44px, all at 2px radius.
  *
  * No game-title switcher in the bar, matching the prototype — it sits in the
- * drawer footer instead, i.e. under 960px only. Costs nothing today: NHL 26 is
- * the only active title, so the switcher renders as a static label either way.
- * Activating a second title would leave wide viewports with no in-nav way to
- * change it, and the switcher would need a home in the bar again.
+ * drawer footer instead, i.e. under 960px only. With two live titles (NHL 27
+ * and NHL 26) wide viewports have no in-nav way to change title: /games,
+ * /stats and /roster carry their own selectors, `/` only an explicit ?title=.
  *
  * NO AUTH CTA. The prototype's SIGN IN box, and the LOGIN link that stood in
  * for it, are both gone: authentication is disabled before launch and /login is
@@ -40,7 +50,7 @@ async function fetchGameTitles() {
  * if a login/account link reappears here or in the drawer.
  */
 export async function TopNav() {
-  const titles = await fetchGameTitles()
+  const { titles, defaultSlug } = await fetchTitleSwitcher()
 
   return (
     <header className="sticky top-0 z-50 border-b border-accent/40 bg-surface/95 backdrop-blur-sm">
@@ -72,7 +82,7 @@ export async function TopNav() {
 
         <div className="ml-auto flex shrink-0 items-center gap-4">
           <Suspense fallback={<NavDrawerFallback />}>
-            <NavDrawer titles={titles} />
+            <NavDrawer titles={titles} defaultSlug={defaultSlug} />
           </Suspense>
         </div>
       </div>

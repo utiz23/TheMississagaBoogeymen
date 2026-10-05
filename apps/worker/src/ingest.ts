@@ -40,8 +40,18 @@ type DbConn = Pick<typeof db, 'select' | 'insert' | 'update'>
 
 // ─── Ingestion cycle ──────────────────────────────────────────────────────────
 
+/**
+ * Titles the worker polls. Ingestion eligibility is `game_titles.is_active` and
+ * nothing else: the frontend default (`is_default`) and chronology
+ * (`release_order`) are display controls the poll filter never consults, so a
+ * title can be the site default without being polled, and vice versa.
+ */
+export function selectIngestionEligibleTitles() {
+  return db.select().from(gameTitles).where(eq(gameTitles.isActive, true))
+}
+
 export async function runIngestionCycle(): Promise<void> {
-  const activeGameTitles = await db.select().from(gameTitles).where(eq(gameTitles.isActive, true))
+  const activeGameTitles = await selectIngestionEligibleTitles()
 
   if (activeGameTitles.length === 0) {
     console.log('[ingest] No active game titles. Skipping cycle.')

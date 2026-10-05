@@ -1,11 +1,7 @@
 import type { Metadata } from 'next'
-import type { ClubGameTitleStats } from '@eanhl/db'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import {
-  listGameTitles,
-  listArchiveGameTitles,
-  getActiveGameTitleBySlug,
   getClubStats,
   getClubSeasonRank,
   getOfficialClubRecord,
@@ -15,7 +11,6 @@ import {
   getRoster,
   getEARoster,
   getHistoricalClubTeamStatsBatch,
-  type HistoricalClubTeamBatchRow,
 } from '@eanhl/db/queries'
 import { redirect } from 'next/navigation'
 import { LatestResult } from '@/components/home/latest-result'
@@ -23,14 +18,12 @@ import { PlayerCarousel } from '@/components/home/player-carousel'
 import { ScoringLeadersPanel } from '@/components/home/leaders-section'
 import { RecordStrip } from '@/components/home/record-strip'
 import { RecentGamesStrip } from '@/components/home/recent-games-strip'
-import {
-  TitleRecordsTable,
-  type TitleRecordData,
-  type RecordModeStats,
-} from '@/components/home/title-records-table'
+import { TitleRecordsTable } from '@/components/home/title-records-table'
 import type { RosterRow } from '@/components/home/player-card'
 import { SectionHeader } from '@/components/ui/section-header'
 import { Panel } from '@/components/ui/panel'
+import { resolveTitleFromSlug } from '@/lib/title-resolver'
+import { loadTitleRecords } from '@/lib/title-records'
 
 function parseGameMode(raw: string | string[] | undefined): GameMode | null {
   if (typeof raw !== 'string') return null
@@ -42,19 +35,6 @@ export const metadata: Metadata = { title: 'Club Stats' }
 export const revalidate = 300
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
-
-async function resolveGameTitle(titleSlug: string | undefined) {
-  try {
-    if (titleSlug) {
-      const found = await getActiveGameTitleBySlug(titleSlug)
-      if (found) return { gameTitle: found, invalidRequested: false }
-    }
-    const all = await listGameTitles()
-    return { gameTitle: all[0] ?? null, invalidRequested: Boolean(titleSlug) }
-  } catch {
-    return { gameTitle: null, invalidRequested: Boolean(titleSlug) }
-  }
-}
 
 /**
  * Roster ordered by points descending for the featured carousel.
@@ -68,15 +48,25 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
   const gameMode = parseGameMode(params.mode)
-  const { gameTitle, invalidRequested } = await resolveGameTitle(titleSlug)
+  const result = await resolveTitleFromSlug(titleSlug).catch(() => null)
 
-  if (invalidRequested) {
+  if (result === null) {
+    return (
+      <Panel className="flex min-h-[12rem] items-center justify-center">
+        <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
+          Unable to load data right now.
+        </p>
+      </Panel>
+    )
+  }
+
+  if (result.kind === 'invalid') {
     const qs = new URLSearchParams()
     if (gameMode !== null) qs.set('mode', gameMode)
     redirect(qs.size > 0 ? `/?${qs.toString()}` : '/')
   }
 
-  if (!gameTitle) {
+  if (result.kind === 'empty') {
     return (
       <Panel className="flex min-h-[12rem] items-center justify-center">
         <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
@@ -86,10 +76,16 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     )
   }
 
+  const { gameTitle, allTitles } = result.resolved
+
   // All mode sources from EA full-season totals; 6s/3s modes source from local tracked stats.
   const rosterSource = gameMode === null ? 'EA season totals' : `local tracked ${gameMode}`
 
-  const fetched = await (async () => {
+  // The selected title's page-critical data and the supplemental cross-title
+  // Title Records dataset are started concurrently but settle independently:
+  // a Title Records failure must never blank the rest of the page, and a
+  // page-critical failure must never be masked as valid (empty) Title Records.
+  const criticalPromise = (async () => {
     try {
       return await Promise.all([
         getClubStats(gameTitle.id, gameMode),
@@ -97,15 +93,28 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         gameMode === null ? getEARoster(gameTitle.id) : getRoster(gameTitle.id, gameMode),
         getOfficialClubRecord(gameTitle.id),
         getClubSeasonRank(gameTitle.id),
-        listArchiveGameTitles(),
-        getClubStats(gameTitle.id, null),
-        getClubStats(gameTitle.id, '6s'),
-        getClubStats(gameTitle.id, '3s'),
       ])
     } catch {
       return null
     }
   })()
+
+  const titleRecordsPromise = loadTitleRecords(allTitles, {
+    getLiveStats: async (titleId) => {
+      const [all, sixs, threes] = await Promise.all([
+        getClubStats(titleId, null),
+        getClubStats(titleId, '6s'),
+        getClubStats(titleId, '3s'),
+      ])
+      return { all, sixs, threes }
+    },
+    getArchiveRows: getHistoricalClubTeamStatsBatch,
+    onError: (error) => {
+      console.error('[home] Title Records unavailable', error)
+    },
+  })
+
+  const [fetched, titleRecords] = await Promise.all([criticalPromise, titleRecordsPromise])
 
   if (fetched === null) {
     return (
@@ -117,31 +126,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     )
   }
 
-  const [
-    clubStats,
-    recentMatches,
-    roster,
-    officialRecord,
-    seasonRank,
-    archiveTitles,
-    liveAll,
-    live6s,
-    live3s,
-  ] = fetched
-
-  const archiveHistRows: HistoricalClubTeamBatchRow[] =
-    archiveTitles.length > 0
-      ? await getHistoricalClubTeamStatsBatch(archiveTitles.map((t) => t.id)).catch(() => [])
-      : []
-
-  const titleRecords = buildTitleRecords(
-    gameTitle,
-    liveAll,
-    live6s,
-    live3s,
-    archiveTitles,
-    archiveHistRows,
-  )
+  const [clubStats, recentMatches, roster, officialRecord, seasonRank] = fetched
   const lastMatch = recentMatches[0] ?? null
   const latestClubRecord = officialRecord ?? null
 
@@ -242,7 +227,15 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       {/* 7. TITLE RECORDS — cross-title comparison */}
       <section className="space-y-3">
         <SectionHeader label="Title Records" />
-        <TitleRecordsTable titles={titleRecords} />
+        {titleRecords.status === 'ok' ? (
+          <TitleRecordsTable titles={titleRecords.rows} />
+        ) : (
+          <Panel className="flex min-h-[8rem] items-center justify-center">
+            <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
+              Title Records unavailable right now.
+            </p>
+          </Panel>
+        )}
       </section>
 
       {/* Empty state when no data at all */}
@@ -258,134 +251,4 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         )}
     </div>
   )
-}
-
-// ─── Cross-title records data builder ────────────────────────────────────────
-
-/**
- * Playlist-to-mode mapping for the comparison table pill selector.
- *
- * Pill "6s"   → primary competitive EASHL/Clubs 6v6:   eashl_6v6 / clubs_6v6
- * Pill "6s+G" → full-squad 6-player mode (all human):  6_player_full_team / clubs_6_players
- * Pill "3s"   → primary competitive EASHL/Clubs 3v3:   eashl_3v3 / clubs_3v3
- *               (Threes casual mode intentionally excluded)
- *
- * NHL 22/23 use "clubs_*" naming; NHL 24/25+ use "eashl_*".
- * The mapping is explicit — no runtime inference.
- *
- * Live title (NHL 26): "All", "6s", and "3s" pills use local mode aggregates.
- * "6s+G" shows "—" — the live pipeline aggregates all 6-player playlists into
- * game_mode='6s' and does not distinguish full-team sub-mode.
- */
-const HIST_PLAYLISTS_6S = new Set(['eashl_6v6', 'clubs_6v6'])
-const HIST_PLAYLISTS_6SG = new Set(['6_player_full_team', 'clubs_6_players'])
-const HIST_PLAYLISTS_3S = new Set(['eashl_3v3', 'clubs_3v3'])
-
-function liveToRecord(stats: ClubGameTitleStats | null): RecordModeStats | null {
-  if (!stats || stats.gamesPlayed === 0) return null
-  const gfg = stats.gamesPlayed > 0 ? (stats.goalsFor / stats.gamesPlayed).toFixed(2) : null
-  const gag = stats.gamesPlayed > 0 ? (stats.goalsAgainst / stats.gamesPlayed).toFixed(2) : null
-  return {
-    gamesPlayed: stats.gamesPlayed,
-    wins: stats.wins,
-    losses: stats.losses,
-    otl: stats.otl,
-    avgGoalsFor: gfg,
-    avgGoalsAgainst: gag,
-    avgTimeOnAttack: null,
-    powerPlayPct: null,
-    powerPlayKillPct: null,
-  }
-}
-
-function histSingleRecord(
-  rows: HistoricalClubTeamBatchRow[],
-  titleId: number,
-  playlists: Set<string>,
-): RecordModeStats | null {
-  const row = rows.find((r) => r.gameTitleId === titleId && playlists.has(r.playlist))
-  if (!row?.gamesPlayed) return null
-  return {
-    gamesPlayed: row.gamesPlayed,
-    wins: row.wins ?? 0,
-    losses: row.losses ?? 0,
-    otl: row.otl ?? 0,
-    avgGoalsFor: row.avgGoalsFor ?? null,
-    avgGoalsAgainst: row.avgGoalsAgainst ?? null,
-    avgTimeOnAttack: row.avgTimeOnAttack ?? null,
-    powerPlayPct: row.powerPlayPct ?? null,
-    powerPlayKillPct: row.powerPlayKillPct ?? null,
-  }
-}
-
-function histAllRecord(
-  rows: HistoricalClubTeamBatchRow[],
-  titleId: number,
-): RecordModeStats | null {
-  const titleRows = rows.filter((r) => r.gameTitleId === titleId && (r.gamesPlayed ?? 0) > 0)
-  if (titleRows.length === 0) return null
-
-  let gp = 0
-  let w = 0
-  let l = 0
-  let otl = 0
-  let gfgWeighted = 0
-  let gagWeighted = 0
-  let gpForRates = 0
-
-  for (const r of titleRows) {
-    const rGp = r.gamesPlayed ?? 0
-    gp += rGp
-    w += r.wins ?? 0
-    l += r.losses ?? 0
-    otl += r.otl ?? 0
-    if (r.avgGoalsFor !== null && rGp > 0) {
-      gfgWeighted += parseFloat(r.avgGoalsFor) * rGp
-      gagWeighted += parseFloat(r.avgGoalsAgainst ?? '0') * rGp
-      gpForRates += rGp
-    }
-  }
-
-  return {
-    gamesPlayed: gp,
-    wins: w,
-    losses: l,
-    otl,
-    avgGoalsFor: gpForRates > 0 ? (gfgWeighted / gpForRates).toFixed(2) : null,
-    avgGoalsAgainst: gpForRates > 0 ? (gagWeighted / gpForRates).toFixed(2) : null,
-    avgTimeOnAttack: null,
-    powerPlayPct: null,
-    powerPlayKillPct: null,
-  }
-}
-
-function buildTitleRecords(
-  liveTitle: { name: string; slug: string },
-  liveAll: ClubGameTitleStats | null,
-  live6s: ClubGameTitleStats | null,
-  live3s: ClubGameTitleStats | null,
-  archiveTitles: { id: number; name: string; slug: string }[],
-  archiveHistRows: HistoricalClubTeamBatchRow[],
-): TitleRecordData[] {
-  const liveRow: TitleRecordData = {
-    name: liveTitle.name,
-    slug: liveTitle.slug,
-    isLive: true,
-    all: liveToRecord(liveAll),
-    sixs: liveToRecord(live6s),
-    sixsg: null,
-    threes: liveToRecord(live3s),
-  }
-
-  const archiveRows: TitleRecordData[] = archiveTitles.map((t) => ({
-    name: t.name,
-    slug: t.slug,
-    isLive: false,
-    all: histAllRecord(archiveHistRows, t.id),
-    sixs: histSingleRecord(archiveHistRows, t.id, HIST_PLAYLISTS_6S),
-    sixsg: histSingleRecord(archiveHistRows, t.id, HIST_PLAYLISTS_6SG),
-    threes: histSingleRecord(archiveHistRows, t.id, HIST_PLAYLISTS_3S),
-  }))
-
-  return [liveRow, ...archiveRows]
 }

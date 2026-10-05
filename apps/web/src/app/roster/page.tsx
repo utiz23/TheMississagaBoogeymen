@@ -408,9 +408,10 @@ export default async function RosterPage({ searchParams }: { searchParams: Searc
     return <EmptyState message="No game titles are configured yet." />
   }
 
-  const { gameTitle, isActive, allTitles } = result.resolved
+  const { gameTitle, allTitles } = result.resolved
 
-  if (isActive) {
+  // Live = polled OR has captured matches — not the ingestion flag.
+  if (gameTitle.isLive) {
     return <ActiveRoster allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />
   }
   return <ArchiveRoster allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />

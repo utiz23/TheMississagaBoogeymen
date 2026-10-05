@@ -12,6 +12,7 @@ import { NationalityFlag, PlatformIcon } from '@/components/player-meta-icons'
 import { PortraitCard } from '@/components/roster/portrait-card'
 import { ArchetypePillFlagship } from '@/components/ui/archetype-pill'
 import { formatPosition, formatPositionFull } from '@/lib/format'
+import { formatCareerTitleRange } from '@/lib/title-resolver'
 import './profile-hero.css'
 
 function asArchetype(value: string | null): PlayerArchetype | null {
@@ -144,16 +145,8 @@ export function ProfileHero({
   const showRoleSelector = hasSkaterData && hasGoalieData
   const aggregate = aggregateCareer(career, selectedRole)
 
-  // Career range subtitle ("NHL 22-26 · sum")
-  const careerGameTitles = career
-    .map((c) => c.gameTitleName)
-    .filter((n): n is string => n !== null && n !== undefined)
-  const careerRange =
-    careerGameTitles.length > 0
-      ? careerGameTitles.length === 1
-        ? `${careerGameTitles[0]} · sum`
-        : `${careerGameTitles[careerGameTitles.length - 1]}–${careerGameTitles[0]} · sum`
-      : 'Career · sum'
+  // Career range subtitle, oldest–newest by explicit chronology ("NHL 22–NHL 27 · sum")
+  const careerRange = formatCareerTitleRange(career)
 
   // Pad jersey for the BGM-NNNN ID
   const jerseyForId =
