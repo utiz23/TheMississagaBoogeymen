@@ -60,7 +60,8 @@ carried into this list without being re-asked.
    database as a fallback and keeps doing video-stats processing. Proof: match
    counts equal the union of both hosts, core pages load, the worker cycles,
    a backup run is green.
-6. **Safety nets (on Hotel-Echo).** An email if no new game has been
+6. **Safety nets (on Hotel-Echo).** ✅ Done 2026-10-05 (test alert's down/up
+   emails received by the operator). An email if no new game has been
    collected for too long or failed transforms pile up (a missed EA window
    loses games for good), and size limits on Docker's log files. Proof: one
    test alert received.
