@@ -2,8 +2,6 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
-  listGameTitles,
-  getActiveGameTitleBySlug,
   getRecentMatches,
   countMatches,
   getOpponentClubs,
@@ -18,6 +16,7 @@ import { Panel } from '@/components/ui/panel'
 import { SectionHeader } from '@/components/ui/section-header'
 import { ResultPill } from '@/components/ui/result-pill'
 import { formatMatchDate } from '@/lib/format'
+import { resolveTitleFromSlug, switcherTitles } from '@/lib/title-resolver'
 
 export const metadata: Metadata = { title: 'Scores — Club Stats' }
 
@@ -49,20 +48,6 @@ interface GamesFilters {
 }
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
-
-async function resolveGameTitle(titleSlug: string | undefined) {
-  try {
-    const all = await listGameTitles()
-    if (titleSlug) {
-      const found =
-        all.find((title) => title.slug === titleSlug) ?? (await getActiveGameTitleBySlug(titleSlug))
-      if (found) return { gameTitle: found, titles: all, invalidRequested: false }
-    }
-    return { gameTitle: all[0] ?? null, titles: all, invalidRequested: Boolean(titleSlug) }
-  } catch {
-    return { gameTitle: null, titles: [], invalidRequested: Boolean(titleSlug) }
-  }
-}
 
 function parsePage(raw: string | string[] | undefined): number {
   const n = typeof raw === 'string' ? parseInt(raw, 10) : NaN
@@ -110,15 +95,23 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   const matchIds = devMatchIds(gameMode)
   const queryGameMode = dbGameMode(gameMode)
 
-  const { gameTitle, titles, invalidRequested } = await resolveGameTitle(titleSlug)
+  const result = await resolveTitleFromSlug(titleSlug).catch(() => null)
 
-  if (invalidRequested) {
+  if (result === null) {
+    return <EmptyState message="Unable to load match data right now." />
+  }
+
+  if (result.kind === 'invalid') {
     redirect(gamesHref({ ...filters, titleSlug: undefined }, page))
   }
 
-  if (!gameTitle) {
+  if (result.kind === 'empty') {
     return <EmptyState message="No game titles are configured yet." />
   }
+
+  const { gameTitle, allTitles } = result.resolved
+  // Live titles plus the default and the selected title, newest first.
+  const titles = switcherTitles(allTitles, gameTitle.id)
 
   let pageMatches: Awaited<ReturnType<typeof getRecentMatches>> = []
   let rawFormMatches: Awaited<ReturnType<typeof getRecentMatches>> = []

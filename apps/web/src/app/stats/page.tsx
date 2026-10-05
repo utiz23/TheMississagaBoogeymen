@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { GameMode, GameTitle } from '@eanhl/db'
+import type { GameTitleListing } from '@eanhl/db/queries'
 import { GAME_MODE } from '@eanhl/db'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
@@ -29,7 +30,6 @@ import {
   getHistoricalClubTeamStats,
   getHistoricalClubTeamStatsBatch,
   getLiveTeamStatsByMode,
-  listArchiveGameTitles,
   getTeamShotLocationAggregates,
   getTeamGoalieShotLocationAggregates,
 } from '@eanhl/db/queries'
@@ -88,9 +88,11 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
     return <EmptyState message="No game titles are configured yet." />
   }
 
-  const { gameTitle, isActive, allTitles } = result.resolved
+  const { gameTitle, allTitles } = result.resolved
 
-  if (isActive) {
+  // Live = polled OR has captured matches, so a title keeps this view after
+  // polling stops. Not the ingestion flag.
+  if (gameTitle.isLive) {
     return <ActiveStats allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />
   }
   return <ArchiveStats allTitles={allTitles} gameTitle={gameTitle} gameMode={requestedMode} />
@@ -103,7 +105,7 @@ async function ActiveStats({
   gameTitle,
   gameMode,
 }: {
-  allTitles: GameTitle[]
+  allTitles: GameTitleListing[]
   gameTitle: GameTitle
   gameMode: GameMode | null
 }) {
@@ -202,13 +204,13 @@ async function ActiveStats({
     // Soft-fail — tooltips fall back to the bare gamertag.
   }
 
-  // Career Team Stats — live rows for every ACTIVE title (match-derived) plus
-  // reviewed archive rows. If any required query fails the section renders an
-  // explicit "unavailable" state instead of a partial/empty table; the rest of
-  // the page is unaffected.
+  // Career Team Stats — live rows for every live (match-backed) title plus
+  // reviewed archive rows for every other title. If any required query fails
+  // the section renders an explicit "unavailable" state instead of a
+  // partial/empty table; the rest of the page is unaffected.
   const teamHistory = await loadTeamHistory({
-    activeTitles: allTitles.filter((t) => t.isActive),
-    listArchiveTitles: listArchiveGameTitles,
+    activeTitles: allTitles.filter((t) => t.isLive),
+    listArchiveTitles: () => Promise.resolve(allTitles.filter((t) => !t.isLive)),
     getLiveRows: getLiveTeamStatsByMode,
     getArchiveRows: getHistoricalClubTeamStatsBatch,
     onError: (error) => {

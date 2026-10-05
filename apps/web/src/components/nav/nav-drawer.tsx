@@ -25,7 +25,14 @@ import { NAV_LINKS, buildHref, isActive } from './nav-links'
  * `fixed inset-0` overlay resolves against the 64px-tall bar instead of the
  * viewport — measured 390x66 at x=-104, i.e. a sliver of panel with no scrim.
  */
-export function NavDrawer({ titles }: { titles: GameTitle[] }) {
+export function NavDrawer({
+  titles,
+  defaultSlug,
+}: {
+  titles: GameTitle[]
+  /** The no-`?title=` title, chosen server-side by the shared title policy. */
+  defaultSlug: string | null
+}) {
   const [open, setOpen] = useState(false)
   // Portals need a DOM; there is none during SSR. The drawer starts closed, so
   // deferring the overlay to after mount costs nothing visible.
@@ -192,7 +199,7 @@ export function NavDrawer({ titles }: { titles: GameTitle[] }) {
             reason as the bar's: authentication is disabled before launch and
             /login is a 404. See src/deferred/auth/README.md. */}
         <div className="mt-auto flex flex-col gap-3.5">
-          <GameTitleSwitcher titles={titles} />
+          <GameTitleSwitcher titles={titles} defaultSlug={defaultSlug} />
         </div>
       </div>
     </div>
