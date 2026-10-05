@@ -81,4 +81,7 @@ The DB host port is `5433` (not `5432`) because port 5432 is occupied by another
 - Before rebuilding, tag the running images as a rollback point, e.g.
   `docker tag eanhl-team-website-web:latest eanhl-team-website-web:rollback-<date>`.
   Rollback = retag that image as `:latest` and `docker compose up -d --no-deps web`.
+  Tag BEFORE `docker compose build`: on this Docker Desktop setup the old image
+  record disappears as soon as the build moves `:latest`, even while a container
+  still runs it, and can no longer be tagged (seen 2026-10-05).
 - If the worker crashes on startup, check `docker logs eanhl-team-website-worker-1` for the first error line.
