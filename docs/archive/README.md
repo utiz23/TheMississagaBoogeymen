@@ -1,8 +1,8 @@
 # Archive Index
 
 Each file here is an immutable, byte-identical snapshot of `HANDOFF.md` (or
-an earlier archive) captured at a point in time, kept only for historical
-record. None of them is edited after capture — see
+an earlier archive), or a retired plan, captured at a point in time and kept
+only for historical record. None of them is edited after capture — see
 `.claude/skills/handoff-update/SKILL.md`'s "copy byte-for-byte before
 anything is reworded" rule.
 
@@ -31,6 +31,9 @@ expected to be.
 
 ## Snapshots
 
+- [`handoff-history-2026-10-05.md`](handoff-history-2026-10-05.md) —
+  `HANDOFF.md` as it stood before the 2026-10-05 workflow reset. Holds the
+  full Proton/E3 backup state (parked) and the E3J9C–E3J9E checkpoints.
 - [`handoff-history-2026-09-12.md`](handoff-history-2026-09-12.md) —
   `HANDOFF.md` as it stood immediately before the 2026-09-12 compaction.
   Current state lives in the live `HANDOFF.md` and
@@ -39,3 +42,14 @@ expected to be.
   earlier snapshot, referenced from within the 2026-09-12 snapshot above.
 - [`handoff-history-2026-06-14.md`](handoff-history-2026-06-14.md) — an
   earlier snapshot still, referenced from within the 2026-08-03 snapshot.
+
+## Retired plans
+
+- [`operational-v1-roadmap-2026-10-05.md`](operational-v1-roadmap-2026-10-05.md)
+  — **superseded 2026-10-05** by the 7-item launch plan in
+  [`docs/planning/operational-v1-roadmap.md`](../planning/operational-v1-roadmap.md).
+  Holds the Gate 1–3 Operational V1 checklist and the 33-item Limited Public
+  Launch gate, unchanged.
+- [`lpl-l0-reconciliation-2026-10-03.md`](lpl-l0-reconciliation-2026-10-03.md)
+  — **superseded 2026-10-05** by the same launch plan. Moved here unchanged
+  from `docs/planning/`.

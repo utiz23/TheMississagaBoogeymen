@@ -1,161 +1,91 @@
 # Handoff
 
-Compact current-state index (target 100-150 lines / max 200 / 12KB — see
-`.claude/skills/handoff-update/SKILL.md`). This file summarizes; it does not
-reproduce the linked documents.
+Short current-state index. Target 100–150 lines; hard ceiling 200 lines /
+12KB (`.claude/skills/handoff-update/SKILL.md`). Detail lives in the linked
+documents, not here.
 
-- Full prior history through 2026-09-12:
-  [`docs/archive/handoff-history-2026-09-12.md`](docs/archive/handoff-history-2026-09-12.md)
-  (byte-identical snapshot; its links resolve from the repo root — see
+- **Launch plan** (the active checklist):
+  [`docs/planning/operational-v1-roadmap.md`](docs/planning/operational-v1-roadmap.md)
+- Work diary: [`docs/journal/2026-10.md`](docs/journal/2026-10.md)
+- Previous handoff, with the full Proton/E3 backup state, archived unchanged:
+  [`docs/archive/handoff-history-2026-10-05.md`](docs/archive/handoff-history-2026-10-05.md)
+  (archive links resolve from the repo root — see
   [`docs/archive/README.md`](docs/archive/README.md)).
-- Gate 1-3 checklist:
-  [`docs/planning/operational-v1-roadmap.md`](docs/planning/operational-v1-roadmap.md).
-- Dated work diary (per-milestone detail and test counts):
-  [`docs/journal/2026-09.md`](docs/journal/2026-09.md),
-  [`docs/journal/2026-10.md`](docs/journal/2026-10.md).
-- Workflow policy:
-  [`docs/operations/agent-manager-workflow.md`](docs/operations/agent-manager-workflow.md).
+
+## How We Work Now (2026-10-04 workflow review)
+
+- Claude Code leads from the operator's plain-language requests. Codex is an
+  optional second opinion through the official Codex plugin, for the riskiest
+  changes only. If Codex is unavailable, work continues and the review is
+  recorded as owed.
+- Process scales with risk: UI/docs → build it and show it; database,
+  ingestion or real data → short plan, backup first, review; secrets,
+  network exposure or deletion → plan, and the operator approves each
+  irreversible step.
+- `AGENTS.md` and `docs/operations/agent-manager-workflow.md` still describe
+  the old Codex-as-manager relay and are **outdated** until rewritten. Where
+  they conflict with this section, this section wins.
 
 ## Current Objective / Status
 
-Operational V1 launch readiness, target 2026-10-01. Gate 1 complete. Gate 2
-in progress: hosting/domain/NHL 26-27 cutover decided; legal docs drafted but
-unpublished; reliability/backup automation not started; product-readiness
-audits not started. Gate 3 not started. Checkbox detail: the roadmap doc.
+Launch the site to teammates using the 7-item launch plan (adopted
+2026-10-05). Item 1 (data safe) is nearly done; items 2–7 are open.
 
 ## Latest Verified Checkpoint
 
-**2026-10-04 — E3J9E Stage B installed and accepted; G10/P3R is next.**
-Stage A's single inert diagnostic isolated the failure as
-`tmr_remainafterelapse=differs` without running the credential CLI. Upstream
-v255/v259 source proved that `systemd-run` appends
-`RemainAfterElapse=false`; Stage B expects `no` for transient timers and keeps
-`yes` for boot. Stage B landed on `main` at `8388fd1` (launcher
-`01db2e1e…e62e`). Three byte-identical full harness runs each passed 789 tests
-and killed 307 mutations with no failures or survivors. The single-file
-install, FP-A/FP-B, complete Phase-1 replay and one no-retry inert confirmation
-all passed; no reboot or provider operation occurred. The guarded install
-marker is live (`24dbcaaa…d782`) over 87 accepted evidence files. E3J9 and U1
-remain open under the §23.3 reduced evidence boundary. Record:
-[memo §24](docs/planning/proton-drive-hotel-echo-credential-design.md).
+**2026-10-05 — nightly backup running; repo tidied; launch plan cut to 7
+items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
-- Run4 evidence remains reduced: 11 of 18 files recovered hash-exact, 7 unavailable; P1b/P2/E4 survive only as contemporaneously reported results (OD-1). OD-B3 also remains accepted: failure-path timer garbage collection can leave a lone failed service for operator cleanup.
-
-**2026-09-30 — E3J9D PASSED for the ceremony + single-P0 scope only.** From
-`7b3a379` (worktree `integrate/e3j9d-r-2026-09-30`), with the E3J9D-R launcher
-(`0244f8ee…`), probe (`46b112c2…`) and `unit-publish` (`5acf4677…`) already
-installed: every same-session pre-ceremony proof passed, one row at a time
-(A1–A4, A7, A8, A10, E1(a), `env-proof`, L2, busy overlap, host formats, auth
-preconditions); a new operator ceremony completed (`ssh_rc=0`,
-`auth_login_unit_rc=0`); **exactly one P0** (`provider-probe run provider`,
-metadata-only `/my-files` info) gave `provider_run_result=pass`,
-`provider_result=ok` (`p0_attempt_count=1`), with clean binding, cleanup,
-vocabulary and postconditions; owned-inventory match. The encrypted session
-entry and CLI state are **retained for E3J9E**; nothing scheduled. Record:
-[memo §22](docs/planning/proton-drive-hotel-echo-credential-design.md).
-
-Same day, first attempt (memo §21): the ceremony completed but its URL was
-pasted to Codex; stopped before P0, the session revoked by the operator, local
-state removed and the key/store rotated without running the CLI.
-
-**2026-09-26 — E3J9C PASSED (credential foundation + local proof only).**
-E3J9C-R is committed and pushed (`835b3ece`). On Hotel-Echo: `pass` + `tree`,
-the locked `eanhl-cloud` identity, §2 directories and lock, 12 curated links,
-wrapper, launcher, validation tools (kept until E3J9E), the pinned CLI at
-`/opt/eanhl-cloud/bin/proton-drive` (**never executed**), the service key with
-`gpg.conf`, and a store holding only `.gpg-id`. Two template defects found on
-the host were corrected, reviewed and reinstalled (launcher/`lockhold`
-working directory; the probe's digit-containing record name). M10 then passed
-in full, one row at a time: A1–A10 (A6 by the operator's direct PTY
-observation), E1–E3, L1–L2, K1–K6 and owned-inventory. `gpg-agent` lives only
-inside a running unit. Staging removed. The E3J9C work since `835b3ece`
-(corrected templates, harness, docs; branch `feat/e3j9c-credential-foundation`)
-is in `main`: the `main` commit `ab05da38` contains it (via `671efb9`). Network: public
-upstream/Ubuntu downloads only; no Proton/provider contact. Record:
-[memo §19](docs/planning/proton-drive-hotel-echo-credential-design.md).
-
-Earlier (detail in the journal): E3J9D-R 09-28/30 (provider runner,
-`ef32c885`, merged into `main` by `1ec6c330`, memo §20); E3J9C-R 09-25 (exact `pass` acceptance rule,
-template corrections, memo §18); E3J9C first run 09-24 (stopped after M1:
-`pass` + `tree`, memo §17); E3J9B-doc 09-24 (`c99598e`, option-A design);
-E3J9A 09-24 (read-only feasibility); E3J8A 09-23 (`9ea391a`, Healthchecks
-export, non-activated, ping-key risk explicitly accepted); E3J7 09-21
-(freshness evaluator); E3J6C 09-19 (`97e62d4`, run lock/retry/entrypoint);
-E3J6B `bbcff5b`, E3J6A `70abb63`, E3J5 `eea6ace`, E3J4 `0fc9678`, E3J2-3, E3I.
-
-**Known-unclosed, by design (backup chain):** real-CLI schemas are
-hypotheses; lock/upload/enumeration/manifest-read TOCTOU windows are narrowed,
-not closed; SIGKILL/power loss can leave the lock or an unattested intent for
-manual reconciliation; freshness depends on local manifests (E3J13); a forged
-healthy ping is undetectable and the live `OK` contract is unobserved. Run
-backup suites outside the Codex bubblewrap sandbox (Node child stdout is lost
-there). Detail: the architecture memo and ops docs under Immediate Blockers.
+- Nightly backup (`ops/nightly-backup/`) runs on the main PC at 03:00
+  America/Edmonton: dump → restore test → `K:\eanhl-backups` → Backblaze B2 →
+  Healthchecks.io check-in. Restores from the local disk and from B2 matched
+  (435 = 435 matches); down/up alert emails received. **Codex review of the backup is owed:** four attempts failed on tooling (latest: "Reviewer failed to output a response"). To run it: check out `feat/nightly-backup`, then `/codex:review --wait --base 0ec6989`.
+- `main` now matches GitHub plus the backup work and the 2026-10-03 launch
+  reconciliation docs. 11 extra worktrees and 17 already-merged local branch
+  names were removed. September leftovers are parked on the local branches
+  `park/codex-claude-bridge` and `park/roster-stats-design-inputs` (not for
+  merging; the second holds real player data).
 
 ## Essential Operational Constraints
 
-- Domain `boogeymen.app` live (Cloudflare); `webmaster@boogeymen.app` works
-  both directions.
-- Cloudflare tunnel **deliberately offline** on both hosts; reopening needs
-  its own authorization on top of the relevant Gate 2 items. Auth is
-  **deliberately disabled pre-launch** (removed from source). Both are
-  decisions, not gaps.
-- Main PC is still real production (web/worker/db); Hotel-Echo runs a
-  parallel, not-yet-migrated deployment. Verify each host's deployed commit
-  via `docker inspect`/`git log`.
-- NHL 27 ingestion live on both hosts since 2026-09-05; NHL 26 preserved.
-- Main-PC secrets rotation 2026-09-03 (`POSTGRES_PASSWORD`,
-  `BETTER_AUTH_SECRET`); the dead old value stays in git history. Separate
-  same-day Hotel-Echo incident: a bootstrap-admin flow was reachable ~7.5 min,
-  no account created, fixed at source. Separate 2026-09-04 check: Hotel-Echo
-  ports 3000/3001/5433 loopback-only (network exposure only).
-- Backup producer/acceptor verified in isolation only — no activation.
+- **Production is the main PC** (web, worker, db, backup via Docker Compose).
+  Hotel-Echo runs a parallel, not-yet-migrated copy that also ingests NHL 27.
+- Domain `boogeymen.app` is on Cloudflare; `webmaster@boogeymen.app` works
+  both ways.
+- The Cloudflare tunnel is deliberately **off** on both hosts (the `public`
+  Compose profile is not enabled). Turning it on is launch item 7 and needs
+  the operator's approval. Login/auth was deliberately removed pre-launch.
+- NHL 27 ingestion has been live since 2026-09-05; NHL 26 is preserved. Both
+  titles are `is_active` on the main PC, and NHL 27 is the site default.
+- Backups are enabled by `COMPOSE_PROFILES=backup` in `.env`. Setup, alerts
+  and restore steps: [`ops/nightly-backup/README.md`](ops/nightly-backup/README.md).
+  The B2 key is Backblaze's stock "Write Only" key, which can still delete
+  inside the bucket — accepted by the operator.
+- Live DB: container `eanhl-team-website-db-1`, host port 5433. Migrations
+  0046+ are hand-written SQL applied with `psql`, not `drizzle-kit migrate`.
+- `pnpm lint` is red repo-wide (pre-existing config drift); typecheck, tests
+  and prettier are the gates.
+- `git push` runs the ~20-minute OCR verification hook
+  (`scripts/verify-ocr.sh`), even for pushes that don't touch OCR code.
+- **Proton/E3 cloud backup is parked.** Hotel-Echo keeps E3's installed
+  credential tooling and a logged-in Proton session from 2026-09-30; nothing
+  is scheduled. Full E3 state: the archived handoff and the
+  [credential memo](docs/planning/proton-drive-hotel-echo-credential-design.md).
+- Main-PC secrets were rotated 2026-09-03; the dead old value remains in git
+  history.
 
 ## Immediate Blockers
 
-- **E3 (Proton cloud backup) unactivated; NOTHING IS MONITORED.** The local
-  chain through E3J8A exists, but nothing schedules the emitter, no provider
-  account/check/ping key/notification exists, and no test notification was
-  received. E3J8B (activation; steps in the monitoring ops doc §9, own
-  authorization) is blocked on backup scheduling. Also open:
-  hard containment on the real host; unattended credential persistence (U1
-  open; E3J9C and E3J9D passed their scopes, E3J9E Stage B is installed and
-  accepted but P3R/P4/P5 and the controlled reboot remain unproven); real-CLI schema verification; U12-U14
-  (readback ceilings/containment, timeouts/retries, remote root and flat
-  layout); U15 partly resolved (emitter built, no provider object, receipt
-  test unrun). D1 is accepted; E3J9D passed (ceremony + one P0; session
-  retained for E3J9E); **D7 is accepted** for one controlled reboot under the
-  credential memo §15 conditions, but E3J9E still needs separate authorization;
-  **C1** must merge before any E3J10 step that executes the CLI or can contact
-  Proton. Detail:
-  [credential memo](docs/planning/proton-drive-hotel-echo-credential-design.md),
-  [`backup-monitoring-export.md`](docs/operations/backup-monitoring-export.md),
-  [`proton-drive-cloud-transport-architecture.md`](docs/planning/proton-drive-cloud-transport-architecture.md),
-  [`proton-drive-transport-feasibility.md`](docs/planning/proton-drive-transport-feasibility.md),
-  [`proton-drive-scratch-experiment.md`](docs/planning/proton-drive-scratch-experiment.md).
-- **Legal docs drafted, not published, not counsel-reviewed** (placeholder
-  URLs, indexing reverification, notice-of-changes mechanism). Cloudflare Web
-  Analytics is still enabled, contradicting the no-tracking decision. Drafts:
-  `docs/planning/*-draft.md`.
-- **NHL 26/27 title default & chronology bug** — decided at E1J, not
-  implemented: `is_active` conflates ingestion eligibility with frontend
-  default; `/` and `/games` lack `title-resolver.ts`'s archive fallback;
-  chronology sorts by id (NHL 27's id > NHL 26's). NHL 27 is currently the
-  default on `/`/`/games` on both hosts. Rollback (stops NHL 27 polling,
-  deletes nothing): `UPDATE game_titles SET is_active = false WHERE slug = 'nhl27';`.
-  Full spec: archive, E1J entry.
+None. Open decisions:
+
+- Whether to log out Hotel-Echo's retained Proton session (parked E3).
 
 ## Next 1-3 Actions
 
-1. **Backup credential path:** E3J9D passed (memo §22); E3J9E Stage B is
-   installed, accepted and marker-guarded (memo §24), with **D7 accepted** under
-   memo §15. Next: separately authorized G10 beginning with P3R, then the
-   remaining P4/P5/N2/N1 lifecycle rows and controlled reboot needed to close
-   U1/E3J9. **C1** must merge before any E3J10 step that executes the CLI or can
-   contact Proton.
-2. Gate 2 reliability items: automated backups, restore drill, alerting, log
-   retention, rollback docs — all unstarted and blocking Gate 2.
-3. Disable and verify Cloudflare Web Analytics.
-
-Pick one item per session. Update this file in place at the natural stopping
-point and log the milestone in the journal — see `agent-manager-workflow.md`
-§8 and the `handoff-update` skill.
+1. Launch item 2: review `feat/lpl-title-separation` (one commit on top of
+   `main`, local only), take a fresh backup, apply migration 0057, check the
+   pages.
+2. Finish the workflow cleanup: rewrite `AGENTS.md` and the workflow doc for
+   the new model (about one page), and run the OCR pre-push suite only when
+   OCR code changes.
+3. Launch items 3–5.
