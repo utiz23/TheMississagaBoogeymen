@@ -4,7 +4,7 @@
 
 EASHL team stats website for club #19224 (platform: common-gen5). Monorepo that ingests data from EA's undocumented Pro Clubs API, archives it, and serves a stats/analytics frontend.
 
-Self-hosted on a home PC via Docker Compose. Audience is a handful of team members.
+Self-hosted via Docker Compose on **Hotel-Echo** (home server; `ssh hotel-echo`, repo `~/eanhl-team-website`) since 2026-10-05. The main PC (this dev machine) keeps a stopped fallback copy and runs video-OCR. Audience is a handful of team members.
 
 ## Architecture
 
@@ -116,9 +116,14 @@ with `git push --no-verify`.
 
 ### Querying the live database
 
+The live database is on **Hotel-Echo**, not this machine:
+
 ```bash
-docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -c "SELECT ..."
+ssh hotel-echo 'docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -c "SELECT ..."'
 ```
+
+The same container name on the main PC holds the pre-move fallback copy
+(frozen 2026-10-05, 435 matches) — not live data.
 
 Container: `eanhl-team-website-db-1` · User: `eanhl` · DB: `eanhl` · Host port: `5433` (not 5432 — conflict with another project).
 

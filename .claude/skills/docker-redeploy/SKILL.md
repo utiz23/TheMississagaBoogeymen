@@ -6,6 +6,13 @@ Use this skill after committing new worker or web code that needs to run inside 
 
 After a commit, the running Docker containers continue executing the previously built image. New code is silently ignored until the image is rebuilt. This has caused at least one full verification pass to debug — the worker cycled normally but logged no trace of new functionality.
 
+## Where production runs
+
+Since 2026-10-05 production is **Hotel-Echo**: run these commands there
+(`ssh hotel-echo`, then `cd ~/eanhl-team-website`), after `git pull` of the
+commit to deploy. The main PC's web/worker are a stopped fallback — don't
+start them by accident.
+
 ## Detection — Is the image stale?
 
 Check whether the running container predates the last commit:

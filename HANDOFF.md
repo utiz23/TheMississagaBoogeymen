@@ -29,8 +29,9 @@ documents, not here.
 ## Current Objective / Status
 
 Launch the site to teammates from Hotel-Echo using the 8-item launch plan
-(adopted 2026-10-05, host pivot same day). Item 2 (correct data) is done;
-item 3 needs only the Cloudflare routes check; items 1 and 4–8 are open.
+(adopted 2026-10-05, host pivot same day). Items 2 (correct data) and 5 (move
+to Hotel-Echo) are done; item 1 needs three green nights on Hotel-Echo;
+item 3 needs only the Cloudflare routes check; items 4, 6–8 are open.
 
 ## Latest Verified Checkpoint
 
@@ -55,6 +56,9 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
   (404), noindex meta + `X-Robots-Tag` on everything, `robots.txt`, no
   `X-Powered-By`; branded error page (shows only an opaque reference) and the
   operator's scoreboard 404 design. Forced-error test leaked nothing.
+- Launch item 5 done: production moved to Hotel-Echo with a merged database
+  (main PC's 435 + 14 games only Hotel-Echo had = 449, verified as the exact
+  union), rehearsed first; nightly backup moved there (first run green).
 - `main` now matches GitHub plus the backup work and the 2026-10-03 launch
   reconciliation docs. 11 extra worktrees and 17 already-merged local branch
   names were removed. September leftovers are parked on the local branches
@@ -63,19 +67,21 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
 ## Essential Operational Constraints
 
-- **Launch host is Hotel-Echo** (operator decision 2026-10-05; `ssh
-hotel-echo`, Tailscale `100.98.29.119`, repo `~/eanhl-team-website`). Until
-  the move (launch item 5) the **main PC is still production** (web, worker,
-  db, backup). Hotel-Echo runs a parallel copy on Sept 4 code with its own
-  database: 245 matches incl. 14 the main PC never got (13 NHL 26 on
-  2026-09-07/13, 1 NHL 27 on 2026-09-17; raw payloads kept). Its title ids
-  differ from the main PC's — match titles by slug.
-- Main PC web runs `main` at `e93e24a` (image `79e5190a1a30`), worker at `538d956`
-  (`7c4f7054ea52`), deployed 2026-10-05. Web rollback images, newest first:
-  `eanhl-team-website-web:rollback-2026-10-05-item3` (before the scoreboard
-  404), `:rollback-2026-10-05-titles` (before item 3), `:rollback-2026-08-16`;
-  worker: `eanhl-team-website-worker:rollback-2026-09-02`. Old code runs fine
-  on the 0057 schema. Steps: `docker-redeploy` skill.
+- **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
+  Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
+  and nightly backup on `main` at `1445569` (images web `9f7586c4c159`,
+  worker `bd8cd0838396`, backup `04445d8ef79a`). Its live DB holds 449
+  matches = both hosts' union. Rollback: images
+  `:rollback-he-2026-09-04` and the old Hotel-Echo database kept as
+  `eanhl_he_old`; the main-PC fallback below.
+- **Main PC = stopped fallback + video-OCR box.** Its web, worker and backup
+  are stopped and its `COMPOSE_PROFILES=backup` line is commented out; its db
+  still runs, frozen at 435 matches. **Do not `docker compose up -d` there**
+  — it would restart a second collector. Restart it only as a deliberate
+  fallback (copy back any games Hotel-Echo collected meanwhile).
+- To view Hotel-Echo's site from the main PC:
+  `ssh -N -L 127.0.0.1:3100:127.0.0.1:3000 hotel-echo`, then
+  `http://localhost:3100`. Hotel-Echo's ports are loopback-only.
 - Domain `boogeymen.app` is on Cloudflare; `webmaster@boogeymen.app` works
   both ways.
 - The Cloudflare tunnel is deliberately **off** on both hosts (the `public`
@@ -117,10 +123,9 @@ None. Open decisions:
 
 ## Next 1-3 Actions
 
-1. Launch item 5: move production to Hotel-Echo (rehearse the merge on a
-   throwaway copy first; then back up both hosts, consolidate, update code,
-   move the backup, stop the main PC's collector).
+1. Operator looks at Hotel-Echo's site (`http://localhost:3100` via the
+   tunnel above) — doubles as the start of item 7.
 2. Finish item 3 (operator: the tunnel's Published application routes) and
-   item 4 (legal pages live, analytics off).
+   item 4 (legal pages live, analytics off), then item 6 on Hotel-Echo.
 3. Finish the workflow cleanup: rewrite `AGENTS.md` and the workflow doc for
    the new model (about one page).

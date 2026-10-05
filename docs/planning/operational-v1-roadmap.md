@@ -23,8 +23,9 @@ carried into this list without being re-asked.
 1. **Data safe.** The nightly backup
    ([`ops/nightly-backup/`](../../ops/nightly-backup/README.md)) runs on the
    production host with three green unattended nights on Healthchecks.io.
-   It ran on the main PC from 2026-10-05 (restores from the local disk and
-   from Backblaze B2 tested) and moves to Hotel-Echo with item 5.
+   It ran on the main PC on 2026-10-05 (restores from the local disk and
+   from Backblaze B2 tested) and on Hotel-Echo from 2026-10-05 14:28 (first
+   run green; local copies in `~/eanhl-backups`). Count nights from 2026-10-06.
 2. **Correct data.** ✅ Done 2026-10-05. Which title is collected, which
    title the site shows by default, and the order titles are listed in are now
    three separate settings (before, one `is_active` flag did all three, so
@@ -44,7 +45,8 @@ carried into this list without being re-asked.
 4. **Legal pages live, no tracking.** The legal pages switch from Draft to
    Published with their final URLs, footer links work, and Cloudflare Web
    Analytics is turned off.
-5. **Move production to Hotel-Echo.** One database holding everything: the
+5. **Move production to Hotel-Echo.** ✅ Done 2026-10-05 (449 matches =
+   both hosts' union; backup green on Hotel-Echo; journal 2026-10-05). One database holding everything: the
    main PC's (full history and video stats) plus the 14 games only Hotel-Echo
    collected (13 NHL 26 on 2026-09-07/13, 1 NHL 27 on 2026-09-17; titles
    matched by slug, not id). Hotel-Echo runs current `main`; the nightly
