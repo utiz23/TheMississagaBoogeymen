@@ -28,43 +28,33 @@ documents, not here.
 
 ## Current Objective / Status
 
-Launch the site to teammates from Hotel-Echo using the 8-item launch plan
-(adopted 2026-10-05, host pivot same day). Items 2–7 are done (3 bar the
-launch-day public re-check). Item 1 counts green nightly backups on
-Hotel-Echo from 2026-10-06. Item 8 (open it up) is next and needs the
-operator's go-ahead.
+**The site is live at https://boogeymen.app** (2026-10-05 ~15:15 MDT) for
+teammates, by link — unlisted (`noindex` everywhere), no analytics, no
+logins. Served from Hotel-Echo through the `hotel-echo-web` Cloudflare
+tunnel. Launch plan items 2–8 are done; item 1 counts three green nightly
+backups on Hotel-Echo from 2026-10-06. Next: observe for a few days, then
+post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
 ## Latest Verified Checkpoint
 
-**2026-10-05 — nightly backup running; repo tidied; launch plan cut to 7
-items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
+**2026-10-05 — launched.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
-- Nightly backup (`ops/nightly-backup/`) runs on the main PC at 03:00
-  America/Edmonton: dump → restore test → `K:\eanhl-backups` → Backblaze B2 →
-  Healthchecks.io check-in. Restores from the local disk and from B2 matched
-  (435 = 435 matches); down/up alert emails received. **Codex review of the backup is owed:** four attempts failed on tooling (latest: "Reviewer failed to output a response"). To run it: check out `feat/nightly-backup`, then `/codex:review --wait --base 0ec6989`.
-- The main PC's website and worker were rebuilt from `main` (they had been
-  running Aug 16 / Sep 2 builds): core pages, legal pages and footer load;
-  login is gone; worker cycles cleanly; no web errors. Compose also recreated
-  `db` once (clean ~1 s restart, data intact); the redeploy skill now uses
-  `--no-deps`.
-- Launch item 2 done: NHL 26/27 title separation merged and deployed with
-  migration 0057 (rehearsed on a restored backup first, fresh backup taken
-  before the live run). Review caught one bug (archive titles on `/` and
-  `/games` showed empty pages), fixed in `538d956`. Career label now reads
-  oldest→newest (e.g. "NHL 22–NHL 27").
-- Launch item 3 code side done (`6f5d75b`, `e93e24a`): `/preview/*` removed
-  (404), noindex meta + `X-Robots-Tag` on everything, `robots.txt`, no
-  `X-Powered-By`; branded error page (shows only an opaque reference) and the
-  operator's scoreboard 404 design. Forced-error test leaked nothing.
-- Launch item 5 done: production moved to Hotel-Echo with a merged database
-  (main PC's 435 + 14 games only Hotel-Echo had = 449, verified as the exact
-  union), rehearsed first; nightly backup moved there (first run green).
-- `main` now matches GitHub plus the backup work and the 2026-10-03 launch
-  reconciliation docs. 11 extra worktrees and 17 already-merged local branch
-  names were removed. September leftovers are parked on the local branches
-  `park/codex-claude-bridge` and `park/roster-stats-design-inputs` (not for
-  merging; the second holds real player data).
+- Public checks via `https://boogeymen.app`: core and legal pages 200
+  (~0.5 s); `/preview/*`, `/login`, `/admin`, `/api/auth/session`, `/health`
+  and unknown paths 404 (branded scoreboard 404, no internals); `www` 200;
+  `http://` → 301 `https://` (Always Use HTTPS on); `X-Robots-Tag: noindex,
+nofollow` and robots meta; no `X-Powered-By`, no cookies, no Cloudflare
+  analytics beacon (Web Analytics RUM set to Disable).
+- Same day, before launch: backups automated and moved to Hotel-Echo; NHL
+  26/27 title separation (migration 0057); public-surface hardening; legal
+  pages published with current facts; production moved to Hotel-Echo with a
+  merged 449-match database (main PC 435 + 14 games only Hotel-Echo had);
+  log caps and a collector heartbeat (test alert received); repo tidied.
+- **Codex review of the nightly backup is still owed** (four tooling
+  failures). To run it: check out `feat/nightly-backup`, then
+  `/codex:review --wait --base 0ec6989`.
+- Parked, local-only branches: `park/codex-claude-bridge`,
+  `park/roster-stats-design-inputs` (real player data; not for merging).
 
 ## Essential Operational Constraints
 
@@ -82,17 +72,19 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
   still runs, frozen at 435 matches. **Do not `docker compose up -d` there**
   — it would restart a second collector. Restart it only as a deliberate
   fallback (copy back any games Hotel-Echo collected meanwhile).
-- To view Hotel-Echo's site from the main PC:
-  `ssh -N -L 127.0.0.1:3100:127.0.0.1:3000 hotel-echo`, then
-  `http://localhost:3100`. Hotel-Echo's ports are loopback-only.
+- Hotel-Echo's ports are loopback-only; the public path is the tunnel. To
+  bypass Cloudflare from the main PC:
+  `ssh -N -L 127.0.0.1:3100:127.0.0.1:3000 hotel-echo` → `http://localhost:3100`.
 - Domain `boogeymen.app` is on Cloudflare; `webmaster@boogeymen.app` works
   both ways.
-- The Cloudflare tunnel is deliberately **off** on both hosts (the `public`
-  Compose profile is not enabled). The only tunnel is `hotel-echo-web`
-  (status Down, no CIDR routes); `boogeymen.app` and `www` point at it. The
-  main PC has no tunnel token. Turning it on is launch item 8 and needs the
-  operator's approval; Hotel-Echo keeps the token as `TUNNEL_TOKEN` in `.env`
-  (old style) — current compose expects a token file. Login/auth was deliberately removed pre-launch.
+- **The Cloudflare tunnel is ON** on Hotel-Echo (`COMPOSE_PROFILES=backup,public`;
+  tunnel `hotel-echo-web`; routes `boogeymen.app` and `www` → `http://web:3000`
+  only, catch-all 404). Token in `secrets/cloudflared-tunnel-token`, `600`,
+  owned by uid `65532` (the image's user — see `DEPLOY.md`). **Take the site
+  offline:** `docker compose stop cloudflared` on Hotel-Echo. A copy of the
+  pre-launch `.env` (still holding the old `TUNNEL_TOKEN` line) is at
+  `~/eanhl-moved-aside/env-before-launch-2026-10-05` (600) — delete once the
+  launch is settled. The main PC has no tunnel. Login/auth is removed.
 - NHL 27 ingestion has been live since 2026-09-05; NHL 26 is preserved. Since
   migration 0057 (applied 2026-10-05) three settings are separate:
   collection (`is_active`: NHL 26 and 27), site default (`is_default`: NHL 27)
@@ -121,13 +113,14 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
 ## Immediate Blockers
 
-None. Open operator steps:
+None.
 
 ## Next 1-3 Actions
 
-1. Operator go-ahead for item 8 (and optionally Cloudflare "Always Use HTTPS" on).
-2. Item 8: tunnel token into a file, `public` profile on Hotel-Echo, public
-   checks (headers, noindex, no analytics beacon, 404, exposure), share the
-   link.
-3. Finish the workflow cleanup: rewrite `AGENTS.md` and the workflow doc for
-   the new model (about one page).
+1. Observe the launch for a few days: Healthchecks (backup + collector)
+   emails, nightly backups on Hotel-Echo (item 1 closes after three green
+   nights), teammates' feedback.
+2. Run the owed Codex review of the nightly backup when Codex is available.
+3. Workflow cleanup: rewrite `AGENTS.md` and the workflow doc for the new
+   model (about one page); then decide on video-stats OCR writing to
+   Hotel-Echo's database over Tailscale.

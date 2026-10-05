@@ -75,7 +75,8 @@ carried into this list without being re-asked.
    working or transforms fail._
 7. **Looks right.** ✅ Done 2026-10-05 (operator look-over on Hotel-Echo). The operator checks the core pages on a phone and on a
    desktop and signs off.
-8. **Open it up.** The operator approves, then on Hotel-Echo: move the
+8. **Open it up.** ✅ Done 2026-10-05 ~15:15 MDT — https://boogeymen.app is
+   live (public checks in the journal). The operator approves, then on Hotel-Echo: move the
    `hotel-echo-web` tunnel token from `.env` into the token file the current
    compose file expects, add `public` to `COMPOSE_PROFILES`, start
    `cloudflared`, check the public URL, send teammates the link. Rollback:

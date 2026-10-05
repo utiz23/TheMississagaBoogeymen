@@ -323,6 +323,14 @@ container, no warning, nothing to configure.
 
    `./secrets/` is gitignored. Set `TUNNEL_TOKEN_FILE` in `.env` to use a different path.
 
+   The `cloudflared` image runs as uid `65532`, and Compose bind-mounts the file with its host
+   ownership, so a `600` file owned by your user fails with "permission denied" when reading the
+   token file. Hand the file to that uid (it stays `600`; seen on Hotel-Echo 2026-10-05):
+
+   ```bash
+   sudo chown 65532:65532 ./secrets/cloudflared-tunnel-token
+   ```
+
 3. Set `BETTER_AUTH_URL` and `APP_BASE_URL` in `.env` to the public `https://` URL.
 4. Start with the profile:
 
