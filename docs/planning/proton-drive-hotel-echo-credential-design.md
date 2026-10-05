@@ -2667,3 +2667,88 @@ documentation commit (O5). The installed launcher is unchanged. **Next:**
 external review/G3 acceptance, then the revised E3J9E plan and the single-file
 launcher install, each separately authorized. No further P1b, P2 or E4
 execution will occur. The one permitted retry is `n3r`, and it starts no CLI.
+
+## 24. E3J9E Stage-A diagnostic and Stage-B correction (2026-10-04)
+
+**Outcome: Stage B is installed and accepted; E3J9 and U1 remain open.** The
+Stage-A diagnostic isolated the continuation failure, Stage B corrected it,
+and the complete install baseline plus one inert confirmation passed. No
+provider operation or Proton access occurred during Stage A or Stage B. The
+next provider-capable action remains the separately authorized P3R gate.
+
+### 24.1 Stage A and the G6 result
+
+Stage A landed as `b8fb23ffea64dff7c5521a06a7194341a380ee7a` (launcher
+SHA-256 `03d26e002ec196ce35e6d8f393a2bcf7799da33083f493517a63794b5ba1c894`)
+and added closed, per-property diagnostics without changing an acceptance
+predicate. Its single inert G6 operation started successfully, then failed the
+combined timer attestation on `tmr_remainafterelapse=differs`; rollback and
+cleanup reported success and the launcher exited 70. No credential CLI ran.
+Read-only residue checks subsequently showed no units or processes, a free
+lock, unchanged metadata and the expected owned inventory.
+
+### 24.2 Derivation and Stage-B correction
+
+The hash-pinned v255 and v259 upstream `run.c` sources establish that
+`systemd-run` appends `RemainAfterElapse=false` after caller-supplied timer
+properties. A transient timer therefore renders `no`, regardless of the
+launcher's retained request for `yes`; the persistent boot timer is a unit-file
+timer and continues to render `yes`. Stage B changes only that expectation map
+and adds closed diagnostics to discovery, cleanup and boot-schedule failure
+paths. The two launcher construction argument blocks remain byte-identical to
+Stage A.
+
+The source review established that a fired timer stays loaded while its
+triggered service remains active and that a failed service can let the timer
+go dead. Whether the dead transient timer is garbage-collected was not
+established from the authorized sources, so the harness covers both outcomes.
+The operator accepted the remaining OD-B3 failure-path residual: a failed
+scheduled service may remain loaded by itself for explicit operator cleanup.
+
+### 24.3 Review, verification and landing
+
+Stage B landed on `main` as
+`8388fd1e9f0b18677407afd567cad4c59e9d6431` (launcher SHA-256
+`01db2e1e37e471e296d8a62f416ea03b7059a6a0a79a6de0a568908b33f2e62e`).
+Three sequential full harness runs were byte-identical; each passed 789 tests
+with 0 failures and killed 307 mutations with 0 survivors. Each log has 1,488
+lines and 106,240 bytes. Their SHA-256 values are:
+
+- run 1: `c76192784e943129c413b913546d1e4d4b4472b2fda20bec86e3b9b9f842499b`;
+- run 2: `c76192784e943129c413b913546d1e4d4b4472b2fda20bec86e3b9b9f842499b`;
+- run 3: `c76192784e943129c413b913546d1e4d4b4472b2fda20bec86e3b9b9f842499b`.
+
+External review accepted the expectation derivation, argument identity,
+diagnostics-only behavior, fail-closed garbage-collection branch, closed
+lists, no-value-leakage checks and the operator helpers.
+
+The single-file install proved the Stage-A source hash, installed the exact
+Stage-B hash and removed staging. FP-A, the immediate post-install proof, FP-B
+and the complete Phase-1 replay all passed. The boot time was unchanged, so no
+reboot occurred during Stage B.
+
+### 24.4 Inert confirmation and accepted state
+
+The single Stage-B inert confirmation passed without retry: zero attestation
+failures, successful timer and service cleanup, absent residue, and zero
+pre/post history counts. Postchecks found zero credential units and processes,
+a free lock, the expected inventory and metadata identical to the precheck.
+The G6 evidence and the approved run ledger remained exact. The final evidence
+manifest contains 87 accepted files.
+
+The operator accepted the result and created the guarded install marker. Its
+SHA-256 is
+`24dbcaaa863be8efb4b04fa1446680b900dd7de4003eedd54e21a592f4aad782`;
+the marker is read-only and the evidence directory is frozen. The marker binds
+the landed commit, installed launcher, inert-confirmation ledger, G6 manifest,
+evidence manifest, evidence hashes and operator signoff.
+
+### 24.5 State and next step
+
+Stage B is the installed and accepted launcher baseline. Nothing is scheduled
+or monitored, no provider verb has run under Stage B, and the approved run
+budget has no unused slack beyond its named remaining actions. **Next:** G10,
+beginning with the guarded P3R continuation and fresh installed-state proofs.
+P4, P5, N2, N1 and the separately authorized controlled reboot remain pending;
+U1 and E3J9 cannot close until their remaining acceptance rows pass under the
+reduced evidence boundary in §23.3.

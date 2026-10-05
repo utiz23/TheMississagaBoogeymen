@@ -25,19 +25,21 @@ audits not started. Gate 3 not started. Checkbox detail: the roadmap doc.
 
 ## Latest Verified Checkpoint
 
-**2026-10-01 — E3J9E stopped at N3; E3J9E-R correction implemented (G1),
-awaiting review.** N3 was refused before any CLI execution: its precondition
-key listing needed the lock the attested `lockhold-long` holder owns. Branch
-`fix/e3j9e-r-n3-lock-preflight` (base `51650dc`; launcher, harness and docs
-only) makes `n3-busy` lock-free, refuses a stale holder, requires a live holder
-process and lock state 75. Static harness: 625 passed, 84 mutations killed. G2
-is complete; three byte-identical full runs each passed 629 with 84 mutations
-killed, accepted-delta regeneration and both input-hash checks. External
-review, commit, merge and the Hotel-Echo install are not done. Ledger
-`p1a p1b p2 e4 n3` (4 of 9 CLI executions). Record:
-[memo §23](docs/planning/proton-drive-hotel-echo-credential-design.md).
+**2026-10-04 — E3J9E Stage B installed and accepted; G10/P3R is next.**
+Stage A's single inert diagnostic isolated the failure as
+`tmr_remainafterelapse=differs` without running the credential CLI. Upstream
+v255/v259 source proved that `systemd-run` appends
+`RemainAfterElapse=false`; Stage B expects `no` for transient timers and keeps
+`yes` for boot. Stage B landed on `main` at `8388fd1` (launcher
+`01db2e1e…e62e`). Three byte-identical full harness runs each passed 789 tests
+and killed 307 mutations with no failures or survivors. The single-file
+install, FP-A/FP-B, complete Phase-1 replay and one no-retry inert confirmation
+all passed; no reboot or provider operation occurred. The guarded install
+marker is live (`24dbcaaa…d782`) over 87 accepted evidence files. E3J9 and U1
+remain open under the §23.3 reduced evidence boundary. Record:
+[memo §24](docs/planning/proton-drive-hotel-echo-credential-design.md).
 
-- E3J9E run4 evidence: 11 of the 18 files recovered hash-exact after a reboot (recovered bundle, not an original snapshot); 7 were not reconstructed; P1b/P2/E4 survive only as reported results; reduced evidence boundary accepted (OD-1).
+- Run4 evidence remains reduced: 11 of 18 files recovered hash-exact, 7 unavailable; P1b/P2/E4 survive only as contemporaneously reported results (OD-1). OD-B3 also remains accepted: failure-path timer garbage collection can leave a lone failed service for operator cleanup.
 
 **2026-09-30 — E3J9D PASSED for the ceremony + single-P0 scope only.** From
 `7b3a379` (worktree `integrate/e3j9d-r-2026-09-30`), with the E3J9D-R launcher
@@ -116,7 +118,8 @@ there). Detail: the architecture memo and ops docs under Immediate Blockers.
   received. E3J8B (activation; steps in the monitoring ops doc §9, own
   authorization) is blocked on backup scheduling. Also open:
   hard containment on the real host; unattended credential persistence (U1
-  open; E3J9C and E3J9D passed their scopes, E3J9E stopped at N3, lifecycle/reboot unproven); real-CLI schema verification; U12-U14
+  open; E3J9C and E3J9D passed their scopes, E3J9E Stage B is installed and
+  accepted but P3R/P4/P5 and the controlled reboot remain unproven); real-CLI schema verification; U12-U14
   (readback ceilings/containment, timeouts/retries, remote root and flat
   layout); U15 partly resolved (emitter built, no provider object, receipt
   test unrun). D1 is accepted; E3J9D passed (ceremony + one P0; session
@@ -143,12 +146,12 @@ there). Detail: the architecture memo and ops docs under Immediate Blockers.
 
 ## Next 1-3 Actions
 
-1. **Backup credential path:** E3J9D passed (memo §22), and **D7 is accepted**
-   under memo §15. E3J9E stopped at N3 (memo §23); G2 and full local
-   verification passed. Next: external review/G3 acceptance, then the G4/G5
-   checkpoint, revised E3J9E plan, single-file launcher install and exactly one
-   `n3r`, each separately authorized, to resume toward closing U1/E3J9; **C1**
-   must merge before any E3J10 step that executes the CLI or can contact Proton.
+1. **Backup credential path:** E3J9D passed (memo §22); E3J9E Stage B is
+   installed, accepted and marker-guarded (memo §24), with **D7 accepted** under
+   memo §15. Next: separately authorized G10 beginning with P3R, then the
+   remaining P4/P5/N2/N1 lifecycle rows and controlled reboot needed to close
+   U1/E3J9. **C1** must merge before any E3J10 step that executes the CLI or can
+   contact Proton.
 2. Gate 2 reliability items: automated backups, restore drill, alerting, log
    retention, rollback docs — all unstarted and blocking Gate 2.
 3. Disable and verify Cloudflare Web Analytics.
