@@ -79,6 +79,11 @@ SA_TOKENS=(
   svc_fragment svc_execstart svc_env tmr_unit tmr_monotonic tmr_calendar tmr_remainafterelapse tmr_persistent
   tmr_fragment tmr_lasttrigger
 )
+# E3J9E Stage B: the tokens appended for the collect, discard, cleanup and boot
+# diagnostics, in launcher order; ATT_TOKENS must be SA_TOKENS then these.
+SB_TOKENS=(tmr_unitfilestate tmr_activestate boot_armed boot_files boot_wants boot_wants_count)
+# E3J9E Stage B: the closed cleanup steps (an independent oracle for PP_CLEANUP_STEPS).
+SB_STEPS=(timer_stop service_stop disable wants_link unpublish daemon_reload unit_gone fsync_wants)
 ME=$(id -un)
 MYGRP=$(id -gn)
 MYUID=$(id -u)
@@ -290,7 +295,7 @@ EMIT_SRCS=("$LAUNCHER_SRC" "$WRAPPER_SRC" "$PROBE_SRC" "$INSPECT_SRC" "$LOCKHOLD
 DYN_NAMES=(
   'eanhl-cloud-credential|${label//-/_}|entry_remove canary_remove'
   'eanhl-cloud-credential|${last}|primary subkey'
-  'eanhl-cloud-credential|$att_tok|'"${SA_TOKENS[*]}" # E3J9E Stage A: emit "pp_attest_class_$att_tok"
+  'eanhl-cloud-credential|$att_tok|'"${SA_TOKENS[*]} ${SB_TOKENS[*]}" # E3J9E Stage A/B: emit "pp_attest_class_$att_tok"
   'env-inspect|${p}|@ helper_'
   'eanhl-cloud-credential-probe.sh|$1|FORWARD'
 )
@@ -912,6 +917,10 @@ loadstate() {
       echo $(($(cat "$st/gc_polls") - 1)) >"$st/gc_polls"
       echo loaded
     else echo not-found; fi
+  # E3J9E Stage B: gc_failed_timer: an elapsed transient provider timer (RemainAfterElapse=no)
+  # whose triggered service failed goes dead and is garbage-collected (PROVENANCE R19)
+  elif [ -e "$st/gc_failed_timer" ] && is_pprobe "$1" && [[ $1 == *.timer ]] && [ -z "$(file_of "$1")" ] &&
+    [ -e "$st/triggered" ] && [ "$(cat "$st/active" 2>/dev/null)" = failed ]; then echo not-found
   elif [ -e "$st/u/$1" ] || [ -n "$(file_of "$1")" ]; then echo loaded
   else echo not-found; fi
 }
@@ -942,6 +951,12 @@ derive() { # derive <unit> <property>: systemd's --value rendering
     # fixture mode: the raw Key=Value rendering comes from a file, not from the launcher's own argv
     if [ -s "$st/fixture_dir" ]; then
       stem=$(stem_of "$u")
+      # E3J9E Stage B: the legacy model renders a transient timer's RemainAfterElapse as requested (yes)
+      if [ "$kind:$p" = timer:RemainAfterElapse ] && [ "$(cat "$st/rae_model" 2>/dev/null)" = legacy ] &&
+        grep -q '^FragmentPath=@TRANSIENT@/' "$(cat "$st/fixture_dir")/timer.show"; then
+        echo yes
+        return
+      fi
       awk -v k="$p" 'index($0, k "=") == 1 { print substr($0, length(k) + 2); exit }' "$(cat "$st/fixture_dir")/$kind.show" |
         sed -e "s#@STEM@#$stem#g" -e "s#@TRANSIENT@#$STUB_TRANSIENT_DIR#g" -e "s#@UNITDIR@#$STUB_UNIT_DIR#g" \
           -e "s#@SVC@#$STUB_SVC#g" -e "s#@WRAPPER@#$STUB_WRAPPER#g" -e "s#@ARMED@#$STUB_ARMED#g" \
@@ -981,6 +996,10 @@ derive() { # derive <unit> <property>: systemd's --value rendering
           ;;
       esac
     done
+    # E3J9E Stage B: systemd-run appends RemainAfterElapse=false to every timer it
+    # creates, after the --timer-property= values (PROVENANCE R18). The legacy model
+    # (old-bytes differentials only) keeps the requested value.
+    [ -z "$onactive" ] || [ "$(cat "$st/rae_model" 2>/dev/null)" = legacy ] || P[T_RemainAfterElapse]=no
     P[Environment]=$env
     P[FragmentPath]=$STUB_TRANSIENT_DIR/$u
     P[UnitFileState]=transient
@@ -1135,6 +1154,18 @@ case "$1" in
     if [ "$rc" = 0 ] || [ -e "$st/stop_still_stops" ]; then touch "$st/u/$3.stopped"; fi
     # a stopped, unloaded transient unit loses its fragment (unless fragment_stays)
     if { [ "$rc" = 0 ] || [ -e "$st/stop_still_stops" ]; } && gone_after_stop "$3" && [ ! -e "$st/fragment_stays" ]; then rm -f "$STUB_TRANSIENT_DIR/$3"; fi
+    # E3J9E Stage B: after_stop.<service|timer>: one state change applied right after a successful
+    # stop of a unit of that kind, then consumed (a change between two cleanup legs):
+    #   append <Key=Value>                       the stopped unit's own unit file gains that line
+    #   prop <service|timer> <Property> <value>  that property override is set
+    if [ "$rc" = 0 ] && [ -s "$st/after_stop.${3##*.}" ]; then
+      read -r act a1 a2 a3 <"$st/after_stop.${3##*.}"
+      rm -f "$st/after_stop.${3##*.}"
+      case "$act" in
+        append) [ -f "$STUB_UNIT_DIR/$3" ] && printf '%s\n' "$a1" >>"$STUB_UNIT_DIR/$3" ;;
+        prop) printf '%s\n' "$a3" >"$st/prop.$a1.$a2" ;;
+      esac
+    fi
     exit "$rc" ;;
   reset-failed)
     exit "$(cat "$st/reset_rc" 2>/dev/null || echo 0)" ;;
@@ -1439,6 +1470,9 @@ reset_state() {
   rm -rf "$ST"
   mkdir -p "$ST"
   keylist >"$ST/keylist"
+  # E3J9E Stage B: RAE_MODEL=legacy (old-bytes differentials only) makes the fake
+  # render a transient timer's RemainAfterElapse as the launcher requested it.
+  [ -z "${RAE_MODEL-}" ] || printf '%s\n' "$RAE_MODEL" >"$ST/rae_model"
 }
 
 # 6a. key-metadata parser (public metadata only)
@@ -3627,6 +3661,20 @@ if [ "$(sha256sum "$SA_OLDSRC" | cut -d ' ' -f 1)" = "$SA_OLD_SHA" ] && build_la
   libify "$LOLD" "$LLIBOLD"
   SA_OLDOK=1
 fi
+# E3J9E Stage B: the Stage A launcher bytes (the ones Stage B changes). Old bytes run
+# under RAE_MODEL=legacy wherever they are compared with the new bytes.
+SB_OLD_COMMIT=b8fb23ffea64dff7c5521a06a7194341a380ee7a
+SB_OLD_SHA=03d26e002ec196ce35e6d8f393a2bcf7799da33083f493517a63794b5ba1c894
+SB_OLDSRC=$W/launcher-stagea-src
+LSA=$W/launcher-stagea
+LLIBSA=$W/launcher-lib-stagea
+git -C "$REPO" show "$SB_OLD_COMMIT:ops/backup/credential/eanhl-cloud-credential" >"$SB_OLDSRC" 2>/dev/null
+t "Stage B: the Stage A launcher bytes are available and pinned (sha256 03d26e00…)" test "$(sha256sum "$SB_OLDSRC" | cut -d ' ' -f 1)" = "$SB_OLD_SHA"
+SB_OLDOK=0
+if [ "$(sha256sum "$SB_OLDSRC" | cut -d ' ' -f 1)" = "$SB_OLD_SHA" ] && build_launcher "$SB_OLDSRC" "$LSA"; then
+  libify "$LSA" "$LLIBSA"
+  SB_OLDOK=1
+fi
 
 # token → "<kind> <property> <class a sentinel-secret-* value gets>"
 declare -A SA_TOK=(
@@ -4118,8 +4166,10 @@ sa_legacy_case() { # sa_legacy_case <new lib> <fixture set> <slot> <ufs|-> <kind
   for f in old new; do
     rm -f "$ST/calls"
     if [ "$f" = old ]; then
+      echo legacy >"$ST/rae_model" # E3J9E Stage B: the old bytes see the RemainAfterElapse they request
       bash -c ". '$LLIBOLD'; pp_attest_pair '$stem' '$slot' '$BOOT_HEX' $sargs && [ \"\$(unit_prop '$stem.timer' LastTriggerUSecMonotonic)\" = 0 ]" >"$ST/leg.$f" 2>&1
     else
+      rm -f "$ST/rae_model"
       bash -c ". '$lib'; pp_attest_pair '$stem' '$slot' '$BOOT_HEX' $sargs && [ \"\$(unit_prop '$stem.timer' LastTriggerUSecMonotonic)\" = 0 ]" >"$ST/leg.$f" 2>&1
     fi
     echo "rc=$?" >>"$ST/leg.$f"
@@ -4202,13 +4252,15 @@ sa_boot_lib() { # sa_boot_lib <lib>
   grep -q -x 'E3J9 pp_attest_fail_count=0' <<<"$out" && ! grep -q internal <<<"$out" || return 1
   sa_ov timer UnitFileState enabled
   out=$(bash -c ". '$lib'; sa_c() { pp_attest_pair '$stem' boot '$BOOT_HEX' disabled; attest_lasttrigger '$stem.timer'; }; att_collect sa_c" 2>&1)
-  grep -q -x 'E3J9 pp_attest_internal_error=true' <<<"$out" && grep -q -x 'E3J9 pp_attest_fail_count=0' <<<"$out" && ! grep -q 'pp_attest_fail=' <<<"$out" || return 1
+  # E3J9E Stage B names it: tmr_unitfilestate/differs, exactly one failure, no internal error
+  grep -q -x 'E3J9 pp_attest_fail=tmr_unitfilestate' <<<"$out" && grep -q -x 'E3J9 pp_attest_class_tmr_unitfilestate=differs' <<<"$out" &&
+    grep -q -x 'E3J9 pp_attest_fail_count=1' <<<"$out" && ! grep -q internal <<<"$out" || return 1
   rm -f "$ST/prop.timer.UnitFileState"
   sa_ov timer TimersMonotonic '{ OnBootUSec=11min ; next_elapse=1h 2min 3.500000s }'
   out=$(bash -c ". '$lib'; sa_c() { pp_attest_pair '$stem' boot '$BOOT_HEX' disabled; attest_lasttrigger '$stem.timer'; }; att_collect sa_c" 2>&1)
   grep -q -x 'E3J9 pp_attest_class_tmr_monotonic=value_mismatch' <<<"$out" && grep -q -x 'E3J9 pp_attest_fail_count=1' <<<"$out"
 }
-t "boot pair renderings: clean → 0 failures; a wrong unit-file state (not in the Stage A vocabulary) → internal error, never a member; a wrong trigger → tmr_monotonic/value_mismatch" sa_boot_lib "$LLIB"
+t "boot pair renderings: clean → 0 failures; a wrong unit-file state → tmr_unitfilestate/differs (named in Stage B), never an internal error; a wrong trigger → tmr_monotonic/value_mismatch" sa_boot_lib "$LLIB"
 
 # 11m. scope of the change to pre-Stage-A code
 sa_fn_body() { # sa_fn_body <src> <name>: one function's text
@@ -4236,28 +4288,30 @@ sa_legacy_scope() { # sa_legacy_scope <new launcher source>
     { [ "$n" -ge "$a1" ] && [ "$n" -lt "$a2" ]; } || { [ "$n" -ge "$t1" ] && [ "$n" -lt "$t2" ]; } || { echo "     violation: removed old line $n"; return 1; }
   done < <(diff --old-line-format=$'%dn\n' --new-line-format='' --unchanged-line-format='' "$SA_OLDSRC" "$new")
 }
-t "pre-Stage-A code: only attest_service and attest_timer changed (collector mode) plus one diagnostic call in cmd_pp_schedule; the legacy schedule conjunction is byte-identical" sa_legacy_scope "$LAUNCHER_SRC"
+t "pre-Stage-A code (the Stage A commit b8fb23f): only attest_service and attest_timer changed (collector mode) plus one diagnostic call in cmd_pp_schedule; the legacy schedule conjunction is byte-identical (Stage B's own scope: section 12)" sa_legacy_scope "$SB_OLDSRC"
 
 # 11n. static: the closed lists tied to the source; the inert operation's reachable code
 sa_lists_tied() { # sa_lists_tied <launcher source>
   local src=$1 toks cls used common arms code
   toks=$(sed -n '/^readonly ATT_TOKENS=(/,/^)/p' "$src" | sed '1d;$d' | tr -s ' \n' '\n\n' | grep . | tr '\n' ' ')
-  [ "$toks" = "${SA_TOKENS[*]} " ] || { echo "     violation: ATT_TOKENS != the independent oracle"; return 1; }
+  [ "$toks" = "${SA_TOKENS[*]} ${SB_TOKENS[*]} " ] || { echo "     violation: ATT_TOKENS != the independent oracle (Stage A then Stage B)"; return 1; }
   cls=$(sed -n '/^readonly ATT_CLASSES=(/,/^)/p' "$src" | sed '1d;$d' | tr -s ' \n' '\n\n' | grep . | tr '\n' ' ')
   [ "$cls" = "$SA_CLASSES " ] || { echo "     violation: ATT_CLASSES != the approved vocabulary, in order"; return 1; }
   code=$(code_of "$src")
-  used=$(grep -o -E '(att_fail (svc|tmr)_[a-z]+|printf (svc|tmr)_[a-z]+)' <<<"$code" | awk '{print $2}' | sort -u | tr '\n' ' ')
-  [ "$used" = "$(printf '%s\n' "${SA_TOKENS[@]}" | sort -u | tr '\n' ' ')" ] || { echo "     violation: tokens used in code ($used)"; return 1; }
-  used=$({ grep -o -E 'att_fail ("\$1"|(svc|tmr)_[a-z]+) [a-z_]+' <<<"$code" | awk '{print $3}'
+  used=$(grep -o -E '(att_fail (svc|tmr|boot)_[a-z_]+|printf (svc|tmr)_[a-z_]+)' <<<"$code" | awk '{print $2}' | sort -u | tr '\n' ' ')
+  [ "$used" = "$(printf '%s\n' "${SA_TOKENS[@]}" "${SB_TOKENS[@]}" | sort -u | tr '\n' ' ')" ] || { echo "     violation: tokens used in code ($used)"; return 1; }
+  used=$({ grep -o -E 'att_fail ("\$1"|(svc|tmr|boot)_[a-z_]+) [a-z_]+' <<<"$code" | awk '{print $3}'
     for fn in att_value_class att_monotonic_class att_trigger_class; do sed -n "/^$fn() {/,/^}/p" "$src" | grep -o -E 'printf [a-z_]+' | awk '{print $2}'; done; } | sort -u | tr '\n' ' ')
   [ "$used" = "$(printf '%s\n' $SA_CLASSES | grep -v -x -E "${SA_RESERVED_CLASSES// /|}" | sort -u | tr '\n' ' ')" ] || { echo "     violation: classes used in code ($used)"; return 1; }
   common=$(sed -n '/^readonly ATTEST_COMMON=(/,/^)/p' "$src" | grep -o -E '^  "?[A-Za-z]+=' | tr -d ' ="' | sort | tr '\n' ' ')
   arms=$(sed -n '/^att_common_token() {/,/^}/p' "$src" | grep -o -E '^    [A-Za-z]+\)' | tr -d ' )' | sort | tr '\n' ' ')
   [ "$(printf '%s' "$common" | wc -w)" -eq 14 ] && [ "$common" = "$arms" ] || { echo "     violation: ATTEST_COMMON ($common) vs mapping ($arms)"; return 1; }
-  [ "$(grep -c -w att_unnamed <<<"$code")" -eq 2 ] && sed -n '/^attest_timer() {/,/^}/p' "$src" | grep -q -F '[ "$(unit_prop "$t" UnitFileState)" = "$4" ] || att_unnamed || return 1' ||
-    { echo "     violation: att_unnamed must be defined once and used only for the boot UnitFileState check"; return 1; }
+  # E3J9E Stage B: the boot UnitFileState check is named (tmr_unitfilestate); no unnamed check remains
+  [ "$(grep -c -w att_unnamed <<<"$code")" -eq 0 ] &&
+    sed -n '/^attest_timer() {/,/^}/p' "$src" | grep -q -F '[ "$v" = "$4" ] || att_fail tmr_unitfilestate "$(att_value_class "$v" "$rc")" || return 1' ||
+    { echo "     violation: att_unnamed must not exist; the boot UnitFileState check must be tmr_unitfilestate"; return 1; }
 }
-t "closed lists: ATT_TOKENS (28, …svc_env), ATT_CLASSES (the approved 13, in order; zero reserved), the tokens and classes used in code, the 14 ATTEST_COMMON properties and the one unnamed check all match the oracle" sa_lists_tied "$LAUNCHER_SRC"
+t "closed lists: ATT_TOKENS (the 28 Stage A tokens then the 6 Stage B tokens), ATT_CLASSES (the approved 13, in order; zero reserved), the tokens and classes used in code, the 14 ATTEST_COMMON properties and no unnamed check all match the oracle" sa_lists_tied "$LAUNCHER_SRC"
 sa_names_tied() { # every record the Stage A code can emit, exactly
   local got want
   got=$( { sed -n '/^# ── E3J9E Stage A: the attestation collector/,/^# ── end E3J9E Stage A collector/p' "$1"; sed -n '/^# ── E3J9E Stage A: the schedule diagnostics/,/^# ── end E3J9E Stage A ──/p' "$1"; } |
@@ -4268,7 +4322,7 @@ sa_names_tied() { # every record the Stage A code can emit, exactly
   [ "$got" = "$want" ] || { echo "     violation: emitted names: $got"; return 1; }
 }
 t "Stage A records: the collector and the timer-diag code emit exactly the enumerated names" sa_names_tied "$LAUNCHER_SRC"
-t "emitted names: the pp_attest_class_<token> placeholder values equal the closed token list" test "$(for e in "${DYN_NAMES[@]}"; do case "$e" in 'eanhl-cloud-credential|$att_tok|'*) echo "${e#*|*|}" ;; esac; done)" = "${SA_TOKENS[*]}"
+t "emitted names: the pp_attest_class_<token> placeholder values equal the closed token list (Stage A then Stage B)" test "$(for e in "${DYN_NAMES[@]}"; do case "$e" in 'eanhl-cloud-credential|$att_tok|'*) echo "${e#*|*|}" ;; esac; done)" = "${SA_TOKENS[*]} ${SB_TOKENS[*]}"
 sa_closure() { # sa_closure <launcher source> <root function>: every function reachable by name from it
   local src=$1 fn body seen=' ' n names
   local -a queue=("$2")
@@ -4286,7 +4340,7 @@ sa_closure() { # sa_closure <launcher source> <root function>: every function re
   done
   printf '%s\n' $seen | grep . | sort | tr '\n' ' '
 }
-SA_REACH='att_collect att_common_token att_emit att_fail att_member att_monotonic_class att_trigger_class att_unnamed att_value_class attest_lasttrigger attest_service attest_timer cleanup_named cmd_timer_diag e4_env_matches emit fresh_nonce journal_count pp_slot_field rand_hex td_attest td_cleanup td_finalize td_history td_name_fresh td_on_signal td_presence td_residue td_residue_once td_unowned_cleanup unit_prop '
+SA_REACH='att_collect att_common_token att_emit att_fail att_member att_monotonic_class att_trigger_class att_value_class attest_lasttrigger attest_service attest_timer cleanup_named cmd_timer_diag e4_env_matches emit fresh_nonce journal_count pp_slot_field rand_hex td_attest td_cleanup td_finalize td_history td_name_fresh td_on_signal td_presence td_residue td_residue_once td_unowned_cleanup unit_prop '
 SA_FORBID='WRAPPER CLI CLI_PIN PROVIDER_RUN_PROPS PROVIDER_MODES PROVIDER_MODE_NAMES LOCAL_PROPS LOCAL_BOUND_PROPS NETWORK_PROPS SETPRIV PGREP FLOCK STORE GNUPG_DIR LOCK_FILE AUTH_ENTRY as_svc list_secret_keys run_capture run_quiet bound_launch bound_start cmd_pp_run cmd_pp_schedule cmd_pp_collect cmd_pp_discard cmd_provider_probe pp_preconditions pp_cleanup_pair pp_name_fresh pp_attest_pair pp_attest_service'
 sa_inert_reach() { # sa_inert_reach <launcher source>: the reachable set is exactly the allowlist; none of it names the wrapper, CLI, key listing or a provider path
   local src=$1 reach fn body w
@@ -4448,7 +4502,7 @@ sa_battery() { # sa_battery <launcher> <out>
 sa_battery_equal() { # sa_battery_equal <new launcher>: the same verbs give the same bytes with the pre-Stage-A launcher
   local o1=$W/battery-old o2=$W/battery-new
   [ "$SA_OLDOK" = 1 ] || return 1
-  sa_battery "$LOLD" "$o1"
+  RAE_MODEL=legacy sa_battery "$LOLD" "$o1" # E3J9E Stage B: the old bytes see the RemainAfterElapse they request
   sa_battery "$1" "$o2"
   if ! cmp -s "$o1" "$o2"; then
     diff "$o1" "$o2" | head -20 | sed 's/^/     /'
@@ -4460,6 +4514,7 @@ t "differential: schedule (ok, repeated, attest-fail minus diagnostics, start-fa
 
 # 11q. the pre-Stage-A launcher bytes must FAIL the Stage A requirements (they have none of them)
 if [ "$SA_OLDOK" = 1 ]; then
+  RAE_MODEL=legacy # E3J9E Stage B: these prove the Stage A deltas, so the old bytes see the RemainAfterElapse they request
   killed_if "old launcher bytes: timer-diag success path" sa_td_pass "$LOLD"
   killed_if "old launcher bytes: one-failure token matrix (svc_user)" sa_token_matrix "$LOLD" svc_user
   killed_if "old launcher bytes: malformed / variant renderings" sa_variant_cases "$LOLD"
@@ -4474,6 +4529,7 @@ if [ "$SA_OLDOK" = 1 ]; then
   killed_if "old launcher bytes: closed lists" sa_lists_tied "$SA_OLDSRC"
   killed_if "old launcher bytes: a TimersCalendar query failure recorded by the collector" sa_case "$LOLD" tmr_calendar qfail query_failed
   killed_if "old launcher bytes: two failures diagnosed before the rollback" sa_site_two "$LOLD"
+  unset RAE_MODEL
 else
   fail=$((fail + 1))
   printf 'FAIL old launcher bytes unavailable: the pre-Stage-A regression checks did not run\n'
@@ -4484,6 +4540,7 @@ fi
 sam() { local n=$1 sc=$2; shift 2; mutation "Stage A: $n" "$L" "$sc" "$@"; }       # a mutant of the sandboxed launcher
 saml() { local n=$1 sc=$2; shift 2; mutation "Stage A: $n" "$LLIB" "$sc" "$@"; }   # a mutant of the library form
 sams() { local n=$1 sc=$2; shift 2; mutation "Stage A: $n" "$LAUNCHER_SRC" "$sc" "$@"; } # a mutant of the source
+samsa() { local n=$1 sc=$2; shift 2; mutation "Stage A: $n" "$SB_OLDSRC" "$sc" "$@"; } # a mutant of the Stage A commit's source
 SA_KEYS=(User Group WorkingDirectory UMask PrivateTmp ProtectHome ProtectSystem NoNewPrivileges KillMode Type RemainAfterExit StandardInput StandardOutput StandardError)
 declare -A SA_KEYTOK=([User]=svc_user [Group]=svc_group [WorkingDirectory]=svc_workdir [UMask]=svc_umask [PrivateTmp]=svc_privatetmp
   [ProtectHome]=svc_protecthome [ProtectSystem]=svc_protectsystem [NoNewPrivileges]=svc_nonewprivileges [KillMode]=svc_killmode
@@ -4506,7 +4563,7 @@ sam "Environment check disabled" 's/^    \[ "\$v" = "\$env" \] || att_fail svc_e
 sam "Environment query failure accepted" 's/^    att_fail svc_env query_failed || return 1$/    :/' sa_case svc_env qfail query_failed
 sam "Unit check disabled" 's/^  \[ "\$v" = "\$1.service" \] || att_fail tmr_unit/  true || att_fail tmr_unit/' sa_case tmr_unit sentinel differs
 sam "TimersCalendar check disabled" '/^attest_timer() {/,/^}/s/^  if \[ -n "\$v" \]; then$/  if false; then/' sa_case tmr_calendar sentinel differs
-sam "RemainAfterElapse check disabled" 's/^  \[ "\$v" = yes \] || att_fail tmr_remainafterelapse/  true || att_fail tmr_remainafterelapse/' sa_case tmr_remainafterelapse sentinel differs
+sam "RemainAfterElapse check disabled" 's/^  \[ "\$v" = "\$rae" \] || att_fail tmr_remainafterelapse/  true || att_fail tmr_remainafterelapse/' sa_case tmr_remainafterelapse sentinel differs
 sam "Persistent check disabled" 's/^  \[ "\$v" = no \] || att_fail tmr_persistent/  true || att_fail tmr_persistent/' sa_case tmr_persistent sentinel differs
 sam "timer FragmentPath check disabled" 's/^  \[ "\$v" = "\$3" \] || att_fail tmr_fragment/  true || att_fail tmr_fragment/' sa_case tmr_fragment sentinel differs
 sam "LastTrigger check disabled" 's/^  \[ "\$v" = 0 \] || att_fail tmr_lasttrigger/  true || att_fail tmr_lasttrigger/' sa_case tmr_lasttrigger sentinel other
@@ -4554,7 +4611,7 @@ saml "an invalid token is recorded as a member (record-time check removed)" '/^a
 saml "an invalid record is emitted as a member (emit-time check removed)" '/^att_emit() {/,/^}/s/^    if att_member "\$att_tok" "\${ATT_TOKENS\[@\]}" && att_member "\$cls" "\${ATT_CLASSES\[@\]}"; then$/    if true; then/' sa_internal
 saml "an internal error is not reported" 's/^    emit pp_attest_internal_error true$/    :/' sa_internal
 saml "an internal error does not fail" '/^att_emit() {/,/^}/s/^    return 1$/    return 0/' sa_internal
-saml "the unnamed boot check is not an error" '/^att_unnamed() {/,/^}/s/^  ATT_INTERNAL=1$/  :/' sa_boot_lib
+saml "the boot unit-file-state check reported as another token" 's/^    \[ "\$v" = "\$4" \] || att_fail tmr_unitfilestate /    [ "$v" = "$4" ] || att_fail tmr_fragment /' sa_boot_lib
 # ownership, phases and cancellation
 sam "ownership: before ownership a pair is stopped by name" 's/^    starting) td_unowned_cleanup || ok=0 ;;$/    starting) td_cleanup || ok=0 ;;/' sa_sig_start_foreign
 sam "ownership: never recorded after a successful start" '/^    TD_PHASE=owned$/d' sa_sig_owned
@@ -4625,13 +4682,13 @@ sam "site: the diagnostics decide the exit status" 's/^\(      att_collect pp_at
 sam "site: the last-trigger leg is not rerun" '/^pp_attest_schedule() {/,/^}/s/^  attest_lasttrigger "\$1.timer"$/  :/' sa_site_nz
 sam "site: the legacy conjunction loses its last-trigger leg" 's/^    if pp_attest_pair "\$stem" "\$slot" "\$PP_BOOT" && \[ "\$(unit_prop "\$stem.timer" LastTriggerUSecMonotonic)" = 0 \]; then$/    if pp_attest_pair "$stem" "$slot" "$PP_BOOT"; then/' sa_site_nz
 # source-level
-sams "scope: another pre-Stage-A function changed" '/^bound_reset() {$/,/^}/s/B_OK=0$/B_OK=1/' sa_legacy_scope
-sams "scope: the legacy schedule conjunction rewritten" 's/^    if pp_attest_pair "\$stem" "\$slot" "\$PP_BOOT" && \[ "\$(unit_prop "\$stem.timer" LastTriggerUSecMonotonic)" = 0 \]; then$/    if pp_attest_pair "$stem" "$slot" "$PP_BOOT" \&\& attest_lasttrigger "$stem.timer"; then/' sa_legacy_scope
-sams "scope: a pre-Stage-A line outside the attestation removed" '/^readonly E4_BASE_URL=/d' sa_legacy_scope
+samsa "scope: another pre-Stage-A function changed" '/^bound_reset() {$/,/^}/s/B_OK=0$/B_OK=1/' sa_legacy_scope
+samsa "scope: the legacy schedule conjunction rewritten" 's/^    if pp_attest_pair "\$stem" "\$slot" "\$PP_BOOT" && \[ "\$(unit_prop "\$stem.timer" LastTriggerUSecMonotonic)" = 0 \]; then$/    if pp_attest_pair "$stem" "$slot" "$PP_BOOT" \&\& attest_lasttrigger "$stem.timer"; then/' sa_legacy_scope
+samsa "scope: a pre-Stage-A line outside the attestation removed" '/^readonly E4_BASE_URL=/d' sa_legacy_scope
 sams "closed lists: svc_env renamed" 's/svc_env /svc_environment /g; s/svc_env$/svc_environment/' sa_lists_tied
 sams "closed lists: the reserved class dropped" 's/value_mismatch suffix_mismatch inner_delim zero nonzero na other$/value_mismatch suffix_mismatch inner_delim nonzero na other/' sa_lists_tied
 sams "closed lists: a property without a token mapping" '/^    UMask) printf svc_umask ;;$/d' sa_lists_tied
-sams "closed lists: a second unnamed check" 's/^  \[ "\$v" = no \] || att_fail tmr_persistent "\$(att_value_class "\$v" "\$rc")" || return 1$/  [ "$v" = no ] || att_unnamed || return 1/' sa_lists_tied
+sams "closed lists: an unnamed check reintroduced" 's/^  \[ "\$v" = no \] || att_fail tmr_persistent "\$(att_value_class "\$v" "\$rc")" || return 1$/  [ "$v" = no ] || att_unnamed || return 1/' sa_lists_tied
 sam "calendar: a failed TimersCalendar query is not recorded (the collector would pass)" 's/^  elif \[ "\$rc" -ne 0 \] \&\& \[ -n "\$ATT_DIAG" \]; then$/  elif false; then/' sa_case tmr_calendar qfail query_failed
 sam "calendar: the failed query reported as another token" 's/^    att_fail tmr_calendar query_failed$/    att_fail tmr_persistent query_failed/' sa_case tmr_calendar qfail query_failed
 sam "calendar: the failed query reported as another class" 's/^    att_fail tmr_calendar query_failed$/    att_fail tmr_calendar other/' sa_case tmr_calendar qfail query_failed
@@ -4640,6 +4697,485 @@ sam "calendar: the diagnosis of a second failure is lost" 's/^    att_fail tmr_c
 sams "records: an extra record in the Stage A code" 's/^  emit diag_mode timer$/  emit diag_mode timer\n  emit diag_extra x/' sa_names_tied
 # the differential battery
 sam "differential: a diagnostic record on the success path" '/^      emit pp_attest_ok true$/a\      emit pp_attest_fail_count 0' sa_battery_equal
+
+# ── 12. E3J9E Stage B: the systemd-run RemainAfterElapse correction and the deferred-path diagnostics ──
+# systemd-run appends RemainAfterElapse=false to every timer it creates, after the
+# --timer-property= values (fixture PROVENANCE R18); the fake systemd-run now models it,
+# so the harness no longer echoes the launcher's request back to it. Transient slots
+# expect "no", the boot pair "yes". The new collectors run only on failure branches: the
+# legacy verdict, exit status, rollback and every success-path byte stay those of the
+# Stage A bytes, which are compared under RAE_MODEL=legacy (they request yes).
+SB_DIAG_RE='^E3J9 (pp_attest_fail|pp_attest_class_|pp_attest_internal_error|pp_cleanup_step_failed)'
+sb_has() { grep -q -x "E3J9 $1" "$ST/out"; }
+sb_view() { grep -v -E "$SB_DIAG_RE" "$1" | sa_norm; } # a record stream without the diagnostic records
+
+# 12a. the oracle: the fake renders what systemd renders, not what the launcher asked for
+sb_oracle() { # sb_oracle <systemctl stub>
+  local sc=$1 u=eanhl-cloud-cred-pprobe-t20m-provider-0123456789abcdef0123456789abcdef
+  local u6=eanhl-cloud-cred-pprobe-t6h15m-provider-0123456789abcdef0123456789abcdef b=eanhl-cloud-cred-pprobe-boot-provider-0123456789abcdef0123456789abcdef
+  local v1 v2 v3 v4
+  pp_setup
+  "$SB/stub/systemd-run" --quiet --no-block "--unit=$u" --on-active=20min --timer-property=RemainAfterElapse=yes /usr/bin/true >/dev/null 2>&1
+  "$SB/stub/systemd-run" --quiet --no-block "--unit=$u6" --on-active=6h15min /usr/bin/true >/dev/null 2>&1
+  v1=$("$sc" show -p RemainAfterElapse --value -- "$u.timer")
+  v4=$("$sc" show -p RemainAfterElapse --value -- "$u6.timer")
+  echo legacy >"$ST/rae_model"
+  v2=$("$sc" show -p RemainAfterElapse --value -- "$u.timer")
+  rm -f "$ST/rae_model"
+  printf '%s\n' '[Timer]' 'OnBootSec=10min' 'RemainAfterElapse=yes' 'Persistent=no' "Unit=$b.service" >"$UD/$b.timer"
+  v3=$("$sc" show -p RemainAfterElapse --value -- "$b.timer")
+  rm -f "$UD/$b.timer"
+  [ "$v1" = no ] && [ "$v4" = no ] && [ "$v2" = yes ] && [ "$v3" = yes ]
+}
+t "Stage B oracle: a timer the fake systemd-run created renders RemainAfterElapse=no whether --timer-property= asked for yes or nothing; the legacy model echoes the request; a unit-file timer renders its file value" sb_oracle "$SB/stub/systemctl"
+mutation "Stage B: MB4 the fake no longer models systemd-run's appended property (the circular oracle)" "$SB/stub/systemctl" 's/^    \[ -z "\$onactive" \] || \[ "\$(cat "\$st\/rae_model" 2>\/dev\/null)" = legacy \] || P\[T_RemainAfterElapse\]=no$/    :/' sb_oracle
+
+# 12b. the G6 host result, reproduced by the Stage A bytes
+SB_G6='diag_mode=timer diag_unit=eanhl-cloud-cred-tdiag-X diag_history_pre_unit_count=0 diag_history_pre_manager_count=0 diag_started=true
+  pp_attest_fail=tmr_remainafterelapse pp_attest_class_tmr_remainafterelapse=differs pp_attest_fail_count=1 diag_attest_ok=false
+  diag_cleanup_timer_ok=true diag_cleanup_service_ok=true diag_residue_class=absent diag_residue_absent=true
+  diag_history_post_unit_count=0 diag_history_post_manager_count=0 diag_result=fail'
+sb_g6_repro() { # sb_g6_repro <launcher> <fixture set|->
+  if [ "$2" = - ]; then sa_setup; else sa_setup "$2"; fi
+  sa_td "$1"
+  # shellcheck disable=SC2086
+  [ "$(cat "$ST/rc")" = 70 ] && [ ! -s "$ST/err" ] &&
+    [ "$(sed -E 's/^(E3J9 diag_unit=eanhl-cloud-cred-tdiag-)[0-9a-f]{32}$/\1X/' "$ST/out")" = "$(printf 'E3J9 %s\n' $SB_G6)" ]
+}
+if [ "$SB_OLDOK" = 1 ]; then
+  t "Stage B: the Stage A bytes reproduce the G6 Hotel-Echo record stream exactly (fixture mode): tmr_remainafterelapse/differs, count 1, both cleanups, residue absent, histories 0/0, exit 70" sb_g6_repro "$LSA" inert-prefire
+  t "Stage B: the same G6 reproduction with every property derived from the launcher's own argv" sb_g6_repro "$LSA" -
+else
+  fail=$((fail + 1))
+  printf 'FAIL Stage A launcher bytes unavailable: the G6 reproduction did not run\n'
+fi
+
+# 12c. the corrected expectation: transient slots "no", the boot pair "yes"
+sb_td_pass_argv() { # timer-diag with its properties derived from its own argv
+  sa_setup
+  sa_td "$1"
+  [ "$(cat "$ST/rc")" = 0 ] && sa_has diag_attest_ok=true && sa_has pp_attest_fail_count=0 && sa_has diag_result=pass && sa_clean_io && sa_inert_argv && sa_no_cred
+}
+t "Stage B: timer-diag (argv mode) → pass, zero failures, the unchanged inert argv" sb_td_pass_argv "$L"
+sb_sched() { # sb_sched <launcher> <slot> <fixture set|-> [RemainAfterElapse rendering]
+  if [ "$3" = - ]; then sa_setup '' nolock; else sa_setup "$3" nolock; fi
+  [ -z "${4-}" ] || sa_ov timer RemainAfterElapse "$4"
+  "$1" provider-probe schedule "$2" >"$ST/out" 2>"$ST/err"
+  echo $? >"$ST/rc"
+}
+sb_sched_pass() { # sb_sched_pass <launcher> <slot> <fixture set|->
+  sb_sched "$1" "$2" "$3"
+  [ "$(cat "$ST/rc")" = 0 ] && sa_has pp_attest_ok=true && sa_has pp_scheduled=true && ! grep -q -E "$SB_DIAG_RE" "$ST/out" && sa_clean_io &&
+    grep -q -- ' --timer-property=RemainAfterElapse=yes ' "$ST/run_calls"
+}
+sb_sched_yes() { # sb_sched_yes <launcher> <slot> <fixture set|->: a transient timer rendering yes is refused, named and rolled back
+  sb_sched "$1" "$2" "$3" yes
+  [ "$(cat "$ST/rc")" = 70 ] && sa_has pp_attest_ok=false && [ "$(sa_tokens)" = 'tmr_remainafterelapse ' ] &&
+    [ "$(sa_rec pp_attest_class_tmr_remainafterelapse)" = differs ] && sa_has pp_attest_fail_count=1 && sa_has pp_rollback_complete=true &&
+    sa_has pp_scheduled=false && sa_clean_io && sa_no_leak
+}
+for sb_case_spec in 't20m -' 't20m provider-prefire' 't6h15m -'; do
+  read -r sb_slot sb_set <<<"$sb_case_spec"
+  t "Stage B: schedule $sb_slot ($sb_set) → attested with RemainAfterElapse=no, scheduled, exit 0, no diagnostic record, the request still in the argv" sb_sched_pass "$L" "$sb_slot" "$sb_set"
+  t "Stage B: schedule $sb_slot ($sb_set) with the timer rendering RemainAfterElapse=yes → exactly tmr_remainafterelapse/differs, rolled back, exit 70" sb_sched_yes "$L" "$sb_slot" "$sb_set"
+done
+sb_boot_pass() { pp_setup; "$1" provider-probe schedule boot >"$ST/out" 2>"$ST/err"; [ $? -eq 0 ] && sa_has pp_scheduled=true && sa_has pp_enable_attested=true && ! grep -q -E "$SB_DIAG_RE" "$ST/out" && sa_clean_io; }
+sb_boot_no() { # the boot unit-file timer rendering RemainAfterElapse=no → named at the boot schedule site, rolled back, exit 70
+  pp_setup
+  sa_ov timer RemainAfterElapse no
+  "$1" provider-probe schedule boot >"$ST/out" 2>"$ST/err"
+  [ $? -eq 70 ] && sa_has pp_attest_ok=false && [ "$(sa_tokens)" = 'tmr_remainafterelapse ' ] && [ "$(sa_rec pp_attest_class_tmr_remainafterelapse)" = differs ] &&
+    sa_has pp_attest_fail_count=1 && sa_has pp_rollback_complete=true && sa_has pp_scheduled=false && sa_clean_io &&
+    [ -z "$(ls -A "$UD" | grep eanhl-cloud-cred-pprobe)" ]
+}
+t "Stage B: schedule boot (a unit file renders RemainAfterElapse=yes) → scheduled, enabled, exit 0, no diagnostic record" sb_boot_pass "$L"
+t "Stage B: schedule boot with the timer rendering RemainAfterElapse=no → exactly tmr_remainafterelapse/differs at the boot site, rolled back, exit 70" sb_boot_no "$L"
+sb_collect_order() { # collect after a successful fire: pass, the timer stopped before the service, no diagnostic record
+  local a b
+  sched_t20m "$1"
+  touch "$ST/triggered"
+  pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider
+  rm -f "$ST/calls"
+  "$1" provider-probe collect t20m >"$ST/out" 2>"$ST/err"
+  [ $? -eq 0 ] && sa_has provider_run_result=pass && ! grep -q -E "$SB_DIAG_RE" "$ST/out" || return 1
+  a=$(grep -n -F "systemctl stop -- $T20.timer" "$ST/calls" | head -1 | cut -d: -f1)
+  b=$(grep -n -F "systemctl stop -- $T20.service" "$ST/calls" | head -1 | cut -d: -f1)
+  [ -n "$a" ] && [ -n "$b" ] && [ "$a" -lt "$b" ]
+}
+t "Stage B: collect t20m after a successful fire (the timer still loaded, RemainAfterElapse=no) → pass, timer stopped before service, no diagnostic record" sb_collect_order "$L"
+sb_failed_run() { # sb_failed_run <launcher> <K|G>: the scheduled service failed; K: the timer is kept; G: garbage-collected (R19: not established, both tested)
+  local rc
+  sched_t20m "$1"
+  touch "$ST/triggered"
+  echo failed >"$ST/active"
+  echo 1 >"$ST/status"
+  echo exit-code >"$ST/result"
+  pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider
+  [ "$2" = K ] || touch "$ST/gc_failed_timer"
+  rm -f "$ST/calls"
+  "$1" provider-probe collect t20m >"$ST/out" 2>"$ST/err"
+  rc=$?
+  vocab_only "$(cat "$ST/out")" && [ ! -e "$ST/cli_started" ] || return 1
+  if [ "$2" = K ]; then
+    [ "$rc" = 1 ] && sb_has provider_run_result=fail && ! grep -q '^E3J9 pp_provenance=' "$ST/out" &&
+      grep -q -F "systemctl stop -- $T20.timer" "$ST/calls" && grep -q -F "systemctl stop -- $T20.service" "$ST/calls"
+  else
+    [ "$rc" = 65 ] && sb_has pp_provenance=missing && sb_has provider_run_result=fail && ! grep -q '^systemctl stop' "$ST/calls" &&
+      [ "$("$SB/stub/systemctl" show -p LoadState --value -- "$T20.service")" = loaded ] &&
+      [ "$("$SB/stub/systemctl" show -p LoadState --value -- "$T20.timer")" = not-found ]
+  fi
+}
+t "Stage B: collect t20m after a FAILED run, the timer kept → classified fail, both units stopped, exit 1" sb_failed_run "$L" K
+t "Stage B: collect t20m after a FAILED run, the timer garbage-collected → refused fail-closed (pp_provenance=missing, exit 65), nothing stopped, the failed service left for operator review" sb_failed_run "$L" G
+t "Stage B: discard t20m before it fired (systemd-run model) → removed, exit 0" check_discard_ok "$L"
+sb_discard_boot() { sched_boot "$1"; "$1" provider-probe discard boot >"$ST/out" 2>"$ST/err"; [ $? -eq 0 ] && sa_has pp_discarded=true && ! grep -q -E "$SB_DIAG_RE" "$ST/out"; }
+t "Stage B: discard boot (the unit-file timer renders yes) → removed, exit 0, no diagnostic record" sb_discard_boot "$L"
+
+# 12d. the deferred paths: one failure per site → its closed token and class, the legacy verdict unchanged
+sb_case() { # sb_case <launcher> <legacy|-> <setup> <args...>: fresh state via <setup> (eval; $sbl is the launcher), then one verb
+  local sbl=$1 RAE_MODEL=''
+  [ "$2" != legacy ] || RAE_MODEL=legacy
+  eval "$3"
+  shift 3
+  rm -f "$ST/calls"
+  "$sbl" "$@" >"$ST/out" 2>"$ST/err"
+  echo $? >"$ST/rc"
+}
+sb_check_diag() { # sb_check_diag <rc> <"tok:class ..."|->: exit status, then exactly these tokens and classes, before the verdict record
+  local rc=$1 want=$2 tc toks='' n=0 a b
+  [ "$(cat "$ST/rc")" = "$rc" ] && sa_clean_io && sa_no_leak && ! grep -q 'pp_attest_internal_error' "$ST/out" || return 1
+  if [ "$want" = - ]; then ! grep -q '^E3J9 pp_attest_fail=' "$ST/out"; return; fi
+  for tc in $want; do
+    toks+="${tc%%:*} "
+    n=$((n + 1))
+    [ "$(sa_rec "pp_attest_class_${tc%%:*}")" = "${tc#*:}" ] || return 1
+  done
+  [ "$(sa_tokens)" = "$toks" ] && sb_has "pp_attest_fail_count=$n" || return 1
+  a=$(grep -n '^E3J9 pp_attest_fail_count=' "$ST/out" | tail -1 | cut -d: -f1)
+  b=$(grep -n -E '^E3J9 (pp_provenance|pp_rollback_complete)=' "$ST/out" | head -1 | cut -d: -f1)
+  [ -n "$a" ] && { [ -z "$b" ] || [ "$a" -lt "$b" ]; }
+}
+sb_diag() { # sb_diag <launcher> <setup> <rc> <"tok:class ..."> <args...>: same verdict as the Stage A bytes (legacy), then the diagnostics
+  local l=$1 setup=$2 rc=$3 want=$4 o1=$W/sbd-old o2=$W/sbd-new
+  shift 4
+  [ "$SB_OLDOK" = 1 ] || return 1
+  sb_case "$LSA" legacy "$setup" "$@"
+  { echo "rc=$(cat "$ST/rc")"; sb_view "$ST/out"; } >"$o1"
+  sb_case "$l" - "$setup" "$@"
+  { echo "rc=$(cat "$ST/rc")"; sb_view "$ST/out"; } >"$o2"
+  cmp -s "$o1" "$o2" || { diff "$o1" "$o2" | head -8 | sed 's/^/     /'; return 1; }
+  sb_check_diag "$rc" "$want"
+}
+sb_diag_new() { # sb_diag_new <launcher> <setup> <rc> <"tok:class ..."> <args...>: a case whose verdict Stage B changes on purpose
+  local l=$1 setup=$2 rc=$3 want=$4
+  shift 4
+  sb_case "$l" - "$setup" "$@"
+  sb_check_diag "$rc" "$want"
+}
+sb_fired() { sa_setup provider-prefire nolock; "$sbl" provider-probe schedule t20m >/dev/null 2>&1; rm -rf "$ST/fx"; cp -r "$FXR/provider-fired" "$ST/fx"; touch "$ST/triggered"; pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider; }
+sb_orphan() { pp_setup; pp_records "$(now_prefix provider)" provider; echo 5 >"$ST/stop_rc"; "$sbl" provider-probe run provider >/dev/null 2>&1; NOWU=$(grep -o -E 'eanhl-cloud-cred-pprobe-now-provider-[0-9a-f]{32}' "$ST/run_calls" | head -1); }
+# the collect / discard discovery attestation (pp_attest_found)
+SB_FOUND_CASES=(
+  'collect User|sb_fired; sa_ov service User sentinel-secret-cu|65|svc_user:differs|provider-probe collect t20m'
+  'collect Persistent|sb_fired; sa_ov timer Persistent sentinel-secret-cp|65|tmr_persistent:differs|provider-probe collect t20m'
+  'collect Description grammar|sb_fired; sa_ov service Description sentinel-secret-cd|65|svc_description:differs|provider-probe collect t20m'
+  'discard TimersMonotonic|sa_setup provider-prefire nolock; "$sbl" provider-probe schedule t20m >/dev/null 2>&1; sa_ov_variant timer TimersMonotonic badvalue|65|tmr_monotonic:value_mismatch|provider-probe discard t20m'
+  'discard now orphan|sb_orphan; rm -f "$ST/stop_rc"; echo sentinel-secret-no >"$ST/prop.service.User"|65|svc_user:differs|provider-probe discard now'
+  'discard boot armed id|sched_boot "$sbl"; sed -i "s/armed-boot $BOOT_HEX/armed-boot ffffffffffffffffffffffffffffffff/" "$UD/$BOOT_STEM.timer"|65|boot_armed:differs boot_files:differs|provider-probe discard boot'
+  'discard boot unit-file line|sched_boot "$sbl"; printf "ExecStartPost=/usr/bin/true\n" >>"$UD/$BOOT_STEM.service"|65|boot_files:differs|provider-probe discard boot'
+  'discard boot wants link|sched_boot "$sbl"; rm -f "$WD/$BOOT_STEM.timer"; ln -s /elsewhere "$WD/$BOOT_STEM.timer"|65|boot_wants:differs|provider-probe discard boot'
+  'collect boot unit-file state|sched_boot "$sbl"; sa_ov timer UnitFileState disabled|65|tmr_unitfilestate:differs|provider-probe collect boot'
+  'schedule boot ActiveState (disabled site)|pp_setup; echo active >"$ST/boot_timer_state"|70|tmr_activestate:differs|provider-probe schedule boot'
+  'schedule boot unit-file state (disabled site)|pp_setup; sa_ov timer UnitFileState enabled|70|tmr_unitfilestate:differs|provider-probe schedule boot'
+  'schedule boot unit-file state (enabled site)|pp_setup; sa_ov timer UnitFileState disabled|70|tmr_unitfilestate:differs|provider-probe schedule boot'
+)
+for sb_spec in "${SB_FOUND_CASES[@]}"; do
+  IFS='|' read -r sb_name sb_setup sb_rc sb_want sb_args <<<"$sb_spec"
+  # shellcheck disable=SC2086
+  t "Stage B site: $sb_name → the Stage A verdict and exit $sb_rc unchanged, then exactly $sb_want before the verdict record" sb_diag "$L" "$sb_setup" "$sb_rc" "$sb_want" $sb_args
+done
+t "Stage B site: collect with the fired timer rendering RemainAfterElapse=yes (Stage B changes this verdict) → refused 65, exactly tmr_remainafterelapse/differs" \
+  sb_diag_new "$L" 'sb_fired; sa_ov timer RemainAfterElapse yes' 65 tmr_remainafterelapse:differs provider-probe collect t20m
+# the cleanup legs (pp_cleanup_pair) and the boot schedule collector, through the library form in a prepared state
+sb_lib_case() { # sb_lib_case <lib> <legacy|-> <setup> <command>: fresh state via <setup> ($sbl schedules), then one library call
+  local lib=$1 sbl=$L RAE_MODEL=''
+  [ "$lib" != "$LLIBSA" ] || sbl=$LSA
+  [ "$2" != legacy ] || RAE_MODEL=legacy
+  eval "$3"
+  rm -f "$ST/calls"
+  T20=${T20-} BOOT_STEM=${BOOT_STEM-} NOWU=${NOWU-} BOOT_HEX=$BOOT_HEX bash -c ". '$lib'; $4" >"$ST/out" 2>"$ST/err"
+  echo $? >"$ST/rc"
+}
+sb_lib_diag() { # sb_lib_diag <lib> <setup> <command> <rc> <"tok:class ..."|-> <step|->: same verdict as the Stage A library (legacy), then the records
+  local lib=$1 setup=$2 cmd=$3 rc=$4 want=$5 step=$6 o1=$W/sbl-old o2=$W/sbl-new
+  [ "$SB_OLDOK" = 1 ] || return 1
+  sb_lib_case "$LLIBSA" legacy "$setup" "$cmd"
+  { echo "rc=$(cat "$ST/rc")"; sb_view "$ST/out"; } >"$o1"
+  sb_lib_case "$lib" - "$setup" "$cmd"
+  { echo "rc=$(cat "$ST/rc")"; sb_view "$ST/out"; } >"$o2"
+  cmp -s "$o1" "$o2" || { diff "$o1" "$o2" | head -8 | sed 's/^/     /'; return 1; }
+  sb_check_diag "$rc" "$want" || return 1
+  if [ "$step" = - ]; then ! grep -q '^E3J9 pp_cleanup_step_failed=' "$ST/out"
+  else [ "$(grep -c '^E3J9 pp_cleanup_step_failed=' "$ST/out")" = 1 ] && sb_has "pp_cleanup_step_failed=$step"; fi
+}
+SB_CP_T20='pp_cleanup_pair "$T20" t20m "$BOOT_HEX" provider'
+SB_CP_BOOT='pp_cleanup_pair "$BOOT_STEM" boot "$BOOT_HEX" provider'
+SB_CP_NOW='pp_cleanup_pair "$NOWU" now "$BOOT_HEX" provider'
+SB_WRAP_UP='eval "sb_orig_$(declare -f unit_publish)"; unit_publish() { if [ "$1" = @OP@ ]; then return 70; fi; sb_orig_unit_publish "$@"; }; '
+SB_CLEANUP_CASES=(
+  "cleanup t20m timer leg|sched_t20m \"\$sbl\"; echo sentinel-secret-ct >\"\$ST/prop.service.User\"|$SB_CP_T20|1|svc_user:differs|-"
+  "cleanup t20m service leg (timer gone)|sched_t20m \"\$sbl\"; rm -f \"\$ST/u/\$T20.timer\"; echo sentinel-secret-cs >\"\$ST/prop.service.User\"|$SB_CP_T20|1|svc_user:differs|-"
+  "cleanup now leg|sb_orphan; rm -f \"\$ST/stop_rc\"; echo sentinel-secret-cn >\"\$ST/prop.service.User\"|$SB_CP_NOW|1|svc_user:differs|-"
+  "cleanup boot files leg|sched_boot \"\$sbl\"; printf 'ExecStartPost=/usr/bin/true\n' >>\"\$UD/\$BOOT_STEM.service\"|$SB_CP_BOOT|1|boot_files:differs|-"
+  "cleanup boot pair leg|sched_boot \"\$sbl\"; sa_ov timer Persistent sentinel-secret-cb|$SB_CP_BOOT|1|tmr_persistent:differs|-"
+  "cleanup step: timer stop|sched_t20m \"\$sbl\"; echo 5 >\"\$ST/stop_rc.timer\"|$SB_CP_T20|1|-|timer_stop"
+  "cleanup step: service stop (t20m)|sched_t20m \"\$sbl\"; echo 5 >\"\$ST/stop_rc.service\"|$SB_CP_T20|1|-|service_stop"
+  "cleanup step: service stop (now)|sb_orphan|$SB_CP_NOW|1|-|service_stop"
+  "cleanup step: boot timer stop|sched_boot \"\$sbl\"; echo 5 >\"\$ST/stop_rc.timer\"|$SB_CP_BOOT|1|-|timer_stop"
+  "cleanup step: boot service stop|sched_boot \"\$sbl\"; echo 5 >\"\$ST/stop_rc.service\"|$SB_CP_BOOT|1|-|service_stop"
+  "cleanup step: disable|sched_boot \"\$sbl\"; echo 1 >\"\$ST/disable_rc\"|$SB_CP_BOOT|1|-|disable"
+  "cleanup step: wants link left|sched_boot \"\$sbl\"|pp_wants_link_state() { printf present; }; $SB_CP_BOOT|1|-|wants_link"
+  "cleanup step: unpublish|sched_boot \"\$sbl\"|${SB_WRAP_UP//@OP@/unpublish-pair}$SB_CP_BOOT|1|-|unpublish"
+  "cleanup step: daemon-reload|sched_boot \"\$sbl\"; echo 1 >\"\$ST/reload_rc\"|$SB_CP_BOOT|1|-|daemon_reload"
+  "cleanup step: units still loaded|sched_boot \"\$sbl\"; echo loaded >\"\$ST/loadstate\"|$SB_CP_BOOT|1|-|unit_gone"
+  "cleanup step: fsync of the wants directory (its status kept)|sched_boot \"\$sbl\"|${SB_WRAP_UP//@OP@/fsync-wants}$SB_CP_BOOT|70|-|fsync_wants"
+)
+for sb_spec in "${SB_CLEANUP_CASES[@]}"; do
+  IFS='|' read -r sb_name sb_setup sb_cmd sb_rc sb_want sb_step <<<"$sb_spec"
+  t "Stage B $sb_name → the Stage A verdict and status $sb_rc unchanged; tokens: $sb_want; step: $sb_step" sb_lib_diag "$LLIB" "$sb_setup" "$sb_cmd" "$sb_rc" "$sb_want" "$sb_step"
+done
+# the two boot cleanup collectors that run only after an earlier leg succeeded: the fake changes state between the legs
+# (after_stop.<kind>, consumed by the stop of the first unit of that kind), so the earlier legs attest and only that leg fails
+sb_boot_files_late() { # sb_boot_files_late <lib>: canonical at the first boot-files check; the service file gains a line only once
+  # the timer and the service are stopped → the SECOND boot-files collector names it; disable is never reached
+  sb_lib_diag "$1" "sched_boot \"\$sbl\"; printf 'append ExecStartPost=/usr/bin/true\n' >\"\$ST/after_stop.service\"" "$SB_CP_BOOT" 1 boot_files:differs - &&
+    grep -q -x -F "systemctl stop -- $BOOT_STEM.timer" "$ST/calls" && grep -q -x -F "systemctl stop -- $BOOT_STEM.service" "$ST/calls" &&
+    ! grep -q '^systemctl disable' "$ST/calls" && [ ! -e "$ST/after_stop.service" ] &&
+    [ "$(grep -c -x 'ExecStartPost=/usr/bin/true' "$UD/$BOOT_STEM.service")" = 1 ]
+}
+sb_boot_service_late() { # sb_boot_service_late <lib>: the boot pair (its service included) attests and the timer is stopped; only then
+  # does the service's User change → the boot SERVICE collector names it; the service is never stopped
+  sb_lib_diag "$1" "sched_boot \"\$sbl\"; printf 'prop service User sentinel-secret-bsl\n' >\"\$ST/after_stop.timer\"" "$SB_CP_BOOT" 1 svc_user:differs - &&
+    grep -q -x -F "systemctl stop -- $BOOT_STEM.timer" "$ST/calls" && ! grep -q -F "systemctl stop -- $BOOT_STEM.service" "$ST/calls" &&
+    [ ! -e "$ST/after_stop.timer" ] && [ "$(cat "$ST/prop.service.User")" = sentinel-secret-bsl ]
+}
+t "Stage B cleanup boot SECOND files check: canonical at the first check, changed only after both stops → the Stage A verdict and status 1 unchanged, exactly boot_files/differs, disable never reached" sb_boot_files_late "$LLIB"
+t "Stage B cleanup boot SERVICE leg: the pair attests and the timer stops, then the service changes → the Stage A verdict and status 1 unchanged, exactly svc_user/differs, the service never stopped" sb_boot_service_late "$LLIB"
+sb_lib_new() { # sb_lib_new <lib> <setup> <command> <rc> <"tok:class ...">: a Stage B function (absent from the Stage A bytes)
+  sb_lib_case "$1" - "$2" "$3"
+  sb_check_diag "$4" "$5"
+}
+SB_COLL='att_collect pp_attest_boot_sched "$BOOT_STEM" "$BOOT_HEX" enabled'
+t "Stage B collector: boot schedule legs, an extra wants entry → exactly boot_wants_count/differs" \
+  sb_lib_new "$LLIB" 'sched_boot "$sbl"; : >"$WD/eanhl-cloud-cred-pprobe-boot-provider-ffffffffffffffffffffffffffffffff.timer"' "$SB_COLL" 1 boot_wants_count:differs
+t "Stage B collector: boot schedule legs, the wants link removed → tmr_unitfilestate/differs, boot_wants/empty, boot_wants_count/differs, in check order" \
+  sb_lib_new "$LLIB" 'sched_boot "$sbl"; rm -f "$WD/$BOOT_STEM.timer"' "$SB_COLL" 1 'tmr_unitfilestate:differs boot_wants:empty boot_wants_count:differs'
+t "Stage B collector: boot schedule legs, the object listing failing → boot_wants_count/query_failed (never read as a count)" \
+  sb_lib_new "$LLIB" 'sched_boot "$sbl"; echo 1 >"$ST/units_rc"' "$SB_COLL" 1 boot_wants_count:query_failed
+t "Stage B collector: a clean scheduled boot pair → zero failures" sb_lib_new "$LLIB" 'sched_boot "$sbl"' "$SB_COLL" 0 -
+sb_step_invalid() { local out; out=$(bash -c ". '$1'; pp_step_fail bogus; echo rc=\$?" 2>&1); [ "$out" = "$(printf 'E3J9 pp_cleanup_step_failed=invalid\nrc=1')" ]; }
+t "Stage B: a cleanup step outside the closed list is recorded as invalid, never as itself; status 1" sb_step_invalid "$LLIB"
+
+# 12e. static: the closed lists, the record names, the unchanged argv, the scope
+sb_lists() { # sb_lists <launcher source>
+  local src=$1 code steps used
+  code=$(code_of "$src")
+  steps=$(sed -n 's/^readonly PP_CLEANUP_STEPS=(\(.*\))$/\1/p' "$src")
+  [ "$steps" = "${SB_STEPS[*]}" ] || { echo "     violation: PP_CLEANUP_STEPS ($steps)"; return 1; }
+  used=$(grep -o -E 'pp_step_fail [a-z_]+' <<<"$code" | awk '{print $2}' | sort -u | tr '\n' ' ')
+  [ "$used" = "$(printf '%s\n' "${SB_STEPS[@]}" | sort -u | tr '\n' ' ')" ] || { echo "     violation: steps used ($used)"; return 1; }
+  ! grep -q -w att_unnamed <<<"$code" || { echo "     violation: att_unnamed"; return 1; }
+}
+t "Stage B closed lists: PP_CLEANUP_STEPS = the oracle in order; every pp_step_fail call names a member and every member is used; no unnamed check" sb_lists "$LAUNCHER_SRC"
+sb_names() { # the Stage B block emits exactly one record name
+  [ "$(sed -n '/^# ── E3J9E Stage B: closed diagnostics/,/^# ── end E3J9E Stage B/p' "$1" | sed -E -e 's/^[[:space:]]*#.*$//' -e 's/[[:space:]]#[[:space:]].*$//' |
+    grep -o -E '(^|[;&|({[:space:]])emit[[:space:]]+[^[:space:];)]+' | sed -E 's/^[;&|({[:space:]]*emit[[:space:]]+//' | sort -u | tr '\n' ' ')" = 'pp_cleanup_step_failed ' ]
+}
+t "Stage B records: the Stage B block emits exactly pp_cleanup_step_failed" sb_names "$LAUNCHER_SRC"
+sb_argv_identity() { # sb_argv_identity <launcher source>
+  local src=$1 blk a body
+  [ "$SB_OLDOK" = 1 ] || return 1
+  for blk in 'if ! "$SYSTEMD_RUN" --quiet --no-block --unit="$stem"' 'if "$SYSTEMD_RUN" --quiet --no-block --unit="$stem" --description="$TD_DESC"'; do
+    a=$(grep -A2 -F -- "$blk" "$src")
+    [ -n "$a" ] && [ "$(grep -c -F -- "$blk" "$src")" = 1 ] && [ "$a" = "$(grep -A2 -F -- "$blk" "$SB_OLDSRC")" ] || return 1
+  done
+  [ "$(sa_fn_body "$src" pp_render_timer)" = "$(sa_fn_body "$SB_OLDSRC" pp_render_timer)" ] || return 1
+  body=$(sa_fn_body "$src" attest_timer)
+  [ "$(grep -c 'rae=' <<<"$body")" = 2 ] && grep -q -x -F "  local t=\"\$1.timer\" key='' val='' v raw mid rc slot_ok=1 rae=no" <<<"$body" &&
+    grep -q -x -F '  [ "$2" != boot ] || rae=yes' <<<"$body" &&
+    grep -q -x -F '  [ "$v" = "$rae" ] || att_fail tmr_remainafterelapse "$(att_value_class "$v" "$rc")" || return 1' <<<"$body" &&
+    [ "$(code_of "$src" | grep -c -F -- '--timer-property=RemainAfterElapse=yes')" = 2 ]
+}
+t "Stage B argv: both systemd-run invocations (3 lines each) byte-identical to the Stage A commit, the request kept; pp_render_timer unchanged; the expectation is exactly rae=no unless the slot is boot" sb_argv_identity "$LAUNCHER_SRC"
+SB_SCOPE_FNS=' attest_timer pp_attest_found pp_cleanup_pair cmd_pp_schedule cmd_timer_diag att_unnamed '
+sb_strip() { # sb_strip <src>: the code outside what Stage B may change (comments, blank lines, the Stage B block, ATT_TOKENS and the scoped functions removed)
+  awk -v fns="$SB_SCOPE_FNS" '
+    /^# ── E3J9E Stage B: closed diagnostics/ { skipb = 1 }
+    skipb { if ($0 ~ /^# ── end E3J9E Stage B/) skipb = 0; next }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*$/ { next }
+    /^readonly ATT_TOKENS=\(/ { skipa = 1 }
+    skipa { if ($0 ~ /^\)$/) skipa = 0; next }
+    skipf { if ($0 ~ /^}/) skipf = 0; next }
+    match($0, /^[a-z_0-9]+\(\) *[{(]/) { n = substr($0, 1, index($0, "(") - 1); if (index(fns, " " n " ") > 0) { skipf = 1; next } }
+    { print }
+  ' "$1"
+}
+sb_scope() { # sb_scope <launcher source>: outside the Stage B scope the code is byte-identical to the Stage A commit
+  [ "$SB_OLDOK" = 1 ] || return 1
+  [ "$(sb_strip "$SB_OLDSRC" | wc -l)" -gt 2000 ] || return 1
+  [ "$(sb_strip "$1")" = "$(sb_strip "$SB_OLDSRC")" ] || { diff <(sb_strip "$SB_OLDSRC") <(sb_strip "$1") | head -8 | sed 's/^/     /'; return 1; }
+}
+t "Stage B scope: outside attest_timer, pp_attest_found, pp_cleanup_pair, cmd_pp_schedule, cmd_timer_diag, ATT_TOKENS, att_unnamed and the Stage B block, the code is byte-identical to the Stage A commit" sb_scope "$LAUNCHER_SRC"
+sb_site_scope() { # cmd_pp_schedule gains only comments and the two boot collectors; cmd_timer_diag only comments
+  local d
+  [ "$SB_OLDOK" = 1 ] || return 1
+  d=$(diff <(sa_fn_body "$SB_OLDSRC" cmd_pp_schedule) <(sa_fn_body "$1" cmd_pp_schedule) | grep -E '^[<>]')
+  ! grep -q '^<' <<<"$d" && [ "$(grep -c '^>' <<<"$d")" = 5 ] && [ "$(grep -c -v -E '^>[[:space:]]+(#|att_collect pp_attest_boot_sched "\$stem" "\$PP_BOOT" (disabled|enabled) # E3J9E Stage B: diagnostics only, before the rollback$)' <<<"$d")" = 0 ] || return 1
+  d=$(diff <(sa_fn_body "$SB_OLDSRC" cmd_timer_diag) <(sa_fn_body "$1" cmd_timer_diag) | grep -E '^[<>]')
+  ! grep -q '^<' <<<"$d" && [ "$(grep -c '^>' <<<"$d")" = 3 ] && [ "$(grep -c -v -E '^>[[:space:]]+#' <<<"$d")" = 0 ]
+}
+t "Stage B scope: cmd_pp_schedule only gains comments and the two boot collectors; cmd_timer_diag only gains comments (no removed line in either)" sb_site_scope "$LAUNCHER_SRC"
+
+# 12f. the differential: the Stage A bytes (legacy model) against these bytes (systemd-run model)
+SB_BATTERY=(
+  'sched-t20m|pp_setup|provider-probe schedule t20m'
+  'sched-t6h15m|pp_setup|provider-probe schedule t6h15m'
+  'collect-pending|sched_t20m "$sbl"|provider-probe collect t20m'
+  'collect-pass|sched_t20m "$sbl"; touch "$ST/triggered"; pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider|provider-probe collect t20m'
+  'collect-mismatch|sched_t20m "$sbl"; touch "$ST/triggered"; pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider; echo sentinel-secret-b1 >"$ST/prop.timer.Unit"|provider-probe collect t20m'
+  'collect-failed-kept|sched_t20m "$sbl"; touch "$ST/triggered"; echo failed >"$ST/active"; echo 1 >"$ST/status"; echo exit-code >"$ST/result"; pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider|provider-probe collect t20m'
+  'collect-failed-gc|sched_t20m "$sbl"; touch "$ST/triggered" "$ST/gc_failed_timer"; echo failed >"$ST/active"; echo 1 >"$ST/status"; echo exit-code >"$ST/result"; pp_records "eanhl-cloud-cred-pprobe-t20m-provider-" provider|provider-probe collect t20m'
+  'discard-t20m|sched_t20m "$sbl"|provider-probe discard t20m'
+  'discard-mismatch|sched_t20m "$sbl"; echo sentinel-secret-b2 >"$ST/prop.service.User"|provider-probe discard t20m'
+  'discard-now-orphan|sb_orphan; rm -f "$ST/stop_rc"|provider-probe discard now'
+  'sched-start-fail|pp_setup; echo 1 >"$ST/run_rc"|provider-probe schedule t20m'
+  'sched-boot|pp_setup|provider-probe schedule boot'
+  'sched-boot-active|pp_setup; echo active >"$ST/boot_timer_state"|provider-probe schedule boot'
+  'sched-boot-enable-fail|pp_setup; echo 1 >"$ST/enable_rc"|provider-probe schedule boot'
+  'discard-boot|sched_boot "$sbl"|provider-probe discard boot'
+  'discard-boot-armed|sched_boot "$sbl"; sed -i "s/armed-boot $BOOT_HEX/armed-boot ffffffffffffffffffffffffffffffff/" "$UD/$BOOT_STEM.timer"|provider-probe discard boot'
+  'timer-diag|sa_setup|timer-diag'
+)
+sb_battery() { # sb_battery <new launcher>: success paths byte-identical; failure paths identical once diagnostics are removed; the systemd-run argv always identical
+  local l=$1 spec lab setup args o1=$W/sbb-old o2=$W/sbb-new bad=0 rc
+  [ "$SB_OLDOK" = 1 ] || return 1
+  for spec in "${SB_BATTERY[@]}"; do
+    IFS='|' read -r lab setup args <<<"$spec"
+    # shellcheck disable=SC2086
+    sb_case "$LSA" legacy "$setup" $args
+    { echo "rc=$(cat "$ST/rc")"; sa_norm <"$ST/out"; echo '-- err'; sa_norm <"$ST/err"; echo '-- run'; sa_norm <"$ST/run_calls" 2>/dev/null; } >"$o1.raw"
+    { echo "rc=$(cat "$ST/rc")"; sb_view "$ST/out"; echo '-- err'; sa_norm <"$ST/err"; echo '-- run'; sa_norm <"$ST/run_calls" 2>/dev/null; } >"$o1.view"
+    # shellcheck disable=SC2086
+    sb_case "$l" - "$setup" $args
+    rc=$(cat "$ST/rc")
+    { echo "rc=$rc"; sa_norm <"$ST/out"; echo '-- err'; sa_norm <"$ST/err"; echo '-- run'; sa_norm <"$ST/run_calls" 2>/dev/null; } >"$o2.raw"
+    { echo "rc=$rc"; sb_view "$ST/out"; echo '-- err'; sa_norm <"$ST/err"; echo '-- run'; sa_norm <"$ST/run_calls" 2>/dev/null; } >"$o2.view"
+    if [ "$rc" = 0 ]; then
+      cmp -s "$o1.raw" "$o2.raw" || { echo "     violation: $lab (success path) differs"; diff "$o1.raw" "$o2.raw" | head -6 | sed 's/^/     /'; bad=1; }
+    else
+      cmp -s "$o1.view" "$o2.view" || { echo "     violation: $lab differs beyond the diagnostics"; diff "$o1.view" "$o2.view" | head -6 | sed 's/^/     /'; bad=1; }
+    fi
+  done
+  [ "$bad" -eq 0 ]
+}
+t "Stage B differential: 17 verbs (schedule, collect pass/pending/mismatch/failed-kept/failed-collected, discard, orphan, start failure, boot schedule/failures/discard, timer-diag) — success paths byte-identical to the Stage A bytes, failure paths identical once the diagnostic records are removed, the systemd-run argv always identical" sb_battery "$L"
+
+# 12g. the Stage A bytes must FAIL the Stage B requirements (systemd-run model)
+if [ "$SB_OLDOK" = 1 ]; then
+  killed_if "Stage A bytes: timer-diag inert pass (fixture mode)" sa_td_pass "$LSA"
+  killed_if "Stage A bytes: timer-diag inert pass (argv mode)" sb_td_pass_argv "$LSA"
+  killed_if "Stage A bytes: schedule t20m" sb_sched_pass "$LSA" t20m -
+  killed_if "Stage A bytes: schedule t6h15m" sb_sched_pass "$LSA" t6h15m -
+  killed_if "Stage A bytes: collect after a successful fire" sb_collect_order "$LSA"
+  killed_if "Stage A bytes: collect-found diagnostics (User)" sb_diag "$LSA" 'sb_fired; sa_ov service User sentinel-secret-cu' 65 svc_user:differs provider-probe collect t20m
+  killed_if "Stage A bytes: discard-found diagnostics (boot armed id)" sb_diag "$LSA" 'sched_boot "$sbl"; sed -i "s/armed-boot $BOOT_HEX/armed-boot ffffffffffffffffffffffffffffffff/" "$UD/$BOOT_STEM.timer"' 65 'boot_armed:differs boot_files:differs' provider-probe discard boot
+  killed_if "Stage A bytes: boot schedule site diagnostics (ActiveState)" sb_diag "$LSA" 'pp_setup; echo active >"$ST/boot_timer_state"' 70 tmr_activestate:differs provider-probe schedule boot
+  killed_if "Stage A bytes: cleanup timer-leg diagnostics" sb_lib_diag "$LLIBSA" "sched_t20m \"\$sbl\"; echo sentinel-secret-ct >\"\$ST/prop.service.User\"" "$SB_CP_T20" 1 svc_user:differs -
+  killed_if "Stage A bytes: cleanup step record (daemon-reload)" sb_lib_diag "$LLIBSA" "sched_boot \"\$sbl\"; echo 1 >\"\$ST/reload_rc\"" "$SB_CP_BOOT" 1 - daemon_reload
+  killed_if "Stage A bytes: closed cleanup steps" sb_lists "$SB_OLDSRC"
+  killed_if "Stage A bytes: the second boot-files cleanup diagnostics" sb_boot_files_late "$LLIBSA"
+  killed_if "Stage A bytes: the boot service cleanup-leg diagnostics" sb_boot_service_late "$LLIBSA"
+else
+  fail=$((fail + 1))
+  printf 'FAIL Stage A launcher bytes unavailable: the Stage B regression checks did not run\n'
+fi
+
+# 12h. mutation: every Stage B decision, collector, token, step and boundary must be caught
+sbm() { local n=$1 sc=$2; shift 2; mutation "Stage B: $n" "$L" "$sc" "$@"; }             # a mutant of the sandboxed launcher
+sbml() { local n=$1 sc=$2; shift 2; mutation "Stage B: $n" "$LLIB" "$sc" "$@"; }         # a mutant of the library form
+sbms() { local n=$1 sc=$2; shift 2; mutation "Stage B: $n" "$LAUNCHER_SRC" "$sc" "$@"; } # a mutant of the source
+sbm "MB1 transient slots expect yes again" 's/^  \[ "\$2" != boot \] || rae=yes$/  rae=yes/' sb_sched_pass t20m -
+sbm "MB2 the boot pair expects no" 's/^  \[ "\$2" != boot \] || rae=yes$/  :/' sb_boot_pass
+sbm "MB3 the expectation map inverted" 's/^  \[ "\$2" != boot \] || rae=yes$/  [ "$2" = boot ] || rae=yes/' sb_sched_pass t20m -
+# sb_mut1 <name> <target> <exact text> <occurrence k> <expected occurrences> <d|s> <check fn> [args...]: a mutant that removes ONE
+# collector, addressed by the line of the k-th occurrence of <exact text> (d: delete that line; s: cut the text from it). It is
+# refused unless the target holds exactly <expected occurrences> of the text and the mutant differs in exactly that one line.
+sb_mut1() {
+  local name=$1 src=$2 text=$3 k=$4 total=$5 op=$6 fn n dst hunk want
+  shift 6
+  fn=$1
+  shift
+  n=$(grep -n -F -- "$text" "$src" | sed -n "${k}p" | cut -d: -f1)
+  if [ "$(grep -c -F -- "$text" "$src")" != "$total" ] || [ -z "$n" ]; then
+    fail=$((fail + 1))
+    printf 'FAIL mutation not addressable (the target text count changed): Stage B: %s\n' "$name"
+    return
+  fi
+  dst=$W/mut-$((killed + survived))-$(basename "$src")
+  case "$op" in
+    d) sed -e "${n}d" "$src" >"$dst"; want="${n}d$((n - 1))" ;;
+    s) awk -v n="$n" -v t="$text" 'NR == n { i = index($0, t); $0 = substr($0, 1, i - 1) substr($0, i + length(t)) } { print }' "$src" >"$dst"; want="${n}c${n}" ;;
+    *) fail=$((fail + 1)); printf 'FAIL mutation op unknown: Stage B: %s\n' "$name"; return ;;
+  esac
+  chmod +x "$dst"
+  hunk=$(diff "$src" "$dst" | grep -E '^[0-9]')
+  if [ "$hunk" != "$want" ] || [ "$(grep -c -F -- "$text" "$dst")" != "$((total - 1))" ]; then
+    fail=$((fail + 1))
+    printf 'FAIL mutation did not change exactly the one intended line: Stage B: %s\n' "$name"
+    return
+  fi
+  killed_if "Stage B: $name" "$fn" "$dst" "$@"
+}
+sb_mut1_guard() { # sb_mut1 refuses (records a failure, applies no mutant, counts no kill) when the occurrence count is not the expected one
+  local out
+  out=$(fail=0 killed=0 survived=0; sb_mut1 "guard: two occurrences, one expected" "$LLIB" 'att_collect pp_diag_boot_files "$stem" "$armed"; ' 1 1 s true; echo "fail=$fail killed=$killed survived=$survived")
+  grep -q 'FAIL mutation not addressable' <<<"$out" && grep -q -x 'fail=1 killed=0 survived=0' <<<"$out" || return 1
+  out=$(fail=0 killed=0 survived=0; sb_mut1 "guard: the text absent" "$LLIB" 'att_collect pp_no_such_collector; ' 1 1 s true; echo "fail=$fail killed=$killed survived=$survived")
+  grep -q 'FAIL mutation not addressable' <<<"$out" && grep -q -x 'fail=1 killed=0 survived=0' <<<"$out" || return 1
+  out=$(fail=0 killed=0 survived=0; sb_mut1 "guard: a third occurrence requested" "$LLIB" 'att_collect pp_diag_boot_files "$stem" "$armed"; ' 3 2 s true; echo "fail=$fail killed=$killed survived=$survived")
+  grep -q 'FAIL mutation not addressable' <<<"$out" && grep -q -x 'fail=1 killed=0 survived=0' <<<"$out"
+}
+t "Stage B mutants: the one-occurrence addressing refuses a wrong occurrence count, an absent text and a missing occurrence (no mutant, no kill counted)" sb_mut1_guard
+sb_mut1 "MB5a no collector at the boot discovery" "$L" 'att_collect pp_attest_found_diag boot # E3J9E Stage B' 1 1 d sb_diag 'sched_boot "$sbl"; printf "ExecStartPost=/usr/bin/true\n" >>"$UD/$BOOT_STEM.service"' 65 boot_files:differs provider-probe discard boot
+sb_mut1 "MB5b no collector for a Description outside the grammar" "$L" 'att_collect pp_attest_found_diag "$slot" # E3J9E Stage B' 1 1 d sb_diag 'sb_fired; sa_ov service Description sentinel-secret-cd' 65 svc_description:differs provider-probe collect t20m
+sb_mut1 "MB5c no collector at the now discovery" "$L" 'att_collect pp_attest_found_diag now; ' 1 1 s sb_diag 'sb_orphan; rm -f "$ST/stop_rc"; echo sentinel-secret-no >"$ST/prop.service.User"' 65 svc_user:differs provider-probe discard now
+sb_mut1 "MB5d no collector at the pair discovery" "$L" 'att_collect pp_attest_found_diag "$slot"; ' 1 1 s sb_diag 'sb_fired; sa_ov service User sentinel-secret-cu' 65 svc_user:differs provider-probe collect t20m
+sb_mut1 "MB5e no collector at the cleanup now leg" "$LLIB" 'att_collect pp_attest_service "$stem" now "$armed" "$lmode"; ' 1 1 s sb_lib_diag "sb_orphan; rm -f \"\$ST/stop_rc\"; echo sentinel-secret-cn >\"\$ST/prop.service.User\"" "$SB_CP_NOW" 1 svc_user:differs -
+sb_mut1 "MB5f no collector at the cleanup timer leg" "$LLIB" 'att_collect pp_attest_pair "$stem" "$slot" "$armed"; ' 1 1 s sb_lib_diag "sched_t20m \"\$sbl\"; echo sentinel-secret-ct >\"\$ST/prop.service.User\"" "$SB_CP_T20" 1 svc_user:differs -
+sb_mut1 "MB5g no collector at the cleanup service leg" "$LLIB" 'att_collect pp_attest_service "$stem" "$slot" "$armed" provider; ' 1 1 s sb_lib_diag "sched_t20m \"\$sbl\"; rm -f \"\$ST/u/\$T20.timer\"; echo sentinel-secret-cs >\"\$ST/prop.service.User\"" "$SB_CP_T20" 1 svc_user:differs -
+sb_mut1 "MB5h1 no collector at the FIRST cleanup boot-files check" "$LLIB" 'att_collect pp_diag_boot_files "$stem" "$armed"; ' 1 2 s sb_lib_diag "sched_boot \"\$sbl\"; printf 'ExecStartPost=/usr/bin/true\n' >>\"\$UD/\$BOOT_STEM.service\"" "$SB_CP_BOOT" 1 boot_files:differs -
+sb_mut1 "MB5h2 no collector at the SECOND cleanup boot-files check" "$LLIB" 'att_collect pp_diag_boot_files "$stem" "$armed"; ' 2 2 s sb_boot_files_late
+sb_mut1 "MB5i no collector at the cleanup boot pair leg" "$LLIB" 'att_collect pp_attest_pair "$stem" boot "$armed"; ' 1 1 s sb_lib_diag "sched_boot \"\$sbl\"; sa_ov timer Persistent sentinel-secret-cb" "$SB_CP_BOOT" 1 tmr_persistent:differs -
+sb_mut1 "MB5j no collector at the boot schedule (disabled) site" "$L" 'att_collect pp_attest_boot_sched "$stem" "$PP_BOOT" disabled #' 1 1 d sb_diag 'pp_setup; echo active >"$ST/boot_timer_state"' 70 tmr_activestate:differs provider-probe schedule boot
+sb_mut1 "MB5k no collector at the boot schedule (enabled) site" "$L" 'att_collect pp_attest_boot_sched "$stem" "$PP_BOOT" enabled #' 1 1 d sb_diag 'pp_setup; sa_ov timer UnitFileState disabled' 70 tmr_unitfilestate:differs provider-probe schedule boot
+sb_mut1 "MB5l no collector at the cleanup boot service leg" "$LLIB" 'att_collect pp_attest_service "$stem" boot "$armed" provider; ' 1 1 s sb_boot_service_late
+sbm "MB6a a collector decides the collect verdict" 's/{ att_collect pp_attest_found_diag "\$slot"; emit pp_provenance mismatch; return 1; }/{ att_collect pp_attest_found_diag "$slot" || exit 9; emit pp_provenance mismatch; return 1; }/' sb_diag 'sb_fired; sa_ov service User sentinel-secret-cu' 65 svc_user:differs provider-probe collect t20m
+sbm "MB6b a collector decides the boot schedule exit" 's/^\(    att_collect pp_attest_boot_sched "\$stem" "\$PP_BOOT" disabled\) #/\1 || exit 1 #/' sb_diag 'pp_setup; echo active >"$ST/boot_timer_state"' 70 tmr_activestate:differs provider-probe schedule boot
+sbm "MB7 a collector on the boot schedule success path" '/^    emit pp_enable_attested true$/a\    att_collect pp_attest_boot_sched "$stem" "$PP_BOOT" enabled' sb_boot_pass
+sbml "MB8a boot_wants reported as boot_files" 's/att_fail boot_wants empty/att_fail boot_files empty/' sb_lib_new 'sched_boot "$sbl"; rm -f "$WD/$BOOT_STEM.timer"' "$SB_COLL" 1 'tmr_unitfilestate:differs boot_wants:empty boot_wants_count:differs'
+sbm "MB8b the armed-id class changed" 's/att_fail boot_armed differs/att_fail boot_armed other/' sb_diag 'sched_boot "$sbl"; sed -i "s/armed-boot $BOOT_HEX/armed-boot ffffffffffffffffffffffffffffffff/" "$UD/$BOOT_STEM.timer"' 65 'boot_armed:differs boot_files:differs' provider-probe discard boot
+sbm "MB9 the unit-file state value leaked as its class" 's/att_fail tmr_unitfilestate "\$(att_value_class "\$v" "\$rc")"/att_fail tmr_unitfilestate "$v"/' sb_diag 'sched_boot "$sbl"; sa_ov timer UnitFileState disabled' 65 tmr_unitfilestate:differs provider-probe collect boot
+sbms "MB10a a cleanup step outside the closed list" 's/pp_step_fail timer_stop/pp_step_fail timer_halt/g' sb_lists
+sbml "MB10b the daemon-reload step record dropped" 's/{ pp_step_fail daemon_reload; return 1; }/{ return 1; }/' sb_lib_diag "sched_boot \"\$sbl\"; echo 1 >\"\$ST/reload_rc\"" "$SB_CP_BOOT" 1 - daemon_reload
+sbml "MB10c the fsync step loses its status" 's/{ rc=\$?; pp_step_fail fsync_wants; return "\$rc"; }/{ pp_step_fail fsync_wants; return 1; }/' sb_lib_diag "sched_boot \"\$sbl\"" "${SB_WRAP_UP//@OP@/fsync-wants}$SB_CP_BOOT" 70 - fsync_wants
+sbms "MB11a the schedule argv loses the RemainAfterElapse request" 's/^      "--on-active=\$(pp_slot_field "\$slot" 2)" --timer-property=RemainAfterElapse=yes \\$/      "--on-active=$(pp_slot_field "$slot" 2)" \\/' sb_argv_identity
+sbms "MB11b the inert argv loses the RemainAfterElapse request" 's/^    "--on-active=\$(pp_slot_field t20m 2)" --timer-property=RemainAfterElapse=yes \\$/    "--on-active=$(pp_slot_field t20m 2)" \\/' sb_argv_identity
+sbms "MB12 the unit-file-state check unnamed again" 's/^    \[ "\$v" = "\$4" \] || att_fail tmr_unitfilestate "\$(att_value_class "\$v" "\$rc")" || return 1$/    [ "$v" = "$4" ] || att_unnamed || return 1/' sa_lists_tied
+sbm "MB13 discovery accepts a lone service for a delayed slot" 's/^    t20m | t6h15m) pp_set_equal units "\$stem.service" "\$stem.timer"/    t20m | t6h15m) pp_subset units "$stem.service" "$stem.timer"/' sb_failed_run G
+sbm "MB14 cleanup stops the service before the timer" '/^      if ! pp_unit_gone "\$stem.timer"; then$/{N;N;N;h;d}; /^        cleanup_named "\$stem.service" || { pp_step_fail service_stop; return 1; }$/{n;G}' sb_collect_order
+sbms "scope: a line outside the Stage B scope changed" '/^readonly E4_BASE_URL=/d' sb_scope
+sbms "scope: a line removed from cmd_timer_diag" '/^  TD_PHASE=starting$/d' sb_site_scope
 
 printf '\n%d passed, %d failed (mutations: %d killed, %d survived)\n' "$pass" "$fail" "$killed" "$survived"
 [ "$MODE" = static ] && printf 'NOTE: --static-only — the accepted-delta regeneration did NOT run.\n'
