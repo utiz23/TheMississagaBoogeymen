@@ -1,16 +1,15 @@
 /**
- * classify-push.mjs — conservative, change-aware pre-push classifier.
+ * classify-push.mjs — change-aware pre-push classifier.
  *
- * Decides whether a push touches ONLY the documentation-only allowlist
- * (root-level *.md, docs/**\/*.md) and can therefore skip the heavy
- * scripts/verify-ocr.sh harness and verification-database credentials, or
- * whether it must go through full verification.
+ * The heavy scripts/verify-ocr.sh harness (~20 minutes, mostly the video-stats
+ * OCR suites and classifier bench) runs only when a push touches video-stats
+ * code — see isVideoStatsPath(). Every other push takes the fast path: a
+ * committed-range `git diff --check` and nothing else.
  *
- * Fails closed: anything unparseable, ambiguous, structurally unusual (branch
- * create/delete, non-head ref, non-fast-forward, missing/wrong-type object),
- * or outside the explicit allowlist is classified `full`. Only an exact match
- * against the allowlist for every changed path across every pushed ref
- * classifies `docs-only`.
+ * Still classified `full` (the push could not be read reliably): unparseable
+ * or empty stdin, a tag or other non-head ref, a non-fast-forward update, a
+ * missing/wrong-type object, or a new branch with no common history with
+ * origin/main to compare against.
  *
  * Every git invocation uses execFileSync with an argv array — no ref, oid, or
  * path is ever interpolated into a shell string.
@@ -21,12 +20,28 @@ import { execFileSync } from 'node:child_process'
 export const ZERO_OID_40 = '0'.repeat(40)
 export const ZERO_OID_64 = '0'.repeat(64)
 
+/** A new branch is compared against this remote-tracking ref. */
+export const NEW_BRANCH_BASE_REF = 'refs/remotes/origin/main'
+
 const OID_RE = /^[0-9a-f]{40}$|^[0-9a-f]{64}$/
+const VIDEO_STATS_DIRS = ['tools/game_ocr/', 'tools/video_ingest/', 'apps/worker/scripts/']
+// "ocr" as a whole path segment: ingest-ocr.ts, ocr-promoters/, verify-ocr.sh,
+// docs/ocr/*.txt, research/OCR-SS/ — but not e.g. "procrastinate".
+const OCR_SEGMENT_RE = /(^|[/_.\s-])ocr([/_.\s-]|$)/i
 const ROOT_MD_RE = /^[^/]+\.md$/
 const DOCS_MD_RE = /^docs\/.+\.md$/
 
-export function isAllowedDocPath(p) {
-  return ROOT_MD_RE.test(p) || DOCS_MD_RE.test(p)
+/**
+ * True when a changed path should trigger the full verification harness:
+ * anything under the video-stats tools or the verification-database harness,
+ * or any path with an "ocr" segment — except prose notes (root-level *.md and
+ * docs/**\/*.md). Markdown elsewhere still counts: research/OCR-SS/*.md is
+ * machine input to the match-250 benchmark parity gate.
+ */
+export function isVideoStatsPath(p) {
+  if (VIDEO_STATS_DIRS.some((dir) => p.startsWith(dir))) return true
+  if (ROOT_MD_RE.test(p) || DOCS_MD_RE.test(p)) return false
+  return OCR_SEGMENT_RE.test(p)
 }
 
 function isZeroOid(oid) {
@@ -74,15 +89,15 @@ function isAncestor(repoRoot, ancestorOid, descendantOid) {
   }
 }
 
+function mergeBase(repoRoot, a, b) {
+  const res = tryRunGit(repoRoot, ['merge-base', a, b])
+  if (!res.ok) return null
+  const oid = res.stdout.trim()
+  return isValidOid(oid) ? oid : null
+}
+
 function changedPaths(repoRoot, fromOid, toOid) {
-  const res = tryRunGit(repoRoot, [
-    'diff',
-    '--no-renames',
-    '-z',
-    '--name-only',
-    fromOid,
-    toOid,
-  ])
+  const res = tryRunGit(repoRoot, ['diff', '--no-renames', '-z', '--name-only', fromOid, toOid])
   if (!res.ok) return null
   return res.stdout.split('\0').filter((p) => p.length > 0)
 }
@@ -122,20 +137,22 @@ function parseStdin(stdinText) {
 
 /**
  * Classify a single pushed ref update. Returns either
- *   { ok: true, paths: string[] }
+ *   { ok: true, paths: string[], range: {from, to} | null }   (null for a branch deletion)
  * or
- *   { ok: false, reason: string }
+ *   { ok: false, reason: string }                              (full verification)
  */
 function classifyUpdate(repoRoot, update) {
   const { localRef, localOid, remoteRef, remoteOid } = update
 
   if (isZeroOid(localOid)) {
-    return { ok: false, reason: `branch deletion pushed (${remoteRef}) — always full` }
+    // Deleting a remote branch pushes no code, so there is nothing to verify.
+    if (!remoteRef.startsWith('refs/heads/')) {
+      return { ok: false, reason: `non-head ref deletion pushed (${remoteRef}) — always full` }
+    }
+    return { ok: true, paths: [], range: null }
   }
-  if (isZeroOid(remoteOid)) {
-    return { ok: false, reason: `new branch pushed (${localRef}) — always full` }
-  }
-  if (!isValidOid(localOid) || !isValidOid(remoteOid)) {
+  const isNewBranch = isZeroOid(remoteOid)
+  if (!isValidOid(localOid) || (!isNewBranch && !isValidOid(remoteOid))) {
     return { ok: false, reason: `malformed object id in ref update for ${localRef}` }
   }
   if (!localRef.startsWith('refs/heads/') || !remoteRef.startsWith('refs/heads/')) {
@@ -146,7 +163,7 @@ function classifyUpdate(repoRoot, update) {
   }
 
   const localType = objectType(repoRoot, localOid)
-  const remoteType = objectType(repoRoot, remoteOid)
+  const remoteType = isNewBranch ? 'commit' : objectType(repoRoot, remoteOid)
   if (localType !== 'commit' || remoteType !== 'commit') {
     return {
       ok: false,
@@ -154,24 +171,34 @@ function classifyUpdate(repoRoot, update) {
     }
   }
 
-  if (!isAncestor(repoRoot, remoteOid, localOid)) {
+  let baseOid = remoteOid
+  if (isNewBranch) {
+    // A new branch has no remote side; compare it with where it left origin/main.
+    baseOid = mergeBase(repoRoot, localOid, NEW_BRANCH_BASE_REF)
+    if (baseOid === null) {
+      return {
+        ok: false,
+        reason: `new branch pushed (${localRef}) with no common history with ${NEW_BRANCH_BASE_REF} — always full`,
+      }
+    }
+  } else if (!isAncestor(repoRoot, remoteOid, localOid)) {
     return {
       ok: false,
       reason: `non-fast-forward update on ${localRef} (remote is not an ancestor of local)`,
     }
   }
 
-  const paths = changedPaths(repoRoot, remoteOid, localOid)
+  const paths = changedPaths(repoRoot, baseOid, localOid)
   if (paths === null) {
     return { ok: false, reason: `failed to compute changed paths for ${localRef}` }
   }
 
-  return { ok: true, paths, remoteOid, localOid }
+  return { ok: true, paths, range: { from: baseOid, to: localOid } }
 }
 
 /**
  * @param {{stdinText: string, repoRoot: string, env: Record<string, string|undefined>}} args
- * @returns {{mode: 'docs-only'|'full', reason: string, paths: string[], diffCheck?: {ok: boolean, output: string}}}
+ * @returns {{mode: 'fast'|'full', reason: string, paths: string[], diffCheck?: {ok: boolean, output: string}}}
  */
 export function classifyPush({ stdinText, repoRoot, env = {} }) {
   if (env.EANHL_PRE_PUSH_FULL) {
@@ -191,20 +218,20 @@ export function classifyPush({ stdinText, repoRoot, env = {} }) {
       return { mode: 'full', reason: result.reason, paths: [] }
     }
     for (const p of result.paths) allPaths.add(p)
-    ranges.push({ from: result.remoteOid, to: result.localOid })
+    if (result.range) ranges.push(result.range)
   }
 
   const paths = [...allPaths].sort()
-  const nonDoc = paths.filter((p) => !isAllowedDocPath(p))
-  if (nonDoc.length > 0) {
+  const videoStats = paths.filter(isVideoStatsPath)
+  if (videoStats.length > 0) {
     return {
       mode: 'full',
-      reason: `non-doc path(s) outside the allowlist: ${nonDoc.join(', ')}`,
+      reason: `video-stats path(s) changed: ${videoStats.join(', ')}`,
       paths,
     }
   }
 
-  // docs-only candidate: run whitespace/error checks on every committed range.
+  // Fast path: run whitespace/conflict-marker checks on every committed range.
   let combinedCheck = { ok: true, output: '' }
   for (const range of ranges) {
     const check = diffCheck(repoRoot, range.from, range.to)
@@ -217,8 +244,8 @@ export function classifyPush({ stdinText, repoRoot, env = {} }) {
   }
 
   return {
-    mode: 'docs-only',
-    reason: 'every changed path matched the documentation-only allowlist',
+    mode: 'fast',
+    reason: 'no video-stats paths changed',
     paths,
     diffCheck: combinedCheck,
   }

@@ -1,31 +1,32 @@
 #!/usr/bin/env bash
 #
-# Conservative, change-aware pre-push hook (Tier 0 WS0.2).
+# Change-aware pre-push hook (Tier 0 WS0.2; scoped to video-stats changes
+# 2026-10-05).
 #
 # A push is classified before anything else runs:
-#   - documentation-only (root-level *.md, docs/**/*.md, and nothing else
-#     changed across every pushed ref) takes a fast path: a committed-range
-#     `git diff --check` and nothing more. No verification-database
-#     credentials are read or required.
-#   - everything else — code, config, data, fixtures, tests, dependencies,
-#     migrations, hook/classifier changes, new/deleted branches, tags, non-
-#     fast-forward updates, or anything the classifier cannot confidently
-#     resolve — runs the existing full scripts/verify-ocr.sh harness,
-#     unchanged, fail-closed on missing verification-database configuration.
+#   - a push that touches video-stats code (tools/game_ocr/, tools/video_ingest/,
+#     apps/worker/scripts/, or any non-notes path with an "ocr" segment), or
+#     that the classifier cannot read reliably (tags, non-fast-forward updates,
+#     malformed stdin, a new branch with no common history with origin/main),
+#     runs the full scripts/verify-ocr.sh harness, fail-closed on missing
+#     verification-database configuration.
+#   - every other push takes a fast path: a committed-range `git diff --check`
+#     and nothing more. No verification-database credentials are read or
+#     required. A new branch is compared with where it left origin/main.
 #
 # The classifier lives in .githooks/lib/classify-push.mjs (unit-tested) and
 # .githooks/lib/classify-push-cli.mjs (thin stdin/exit-code wrapper). See
-# ops/README.md for the full policy, the allowlist, and the
-# EANHL_PRE_PUSH_FULL=1 override that forces full verification regardless of
-# classification.
+# ops/README.md for the full policy and the EANHL_PRE_PUSH_FULL=1 override
+# that forces full verification regardless of classification — use it when
+# pushing video-stats work in files without "ocr" in their path.
 #
 # Self-installing: the root package.json `prepare` script points
 # core.hooksPath at .githooks on `pnpm install`, so this hook is active for
 # anyone who sets the repo up the normal way.
 #
 # Like any client-side git hook this is technically bypassable
-# (`git push --no-verify`). That is not the normal mechanism for a
-# documentation push — the docs-only fast path already skips the heavy
+# (`git push --no-verify`). That is not the normal mechanism for a push
+# without video-stats changes — the fast path already skips the heavy
 # suite — and it is not the normal mechanism for anything else either: the
 # authoritative, fail-closed enforcement for OCR correctness is the
 # `decoder-runs activate` quality gate (WS0.1A), which does not depend on
@@ -57,12 +58,12 @@ CLASSIFY_EXIT=$?
 
 case "$CLASSIFY_EXIT" in
   0)
-    # docs-only, git diff --check passed: push allowed, nothing heavy ran.
+    # fast path, git diff --check passed: push allowed, nothing heavy ran.
     echo "$CLASSIFY_OUTPUT" >&2
     exit 0
     ;;
   1)
-    # docs-only, but git diff --check found a problem in the committed range: block.
+    # fast path, but git diff --check found a problem in the committed range: block.
     echo "$CLASSIFY_OUTPUT" >&2
     exit 1
     ;;

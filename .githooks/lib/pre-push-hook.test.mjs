@@ -77,26 +77,34 @@ function makeRepoPair() {
   writeFileSync(initial, '# handoff\n')
   git(localDir, ['add', '-A'])
   git(localDir, ['commit', '-q', '-m', 'init'])
-  // The very first push creates the branch (remote oid all-zero), which the
-  // classifier always sends to full verification — so this setup step needs
-  // TEST_* configured. It is not part of what any test below asserts on.
+  // The very first push creates the branch with no origin/main to compare
+  // against, which the classifier sends to full verification — so this setup
+  // step needs TEST_* configured. It is not part of what any test below
+  // asserts on.
   git(localDir, ['push', '-q', 'origin', 'main'], { env: { ...process.env, ...configured } })
 
   return { workDir, remoteDir, localDir }
 }
 
-function pushWithEnv(localDir, env = {}) {
+function pushWithEnv(localDir, env = {}, refspec = 'main') {
   const childEnv = { ...process.env }
   for (const key of Object.keys(childEnv)) {
     if (key === 'TEST_DATABASE_URL' || key.startsWith('TEST_DB_')) delete childEnv[key]
   }
   Object.assign(childEnv, env)
-  const result = spawnSync('git', ['push', 'origin', 'main'], {
+  const result = spawnSync('git', ['push', 'origin', refspec], {
     cwd: localDir,
     env: childEnv,
     encoding: 'utf8',
   })
   return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` }
+}
+
+function commitFile(localDir, rel, content, message) {
+  mkdirSync(path.dirname(path.join(localDir, rel)), { recursive: true })
+  writeFileSync(path.join(localDir, rel), content)
+  git(localDir, ['add', '-A'])
+  git(localDir, ['commit', '-q', '-m', message])
 }
 
 test('pushing a docs-only change skips the full harness and requires no TEST_* config', () => {
@@ -108,20 +116,46 @@ test('pushing a docs-only change skips the full harness and requires no TEST_* c
 
     const { status, output } = pushWithEnv(localDir) // no TEST_* set at all
     assert.equal(status, 0, `push should succeed${output}`)
-    assert.match(output, /docs-only fast path/, output)
+    assert.match(output, /classification: fast path/, output)
     assert.ok(!output.includes(FULL_MARKER), `full harness must not have run${output}`)
   } finally {
     rmSync(workDir, { recursive: true, force: true })
   }
 })
 
-test('pushing a code change without TEST_* config refuses before running the harness', () => {
+test('pushing a website code change skips the full harness and requires no TEST_* config', () => {
   const { workDir, localDir } = makeRepoPair()
   try {
-    mkdirSync(path.join(localDir, 'apps/web/src'), { recursive: true })
-    writeFileSync(path.join(localDir, 'apps/web/src/index.ts'), 'export const x = 1\n')
-    git(localDir, ['add', '-A'])
-    git(localDir, ['commit', '-q', '-m', 'code change'])
+    commitFile(localDir, 'apps/web/src/index.ts', 'export const x = 1\n', 'website change')
+
+    const { status, output } = pushWithEnv(localDir) // no TEST_* set at all
+    assert.equal(status, 0, `push should succeed${output}`)
+    assert.match(output, /no video-stats paths changed/, output)
+    assert.ok(!output.includes(FULL_MARKER), `full harness must not have run${output}`)
+  } finally {
+    rmSync(workDir, { recursive: true, force: true })
+  }
+})
+
+test('pushing a new branch without video-stats changes is compared with origin/main and skips the harness', () => {
+  const { workDir, localDir } = makeRepoPair()
+  try {
+    git(localDir, ['checkout', '-q', '-b', 'feature'])
+    commitFile(localDir, 'ops/nightly-backup/backup.sh', '#!/bin/sh\n', 'backup change')
+
+    const { status, output } = pushWithEnv(localDir, {}, 'feature') // no TEST_* set at all
+    assert.equal(status, 0, `push should succeed${output}`)
+    assert.match(output, /classification: fast path/, output)
+    assert.ok(!output.includes(FULL_MARKER), `full harness must not have run${output}`)
+  } finally {
+    rmSync(workDir, { recursive: true, force: true })
+  }
+})
+
+test('pushing a video-stats change without TEST_* config refuses before running the harness', () => {
+  const { workDir, localDir } = makeRepoPair()
+  try {
+    commitFile(localDir, 'tools/game_ocr/reader.py', 'x = 1\n', 'video-stats change')
 
     const { status, output } = pushWithEnv(localDir) // no TEST_* set
     assert.notEqual(status, 0, `push should be refused${output}`)
@@ -133,13 +167,10 @@ test('pushing a code change without TEST_* config refuses before running the har
   }
 })
 
-test('pushing a code change with TEST_* configured runs the full harness', () => {
+test('pushing a video-stats change with TEST_* configured runs the full harness', () => {
   const { workDir, localDir } = makeRepoPair()
   try {
-    mkdirSync(path.join(localDir, 'apps/web/src'), { recursive: true })
-    writeFileSync(path.join(localDir, 'apps/web/src/index.ts'), 'export const x = 1\n')
-    git(localDir, ['add', '-A'])
-    git(localDir, ['commit', '-q', '-m', 'code change'])
+    commitFile(localDir, 'tools/game_ocr/reader.py', 'x = 1\n', 'video-stats change')
 
     const { status, output } = pushWithEnv(localDir, configured)
     assert.equal(status, 0, `push should succeed${output}`)
@@ -166,7 +197,7 @@ test('EANHL_PRE_PUSH_FULL=1 forces the full harness even for a docs-only change'
   }
 })
 
-test('a docs-only push with a git diff --check failure is blocked, not silently allowed or upgraded to full', () => {
+test('a fast-path push with a git diff --check failure is blocked, not silently allowed or upgraded to full', () => {
   const { workDir, localDir } = makeRepoPair()
   try {
     writeFileSync(path.join(localDir, 'HANDOFF.md'), 'trailing ws   \nmore\n')
@@ -175,7 +206,7 @@ test('a docs-only push with a git diff --check failure is blocked, not silently 
 
     const { status, output } = pushWithEnv(localDir) // no TEST_* set
     assert.notEqual(status, 0, `push should be blocked${output}`)
-    assert.match(output, /docs-only fast path/, output)
+    assert.match(output, /classification: fast path/, output)
     assert.match(output, /BLOCKED.*git diff --check/s, output)
     assert.ok(!output.includes(FULL_MARKER), `full harness must not have run${output}`)
     // EANHL_PRE_PUSH_FULL forces the full ~20-minute suite; it does not fix a
@@ -193,10 +224,7 @@ test('a docs-only push with a git diff --check failure is blocked, not silently 
 test('hook output no longer recommends --no-verify as the actionable fix', () => {
   const { workDir, localDir } = makeRepoPair()
   try {
-    mkdirSync(path.join(localDir, 'apps/web/src'), { recursive: true })
-    writeFileSync(path.join(localDir, 'apps/web/src/index.ts'), 'export const x = 1\n')
-    git(localDir, ['add', '-A'])
-    git(localDir, ['commit', '-q', '-m', 'code change'])
+    commitFile(localDir, 'tools/game_ocr/reader.py', 'x = 1\n', 'video-stats change')
 
     const { output } = pushWithEnv(localDir) // no TEST_* set -> blocked
     assert.ok(

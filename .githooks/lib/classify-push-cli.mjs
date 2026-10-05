@@ -8,10 +8,10 @@
  * prints a human-readable explanation to stderr, and communicates the
  * decision via exit code so the bash hook stays a thin dispatcher:
  *
- *   0 = docs-only, git diff --check passed        -> push allowed, fast path
- *   1 = docs-only, but git diff --check failed     -> push BLOCKED
+ *   0 = fast path, git diff --check passed        -> push allowed
+ *   1 = fast path, but git diff --check failed     -> push BLOCKED
  *   2 = full verification required                 -> hook runs the existing
- *                                                      TEST_* / verify-ocr.sh path
+ *       (video-stats change, or unreadable push)      TEST_* / verify-ocr.sh path
  *
  * Any unexpected crash here also exits 2 (fail closed to full verification,
  * never to "push allowed").
@@ -44,23 +44,25 @@ async function main() {
     process.exit(2)
   }
 
-  console.error(`[pre-push] classification: docs-only fast path (${result.reason})`)
+  console.error(`[pre-push] classification: fast path (${result.reason})`)
   console.error('[pre-push]   paths considered:')
   if (result.paths.length === 0) {
-    console.error('[pre-push]     (none — no-op ref update)')
+    console.error('[pre-push]     (none — no-op ref update or branch deletion)')
   } else {
     for (const p of result.paths) console.error(`[pre-push]     ${p}`)
   }
 
   if (!result.diffCheck.ok) {
-    console.error('[pre-push] BLOCKED: git diff --check found whitespace/error issues in the docs-only range:')
+    console.error(
+      '[pre-push] BLOCKED: git diff --check found whitespace/error issues in the pushed range:',
+    )
     console.error(result.diffCheck.output)
     console.error('[pre-push] Fix the issues reported above, then push again.')
     process.exit(1)
   }
 
   console.error(
-    '[pre-push] docs-only push OK — skipping scripts/verify-ocr.sh and verification-database credentials.',
+    '[pre-push] no video-stats changes — skipping scripts/verify-ocr.sh and verification-database credentials.',
   )
   console.error(
     '[pre-push] Force full verification for this push with: EANHL_PRE_PUSH_FULL=1 git push ...',

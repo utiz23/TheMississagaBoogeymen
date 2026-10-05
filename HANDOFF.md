@@ -65,8 +65,10 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
   0046+ are hand-written SQL applied with `psql`, not `drizzle-kit migrate`.
 - `pnpm lint` is red repo-wide (pre-existing config drift); typecheck, tests
   and prettier are the gates.
-- `git push` runs the ~20-minute OCR verification hook
-  (`scripts/verify-ocr.sh`), even for pushes that don't touch OCR code.
+- `git push` runs the ~20-minute verification suite only when the push
+  touches video-stats code (rule: [`ops/README.md`](ops/README.md)). For
+  video-stats work in files without "ocr" in the path, push with
+  `EANHL_PRE_PUSH_FULL=1`.
 - **Proton/E3 cloud backup is parked.** Hotel-Echo keeps E3's installed
   credential tooling and a logged-in Proton session from 2026-09-30; nothing
   is scheduled. Full E3 state: the archived handoff and the
@@ -86,6 +88,5 @@ None. Open decisions:
    `main`, local only), take a fresh backup, apply migration 0057, check the
    pages.
 2. Finish the workflow cleanup: rewrite `AGENTS.md` and the workflow doc for
-   the new model (about one page), and run the OCR pre-push suite only when
-   OCR code changes.
+   the new model (about one page).
 3. Launch items 3–5.

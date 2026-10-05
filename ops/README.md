@@ -9,65 +9,59 @@ classifier lives in [`.githooks/lib/classify-push.mjs`](../.githooks/lib/classif
 (`pre-push-hook.test.mjs`) that exercises the real hook against real git
 repos. It classifies **commits/trees being pushed**, not working-tree state.
 
-**Documentation-only fast path.** A push takes the fast path only when it is
-an ordinary fast-forward branch update (`refs/heads/*` on both sides, no
-branch creation/deletion, remote object an ancestor of local object, both
-objects real commits) AND every changed path across every pushed ref matches
-this explicit allowlist:
+**Scope (changed 2026-10-05).** The full `scripts/verify-ocr.sh` harness
+(~20 minutes, mostly the video-stats suites and the classifier bench) runs only
+when a push touches video-stats code. Every other push takes the fast path.
 
-- root-level `*.md` files (e.g. `HANDOFF.md`, `README.md`)
-- `docs/**/*.md`
+A changed path counts as **video-stats** when it is:
 
-Everything else — `apps/`, `packages/`, `tools/`, `ops/`, `scripts/`,
-`research/`, `.githooks/`, `.github/`, non-Markdown docs files, config,
-fixtures, benchmarks, manifests, weights, or any test input outside the
-allowlist above — is **not** documentation-only, even where the extension is
-`.md` (e.g. `research/OCR-SS/Manual OCR benchmark for verification V2.md` is
-machine input to the match-250 benchmark parity gate, not prose). Rename
-detection is disabled while classifying, so a code→docs or docs→code rename
-exposes both the old and new path and is always sent to full verification.
+- anything under `tools/game_ocr/`, `tools/video_ingest/` or
+  `apps/worker/scripts/` (the verification-database harness);
+- any other path with `ocr` as a whole path segment (e.g.
+  `apps/worker/src/ingest-ocr.ts`, `apps/worker/src/ocr-promoters/`,
+  `scripts/verify-ocr.sh`, `docs/ocr/tier0-quarantined-worker-tests.txt`,
+  `research/OCR-SS/…` — that Markdown is machine input to the match-250
+  benchmark parity gate) — **except** prose notes: root-level `*.md` and
+  `docs/**/*.md`.
 
-For a qualifying docs-only push, the hook runs a committed-range
-`git diff --check` (whitespace/conflict-marker errors) and nothing else — no
-`TEST_*` variables are required, `scripts/verify-ocr.sh` is not invoked, and no
-application or verification-database credentials are inspected or loaded. A
-`git diff --check` failure **blocks** the push (distinct from falling back to
-full verification) — fix the issue, or push anyway once it's fixed.
+Rename detection is disabled while classifying, so a rename exposes both the
+old and the new path. Known gap: video-stats code in a file without an `ocr`
+segment (e.g. `decoder-runs-cli.ts`, the loadout/period promotion code) does not
+trigger the harness — push that work with `EANHL_PRE_PUSH_FULL=1`.
 
-**Full verification path.** Anything not matching the fast-path conditions
-above — including a new/deleted branch, a tag or other non-head ref, a
-non-fast-forward update, malformed/empty/ambiguous pre-push stdin, a change
-to `.githooks/pre-push` or the classifier itself, or a push that mixes
-documentation and non-documentation paths — runs the existing
-`scripts/verify-ocr.sh` behavior unchanged, including the `TEST_*` fail-closed
-prerequisite checks below and `DATABASE_URL` unsetting. Classification
-failure or ambiguity always resolves to full verification, never to
-docs-only.
+**Fast path.** The hook runs a committed-range `git diff --check`
+(whitespace/conflict-marker errors) and nothing else — no `TEST_*` variables
+are required, `scripts/verify-ocr.sh` is not invoked, and no application or
+verification-database credentials are inspected or loaded. A
+`git diff --check` failure **blocks** the push — fix the issue and push again.
+A new branch is compared with where it left `origin/main` (its merge-base); a
+branch deletion pushes no code and has nothing to check.
+
+**Full verification path.** A video-stats change, or a push the classifier
+cannot read reliably — a tag or other non-head ref, a non-fast-forward update,
+malformed/empty pre-push stdin, a missing object, or a new branch with no
+common history with `origin/main` — runs `scripts/verify-ocr.sh` unchanged,
+including the `TEST_*` fail-closed prerequisite checks below and
+`DATABASE_URL` unsetting. A classifier crash also falls back to full
+verification.
 
 **Force-full override.** Set `EANHL_PRE_PUSH_FULL=1` to force full
-verification regardless of classification, e.g. for a docs push you want
-proven against the real suite anyway:
+verification regardless of classification:
 
 ```bash
 EANHL_PRE_PUSH_FULL=1 git push ...
 ```
 
 **This is a pre-push convenience, not a substitute for the real gates.** The
-docs-only fast path only ever applies to what the classifier can prove is
-prose. Production deployment and release verification still require the full
-`scripts/verify-ocr.sh` run (or the authoritative `decoder-runs activate`
-quality gate below) — never rely on a docs-only-classified push as evidence
-the pipeline works.
+authoritative protection for video-stats data is the `decoder-runs activate`
+quality gate below; never rely on a fast-path push as evidence the pipeline
+works. Other code (website, database, worker) is verified by running its own
+tests before committing.
 
 Like any client-side hook this one is technically bypassable with
-`git push --no-verify`. That is not the normal mechanism for a documentation
-push (the fast path already skips the heavy suite for those) and it is not
-the normal mechanism for anything else either — if verification is blocking a
-push that should be fast, that's a signal to inspect and fix the
-classification, not to bypass the hook. `EANHL_PRE_PUSH_FULL=1` forces the
-full ~20-minute suite; it does not fix classification or documentation
-whitespace problems, so it is not a remedy here — it exists only for the
-deliberate case described above.
+`git push --no-verify`. That should not be needed: if the hook asks for full
+verification on a push without video-stats changes, inspect and fix the
+classification instead.
 
 ## Verification database isolation (read this first)
 
@@ -241,12 +235,14 @@ Logs: `journalctl --user -u eanhl-verify.service -e`
   `--no-verify`, but that is not the normal mechanism — see "Pre-push
   classification policy" above), self-installed via the root `package.json`
   `prepare` script (`git config core.hooksPath .githooks`) on `pnpm install`.
-  It classifies each push first: a documentation-only push (see the allowlist
-  above) takes a fast path that needs no verification-database credentials;
-  everything else never sources `.env`, and if the verification configuration
-  is missing it **blocks** rather than skipping, because a missing safety
-  configuration must not read as "nothing to check".
-- **Catch-all:** this nightly timer.
+  It classifies each push first: a push without video-stats changes (see
+  "Pre-push classification policy" above) takes a fast path that needs no
+  verification-database credentials; the full path never sources `.env`, and
+  if the verification configuration is missing it **blocks** rather than
+  skipping, because a missing safety configuration must not read as "nothing
+  to check".
+- **Catch-all:** this nightly timer (not installed on the main PC as of
+  2026-10-05).
 - **Hermetic:** the verification-database isolation safety suite
   (`apps/worker/scripts/lib/*.test.mjs`) and the pre-push classifier suite
   (`.githooks/lib/*.test.mjs`, also runnable via `pnpm test:verify-safety`),

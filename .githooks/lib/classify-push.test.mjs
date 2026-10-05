@@ -14,7 +14,12 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
-import { classifyPush, isAllowedDocPath, ZERO_OID_40 } from './classify-push.mjs'
+import {
+  classifyPush,
+  isVideoStatsPath,
+  NEW_BRANCH_BASE_REF,
+  ZERO_OID_40,
+} from './classify-push.mjs'
 
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -43,269 +48,228 @@ function stdinLine(localRef, localOid, remoteRef, remoteOid) {
   return `${localRef} ${localOid} ${remoteRef} ${remoteOid}\n`
 }
 
-test('isAllowedDocPath: root-level md files are allowed', () => {
-  assert.equal(isAllowedDocPath('HANDOFF.md'), true)
-  assert.equal(isAllowedDocPath('README.md'), true)
-  assert.equal(isAllowedDocPath('CLAUDE.md'), true)
-})
+/** Classify a single fast-forward push of main from `base` to `head`. */
+function classifyMainPush(dir, base, head, env = {}) {
+  const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
+  return classifyPush({ stdinText: stdin, repoRoot: dir, env })
+}
 
-test('isAllowedDocPath: docs/**/*.md is allowed, nested', () => {
-  assert.equal(isAllowedDocPath('docs/ARCHITECTURE.md'), true)
-  assert.equal(isAllowedDocPath('docs/operations/deploy-notes.md'), true)
-  assert.equal(isAllowedDocPath('docs/a/b/c/deep.md'), true)
-})
-
-test('isAllowedDocPath: rejects non-md docs files', () => {
-  assert.equal(isAllowedDocPath('docs/data.json'), false)
-  assert.equal(isAllowedDocPath('docs/notes.txt'), false)
-})
-
-test('isAllowedDocPath: rejects excluded directories even when .md', () => {
-  assert.equal(isAllowedDocPath('apps/web/README.md'), false)
-  assert.equal(isAllowedDocPath('packages/db/README.md'), false)
-  assert.equal(isAllowedDocPath('tools/game_ocr/README.md'), false)
-  assert.equal(isAllowedDocPath('ops/README.md'), false)
-  assert.equal(isAllowedDocPath('scripts/README.md'), false)
-  assert.equal(isAllowedDocPath('research/notes.md'), false)
-  assert.equal(isAllowedDocPath('.githooks/README.md'), false)
-  assert.equal(isAllowedDocPath('.github/README.md'), false)
-})
-
-test('isAllowedDocPath: rejects nested root-like traversal', () => {
-  assert.equal(isAllowedDocPath('nested/dir/file.md'), false)
-})
-
-test('HANDOFF.md-only update classifies docs-only', () => {
+function withRepo(fn) {
   const dir = initRepo()
   try {
+    fn(dir)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+test('isVideoStatsPath: video-stats tools and the verification harness count', () => {
+  assert.equal(isVideoStatsPath('tools/game_ocr/game_ocr/reader.py'), true)
+  assert.equal(isVideoStatsPath('tools/video_ingest/video_ingest/cli.py'), true)
+  assert.equal(isVideoStatsPath('tools/video_ingest/README.md'), true)
+  assert.equal(isVideoStatsPath('apps/worker/scripts/with-test-db.mjs'), true)
+  assert.equal(isVideoStatsPath('scripts/verify-ocr.sh'), true)
+})
+
+test('isVideoStatsPath: any non-notes path with an "ocr" segment counts', () => {
+  assert.equal(isVideoStatsPath('apps/worker/src/ingest-ocr.ts'), true)
+  assert.equal(isVideoStatsPath('apps/worker/src/ocr-promoters/loadout.ts'), true)
+  assert.equal(isVideoStatsPath('packages/db/src/queries/ocr-coverage.ts'), true)
+  assert.equal(isVideoStatsPath('docs/ocr/tier0-quarantined-worker-tests.txt'), true)
+  // Markdown outside docs/ can be machine input (the match-250 benchmark).
+  assert.equal(
+    isVideoStatsPath('research/OCR-SS/Manual OCR benchmark for verification V2.md'),
+    true,
+  )
+})
+
+test('isVideoStatsPath: prose notes never count, even with an "ocr" segment', () => {
+  assert.equal(isVideoStatsPath('HANDOFF.md'), false)
+  assert.equal(isVideoStatsPath('docs/ocr/notes.md'), false)
+  assert.equal(isVideoStatsPath('docs/a/b/ocr-plan.md'), false)
+})
+
+test('isVideoStatsPath: website, backup, config and hook paths do not count', () => {
+  assert.equal(isVideoStatsPath('apps/web/src/app/page.tsx'), false)
+  assert.equal(isVideoStatsPath('apps/worker/src/ingest.ts'), false)
+  assert.equal(isVideoStatsPath('packages/db/src/queries/game-titles.ts'), false)
+  assert.equal(isVideoStatsPath('ops/nightly-backup/backup.sh'), false)
+  assert.equal(isVideoStatsPath('docker-compose.yml'), false)
+  assert.equal(isVideoStatsPath('package.json'), false)
+  assert.equal(isVideoStatsPath('.githooks/pre-push'), false)
+  assert.equal(isVideoStatsPath('apps/web/src/procrastinate.ts'), false)
+})
+
+test('HANDOFF.md-only update takes the fast path', () => {
+  withRepo((dir) => {
     const base = writeAndCommit(dir, { 'HANDOFF.md': '# handoff\n' }, 'init')
     const head = writeAndCommit(dir, { 'HANDOFF.md': '# handoff v2\n' }, 'update handoff')
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'docs-only', JSON.stringify(result))
+    const result = classifyMainPush(dir, base, head)
+    assert.equal(result.mode, 'fast', JSON.stringify(result))
     assert.deepEqual(result.paths, ['HANDOFF.md'])
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+    assert.equal(result.diffCheck.ok, true, JSON.stringify(result))
+  })
 })
 
-test('root markdown-only update classifies docs-only', () => {
-  const dir = initRepo()
-  try {
-    const base = writeAndCommit(dir, { 'README.md': 'a\n' }, 'init')
-    const head = writeAndCommit(dir, { 'README.md': 'b\n', 'DEPLOY.md': 'c\n' }, 'docs')
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'docs-only', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('docs/**/*.md-only update classifies docs-only', () => {
-  const dir = initRepo()
-  try {
-    const base = writeAndCommit(dir, { 'docs/ARCHITECTURE.md': 'a\n' }, 'init')
-    const head = writeAndCommit(
-      dir,
-      { 'docs/ARCHITECTURE.md': 'b\n', 'docs/operations/notes.md': 'c\n' },
-      'docs',
-    )
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'docs-only', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('research/**/*.md update classifies full', () => {
-  const dir = initRepo()
-  try {
-    const base = writeAndCommit(dir, { 'research/notes.md': 'a\n' }, 'init')
-    const head = writeAndCommit(dir, { 'research/notes.md': 'b\n' }, 'research update')
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'full', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('tools/**/*.md update classifies full', () => {
-  const dir = initRepo()
-  try {
-    const base = writeAndCommit(dir, { 'tools/video_ingest/README.md': 'a\n' }, 'init')
-    const head = writeAndCommit(dir, { 'tools/video_ingest/README.md': 'b\n' }, 'tools docs')
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'full', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('code-only update classifies full', () => {
-  const dir = initRepo()
-  try {
+test('website code change takes the fast path', () => {
+  withRepo((dir) => {
     const base = writeAndCommit(dir, { 'apps/web/src/index.ts': 'a\n' }, 'init')
     const head = writeAndCommit(dir, { 'apps/web/src/index.ts': 'b\n' }, 'code')
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'full', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+    assert.equal(classifyMainPush(dir, base, head).mode, 'fast')
+  })
 })
 
-test('package.json / lockfile update classifies full', () => {
-  const dir = initRepo()
-  try {
+test('backup scripts, compose, dependencies and hook changes take the fast path', () => {
+  withRepo((dir) => {
     const base = writeAndCommit(dir, { 'package.json': '{}\n' }, 'init')
     const head = writeAndCommit(
       dir,
-      { 'package.json': '{"a":1}\n', 'pnpm-lock.yaml': 'lockfile\n' },
-      'deps',
+      {
+        'package.json': '{"a":1}\n',
+        'pnpm-lock.yaml': 'lockfile\n',
+        'ops/nightly-backup/backup.sh': '#!/bin/sh\n',
+        'docker-compose.yml': 'services: {}\n',
+        '.githooks/pre-push': '#!/bin/bash\n',
+      },
+      'non-ocr changes',
     )
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'full', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+    const result = classifyMainPush(dir, base, head)
+    assert.equal(result.mode, 'fast', JSON.stringify(result))
+  })
 })
 
-test('docs plus code in the same push classifies full', () => {
-  const dir = initRepo()
-  try {
-    const base = writeAndCommit(dir, { 'HANDOFF.md': 'a\n', 'apps/web/src/x.ts': 'a\n' }, 'init')
+test('video-stats tool change classifies full', () => {
+  withRepo((dir) => {
+    const base = writeAndCommit(dir, { 'tools/game_ocr/reader.py': 'a\n' }, 'init')
+    const head = writeAndCommit(dir, { 'tools/game_ocr/reader.py': 'b\n' }, 'ocr change')
+    const result = classifyMainPush(dir, base, head)
+    assert.equal(result.mode, 'full', JSON.stringify(result))
+    assert.match(result.reason, /video-stats/)
+  })
+})
+
+test('worker OCR file change classifies full', () => {
+  withRepo((dir) => {
+    const base = writeAndCommit(dir, { 'apps/worker/src/ingest-ocr.ts': 'a\n' }, 'init')
+    const head = writeAndCommit(dir, { 'apps/worker/src/ingest-ocr.ts': 'b\n' }, 'worker ocr')
+    assert.equal(classifyMainPush(dir, base, head).mode, 'full')
+  })
+})
+
+test('docs plus video-stats code in the same push classifies full', () => {
+  withRepo((dir) => {
+    const base = writeAndCommit(
+      dir,
+      { 'HANDOFF.md': 'a\n', 'tools/video_ingest/x.py': 'a\n' },
+      'init',
+    )
     const head = writeAndCommit(
       dir,
-      { 'HANDOFF.md': 'b\n', 'apps/web/src/x.ts': 'b\n' },
+      { 'HANDOFF.md': 'b\n', 'tools/video_ingest/x.py': 'b\n' },
       'mixed',
     )
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'full', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+    assert.equal(classifyMainPush(dir, base, head).mode, 'full')
+  })
 })
 
-test('hook/classifier change classifies full', () => {
-  const dir = initRepo()
-  try {
-    const base = writeAndCommit(dir, { '.githooks/pre-push': '#!/bin/bash\n' }, 'init')
-    const head = writeAndCommit(dir, { '.githooks/pre-push': '#!/bin/bash\necho hi\n' }, 'hook change')
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
+test('new branch is compared with where it left origin/main (fast when no video-stats change)', () => {
+  withRepo((dir) => {
+    const base = writeAndCommit(dir, { 'tools/game_ocr/reader.py': 'a\n' }, 'init')
+    git(dir, ['update-ref', NEW_BRANCH_BASE_REF, base])
+    git(dir, ['checkout', '-q', '-b', 'feature'])
+    const head = writeAndCommit(dir, { 'apps/web/src/x.ts': 'x\n' }, 'feature work')
+    const stdin = stdinLine('refs/heads/feature', head, 'refs/heads/feature', ZERO_OID_40)
     const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'full', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+    assert.equal(result.mode, 'fast', JSON.stringify(result))
+    // Only the branch's own change is considered, not origin/main's history.
+    assert.deepEqual(result.paths, ['apps/web/src/x.ts'])
+  })
 })
 
-test('new branch (remote all-zero oid) classifies full', () => {
-  const dir = initRepo()
-  try {
+test('new branch with a video-stats change classifies full', () => {
+  withRepo((dir) => {
+    const base = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
+    git(dir, ['update-ref', NEW_BRANCH_BASE_REF, base])
+    git(dir, ['checkout', '-q', '-b', 'feature'])
+    const head = writeAndCommit(dir, { 'tools/video_ingest/x.py': 'x\n' }, 'ocr work')
+    const stdin = stdinLine('refs/heads/feature', head, 'refs/heads/feature', ZERO_OID_40)
+    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
+    assert.equal(result.mode, 'full', JSON.stringify(result))
+  })
+})
+
+test('new branch with no origin/main to compare against classifies full', () => {
+  withRepo((dir) => {
     const head = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
     const stdin = stdinLine('refs/heads/feature', head, 'refs/heads/feature', ZERO_OID_40)
     const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
     assert.equal(result.mode, 'full', JSON.stringify(result))
-    assert.match(result.reason, /branch creation|new branch/i)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+    assert.match(result.reason, /new branch/i)
+  })
 })
 
-test('deleted branch (local all-zero oid) classifies full', () => {
-  const dir = initRepo()
-  try {
+test('deleted branch takes the fast path with no paths', () => {
+  withRepo((dir) => {
     const head = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
     const stdin = stdinLine('(delete)', ZERO_OID_40, 'refs/heads/feature', head)
     const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
+    assert.equal(result.mode, 'fast', JSON.stringify(result))
+    assert.deepEqual(result.paths, [])
+  })
+})
+
+test('deleted tag classifies full', () => {
+  withRepo((dir) => {
+    const head = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
+    const stdin = stdinLine('(delete)', ZERO_OID_40, 'refs/tags/v1.0.0', head)
+    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
     assert.equal(result.mode, 'full', JSON.stringify(result))
-    assert.match(result.reason, /delet/i)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  })
 })
 
 test('tag / non-head ref classifies full', () => {
-  const dir = initRepo()
-  try {
+  withRepo((dir) => {
     const base = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
     const head = writeAndCommit(dir, { 'HANDOFF.md': 'b\n' }, 'update')
     git(dir, ['tag', 'v1.0.0', head])
     const stdin = stdinLine('refs/tags/v1.0.0', head, 'refs/tags/v1.0.0', base)
     const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
     assert.equal(result.mode, 'full', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  })
 })
 
 test('non-fast-forward update classifies full', () => {
-  const dir = initRepo()
-  try {
+  withRepo((dir) => {
     const base = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
     // Diverge: build a sibling commit not descended from base's later history.
     const sideA = writeAndCommit(dir, { 'HANDOFF.md': 'b\n' }, 'side a')
     git(dir, ['checkout', '-q', '-b', 'side', base])
     const sideB = writeAndCommit(dir, { 'HANDOFF.md': 'c\n' }, 'side b')
     // remote is sideA, local (to be pushed) is sideB — neither is an ancestor of the other.
-    const stdin = stdinLine('refs/heads/main', sideB, 'refs/heads/main', sideA)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
+    const result = classifyMainPush(dir, sideA, sideB)
     assert.equal(result.mode, 'full', JSON.stringify(result))
     assert.match(result.reason, /fast-forward/i)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  })
 })
 
 test('malformed stdin (wrong field count) classifies full', () => {
-  const dir = initRepo()
-  try {
+  withRepo((dir) => {
     const result = classifyPush({ stdinText: 'only two fields\n', repoRoot: dir, env: {} })
     assert.equal(result.mode, 'full', JSON.stringify(result))
     assert.match(result.reason, /malformed/i)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  })
 })
 
 test('empty stdin classifies full', () => {
-  const dir = initRepo()
-  try {
+  withRepo((dir) => {
     const result = classifyPush({ stdinText: '', repoRoot: dir, env: {} })
     assert.equal(result.mode, 'full', JSON.stringify(result))
     assert.match(result.reason, /empty/i)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  })
 })
 
-test('multiple refs, all allowed docs, classifies docs-only', () => {
-  const dir = initRepo()
-  try {
-    const base = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
-    git(dir, ['branch', 'other', base])
-    const headMain = writeAndCommit(dir, { 'HANDOFF.md': 'b\n' }, 'main docs')
-    git(dir, ['checkout', '-q', 'other'])
-    const headOther = writeAndCommit(dir, { 'docs/notes.md': 'x\n' }, 'other docs')
-    const stdin =
-      stdinLine('refs/heads/main', headMain, 'refs/heads/main', base) +
-      stdinLine('refs/heads/other', headOther, 'refs/heads/other', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'docs-only', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('multiple refs with one non-doc change classifies full', () => {
-  const dir = initRepo()
-  try {
+test('multiple refs without video-stats changes take the fast path', () => {
+  withRepo((dir) => {
     const base = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
     git(dir, ['branch', 'other', base])
     const headMain = writeAndCommit(dir, { 'HANDOFF.md': 'b\n' }, 'main docs')
@@ -315,125 +279,107 @@ test('multiple refs with one non-doc change classifies full', () => {
       stdinLine('refs/heads/main', headMain, 'refs/heads/main', base) +
       stdinLine('refs/heads/other', headOther, 'refs/heads/other', base)
     const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'full', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+    assert.equal(result.mode, 'fast', JSON.stringify(result))
+  })
 })
 
-test('code-to-docs rename classifies full (rename detection disabled exposes both sides)', () => {
-  const dir = initRepo()
-  try {
-    const base = writeAndCommit(dir, { 'apps/web/src/notes.ts': 'identical content\n' }, 'init')
+test('multiple refs with one video-stats change classifies full', () => {
+  withRepo((dir) => {
+    const base = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
+    git(dir, ['branch', 'other', base])
+    const headMain = writeAndCommit(dir, { 'HANDOFF.md': 'b\n' }, 'main docs')
+    git(dir, ['checkout', '-q', 'other'])
+    const headOther = writeAndCommit(dir, { 'tools/game_ocr/x.py': 'x\n' }, 'other ocr')
+    const stdin =
+      stdinLine('refs/heads/main', headMain, 'refs/heads/main', base) +
+      stdinLine('refs/heads/other', headOther, 'refs/heads/other', base)
+    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
+    assert.equal(result.mode, 'full', JSON.stringify(result))
+  })
+})
+
+test('video-stats-to-docs rename classifies full (rename detection disabled exposes both sides)', () => {
+  withRepo((dir) => {
+    const base = writeAndCommit(dir, { 'tools/game_ocr/notes.py': 'identical content\n' }, 'init')
     mkdirSync(path.join(dir, 'docs'), { recursive: true })
-    git(dir, ['mv', 'apps/web/src/notes.ts', 'docs/notes.md'])
-    git(dir, ['commit', '-q', '-m', 'rename code to docs'])
+    git(dir, ['mv', 'tools/game_ocr/notes.py', 'docs/notes.md'])
+    git(dir, ['commit', '-q', '-m', 'rename ocr code to docs'])
     const head = git(dir, ['rev-parse', 'HEAD'])
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
+    const result = classifyMainPush(dir, base, head)
     assert.equal(result.mode, 'full', JSON.stringify(result))
-    assert.ok(result.paths.includes('apps/web/src/notes.ts'), JSON.stringify(result))
+    assert.ok(result.paths.includes('tools/game_ocr/notes.py'), JSON.stringify(result))
     assert.ok(result.paths.includes('docs/notes.md'), JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  })
 })
 
-test('docs-to-code rename classifies full', () => {
-  const dir = initRepo()
-  try {
-    const base = writeAndCommit(dir, { 'docs/notes.md': 'identical content\n' }, 'init')
-    mkdirSync(path.join(dir, 'apps/web/src'), { recursive: true })
-    git(dir, ['mv', 'docs/notes.md', 'apps/web/src/notes.ts'])
-    git(dir, ['commit', '-q', '-m', 'rename docs to code'])
-    const head = git(dir, ['rev-parse', 'HEAD'])
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'full', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+test('paths containing spaces are classified correctly', () => {
+  withRepo((dir) => {
+    const base = writeAndCommit(
+      dir,
+      { 'docs/my notes.md': 'a\n', 'research/OCR-SS/bench mark.md': 'a\n' },
+      'init',
+    )
+    const fastHead = writeAndCommit(dir, { 'docs/my notes.md': 'b\n' }, 'spacey docs')
+    const fast = classifyMainPush(dir, base, fastHead)
+    assert.equal(fast.mode, 'fast', JSON.stringify(fast))
+    assert.deepEqual(fast.paths, ['docs/my notes.md'])
+    const fullHead = writeAndCommit(
+      dir,
+      { 'research/OCR-SS/bench mark.md': 'b\n' },
+      'spacey benchmark',
+    )
+    assert.equal(classifyMainPush(dir, fastHead, fullHead).mode, 'full')
+  })
 })
 
-test('paths containing spaces are classified correctly (docs-only)', () => {
-  const dir = initRepo()
-  try {
-    const base = writeAndCommit(dir, { 'docs/my notes.md': 'a\n' }, 'init')
-    const head = writeAndCommit(dir, { 'docs/my notes.md': 'b\n' }, 'spacey docs')
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'docs-only', JSON.stringify(result))
-    assert.deepEqual(result.paths, ['docs/my notes.md'])
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('paths containing spaces are classified correctly (full, non-doc)', () => {
-  const dir = initRepo()
-  try {
-    const base = writeAndCommit(dir, { 'apps/web/my file.ts': 'a\n' }, 'init')
-    const head = writeAndCommit(dir, { 'apps/web/my file.ts': 'b\n' }, 'spacey code')
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'full', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('EANHL_PRE_PUSH_FULL=1 converts a docs-only push to full', () => {
-  const dir = initRepo()
-  try {
+test('EANHL_PRE_PUSH_FULL=1 converts a fast push to full', () => {
+  withRepo((dir) => {
     const base = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
     const head = writeAndCommit(dir, { 'HANDOFF.md': 'b\n' }, 'docs')
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: { EANHL_PRE_PUSH_FULL: '1' } })
+    const result = classifyMainPush(dir, base, head, { EANHL_PRE_PUSH_FULL: '1' })
     assert.equal(result.mode, 'full', JSON.stringify(result))
     assert.match(result.reason, /override/i)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  })
 })
 
-test('docs-only push with a git diff --check failure blocks (not full, not silently allowed)', () => {
-  const dir = initRepo()
-  try {
+test('fast push with a git diff --check failure blocks (not full, not silently allowed)', () => {
+  withRepo((dir) => {
     const base = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
     // Trailing whitespace triggers `git diff --check`.
     const head = writeAndCommit(dir, { 'HANDOFF.md': 'a   \nb\n' }, 'trailing whitespace')
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', base)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'docs-only', JSON.stringify(result))
+    const result = classifyMainPush(dir, base, head)
+    assert.equal(result.mode, 'fast', JSON.stringify(result))
     assert.equal(result.diffCheck.ok, false, JSON.stringify(result))
     assert.match(result.diffCheck.output, /whitespace/i)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  })
+})
+
+test('new-branch fast push still runs git diff --check on the branch range', () => {
+  withRepo((dir) => {
+    const base = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
+    git(dir, ['update-ref', NEW_BRANCH_BASE_REF, base])
+    git(dir, ['checkout', '-q', '-b', 'feature'])
+    const head = writeAndCommit(dir, { 'apps/web/src/x.ts': 'x   \n' }, 'trailing whitespace')
+    const stdin = stdinLine('refs/heads/feature', head, 'refs/heads/feature', ZERO_OID_40)
+    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
+    assert.equal(result.mode, 'fast', JSON.stringify(result))
+    assert.equal(result.diffCheck.ok, false, JSON.stringify(result))
+  })
 })
 
 test('missing/malformed object id classifies full conservatively', () => {
-  const dir = initRepo()
-  try {
+  withRepo((dir) => {
     const head = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
     const fakeOid = 'deadbeef'.repeat(5) // 40 hex chars, not a real object
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', fakeOid)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'full', JSON.stringify(result))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+    assert.equal(classifyMainPush(dir, fakeOid, head).mode, 'full')
+  })
 })
 
-test('no-op push (identical oids) classifies docs-only with no paths', () => {
-  const dir = initRepo()
-  try {
+test('no-op push (identical oids) takes the fast path with no paths', () => {
+  withRepo((dir) => {
     const head = writeAndCommit(dir, { 'HANDOFF.md': 'a\n' }, 'init')
-    const stdin = stdinLine('refs/heads/main', head, 'refs/heads/main', head)
-    const result = classifyPush({ stdinText: stdin, repoRoot: dir, env: {} })
-    assert.equal(result.mode, 'docs-only', JSON.stringify(result))
+    const result = classifyMainPush(dir, head, head)
+    assert.equal(result.mode, 'fast', JSON.stringify(result))
     assert.deepEqual(result.paths, [])
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  })
 })
