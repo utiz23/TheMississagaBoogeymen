@@ -17,10 +17,19 @@
 #
 # See DEPLOY.md, "Host port exposure", for how to verify the result — an ingress
 # path being absent does not prove a port is private.
+# Bounded container logs (launch plan item 6): Docker's default json-file
+# driver keeps logs forever. Each service keeps at most 3 × 10 MB.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: eanhl
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -40,6 +49,7 @@ services:
       context: .
       dockerfile: apps/worker/Dockerfile
     restart: unless-stopped
+    logging: *default-logging
     environment:
       DATABASE_URL: postgresql://eanhl:${POSTGRES_PASSWORD}@db:5432/eanhl
       EA_CLUB_ID: ${EA_CLUB_ID}
@@ -49,6 +59,8 @@ services:
       INGEST_CYCLE_TIMEOUT_MS: ${INGEST_CYCLE_TIMEOUT_MS:-120000}
       HEALTH_PORT: ${HEALTH_PORT:-3001}
       HEALTH_STALE_MS: ${HEALTH_STALE_MS:-1800000}
+      # Optional Healthchecks.io check for the collector (launch plan item 6).
+      HC_WORKER_PING_URL: ${HC_WORKER_PING_URL:-}
     ports:
       - '${HEALTH_BIND_ADDR:-127.0.0.1}:${HEALTH_PORT:-3001}:${HEALTH_PORT:-3001}'
     depends_on:
@@ -60,6 +72,7 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
+    logging: *default-logging
     environment:
       DATABASE_URL: postgresql://eanhl:${POSTGRES_PASSWORD}@db:5432/eanhl
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
@@ -93,6 +106,7 @@ services:
     image: cloudflare/cloudflared:2026.8.3@sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339
     profiles: ['public']
     restart: unless-stopped
+    logging: *default-logging
     command: ['tunnel', '--no-autoupdate', 'run']
     environment:
       TUNNEL_TOKEN_FILE: /run/secrets/cloudflared_tunnel_token
@@ -109,6 +123,7 @@ services:
     build: ./ops/nightly-backup
     profiles: ['backup']
     restart: unless-stopped
+    logging: *default-logging
     environment:
       TZ: ${BACKUP_TZ:-America/Edmonton}
       BACKUP_TIME: ${BACKUP_TIME:-03:00}

@@ -11,10 +11,12 @@
  *   POLL_INTERVAL_MS     — polling interval (default: 300000 = 5 minutes)
  *   HEALTH_PORT          — health endpoint port (default: 3001)
  *   EA_REQUEST_DELAY_MS  — throttle between EA API calls (default: 1000)
+ *   HC_WORKER_PING_URL   — optional Healthchecks.io ping URL, pinged after every cycle
  */
 
 import { runIngestionCycle } from './ingest.js'
 import { startHealthServer } from './health.js'
+import { sendHeartbeat } from './heartbeat.js'
 
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS ?? '300000', 10)
 
@@ -33,6 +35,8 @@ async function runLoop(): Promise<void> {
       // This outer catch handles catastrophic failures (e.g. DB connection lost).
       console.error('[worker] Unhandled error in ingestion cycle:', err)
     }
+
+    await sendHeartbeat()
 
     const elapsed = Date.now() - cycleStart
     const delay = Math.max(0, POLL_INTERVAL_MS - elapsed)
