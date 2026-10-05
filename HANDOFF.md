@@ -69,9 +69,9 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup on `main` at `3b9dd32` (container logs capped at
-  3 × 10 MB; worker heartbeat built in, inactive until `HC_WORKER_PING_URL`
-  is set in its `.env`). Its live DB holds 449
+  and nightly backup on `main` at `225a4e9` (container logs capped at
+  3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
+  check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 449
   matches = both hosts' union. Rollback: images
   `:rollback-he-2026-10-05-pre-logs` / `:rollback-he-2026-09-04` and the old
   Hotel-Echo database kept as
@@ -112,8 +112,8 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
   `EANHL_PRE_PUSH_FULL=1`.
 - **Proton/E3 cloud backup is parked.** Hotel-Echo keeps E3's installed
   credential tooling; its Proton session was logged out locally on
-  2026-10-05 (`auth-logout`, entry proven absent). Remote revocation in
-  Proton's session settings is the operator's step. Nothing is scheduled. Full E3 state: the archived handoff and the
+  2026-10-05 (`auth-logout`, entry proven absent) and revoked by the
+  operator in Proton's session settings. Nothing is scheduled. Full E3 state: the archived handoff and the
   [credential memo](docs/planning/proton-drive-hotel-echo-credential-design.md).
 - Main-PC secrets were rotated 2026-09-03; the dead old value remains in git
   history.
@@ -122,16 +122,17 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
 None. Open operator steps:
 
-- Revoke the Sept 30 Proton CLI session in Proton's web settings.
-- Turn off Cloudflare Web Analytics (item 4).
-- Create the collector's Healthchecks check and supply its ping URL (item 6).
-- Decide how the legal pages go live (item 4).
+- Turn off Cloudflare Web Analytics (item 4; the published pages already
+  say "no analytics").
+- Confirm the collector check's test "down"/"up" emails arrived (item 6).
 
 ## Next 1-3 Actions
 
-1. Operator looks at Hotel-Echo's site (`http://localhost:3100` via the
-   tunnel above) — doubles as the start of item 7.
-2. Finish item 3 (operator: the tunnel's Published application routes) and
-   item 4 (legal pages live, analytics off), then item 6 on Hotel-Echo.
+1. Operator: Cloudflare Web Analytics off; confirm the Healthchecks test
+   emails; look over the site and the four legal pages at
+   `http://localhost:3100` (item 7).
+2. Item 8: tunnel token into a file, `public` profile on Hotel-Echo, public
+   checks (headers, noindex, no analytics beacon, 404, exposure), share the
+   link.
 3. Finish the workflow cleanup: rewrite `AGENTS.md` and the workflow doc for
    the new model (about one page).

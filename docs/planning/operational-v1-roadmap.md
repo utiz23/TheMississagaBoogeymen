@@ -46,6 +46,11 @@ carried into this list without being re-asked.
 4. **Legal pages live, no tracking.** The legal pages switch from Draft to
    Published with their final URLs, footer links work, and Cloudflare Web
    Analytics is turned off.
+   _2026-10-05: all four pages published (`225a4e9`) after factual updates
+   (indexing, analytics, logs, backups, providers); the operator owns the
+   legal-review questions and they do not block. Open: the operator turns
+   Cloudflare Web Analytics off (dashboard → Analytics & Logs → Web
+   Analytics → boogeymen.app → Manage site); verify no beacon at item 8._
 5. **Move production to Hotel-Echo.** ✅ Done 2026-10-05 (449 matches =
    both hosts' union; backup green on Hotel-Echo; journal 2026-10-05). One database holding everything: the
    main PC's (full history and video stats) plus the 14 games only Hotel-Echo
@@ -61,7 +66,9 @@ carried into this list without being re-asked.
    test alert received.
    _2026-10-05: log limits live on Hotel-Echo (3 × 10 MB per service); the
    worker heartbeat (`HC_WORKER_PING_URL`, `3b9dd32`) is deployed and waits
-   for its Healthchecks check. "No new games" itself is not alerted — gaps
+   with its Healthchecks check live (period 5 min, grace 20 min); a
+   deliberate test failure was sent 2026-10-05 14:51. "No new games" itself
+   is not alerted — gaps
    between sessions are normal; the alert fires when the collector stops
    working or transforms fail._
 7. **Looks right.** The operator checks the core pages on a phone and on a
