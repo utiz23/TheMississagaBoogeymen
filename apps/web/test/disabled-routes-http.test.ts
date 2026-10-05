@@ -115,6 +115,9 @@ void test('every disabled page route is an ordinary 404', { skip }, async () => 
     '/admin/anything-else',
     '/account/settings',
     '/login/callback',
+    // Design-preview scratch pages, removed for launch (launch plan item 3).
+    '/preview/archetypes',
+    '/preview/carousel',
   ]) {
     assert.equal(await status('GET', urlPath), 404, `GET ${urlPath} must be 404`)
   }

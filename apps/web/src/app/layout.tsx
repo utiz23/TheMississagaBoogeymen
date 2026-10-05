@@ -21,6 +21,8 @@ const barlowSemiCondensed = Barlow_Semi_Condensed({
 export const metadata: Metadata = {
   title: 'Club Stats',
   description: 'EASHL team stats and analytics',
+  // Unlisted launch: no page should appear in search results (see app/robots.ts).
+  robots: { index: false, follow: false },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

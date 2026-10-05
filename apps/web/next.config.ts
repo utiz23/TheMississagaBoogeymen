@@ -15,6 +15,16 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
 
+  // Don't advertise the framework in every response.
+  poweredByHeader: false,
+
+  // Unlisted launch: keep every response out of search results. The header
+  // also covers non-HTML responses; the page-level meta tag is set in
+  // app/layout.tsx, and app/robots.ts explains why crawling stays allowed.
+  async headers() {
+    return [{ source: '/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] }]
+  },
+
   images: {
     remotePatterns: [
       {
