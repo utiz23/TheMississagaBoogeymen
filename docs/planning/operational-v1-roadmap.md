@@ -15,11 +15,16 @@ data is safe.
 
 An item is done when its proof is written in the journal.
 
+**Host decision (operator, 2026-10-05):** the site launches from
+**Hotel-Echo**, the always-on server, not the main PC. This replaces the
+2026-10-02 "launch from the main PC, move later" assumption, which had been
+carried into this list without being re-asked.
+
 1. **Data safe.** The nightly backup
-   ([`ops/nightly-backup/`](../../ops/nightly-backup/README.md)) is merged
-   to `main` and its first three unattended nights are green on
-   Healthchecks.io. A restore from both the local disk and Backblaze B2 was
-   already tested on 2026-10-05.
+   ([`ops/nightly-backup/`](../../ops/nightly-backup/README.md)) runs on the
+   production host with three green unattended nights on Healthchecks.io.
+   It ran on the main PC from 2026-10-05 (restores from the local disk and
+   from Backblaze B2 tested) and moves to Hotel-Echo with item 5.
 2. **Correct data.** ✅ Done 2026-10-05. Which title is collected, which
    title the site shows by default, and the order titles are listed in are now
    three separate settings (before, one `is_active` flag did all three, so
@@ -32,33 +37,45 @@ An item is done when its proof is written in the journal.
    reachable; error pages show no internals; search engines are told not to
    index the site (`noindex` and `robots.txt`). Proof: checks against the
    public URL.
-   _2026-10-05: code side done and verified locally (preview pages gone,
-   noindex everywhere, `robots.txt`, no framework header, error pages leak
-   nothing, scoreboard 404). Open: the operator's Cloudflare tunnel check, and
-   re-checking against the public URL once the tunnel is on (item 7)._
+   _2026-10-05: code side done (preview pages gone, noindex everywhere,
+   `robots.txt`, no framework header, error pages leak nothing, scoreboard
+   404). Cloudflare: no CIDR routes. Open: the tunnel's Published application
+   routes, and re-checking against the public URL at item 8._
 4. **Legal pages live, no tracking.** The legal pages switch from Draft to
    Published with their final URLs, footer links work, and Cloudflare Web
    Analytics is turned off.
-5. **Safety nets.** An email if no new game has been collected for too long
-   or failed transforms pile up (a missed EA window loses games for good),
-   and size limits on Docker's log files (the main PC's C: drive is nearly
-   full). Proof: one test alert received.
-6. **Looks right.** The operator checks the core pages on a phone and on a
+5. **Move production to Hotel-Echo.** One database holding everything: the
+   main PC's (full history and video stats) plus the 14 games only Hotel-Echo
+   collected (13 NHL 26 on 2026-09-07/13, 1 NHL 27 on 2026-09-17; titles
+   matched by slug, not id). Hotel-Echo runs current `main`; the nightly
+   backup moves there; the main PC stops collecting and serving but keeps its
+   database as a fallback and keeps doing video-stats processing. Proof: match
+   counts equal the union of both hosts, core pages load, the worker cycles,
+   a backup run is green.
+6. **Safety nets (on Hotel-Echo).** An email if no new game has been
+   collected for too long or failed transforms pile up (a missed EA window
+   loses games for good), and size limits on Docker's log files. Proof: one
+   test alert received.
+7. **Looks right.** The operator checks the core pages on a phone and on a
    desktop and signs off.
-7. **Open it up.** The operator approves, then: add `public` to
-   `COMPOSE_PROFILES` in `.env`, start `cloudflared`, check the public URL,
-   send teammates the link. Rollback: `docker compose stop cloudflared` makes
-   the site private again; nothing is lost.
+8. **Open it up.** The operator approves, then on Hotel-Echo: move the
+   `hotel-echo-web` tunnel token from `.env` into the token file the current
+   compose file expects, add `public` to `COMPOSE_PROFILES`, start
+   `cloudflared`, check the public URL, send teammates the link. Rollback:
+   `docker compose stop cloudflared` makes the site private again; nothing is
+   lost.
 
-Order: 1 → 2 → 3, 4, 5 (any order) → 6 → 7.
+Order: 1–4 (any order, 2 done) → 5 → 6 → 7 → 8.
 
 ## After launch (maybe — no dates)
 
 - Proton Drive cloud backup (E3) is **parked** (2026-10-05); Backblaze B2
   covers off-site copies. Hotel-Echo still holds E3's installed tooling and a
-  logged-in Proton session from 2026-09-30 testing: decide whether to log it
-  out or keep it.
-- Moving production from the main PC to Hotel-Echo.
+  logged-in Proton session from 2026-09-30 testing — and Hotel-Echo becomes
+  the internet-facing host: decide before item 8 whether to log it out.
+- Video-stats processing on the main PC writing to Hotel-Echo's database
+  over Tailscale (needs the database opened to the tailnet; decide when OCR
+  work resumes).
 - Security-header tuning, rate limits, search indexing and link previews,
   full accessibility and performance audits, a lawyer's review of the legal
   pages.

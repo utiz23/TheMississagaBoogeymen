@@ -28,9 +28,9 @@ documents, not here.
 
 ## Current Objective / Status
 
-Launch the site to teammates using the 7-item launch plan (adopted
-2026-10-05). Item 2 (correct data) is done; item 1 (data safe) needs two more
-green nights; items 3–7 are open.
+Launch the site to teammates from Hotel-Echo using the 8-item launch plan
+(adopted 2026-10-05, host pivot same day). Item 2 (correct data) is done;
+item 3 needs only the Cloudflare routes check; items 1 and 4–8 are open.
 
 ## Latest Verified Checkpoint
 
@@ -63,8 +63,13 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
 ## Essential Operational Constraints
 
-- **Production is the main PC** (web, worker, db, backup via Docker Compose).
-  Hotel-Echo runs a parallel, not-yet-migrated copy that also ingests NHL 27.
+- **Launch host is Hotel-Echo** (operator decision 2026-10-05; `ssh
+hotel-echo`, Tailscale `100.98.29.119`, repo `~/eanhl-team-website`). Until
+  the move (launch item 5) the **main PC is still production** (web, worker,
+  db, backup). Hotel-Echo runs a parallel copy on Sept 4 code with its own
+  database: 245 matches incl. 14 the main PC never got (13 NHL 26 on
+  2026-09-07/13, 1 NHL 27 on 2026-09-17; raw payloads kept). Its title ids
+  differ from the main PC's — match titles by slug.
 - Main PC web runs `main` at `e93e24a` (image `79e5190a1a30`), worker at `538d956`
   (`7c4f7054ea52`), deployed 2026-10-05. Web rollback images, newest first:
   `eanhl-team-website-web:rollback-2026-10-05-item3` (before the scoreboard
@@ -74,8 +79,11 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 - Domain `boogeymen.app` is on Cloudflare; `webmaster@boogeymen.app` works
   both ways.
 - The Cloudflare tunnel is deliberately **off** on both hosts (the `public`
-  Compose profile is not enabled). Turning it on is launch item 7 and needs
-  the operator's approval. Login/auth was deliberately removed pre-launch.
+  Compose profile is not enabled). The only tunnel is `hotel-echo-web`
+  (status Down, no CIDR routes); `boogeymen.app` and `www` point at it. The
+  main PC has no tunnel token. Turning it on is launch item 8 and needs the
+  operator's approval; Hotel-Echo keeps the token as `TUNNEL_TOKEN` in `.env`
+  (old style) — current compose expects a token file. Login/auth was deliberately removed pre-launch.
 - NHL 27 ingestion has been live since 2026-09-05; NHL 26 is preserved. Since
   migration 0057 (applied 2026-10-05) three settings are separate:
   collection (`is_active`: NHL 26 and 27), site default (`is_default`: NHL 27)
@@ -109,9 +117,10 @@ None. Open decisions:
 
 ## Next 1-3 Actions
 
-1. Finish launch item 3: the operator checks the Cloudflare tunnel's Public
-   Hostname list (expect only `boogeymen.app` → `http://web:3000`).
-2. Launch items 4–5 (legal pages live, analytics off; stale-ingestion alert,
-   Docker log limits).
+1. Launch item 5: move production to Hotel-Echo (rehearse the merge on a
+   throwaway copy first; then back up both hosts, consolidate, update code,
+   move the backup, stop the main PC's collector).
+2. Finish item 3 (operator: the tunnel's Published application routes) and
+   item 4 (legal pages live, analytics off).
 3. Finish the workflow cleanup: rewrite `AGENTS.md` and the workflow doc for
    the new model (about one page).
