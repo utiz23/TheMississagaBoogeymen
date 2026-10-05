@@ -166,6 +166,19 @@ void test('nav: the default stays offered even when it is neither polled nor mat
   )
 })
 
+void test('liveOnly (/ and /games): an archive slug is invalid; live titles and NHL 26 resolve', () => {
+  const liveOnly = { liveOnly: true }
+  for (const slug of ['nhl24', 'nhl22']) {
+    assert.equal(resolveTitle(slug, TARGET, liveOnly).kind, 'invalid', slug)
+  }
+  assert.equal(ok(resolveTitle('nhl27', TARGET, liveOnly)).gameTitle.slug, 'nhl27')
+  // NHL 26 keeps its match-backed pages after polling stops.
+  assert.equal(ok(resolveTitle('nhl26', TARGET, liveOnly)).gameTitle.slug, 'nhl26')
+  assert.equal(ok(resolveTitle(undefined, TARGET, liveOnly)).gameTitle.slug, 'nhl27')
+  // No ?title= never redirects, even when the default itself is not live.
+  assert.equal(ok(resolveTitle(undefined, [NHL22, NHL24], liveOnly)).gameTitle.slug, 'nhl24')
+})
+
 void test('/games toolbar: an explicitly selected archive title is offered too', () => {
   assert.deepEqual(
     switcherTitles(TARGET, NHL22.id).map((t) => t.slug),
@@ -217,13 +230,26 @@ void test('/, /games, /stats and /roster resolve titles through the shared resol
       /import \{[^}]*\bresolveTitleFromSlug\b[^}]*\} from '@\/lib\/title-resolver'/,
       `${page} imports resolveTitleFromSlug`,
     )
-    assert.match(text, /await resolveTitleFromSlug\(titleSlug\)/, `${page} calls it`)
+    assert.match(text, /await resolveTitleFromSlug\(titleSlug[,)]/, `${page} calls it`)
     assert.doesNotMatch(text, /function resolveGameTitle\b/, `${page} has no local resolver`)
     assert.doesNotMatch(
       text,
       /\b(getActiveGameTitleBySlug|getArchiveGameTitleBySlug|listArchiveGameTitles|listGameTitles)\b/,
       `${page} has no direct title listing/lookup`,
     )
+  }
+})
+
+void test('/ and /games have no archive view, so they resolve live titles only', () => {
+  for (const page of ['../app/page.tsx', '../app/games/page.tsx']) {
+    assert.match(
+      source(page),
+      /resolveTitleFromSlug\(titleSlug, \{ liveOnly: true \}\)/,
+      `${page} is live-only`,
+    )
+  }
+  for (const page of ['../app/stats/page.tsx', '../app/roster/page.tsx']) {
+    assert.doesNotMatch(source(page), /liveOnly/, `${page} keeps its archive view`)
   }
 })
 

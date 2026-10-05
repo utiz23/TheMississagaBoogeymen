@@ -95,7 +95,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   const matchIds = devMatchIds(gameMode)
   const queryGameMode = dbGameMode(gameMode)
 
-  const result = await resolveTitleFromSlug(titleSlug).catch(() => null)
+  const result = await resolveTitleFromSlug(titleSlug, { liveOnly: true }).catch(() => null)
 
   if (result === null) {
     return <EmptyState message="Unable to load match data right now." />

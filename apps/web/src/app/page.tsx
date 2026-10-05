@@ -48,7 +48,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
   const gameMode = parseGameMode(params.mode)
-  const result = await resolveTitleFromSlug(titleSlug).catch(() => null)
+  const result = await resolveTitleFromSlug(titleSlug, { liveOnly: true }).catch(() => null)
 
   if (result === null) {
     return (

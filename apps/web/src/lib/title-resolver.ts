@@ -61,12 +61,21 @@ export function switcherTitles<T extends TitleChoice>(
   return newestFirst(allTitles).filter((t) => t.isLive || t.id === defaultId || t.id === selectedId)
 }
 
+export interface ResolveOptions {
+  /**
+   * For match-only pages (`/`, `/games`), which have no archive view: an
+   * explicit slug for a title that is not live resolves as `invalid`, so the
+   * caller redirects to its no-filter URL (the default title).
+   */
+  liveOnly?: boolean
+}
+
 /**
  * Resolve a `?title=` slug against every title.
  *
  * - A slug that matches any title — live or archive, polled or not — wins over
- *   the default. A slug that matches nothing is `invalid`, so the caller can
- *   redirect to its no-filter URL.
+ *   the default (with `liveOnly`, live titles only). A slug that matches
+ *   nothing is `invalid`, so the caller can redirect to its no-filter URL.
  * - No slug resolves to `pickDefaultTitle`; no titles at all is `empty`.
  *
  * `allTitles` is present on `ok`/`invalid` so callers can render a selector.
@@ -74,12 +83,13 @@ export function switcherTitles<T extends TitleChoice>(
 export function resolveTitle(
   slug: string | undefined,
   titles: readonly GameTitleListing[],
+  options: ResolveOptions = {},
 ): ResolveResult {
   const allTitles = newestFirst(titles)
 
   if (slug) {
     const match = allTitles.find((t) => t.slug === slug)
-    if (!match) return { kind: 'invalid', allTitles }
+    if (!match || (options.liveOnly && !match.isLive)) return { kind: 'invalid', allTitles }
     return { kind: 'ok', resolved: { gameTitle: match, allTitles } }
   }
 
@@ -88,8 +98,11 @@ export function resolveTitle(
   return { kind: 'ok', resolved: { gameTitle: fallback, allTitles } }
 }
 
-export async function resolveTitleFromSlug(slug?: string): Promise<ResolveResult> {
-  return resolveTitle(slug, await listAllGameTitles())
+export async function resolveTitleFromSlug(
+  slug?: string,
+  options?: ResolveOptions,
+): Promise<ResolveResult> {
+  return resolveTitle(slug, await listAllGameTitles(), options)
 }
 
 type CareerRangeRow = Pick<
