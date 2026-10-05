@@ -87,12 +87,10 @@ section grants you any rights held by EA, the NHL, the NHLPA, Sony,
 Microsoft, platform owners, players, teams, creators, or other third
 parties. See section 7 for more on third-party content, names, and marks.
 
-**Normal search-engine indexing is permitted.** Ordinary search-engine
-crawlers are welcome to crawl and index the pages we make available for
-indexing, in the usual way. Where we publish machine-readable indexing
-instructions, we ask that crawlers follow them; some URL variants, such as
-filter and pagination URLs, are not intended to be indexed as separate
-content.
+**Search engines.** At present, every page of this site asks search engines
+not to index it. Crawlers may fetch our pages, but we ask that they follow
+our machine-readable instructions, including the request not to list our
+pages in search results.
 
 Automated access is not prohibited as such. The limits in the next two
 sections are about disruptive volume, evasion, and downstream reuse — not

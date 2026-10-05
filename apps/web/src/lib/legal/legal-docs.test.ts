@@ -52,43 +52,40 @@ void test('DRAFT_BANNER_TEXT is the exact, single sentence the plan specifies', 
   assert.equal(DRAFT_BANNER_TEXT, 'Draft — not in effect.')
 })
 
-void test('every real document is currently a draft with no dates set', () => {
+void test('every real document is published with an effective and last-updated date', () => {
+  // Published 2026-10-05 by operator decision (launch plan item 4).
   for (const doc of LEGAL_DOCS) {
-    assert.equal(doc.status, 'draft', `${doc.slug} must be status: 'draft' in Unit 1`)
-    assert.equal(doc.effectiveDate, null, `${doc.slug} must have effectiveDate: null while draft`)
-    assert.equal(doc.lastUpdated, null, `${doc.slug} must have lastUpdated: null while draft`)
+    assert.equal(doc.status, 'published', `${doc.slug} must be status: 'published'`)
+    assert.notEqual(doc.effectiveDate, null, `${doc.slug} must have an effectiveDate`)
+    assert.notEqual(doc.lastUpdated, null, `${doc.slug} must have a lastUpdated date`)
   }
 })
 
-void test('validateLegalDoc accepts every real (draft) document as-is', () => {
+void test('validateLegalDoc accepts every real (published) document as-is', () => {
   for (const doc of LEGAL_DOCS) {
     assert.deepEqual(validateLegalDoc(doc), [])
   }
 })
 
-void test('legalMetadata marks every real document noindex, nofollow, with a "(Draft)" title', () => {
+void test('legalMetadata gives published documents a plain title and no robots override', () => {
+  // No page-level robots: published legal pages inherit the site-wide
+  // noindex/nofollow from app/layout.tsx like every other page.
   for (const doc of LEGAL_DOCS) {
     const metadata = legalMetadata(doc.slug)
-    assert.equal(metadata.title, `${doc.title} (Draft) — Club Stats`)
+    assert.equal(metadata.title, `${doc.title} — Club Stats`)
     assert.equal(metadata.description, doc.description)
-    assert.deepEqual(metadata.robots, {
-      index: false,
-      follow: false,
-      googleBot: { index: false, follow: false },
-    })
+    assert.equal(metadata.robots, undefined)
   }
 })
 
-void test('publishedReferencesDraftViolations is empty for the real, all-draft registry', () => {
+void test('publishedReferencesDraftViolations is empty for the real, all-published registry', () => {
   assert.deepEqual(publishedReferencesDraftViolations(LEGAL_DOCS), [])
 })
 
 /**
- * Nothing in `LEGAL_DOCS` is published today, so the two tests below use a
- * synthetic fixture rather than the real registry — they exist to prove the
- * validators actually enforce the FUTURE gate-flip invariants (published
- * dates, published-to-draft link safety), not just that they pass
- * vacuously against today's all-draft state.
+ * The two tests below use a synthetic fixture rather than the real registry —
+ * they prove the validators actually reject bad dates and published-to-draft
+ * links, not just that the real (all-published) registry happens to pass.
  */
 
 void test('isIsoDate: calendar-strict validation rejects impossible dates', () => {

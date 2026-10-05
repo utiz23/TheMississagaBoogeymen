@@ -55,10 +55,8 @@ export const sections: LegalPageSection[] = [
             activity begins.
           </LI>
           <LI>
-            Our intended posture at launch is{' '}
-            <Strong>no analytics and no nonessential tracking</Strong>. Where that is not yet true
-            on the day you are reading this (see "Cookies, browser storage, and analytics" below),
-            we will say so plainly rather than describe the site as already meeting that posture.
+            Our posture is <Strong>no analytics and no nonessential tracking</Strong> — see
+            "Cookies, browser storage, and analytics" below.
           </LI>
         </UL>
       </>
@@ -153,14 +151,13 @@ export const sections: LegalPageSection[] = [
             not contain.
           </LI>
           <LI>
-            <Strong>Website access, operational, error, and security logs.</Strong> This site, its
-            hosting stack, and its security providers may generate access, operational, error, and
-            security records in the course of operating and securing the site. Our repository and
-            configuration evidence does not establish that every such category of log is actually
-            generated, what its exact fields are, or what retention each host or provider applies in
-            practice. See "How long we keep information" below for how we treat logs under our
-            control, and "Service providers and other parties" for logs controlled independently by
-            our providers.
+            <Strong>Website operational and error logs.</Strong> This site's hosting stack generates
+            operational and error records in the course of operating and securing the site. Our own
+            server keeps them in small, size-limited rolling logs, and our website software does not
+            keep a separate record of each page visit. Our network and security provider
+            (Cloudflare) may keep its own records. See "How long we keep information" below for how
+            we treat logs under our control, and "Service providers and other parties" for logs
+            controlled independently by our providers.
           </LI>
           <LI>
             <Strong>Email correspondence sent to our project addresses</Strong>, which may include
@@ -251,10 +248,12 @@ export const sections: LegalPageSection[] = [
           metrics described above.
         </P>
         <P>
-          Our indexing policy: canonical public pages (such as the home page, game pages, roster
-          pages, and stats pages) are meant to be indexable by normal search engines. Filter, sort,
-          pagination, and other query-variant URLs, along with diagnostic or non-public surfaces,
-          are not meant to be indexed as separate content.
+          Our indexing policy: at present, every page of this site — including the home page, game
+          pages, roster pages, and stats pages — asks search engines not to index it (a{' '}
+          <Code>noindex</Code> instruction on every page and response), so the site is not intended
+          to appear in search results and is shared by direct link. If we later allow indexing of
+          public pages, we will update this policy first. Diagnostic and non-public surfaces are not
+          meant to be indexed in any case.
         </P>
         <P>
           Public display of statistics is distinct from our retention of private raw data and OCR
@@ -282,18 +281,9 @@ export const sections: LegalPageSection[] = [
           cookie Cloudflare may set, so we are not naming one here.
         </P>
         <P>
-          <Strong>
-            Cloudflare Web Analytics is currently enabled on this site's Cloudflare configuration.
-          </Strong>{' '}
-          Cloudflare describes its Web Analytics product as cookie-free — it says the product does
-          not use cookies or client-side storage to collect metrics. However, having any analytics
-          feature enabled does not match the no-analytics posture described in "Scope and launch
-          posture" above.{' '}
-          <Strong>
-            We intend to disable Cloudflare Web Analytics before this site is published, and this
-            policy will not claim "no analytics" as a current fact until that has been verified from
-            our live Cloudflare dashboard.
-          </Strong>
+          <Strong>We do not use analytics.</Strong> Cloudflare Web Analytics, which was previously
+          enabled in this site's Cloudflare configuration, has been turned off, and this site uses
+          no advertising or other nonessential tracking.
         </P>
         <P>
           We do not plan to show a cookie-consent banner while our posture is "no nonessential
@@ -364,6 +354,15 @@ export const sections: LegalPageSection[] = [
             us.
           </LI>
           <LI>
+            <Strong>Backblaze</Strong> — stores off-site backup copies of our database (see "How
+            long we keep information" below).
+          </LI>
+          <LI>
+            <Strong>Healthchecks.io</Strong> — monitoring that alerts us if our backups or data
+            collection stop working. It receives only short status messages from our server, not
+            information about visitors.
+          </LI>
+          <LI>
             <Strong>Electronic Arts (EA)</Strong> — the source of the underlying game data and some
             visual assets referenced by this site. EA does not endorse, and is not affiliated with,
             this project.
@@ -401,10 +400,9 @@ export const sections: LegalPageSection[] = [
           that indefinite retention has been legally reviewed or approved.
         </LI>
         <LI>
-          <Strong>Logs under our control</Strong> do not currently have a fixed automatic deletion
-          period. We retain them only for as long as reasonably needed to operate, secure,
-          troubleshoot, or protect the website, or to meet applicable legal obligations. We delete
-          them when they are no longer reasonably needed for those purposes.
+          <Strong>Logs under our control</Strong> are size-limited rather than kept for a fixed
+          period: our server keeps a small rolling log for each part of the site and automatically
+          overwrites the oldest entries.
         </LI>
         <LI>
           <Strong>Logs controlled independently by service providers</Strong> are subject to those
@@ -434,12 +432,12 @@ export const sections: LegalPageSection[] = [
           independently of our mailbox) is not something we have independently verified.
         </LI>
         <LI>
-          We plan to keep periodic encrypted backups of our data.{' '}
-          <Strong>That backup system is not active yet</Strong>, and this policy will not describe
-          backup retention as a current fact until it is implemented and verified. Once backups are
-          active, we expect corrections you request to be reflected in new backups going forward; we
-          do not plan to individually rewrite already-created encrypted backup copies, which will
-          instead expire under our normal backup-retention schedule over time.
+          We keep automatic daily backup copies of our database. Copies on our own server are kept
+          for about 12 months (daily copies for 14 days, weekly copies for 8 weeks, and monthly
+          copies for 12 months); off-site copies with Backblaze are kept for about 90 days. Copies
+          are sent to Backblaze over an encrypted connection. Corrections you request are reflected
+          in new backups going forward; we do not individually rewrite existing backup copies, which
+          instead expire on that schedule.
         </LI>
       </UL>
     ),
@@ -564,7 +562,7 @@ export const sections: LegalPageSection[] = [
           various places, and we do not publish individual member locations.
         </P>
         <P>
-          Because we use Cloudflare, Proton Mail, GitHub, EA's services, and the ordinary
+          Because we use Cloudflare, Proton Mail, GitHub, Backblaze, EA's services, and the ordinary
           infrastructure of the internet, information may be processed or transmitted outside
           Alberta or Canada as part of how those services work. We do not have verified information
           about the exact physical storage locations each of these providers uses, and we do not

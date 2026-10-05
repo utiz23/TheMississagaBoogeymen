@@ -62,13 +62,14 @@ inventory, including how each category is sourced and used, see our
 
 ### 4. Public pages versus private evidence
 
-Our canonical public pages — things like team, game, player, and stats
-pages — are intended to be found through normal search-engine indexing, the
-same as any other public website. The private source evidence behind those
-statistics (raw recordings, screenshots, frames, and related OCR
-provenance/confidence records) is not published and is not intended to be
-indexed. See the Data Collection Policy for how public display and indexing
-work in more detail.
+Our public pages — things like team, game, player, and stats pages — are
+shared by direct link. At present, every page of this site asks search
+engines not to index it, so the site is not intended to appear in search
+results; if we later allow indexing, we will update this policy first. The
+private source evidence behind those statistics (raw recordings,
+screenshots, frames, and related OCR provenance/confidence records) is not
+published and is not intended to be indexed. See the Data Collection Policy
+for how public display and indexing work in more detail.
 
 ### 5. Information about your visit
 
@@ -87,37 +88,31 @@ required in any particular jurisdiction is a legal-review question, not one
 this policy resolves for itself. See the Data Collection Policy for the
 detailed, authoritative treatment of cookies and browser storage.
 
-This site's hosting and security infrastructure may generate access,
-operational, error, and security logs in the ordinary course of running and
-protecting the site. We do not claim that any particular log exists, or
-describe its exact contents, without evidence that it does — see "How long
-we keep information" below for how we treat logs we control.
+This site's hosting and security infrastructure generates operational and
+error logs in the ordinary course of running and protecting the site. Our
+own server keeps these in small, size-limited rolling logs, and our website
+software does not keep a separate record of each page visit. Our network and
+security provider (Cloudflare) may keep its own logs — see "How long we keep
+information" below for how we treat logs we control.
 
 ### 6. Analytics
 
-**Cloudflare Web Analytics is currently enabled** on this site's Cloudflare
-configuration. This conflicts with our intended "no analytics" launch
-posture. **We intend to disable Cloudflare Web Analytics, and confirm from
-our live Cloudflare dashboard that it is off, before this site is published.**
-This policy does not claim analytics is already disabled, and will not do so
-until that has been verified.
-
-Cloudflare describes its Web Analytics product as cookie-free — Cloudflare
-states the product does not use cookies or client-side storage to collect
-metrics. We attribute that claim to Cloudflare. Cloudflare Web Analytics is
-nonetheless an analytics feature, and having it enabled conflicts with our
-approved no-analytics posture regardless of whether it uses cookies. Whether
-a cookie-consent banner is legally required in any particular jurisdiction
+**We do not use analytics.** Cloudflare Web Analytics, which was previously
+enabled in this site's Cloudflare configuration, has been turned off, and
+this site uses no advertising or other nonessential tracking. Whether a
+cookie-consent banner is legally required in any particular jurisdiction
 remains unresolved and is a legal-review question.
 
 ### 7. Service providers
 
-We use a small number of outside services to run this project: **Cloudflare**
-(domain, DNS, and proxied edge/security layer), **Proton Mail** (email),
-**GitHub** (a private repository holding our source code and a limited set
-of test fixtures), **EA's game services** (the source of underlying game
-data), and **community-operated hosting infrastructure based in Alberta,
-Canada**.
+We use a small number of outside services to run this project:
+**Cloudflare** (domain, DNS, and proxied edge/security layer), **Proton
+Mail** (email), **GitHub** (a private repository holding our source code and
+a limited set of test fixtures), **Backblaze** (off-site storage for backup
+copies of our database), **Healthchecks.io** (monitoring that receives only
+status messages from our server, not information about visitors), **EA's
+game services** (the source of underlying game data), and
+**community-operated hosting infrastructure based in Alberta, Canada**.
 
 This is a summary list, not a legal classification. We do not describe any
 provider here as a "processor," "controller," "service provider," or similar
@@ -129,7 +124,7 @@ Data Collection Policy for more detail on how each provider is used.
 
 ### 8. Cross-border handling
 
-Because we use Cloudflare, Proton Mail, GitHub, EA's services, and the
+Because we use Cloudflare, Proton Mail, GitHub, Backblaze, EA's services, and the
 ordinary infrastructure of the internet, some information may be processed or
 transmitted outside Alberta, or outside Canada, as part of how those services
 work. We do not have verified information about the exact countries
@@ -155,12 +150,12 @@ schedule. See the [Data Collection Policy](PLACEHOLDER-DATA-COLLECTION-POLICY-UR
 for the full retention treatment by category, including email-correspondence
 retention.
 
-**Logs under our control** do not currently have a fixed automatic deletion
-period. We retain them only for as long as reasonably needed to operate,
-secure, troubleshoot, or protect the website, or to meet applicable legal
-obligations. We delete them when they are no longer reasonably needed for
-those purposes. Logs controlled independently by service providers are
-subject to those providers' own practices and retention periods.
+**Logs under our control** are size-limited rather than kept for a fixed
+period: our server keeps a small rolling log for each part of the site and
+automatically overwrites the oldest entries. Backup copies of our database
+are kept on the schedule described in the Data Collection Policy. Logs
+controlled independently by service providers are subject to those
+providers' own practices and retention periods.
 
 We have not adopted a scheduled periodic review of our main historical
 archive.

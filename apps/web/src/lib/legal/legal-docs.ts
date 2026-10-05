@@ -47,15 +47,12 @@ export const DRAFT_BANNER_TEXT = 'Draft — not in effect.'
  * rows, and the "Draft" tag in the cross-document index — is DERIVED from
  * `status` here, never set independently on a page.
  *
- * Flipping a document to `status: 'published'` with real `effectiveDate`/
- * `lastUpdated` values is the intended future one-file gate flip — but by
- * itself that flip is NOT publication. Publication additionally requires:
- * closing each draft's publication blockers (counsel review, the
- * Cloudflare Web Analytics variant swap, the logging inventory, the AI/TDM
- * crawler decision, and the rest — see the plan's blocker table), revising
- * and re-transcribing any draft text that changes as a result, adding
- * canonical URLs and sitemap entries, a separate owner authorization, a
- * merge to main, and a deploy. None of that happens by editing this file.
+ * All four documents were flipped to `status: 'published'` on 2026-10-05 by
+ * operator decision (launch plan item 4), after the factual updates
+ * (indexing, analytics, logs, backups, providers). The operator handles the
+ * open legal-review questions separately; they do not gate publication. Any
+ * later text change must be made in both the draft and its transcription and
+ * should bump `lastUpdated`.
  */
 export const LEGAL_DOCS: readonly LegalDocMeta[] = [
   {
@@ -65,9 +62,9 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
     footerLabel: 'Privacy Policy',
     description:
       'How this site collects, uses, and retains information, and how to make a request about it.',
-    status: 'draft',
-    effectiveDate: null,
-    lastUpdated: null,
+    status: 'published',
+    effectiveDate: '2026-10-05',
+    lastUpdated: '2026-10-05',
     references: ['data-collection'],
   },
   {
@@ -77,9 +74,9 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
     footerLabel: 'Terms of Use',
     description:
       'The rules for using this website, including permitted use, accuracy, and liability.',
-    status: 'draft',
-    effectiveDate: null,
-    lastUpdated: null,
+    status: 'published',
+    effectiveDate: '2026-10-05',
+    lastUpdated: '2026-10-05',
     references: ['privacy', 'data-collection', 'attribution'],
   },
   {
@@ -89,9 +86,9 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
     footerLabel: 'Data Collection Policy',
     description:
       'The detailed inventory of what this site collects, where it comes from, and how long it is kept.',
-    status: 'draft',
-    effectiveDate: null,
-    lastUpdated: null,
+    status: 'published',
+    effectiveDate: '2026-10-05',
+    lastUpdated: '2026-10-05',
     references: [],
   },
   {
@@ -101,9 +98,9 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
     footerLabel: 'Attribution & Non-Affiliation Notice',
     description:
       "Where this site's EA-sourced data and third-party visual material come from, and our non-affiliation statement.",
-    status: 'draft',
-    effectiveDate: null,
-    lastUpdated: null,
+    status: 'published',
+    effectiveDate: '2026-10-05',
+    lastUpdated: '2026-10-05',
     references: ['terms'],
   },
 ] as const
@@ -172,10 +169,8 @@ export function isIsoDate(value: string): boolean {
 }
 
 /**
- * Invariant checks for one document's status/date fields. Every real entry
- * in `LEGAL_DOCS` is a draft today, so the "published" branch below is
- * exercised only by `legal-docs.test.ts`'s synthetic fixtures — it exists
- * for the future gate flip, not for anything currently in this registry.
+ * Invariant checks for one document's status/date fields (both branches are
+ * also exercised by `legal-docs.test.ts`'s synthetic fixtures).
  */
 export function validateLegalDoc(doc: LegalDocMeta, now: Date = new Date()): string[] {
   const errors: string[] = []
@@ -219,11 +214,8 @@ export function validateLegalDoc(doc: LegalDocMeta, now: Date = new Date()): str
 
 /**
  * Flags a published document that still links to a document that is not
- * itself published. Every entry in `LEGAL_DOCS` is a draft today, so this
- * is vacuously `[]` for the real registry right now — the rule exists for
- * the future gate flip. `legal-docs.test.ts` proves the rule actually
- * catches a violation using a synthetic fixture, independent of today's
- * all-draft state.
+ * itself published. `legal-docs.test.ts` proves the rule actually catches a
+ * violation using a synthetic fixture.
  */
 export function publishedReferencesDraftViolations(
   docs: readonly LegalDocMeta[] = LEGAL_DOCS,

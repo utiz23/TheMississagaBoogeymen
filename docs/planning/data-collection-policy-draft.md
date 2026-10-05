@@ -39,10 +39,8 @@ about which privacy law, if any, applies to it.
 - No monetization or other commercial activity exists on this site, and
   none is planned. If that changes, we intend to carry out a fresh privacy
   review before any commercial activity begins.
-- Our intended posture at launch is **no analytics and no nonessential
-  tracking**. Where that is not yet true on the day you are reading this
-  (see "Cookies, browser storage, and analytics" below), we will say so
-  plainly rather than describe the site as already meeting that posture.
+- Our posture is **no analytics and no nonessential tracking** — see
+  "Cookies, browser storage, and analytics" below.
 
 ### 2. Information we collect or maintain
 
@@ -109,14 +107,13 @@ game services and our own team members' review and correction of that data:
   information" below. We have not inspected every recording's contents and
   do not claim to know what any specific recording does or does not
   contain.
-- **Website access, operational, error, and security logs.** This site,
-  its hosting stack, and its security providers may generate access,
-  operational, error, and security records in the course of operating and
-  securing the site. Our repository and configuration evidence does not
-  establish that every such category of log is actually generated, what
-  its exact fields are, or what retention each host or provider applies in
-  practice. See "How long we keep information" below for how we treat logs
-  under our control, and "Service providers and other parties" for logs
+- **Website operational and error logs.** This site's hosting stack
+  generates operational and error records in the course of operating and
+  securing the site. Our own server keeps them in small, size-limited
+  rolling logs, and our website software does not keep a separate record of
+  each page visit. Our network and security provider (Cloudflare) may keep
+  its own records. See "How long we keep information" below for how we treat
+  logs under our control, and "Service providers and other parties" for logs
   controlled independently by our providers.
 - **Email correspondence sent to our project addresses**, which may
   include the sender's email address, the sender's display name, message
@@ -173,11 +170,13 @@ The public site displays gamertags, approved display names/aliases, roster
 membership, match information, statistics, opponent-club and
 opponent-player information, and derived metrics described above.
 
-Our indexing policy: canonical public pages (such as the home page, game
-pages, roster pages, and stats pages) are meant to be indexable by normal
-search engines. Filter, sort, pagination, and other query-variant URLs,
-along with diagnostic or non-public surfaces, are not meant to be indexed
-as separate content.
+Our indexing policy: at present, every page of this site — including the
+home page, game pages, roster pages, and stats pages — asks search engines
+not to index it (a `noindex` instruction on every page and response), so the
+site is not intended to appear in search results and is shared by direct
+link. If we later allow indexing of public pages, we will update this policy
+first. Diagnostic and non-public surfaces are not meant to be indexed in any
+case.
 
 Public display of statistics is distinct from our retention of private raw
 data and OCR evidence (recordings, screenshots, frames, confidence and
@@ -198,15 +197,9 @@ security or challenge processing. We do not currently have specific,
 verified information about any individual cookie Cloudflare may set, so we
 are not naming one here.
 
-**Cloudflare Web Analytics is currently enabled on this site's Cloudflare
-configuration.** Cloudflare describes its Web Analytics product as
-cookie-free — it says the product does not use cookies or client-side
-storage to collect metrics. However, having any analytics feature enabled
-does not match the no-analytics posture described in "Scope and launch
-posture" above. **We intend to disable Cloudflare Web Analytics before this
-site is published, and this policy will not claim "no analytics" as a
-current fact until that has been verified from our live Cloudflare
-dashboard.**
+**We do not use analytics.** Cloudflare Web Analytics, which was previously
+enabled in this site's Cloudflare configuration, has been turned off, and
+this site uses no advertising or other nonessential tracking.
 
 We do not plan to show a cookie-consent banner while our posture is "no
 nonessential tracking," but whether a banner is legally required in any
@@ -257,6 +250,11 @@ term, which remains a legal-review question.
   contains a limited set of authentic data fixtures used for testing. This
   repository was public for part of its history; copies made by others
   during that period cannot be recalled by us.
+- **Backblaze** — stores off-site backup copies of our database (see "How
+  long we keep information" below).
+- **Healthchecks.io** — monitoring that alerts us if our backups or data
+  collection stop working. It receives only short status messages from our
+  server, not information about visitors.
 - **Electronic Arts (EA)** — the source of the underlying game data and
   some visual assets referenced by this site. EA does not endorse, and is
   not affiliated with, this project.
@@ -286,11 +284,9 @@ currently configured.
   retention this way is a description of our current practice, not a
   statement that indefinite retention has been legally reviewed or
   approved.
-- **Logs under our control** do not currently have a fixed automatic
-  deletion period. We retain them only for as long as reasonably needed to
-  operate, secure, troubleshoot, or protect the website, or to meet
-  applicable legal obligations. We delete them when they are no longer
-  reasonably needed for those purposes.
+- **Logs under our control** are size-limited rather than kept for a fixed
+  period: our server keeps a small rolling log for each part of the site and
+  automatically overwrites the oldest entries.
 - **Logs controlled independently by service providers** are subject to
   those providers' practices and retention periods.
 - **Correspondence sent to our project email addresses** is retained under
@@ -308,13 +304,13 @@ currently configured.
 - Our email provider's own internal retention behavior (for example,
   anything it retains independently of our mailbox) is not something we
   have independently verified.
-- We plan to keep periodic encrypted backups of our data. **That backup
-  system is not active yet**, and this policy will not describe backup
-  retention as a current fact until it is implemented and verified. Once
-  backups are active, we expect corrections you request to be reflected in
-  new backups going forward; we do not plan to individually rewrite
-  already-created encrypted backup copies, which will instead expire under
-  our normal backup-retention schedule over time.
+- We keep automatic daily backup copies of our database. Copies on our own
+  server are kept for about 12 months (daily copies for 14 days, weekly
+  copies for 8 weeks, and monthly copies for 12 months); off-site copies
+  with Backblaze are kept for about 90 days. Copies are sent to Backblaze
+  over an encrypted connection. Corrections you request are reflected in new
+  backups going forward; we do not individually rewrite existing backup
+  copies, which instead expire on that schedule.
 
 ### 10. Requests and corrections
 
@@ -391,7 +387,7 @@ every team member lives in Alberta, or in any other specific place — team
 members are located in various places, and we do not publish individual
 member locations.
 
-Because we use Cloudflare, Proton Mail, GitHub, EA's services, and the
+Because we use Cloudflare, Proton Mail, GitHub, Backblaze, EA's services, and the
 ordinary infrastructure of the internet, information may be processed or
 transmitted outside Alberta or Canada as part of how those services work.
 We do not have verified information about the exact physical storage

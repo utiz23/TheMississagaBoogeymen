@@ -92,9 +92,21 @@ async function getHtml(urlPath: string): Promise<{ status: number; html: string 
 }
 
 /** The exact route/heading id, so a mismatch between page and test is loud. */
-const LEGAL_ROUTES: readonly { slug: LegalSlug; href: string; title: string }[] = LEGAL_DOCS.map(
-  (doc) => ({ slug: doc.slug, href: doc.href, title: `${doc.title} (Draft) — Club Stats` }),
-)
+const LEGAL_ROUTES: readonly {
+  slug: LegalSlug
+  href: string
+  isDraft: boolean
+  effectiveDate: string | null
+  lastUpdated: string | null
+  title: string
+}[] = LEGAL_DOCS.map((doc) => ({
+  slug: doc.slug,
+  href: doc.href,
+  isDraft: doc.status === 'draft',
+  effectiveDate: doc.effectiveDate,
+  lastUpdated: doc.lastUpdated,
+  title: doc.status === 'draft' ? `${doc.title} (Draft) — Club Stats` : `${doc.title} — Club Stats`,
+}))
 
 const EA_FOOTER_SENTENCE = 'This website is not endorsed by or affiliated with EA or its licensors.'
 
@@ -186,42 +198,50 @@ void test('control: the server really is serving this app', { skip }, async () =
 })
 
 for (const route of LEGAL_ROUTES) {
-  void test(
-    `${route.href}: 200, exact draft title, noindex/nofollow robots`,
-    { skip },
-    async () => {
-      const { status, html } = await getHtml(route.href)
-      assert.equal(status, 200)
+  void test(`${route.href}: 200, exact title, noindex/nofollow robots`, { skip }, async () => {
+    const { status, html } = await getHtml(route.href)
+    assert.equal(status, 200)
 
-      const titleMatch = /<title>([^<]*)<\/title>/.exec(html)
-      assert.ok(titleMatch, `${route.href}: no <title> found`)
-      // <title> content is HTML-entity-escaped (e.g. "&amp;"); decode it
-      // before comparing against the plain-text expected title.
-      const decodedTitle = (titleMatch[1] ?? '').replace(/&amp;/g, '&')
-      assert.equal(decodedTitle, route.title)
+    const titleMatch = /<title>([^<]*)<\/title>/.exec(html)
+    assert.ok(titleMatch, `${route.href}: no <title> found`)
+    // <title> content is HTML-entity-escaped (e.g. "&amp;"); decode it
+    // before comparing against the plain-text expected title.
+    const decodedTitle = (titleMatch[1] ?? '').replace(/&amp;/g, '&')
+    assert.equal(decodedTitle, route.title)
 
-      const robotsMatch = /<meta[^>]*name="robots"[^>]*content="([^"]*)"[^>]*>/.exec(html)
-      assert.ok(robotsMatch, `${route.href}: no <meta name="robots"> found`)
-      const robotsContent = robotsMatch[1] ?? ''
-      assert.match(robotsContent, /noindex/)
-      assert.match(robotsContent, /nofollow/)
+    const robotsMatch = /<meta[^>]*name="robots"[^>]*content="([^"]*)"[^>]*>/.exec(html)
+    assert.ok(robotsMatch, `${route.href}: no <meta name="robots"> found`)
+    const robotsContent = robotsMatch[1] ?? ''
+    assert.match(robotsContent, /noindex/)
+    assert.match(robotsContent, /nofollow/)
 
+    // Drafts add their own googlebot tag; published pages rely on the
+    // site-wide robots tag (app/layout.tsx) and X-Robots-Tag header.
+    if (route.isDraft) {
       const googlebotMatch = /<meta[^>]*name="googlebot"[^>]*content="([^"]*)"[^>]*>/.exec(html)
       assert.ok(googlebotMatch, `${route.href}: no <meta name="googlebot"> found`)
       const googlebotContent = googlebotMatch[1] ?? ''
       assert.match(googlebotContent, /noindex/)
       assert.match(googlebotContent, /nofollow/)
-    },
-  )
+    }
+  })
 
   void test(
-    `${route.href}: draft banner precedes the single <h1> in reading order`,
+    `${route.href}: a single <h1>; a draft's banner precedes it, a published page has none`,
     { skip },
     async () => {
       const { html } = await getHtml(route.href)
 
       const h1Matches = [...html.matchAll(/<h1\b/g)]
       assert.equal(h1Matches.length, 1, `${route.href}: expected exactly one <h1>`)
+
+      if (!route.isDraft) {
+        assert.ok(
+          !html.includes(DRAFT_BANNER_TEXT),
+          `${route.href}: a published page must not show the draft banner`,
+        )
+        return
+      }
 
       const bannerIdx = html.indexOf(DRAFT_BANNER_TEXT)
       assert.ok(bannerIdx !== -1, `${route.href}: draft banner text not found`)
@@ -237,10 +257,23 @@ for (const route of LEGAL_ROUTES) {
   )
 
   void test(
-    `${route.href}: no rendered date row while the document is a draft`,
+    `${route.href}: date rows appear exactly when the document is published`,
     { skip },
     async () => {
       const { html } = await getHtml(route.href)
+      if (!route.isDraft) {
+        assert.ok(html.includes('Effective</dt>'), `${route.href}: Effective date row expected`)
+        assert.ok(html.includes('Last updated</dt>'), `${route.href}: Last updated row expected`)
+        assert.ok(
+          html.includes(`<time dateTime="${route.effectiveDate ?? ''}"`),
+          `${route.href}: effective <time> must carry the registry date`,
+        )
+        assert.ok(
+          html.includes(`<time dateTime="${route.lastUpdated ?? ''}"`),
+          `${route.href}: last-updated <time> must carry the registry date`,
+        )
+        return
+      }
       assert.ok(
         !html.includes('<time'),
         `${route.href}: a draft page must render no <time> element`,

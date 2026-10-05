@@ -105,11 +105,10 @@ export const sections: LegalPageSection[] = [
           and marks.
         </P>
         <P>
-          <Strong>Normal search-engine indexing is permitted.</Strong> Ordinary search-engine
-          crawlers are welcome to crawl and index the pages we make available for indexing, in the
-          usual way. Where we publish machine-readable indexing instructions, we ask that crawlers
-          follow them; some URL variants, such as filter and pagination URLs, are not intended to be
-          indexed as separate content.
+          <Strong>Search engines.</Strong> At present, every page of this site asks search engines
+          not to index it. Crawlers may fetch our pages, but we ask that they follow our
+          machine-readable instructions, including the request not to list our pages in search
+          results.
         </P>
         <P>
           Automated access is not prohibited as such. The limits in the next two sections are about
