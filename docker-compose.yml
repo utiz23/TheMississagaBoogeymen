@@ -28,9 +28,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${DB_BIND_ADDR:-127.0.0.1}:${DB_HOST_PORT:-5433}:5432"
+      - '${DB_BIND_ADDR:-127.0.0.1}:${DB_HOST_PORT:-5433}:5432'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U eanhl"]
+      test: ['CMD-SHELL', 'pg_isready -U eanhl']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,7 +50,7 @@ services:
       HEALTH_PORT: ${HEALTH_PORT:-3001}
       HEALTH_STALE_MS: ${HEALTH_STALE_MS:-1800000}
     ports:
-      - "${HEALTH_BIND_ADDR:-127.0.0.1}:${HEALTH_PORT:-3001}:${HEALTH_PORT:-3001}"
+      - '${HEALTH_BIND_ADDR:-127.0.0.1}:${HEALTH_PORT:-3001}:${HEALTH_PORT:-3001}'
     depends_on:
       db:
         condition: service_healthy
@@ -68,7 +68,7 @@ services:
     ports:
       # Public traffic arrives through cloudflared over the compose network, not
       # through this published port. Keep it on loopback even on a public host.
-      - "${WEB_BIND_ADDR:-127.0.0.1}:${WEB_HOST_PORT:-3000}:3000"
+      - '${WEB_BIND_ADDR:-127.0.0.1}:${WEB_HOST_PORT:-3000}:3000'
     depends_on:
       db:
         condition: service_healthy
@@ -91,15 +91,42 @@ services:
   # DEPLOY.md, "Updating cloudflared", for the update procedure.
   cloudflared:
     image: cloudflare/cloudflared:2026.8.3@sha256:51c9cefcb4569df44e1ad403ab1d3d8065aa8e84339bcfc6aee75502e1140339
-    profiles: ["public"]
+    profiles: ['public']
     restart: unless-stopped
-    command: ["tunnel", "--no-autoupdate", "run"]
+    command: ['tunnel', '--no-autoupdate', 'run']
     environment:
       TUNNEL_TOKEN_FILE: /run/secrets/cloudflared_tunnel_token
     secrets:
       - cloudflared_tunnel_token
     depends_on:
       - web
+
+  # OPT-IN nightly database backup: dump -> restore test -> local disk ->
+  # Backblaze B2, with a Healthchecks.io check-in. Enable on a host by adding
+  # `backup` to COMPOSE_PROFILES in .env. Setup and restore steps:
+  # ops/nightly-backup/README.md
+  backup:
+    build: ./ops/nightly-backup
+    profiles: ['backup']
+    restart: unless-stopped
+    environment:
+      TZ: ${BACKUP_TZ:-America/Edmonton}
+      BACKUP_TIME: ${BACKUP_TIME:-03:00}
+      PGHOST: db
+      PGUSER: eanhl
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: eanhl
+      B2_KEY_ID: ${B2_KEY_ID:-}
+      B2_APP_KEY: ${B2_APP_KEY:-}
+      HC_PING_URL: ${HC_PING_URL:-}
+    volumes:
+      - ${BACKUP_DIR:-/mnt/k/eanhl-backups}:/backups
+      # Scratch space for the nightly restore test (also stops the base image
+      # from creating a new anonymous volume on every recreate).
+      - backup_scratch:/var/lib/postgresql/data
+    depends_on:
+      db:
+        condition: service_healthy
 
 secrets:
   # Path on the host to a file containing ONLY the tunnel token (no trailing
@@ -112,3 +139,4 @@ secrets:
 
 volumes:
   postgres_data:
+  backup_scratch:
