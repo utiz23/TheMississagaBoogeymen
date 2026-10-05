@@ -29,7 +29,8 @@ documents, not here.
 ## Current Objective / Status
 
 Launch the site to teammates using the 7-item launch plan (adopted
-2026-10-05). Item 1 (data safe) is nearly done; items 2–7 are open.
+2026-10-05). Item 2 (correct data) is done; item 1 (data safe) needs two more
+green nights; items 3–7 are open.
 
 ## Latest Verified Checkpoint
 
@@ -45,6 +46,11 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
   login is gone; worker cycles cleanly; no web errors. Compose also recreated
   `db` once (clean ~1 s restart, data intact); the redeploy skill now uses
   `--no-deps`.
+- Launch item 2 done: NHL 26/27 title separation merged and deployed with
+  migration 0057 (rehearsed on a restored backup first, fresh backup taken
+  before the live run). Review caught one bug (archive titles on `/` and
+  `/games` showed empty pages), fixed in `538d956`. Career label now reads
+  oldest→newest (e.g. "NHL 22–NHL 27").
 - `main` now matches GitHub plus the backup work and the 2026-10-03 launch
   reconciliation docs. 11 extra worktrees and 17 already-merged local branch
   names were removed. September leftovers are parked on the local branches
@@ -55,18 +61,23 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
 - **Production is the main PC** (web, worker, db, backup via Docker Compose).
   Hotel-Echo runs a parallel, not-yet-migrated copy that also ingests NHL 27.
-- Main PC web + worker run `main` at `fde8e20` (deployed 2026-10-05; images
-  `ffb6c34a1b0f` / `c992dcccedc4`). Rollback images are tagged
-  `eanhl-team-website-web:rollback-2026-08-16` and
-  `eanhl-team-website-worker:rollback-2026-09-02` (steps: `docker-redeploy`
-  skill).
+- Main PC web + worker run `main` at `538d956` (deployed 2026-10-05 13:40;
+  images `2e5f4390c4a6` / `7c4f7054ea52`). Rollback: rebuild `6f6c309` (the
+  morning's images were not kept), or the older tagged images
+  `eanhl-team-website-web:rollback-2026-08-16` /
+  `eanhl-team-website-worker:rollback-2026-09-02`. Old code runs fine on the
+  0057 schema. Steps: `docker-redeploy` skill.
 - Domain `boogeymen.app` is on Cloudflare; `webmaster@boogeymen.app` works
   both ways.
 - The Cloudflare tunnel is deliberately **off** on both hosts (the `public`
   Compose profile is not enabled). Turning it on is launch item 7 and needs
   the operator's approval. Login/auth was deliberately removed pre-launch.
-- NHL 27 ingestion has been live since 2026-09-05; NHL 26 is preserved. Both
-  titles are `is_active` on the main PC, and NHL 27 is the site default.
+- NHL 27 ingestion has been live since 2026-09-05; NHL 26 is preserved. Since
+  migration 0057 (applied 2026-10-05) three settings are separate:
+  collection (`is_active`: NHL 26 and 27), site default (`is_default`: NHL 27)
+  and order (`release_order`). Stopping NHL 26 collection later
+  (`UPDATE game_titles SET is_active = false WHERE slug = 'nhl26';`) keeps its
+  pages.
 - Backups are enabled by `COMPOSE_PROFILES=backup` in `.env`. Setup, alerts
   and restore steps: [`ops/nightly-backup/README.md`](ops/nightly-backup/README.md).
   The B2 key is Backblaze's stock "Write Only" key, which can still delete
@@ -94,9 +105,9 @@ None. Open decisions:
 
 ## Next 1-3 Actions
 
-1. Launch item 2: review `feat/lpl-title-separation` (one commit on top of
-   `main`, local only), take a fresh backup, apply migration 0057, check the
-   pages.
-2. Finish the workflow cleanup: rewrite `AGENTS.md` and the workflow doc for
+1. Launch item 3 (nothing private exposed): remove `/preview/*`, add
+   `noindex` + `robots.txt`, check error pages and what the tunnel exposes.
+2. Launch items 4–5 (legal pages live, analytics off; stale-ingestion alert,
+   Docker log limits).
+3. Finish the workflow cleanup: rewrite `AGENTS.md` and the workflow doc for
    the new model (about one page).
-3. Launch items 3–5.

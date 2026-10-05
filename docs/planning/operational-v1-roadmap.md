@@ -20,14 +20,13 @@ An item is done when its proof is written in the journal.
    to `main` and its first three unattended nights are green on
    Healthchecks.io. A restore from both the local disk and Backblaze B2 was
    already tested on 2026-10-05.
-2. **Correct data.** Which title is collected, which title the site shows by
-   default, and the order titles are listed in become three separate
-   settings (today one `is_active` flag does all three, so NHL 27 became the
-   default by accident). Built on branch `feat/lpl-title-separation`
-   (2026-10-04): needs review, a fresh backup, then migration 0057 on the
-   live database. Proof: `/`, `/games`, `/stats` and a player page default to
-   the intended title, NHL 26 is still reachable, career totals are not
-   double-counted.
+2. **Correct data.** ✅ Done 2026-10-05. Which title is collected, which
+   title the site shows by default, and the order titles are listed in are now
+   three separate settings (before, one `is_active` flag did all three, so
+   NHL 27 became the default by accident). Migration 0057 is on the live
+   database; `/`, `/games`, `/stats` and player pages default to NHL 27, NHL 26
+   is still reachable, career labels run oldest→newest. Proof: journal
+   2026-10-05.
 3. **Nothing private exposed.** Only the website goes through the tunnel
    (database and worker stay on loopback); no admin, dev or preview pages are
    reachable; error pages show no internals; search engines are told not to
