@@ -29,10 +29,10 @@ documents, not here.
 ## Current Objective / Status
 
 Launch the site to teammates from Hotel-Echo using the 8-item launch plan
-(adopted 2026-10-05, host pivot same day). Items 2 (correct data), 3 (exposure, bar the
-launch-day public re-check), 5 (move to Hotel-Echo) and 6 (safety nets) are
-done; item 1 needs three green nights on Hotel-Echo;
-item 3 needs only the Cloudflare routes check; items 4, 6–8 are open.
+(adopted 2026-10-05, host pivot same day). Items 2–7 are done (3 bar the
+launch-day public re-check). Item 1 counts green nightly backups on
+Hotel-Echo from 2026-10-06. Item 8 (open it up) is next and needs the
+operator's go-ahead.
 
 ## Latest Verified Checkpoint
 
@@ -123,14 +123,9 @@ items.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
 
 None. Open operator steps:
 
-- Turn off Cloudflare Web Analytics (item 4; the published pages already
-  say "no analytics").
-
 ## Next 1-3 Actions
 
-1. Operator: Cloudflare Web Analytics off (dashboard Quick search → "Web
-   Analytics"); look over the site and the four legal pages at
-   `http://localhost:3100` (item 7).
+1. Operator go-ahead for item 8 (and optionally Cloudflare "Always Use HTTPS" on).
 2. Item 8: tunnel token into a file, `public` profile on Hotel-Echo, public
    checks (headers, noindex, no analytics beacon, 404, exposure), share the
    link.

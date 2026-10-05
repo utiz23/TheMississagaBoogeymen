@@ -43,7 +43,8 @@ carried into this list without being re-asked.
    404). Cloudflare: no CIDR routes; Published application routes are exactly
    `boogeymen.app` and `www.boogeymen.app` → `http://web:3000`, catch-all 404.
    Open: re-checking against the public URL at item 8._
-4. **Legal pages live, no tracking.** The legal pages switch from Draft to
+4. **Legal pages live, no tracking.** ✅ Done 2026-10-05 (operator set Cloudflare
+   Web Analytics RUM to Disable; beacon absence re-checked at item 8). The legal pages switch from Draft to
    Published with their final URLs, footer links work, and Cloudflare Web
    Analytics is turned off.
    _2026-10-05: all four pages published (`225a4e9`) after factual updates
@@ -72,7 +73,7 @@ carried into this list without being re-asked.
    is not alerted — gaps
    between sessions are normal; the alert fires when the collector stops
    working or transforms fail._
-7. **Looks right.** The operator checks the core pages on a phone and on a
+7. **Looks right.** ✅ Done 2026-10-05 (operator look-over on Hotel-Echo). The operator checks the core pages on a phone and on a
    desktop and signs off.
 8. **Open it up.** The operator approves, then on Hotel-Echo: move the
    `hotel-echo-web` tunnel token from `.env` into the token file the current
