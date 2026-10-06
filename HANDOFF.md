@@ -30,10 +30,14 @@ post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
 ## Latest Verified Checkpoint
 
-**2026-10-06 — performance pass on `main` (`bb466c2`..`e2b04ac`), verified
-locally, NOT deployed.** No route loading screens, full link preloading,
-7-day image cache, small favicon. Phone benchmark: content ~0.6 s → ~0.27 s;
-preloaded taps make no network request. Web suite 358/358. Detail:
+**2026-10-06 — performance pass deployed** (`351354d`, web only; rollback
+image `eanhl-team-website-web:rollback-he-2026-10-06-pre-perf`). No route
+loading screens, full link preloading, 7-day image cache, 20 KB favicon.
+Live, same benchmark before/after:
+- Phone: content 598 → 303 ms, taps 349 → 187 ms.
+- Fast CPU: taps ~312 → 31 ms, with no network request.
+
+Unknown game/player ids now 404. Detail:
 [journal 2026-10-06](docs/journal/2026-10.md).
 
 **2026-10-05 — launched; security update + polish deployed.** Detail:
@@ -127,16 +131,12 @@ None.
 
 ## Next 1-3 Actions
 
-1. **Deploy the performance pass** (awaiting the operator's OK): rebuild
-   web only on Hotel-Echo (`docker-redeploy` skill). Then check live:
-   `/games/999999999` → 404; `/_next/image` sends `max-age=604800` and a
-   repeat request is `x-nextjs-cache: HIT`; the 20 KB `/icon.png`; a phone
-   trace of `/`, where content arrives with the first paint.
-2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
+1. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
    time deltas). The security review is closed (journal 10-06).
-3. Observe the launch: Healthchecks (backup + collector) emails, nightly
-   backups (item 1 closes after three green nights), teammates' feedback.
-   Run the owed Codex review of the nightly backup when Codex is available.
-   Decide how video-stats OCR (main PC) writes to Hotel-Echo's database,
+2. Observe the launch for a few days: Healthchecks (backup + collector)
+   emails, nightly backups on Hotel-Echo (item 1 closes after three green
+   nights), teammates' feedback (including on speed). Run the owed Codex
+   review of the nightly backup when Codex is available.
+3. Decide how video-stats OCR (main PC) writes to Hotel-Echo's database —
    over Tailscale, which means opening the database to the tailnet.
