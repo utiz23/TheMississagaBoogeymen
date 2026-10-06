@@ -50,17 +50,20 @@
 
 ## 1. Bugs (fix first)
 
-- **Two conflicting "GAME" numbers** — `hero-card.tsx:66` (`Game {seasonNumber}`) vs `lineup-section.tsx:210-215` (`Game {matchId}` = DB PK). Pass `seasonNumber` into `LineupSection` (or relabel the band "Match ID"). `[BUG]`
-- **Hero meta highlight lands on the wrong token** — `hero-card.tsx:84` hardcodes emphasis on index `i === 2`, but when `gameMode` is present "Game N" shifts to index 3, so the bold lands on the mode string. Match the index to the game-number part. `[BUG/QUICK-WIN]`
-- **Lineup band hardcodes BGM=Home / OPP=Away** — `lineup-section.tsx:324` (`… · Home`) and `:283` (`… · Away`); `match.bgmWasHome` is never passed in, so away games are mislabeled. `[BUG]`
-- **Possession Edge scores a tie as a BGM win** — `possession-edge.tsx:47` (`scoreFor >= scoreAgainst ? 'bgm' : 'opp'`) + footnote `:96` renders "BGM won 3–3". Use `match.result` instead of a score comparison (EASHL OT3 can end tied). `[BUG]`
-- **Empty Last-10 form slots render as red losses** — `record-strip.tsx:246` emits `<span class="d l" />` for missing games; `.d.l` is the LOSS style, so a <10-game team shows phantom red "loss" boxes. Add a neutral `empty` class. `[BUG]`
-- **Games-list "Last 10" excludes the newest game** — `page.tsx:161` (`rawFormMatches.slice(1, …)`) drops index 0, but the strip is labeled "Last 10" (`page.tsx:604`) and there's no hero spotlighting game 0 to justify it. Include the newest game or relabel. `[BUG]`
-- **Games-list loading skeleton is the retired list layout** — `games/loading.tsx:1-12` renders thin `MatchRow`-style rows while the page now renders a card grid → guaranteed layout shift on every navigation. Reshape the skeleton to the `ScoreCard` grid. `[BUG]`
-- **Stats sticky Player column bleeds through on mobile scroll** — `skater-stats-table.tsx:604`, `goalie-stats-table.tsx:448` use `bg-inherit`, which resolves to transparent on plain rows, so columns scroll under a see-through name cell. Give it an explicit opaque `bg-surface`. `[BUG]`
-- **Team shot map hardcoded to `slug === 'nhl26'`** — `stats/page.tsx:220-222`; when the active title advances to NHL 27 the map silently shows "no data" despite populated aggregates. Gate on data presence / `isActive`. `[BUG — latent]`
-- **Goalie marquee rank noun hardcoded to "skaters"** — `club-stats-tabs.tsx:336` (`of {rank.total} skaters`) renders on goalie tabs too, so a goalie reads "#1 of 2 skaters". Switch the noun on `role`. `[BUG/QUICK-WIN]`
-- **Season TOI totals overflow to hundreds of hours** — `formatHrsMin` (`club-stats-tabs.tsx:1555-1561`) never rolls hours into days → "430h 47m" instead of "17d 22h 47m". This is seed item #5. `[BUG/QUICK-WIN]`
+> **Bugs pass done 2026-10-05.** Re-verified every item against current code first.
+> ✅ = fixed that day · ⛔ = already gone before the pass · ❓ = needs an operator decision.
+
+- ⛔ **Two conflicting "GAME" numbers** (game-sheet revamp) — `hero-card.tsx:66` (`Game {seasonNumber}`) vs `lineup-section.tsx:210-215` (`Game {matchId}` = DB PK). Pass `seasonNumber` into `LineupSection` (or relabel the band "Match ID"). `[BUG]`
+- ⛔ **Hero meta highlight lands on the wrong token** (game-sheet revamp) — `hero-card.tsx:84` hardcodes emphasis on index `i === 2`, but when `gameMode` is present "Game N" shifts to index 3, so the bold lands on the mode string. Match the index to the game-number part. `[BUG/QUICK-WIN]`
+- ⛔ **Lineup band hardcodes BGM=Home / OPP=Away** (game-sheet revamp) — `lineup-section.tsx:324` (`… · Home`) and `:283` (`… · Away`); `match.bgmWasHome` is never passed in, so away games are mislabeled. `[BUG]`
+- ⛔ **Possession Edge scores a tie as a BGM win** (game-sheet revamp) — `possession-edge.tsx:47` (`scoreFor >= scoreAgainst ? 'bgm' : 'opp'`) + footnote `:96` renders "BGM won 3–3". Use `match.result` instead of a score comparison (EASHL OT3 can end tied). `[BUG]`
+- ✅ **Empty Last-10 form slots render as red losses** (`1eb253d`) — `record-strip.tsx:246` emits `<span class="d l" />` for missing games; `.d.l` is the LOSS style, so a <10-game team shows phantom red "loss" boxes. Add a neutral `empty` class. `[BUG]`
+- ❓ **Games-list "Last 10" excludes the newest game** — deliberate in `af01074` (2026-05-24: "don't count a game as form leading into itself"); keep, or include the newest game? — `page.tsx:161` (`rawFormMatches.slice(1, …)`) drops index 0, but the strip is labeled "Last 10" (`page.tsx:604`) and there's no hero spotlighting game 0 to justify it. Include the newest game or relabel. `[BUG]`
+- ✅ **Games-list loading skeleton is the retired list layout** (`ddaad41`) — `games/loading.tsx:1-12` renders thin `MatchRow`-style rows while the page now renders a card grid → guaranteed layout shift on every navigation. Reshape the skeleton to the `ScoreCard` grid. `[BUG]`
+- ⛔ **Stats sticky Player column bleeds through on mobile scroll** (stats tables rebuilt on `stats-table-shell.tsx`, opaque `bg-surface`) — `skater-stats-table.tsx:604`, `goalie-stats-table.tsx:448` use `bg-inherit`, which resolves to transparent on plain rows, so columns scroll under a see-through name cell. Give it an explicit opaque `bg-surface`. `[BUG]`
+- ✅ **Team shot map hardcoded to `slug === 'nhl26'`** (`007523d`; was LIVE once NHL 27 became default — profile zone maps were also pinned to title id 1, fixed too) — `stats/page.tsx:220-222`; when the active title advances to NHL 27 the map silently shows "no data" despite populated aggregates. Gate on data presence / `isActive`. `[BUG — latent]`
+- ✅ **Goalie marquee rank noun hardcoded to "skaters"** (`8f4076c`) — `club-stats-tabs.tsx:336` (`of {rank.total} skaters`) renders on goalie tabs too, so a goalie reads "#1 of 2 skaters". Switch the noun on `role`. `[BUG/QUICK-WIN]`
+- ✅ **Season TOI totals overflow to hundreds of hours** (`99ace54`; shared `formatDuration` in `lib/format.ts`; seed #5's skater/goalie _split_ is still open in §2) — `formatHrsMin` (`club-stats-tabs.tsx:1555-1561`) never rolls hours into days → "430h 47m" instead of "17d 22h 47m". This is seed item #5. `[BUG/QUICK-WIN]`
 
 ---
 
@@ -126,13 +129,16 @@ _(bugs listed in §1: double GAME number, hero highlight index, lineup Home/Away
 
 ### Roster list + Player profile (`/roster`, `/roster/[id]`)
 
-_(bugs in §1: goalie marquee "skaters" noun, TOI day-rollover)_
+_(bugs in §1: goalie marquee "skaters" noun, TOI day-rollover — both fixed 2026-10-05)_
+
+- **Club Stats delta badges show raw seconds for time stats** — found 2026-10-05: Time on Ice reads "2d 10h 58m" with a "+67509" badge, Possession "+5992" (`club-stats-tabs.tsx`, the `cs-delta` beside each cell). Format time deltas with `formatDuration`. `[QUICK-WIN]`
+- **Hydration mismatch on every profile** — found 2026-10-05: the contribution wheel's SVG `<line>` attributes differ server vs client (float rounding), logged as a console error. Round the coordinates. `[NICE]`
 
 - **Add shared `formatDuration(seconds)` → "Nd Nh Nm" + surface skater/goalie TOI split** — seed item #5; new helper in `lib/format.ts`, render both `toiSeconds` & `goalieToiSeconds` regardless of selected role. `[QUICK-WIN]`
 - **Hero goalie SV% in non-hockey format** — `profile-hero.tsx:698-700,716,630` shows "92.30" while ledger + `formatSavePct` use ".923". Use the shared helper. `[QUICK-WIN]`
 - **Career-Totals goalie SV%/GAA always "—"** — `profile-hero.tsx:846` hardcodes null; `PlayerCareerSeasonRow` lacks saves/shots/TOI to recompute. Looks like missing data. `[NICE]`
 - **`ClubStatsTabs` "Updated" defaults to `new Date()`** — `club-stats-tabs.tsx:227`; page never passes the real `lastFetchedAt` though it's available. Pass `eaStats[0].lastFetchedAt`. `[QUICK-WIN]`
-- **Shot-map "Updated" hardcoded to today** — `page.tsx:249,260` pass `new Date()`; footer implies false freshness. `[QUICK-WIN]`
+- **Shot-map "Updated" hardcoded to today** — `page.tsx` (both `ShotMap` call sites) pass `new Date()`; footer implies false freshness. `[QUICK-WIN]`
 - **Goalie "Shootouts" subsection is dead data for EASHL** — `club-stats-tabs.tsx:1307-1409,1328`; always-zero cells read as broken. Drop or guard on `soShots > 0`. `[NICE — verify on a real goalie row]`
 - **TrendChart paints DNF as a loss** — `trend-chart.tsx:61` else-branch; legend `:84-95` only lists W/OT/L. `[NICE]`
 - **Two stacked, visually similar shot maps** — `page.tsx:239` (`CareerShotMap`) + `:241-262` (`ShotMap`); read as duplicates. Tab/toggle or differentiate headers. `[NICE]`
