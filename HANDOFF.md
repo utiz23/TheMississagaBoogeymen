@@ -110,9 +110,15 @@ None.
 
 ## Next 1-3 Actions
 
-1. Observe the launch for a few days: Healthchecks (backup + collector)
+1. **Deploy `main` to Hotel-Echo** (awaiting the operator's OK): the
+   security update (`2789f03` deps, `05ffebe` headers) and the §1 polish
+   fixes, all verified, none deployed. Then, from the security review
+   ([journal 2026-10-05](docs/journal/2026-10.md)): reboot Hotel-Echo
+   (updates waiting), delete `~/eanhl-moved-aside/env-before-launch-2026-10-05`,
+   turn on DNSSEC in Cloudflare.
+2. Observe the launch for a few days: Healthchecks (backup + collector)
    emails, nightly backups on Hotel-Echo (item 1 closes after three green
-   nights), teammates' feedback.
-2. Run the owed Codex review of the nightly backup when Codex is available.
+   nights), teammates' feedback. Run the owed Codex review of the nightly
+   backup when Codex is available.
 3. Decide how video-stats OCR (main PC) writes to Hotel-Echo's database —
    over Tailscale, which means opening the database to the tailnet.
