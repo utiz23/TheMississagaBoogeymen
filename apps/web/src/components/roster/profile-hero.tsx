@@ -526,7 +526,13 @@ function RoleTab({
   params.set('role', role)
   if (gameMode !== null) params.set('mode', gameMode)
   return (
-    <Link href={`?${params.toString()}`} className="ph-role-tab" aria-selected={active} role="tab">
+    <Link
+      prefetch
+      href={`?${params.toString()}`}
+      className="ph-role-tab"
+      aria-selected={active}
+      role="tab"
+    >
       {children}
     </Link>
   )

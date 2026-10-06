@@ -29,15 +29,34 @@ type ResultFilter = 'all' | 'WIN' | 'LOSS' | 'OTL_DNF'
 type GamesModeFilter = GameMode | 'dev' | null
 const DEV_MATCH_IDS = [
   // Benchmark / OCR-labeled — source of truth
-  250, 463, 967, 968,
+  250,
+  463,
+  967,
+  968,
   // Phase B retrain candidates — recordings to disambiguate (session times CT)
-  2397, 2398, 2399, 2400, // 2026-05-30 Trim — grinder
-  2577, 2582, 2640, 2641, // 2026-05-31 — twd / 4×twd+2×grinder (×3 recordings)
-  2664, 2665, 2666, 2667, // 2026-06-12 — off-D (game 1 of 2)
-  2669, 2670, 2671, 2672, 2673, // 2026-06-16 — twd+offD (18:50) / def-D Chara (19:57)
+  2397,
+  2398,
+  2399,
+  2400, // 2026-05-30 Trim — grinder
+  2577,
+  2582,
+  2640,
+  2641, // 2026-05-31 — twd / 4×twd+2×grinder (×3 recordings)
+  2664,
+  2665,
+  2666,
+  2667, // 2026-06-12 — off-D (game 1 of 2)
+  2669,
+  2670,
+  2671,
+  2672,
+  2673, // 2026-06-16 — twd+offD (18:50) / def-D Chara (19:57)
   2674, // 2026-06-17 — twd Dahlin (only game that day)
-  2682, 2683, // 2026-06-20 Trim — grinder
-  2686, 2687, 2688, // 2026-06-21 Trim — enforcer
+  2682,
+  2683, // 2026-06-20 Trim — grinder
+  2686,
+  2687,
+  2688, // 2026-06-21 Trim — enforcer
   2697, // 2026-06-25 — Evil Eastons (W 9-5)
 ] as const
 interface GamesFilters {
@@ -415,6 +434,7 @@ function GamesToolbar({
 
         {hasFilters ? (
           <Link
+            prefetch
             href={clearFiltersHref(filters)}
             className="font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-500 transition-colors hover:text-zinc-200"
           >
@@ -441,6 +461,7 @@ function SegmentedLinks({
       <div className="flex overflow-hidden border border-zinc-700">
         {items.map((item) => (
           <Link
+            prefetch
             key={item.key}
             href={item.href}
             className={[
@@ -505,6 +526,7 @@ function PaginationNav({
     >
       {hasPrev ? (
         <Link
+          prefetch
           href={gamesHref(filters, page - 1)}
           className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-400 transition-colors hover:text-zinc-200"
         >
@@ -536,6 +558,7 @@ function PaginationNav({
 
       {hasNext ? (
         <Link
+          prefetch
           href={gamesHref(filters, page + 1)}
           className="font-condensed text-sm font-semibold uppercase tracking-wider text-zinc-400 transition-colors hover:text-zinc-200"
         >
@@ -570,6 +593,7 @@ function PageLink({
   const active = page === current
   return (
     <Link
+      prefetch
       href={gamesHref(filters, page)}
       aria-current={active ? 'page' : undefined}
       className={[
@@ -675,6 +699,7 @@ function EmptyState({ message, clearHref }: { message: string; clearHref?: strin
       <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">{message}</p>
       {clearHref ? (
         <Link
+          prefetch
           href={clearHref}
           className="font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-400 transition-colors hover:text-zinc-100"
         >

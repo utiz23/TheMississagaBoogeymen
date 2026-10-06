@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import type { GameTitle } from '@eanhl/db'
 import { GameTitleSwitcher } from './game-title-switcher'
 import { NAV_LINKS, buildHref, isActive } from './nav-links'
+import { NavPendingCue } from './nav-pending-cue'
 
 /**
  * Mobile navigation: burger in the bar, slide-in panel from the right. Replaces
@@ -170,6 +171,7 @@ export function NavDrawer({
             const active = isActive(pathname, href)
             return (
               <Link
+                prefetch
                 key={href}
                 href={buildHref(href, title)}
                 onClick={close}
@@ -190,6 +192,7 @@ export function NavDrawer({
                   {String(index + 1).padStart(2, '0')}
                 </span>
                 {label}
+                <NavPendingCue />
               </Link>
             )
           })}

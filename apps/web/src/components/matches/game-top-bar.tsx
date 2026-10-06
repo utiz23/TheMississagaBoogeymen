@@ -40,6 +40,7 @@ export function GameTopBar({ gamesHref, listQuery, seasonNumber, adjacent }: Gam
       className="flex flex-wrap items-center gap-3 font-condensed uppercase"
     >
       <Link
+        prefetch
         href={gamesHref}
         className="flex min-h-11 items-center gap-2 border border-border bg-surface px-[14px] text-xs font-extrabold tracking-[0.2em] text-fg-3 transition-colors hover:border-accent hover:bg-surface-raised hover:text-fg-1"
       >
@@ -117,6 +118,7 @@ function PagerButton({
 
   return (
     <Link
+      prefetch
       href={gameHref(game.id, listQuery)}
       aria-label={`${dir === 'prev' ? 'Previous' : 'Next'} game — ${
         number === null ? '' : `game ${number.toString()} `

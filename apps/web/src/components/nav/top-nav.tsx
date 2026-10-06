@@ -59,6 +59,7 @@ export async function TopNav() {
       {/* `relative` anchors the absolutely-centred link row. */}
       <div className="relative mx-auto flex h-16 max-w-screen-xl items-center gap-6 px-4 nav:px-5">
         <Link
+          prefetch
           href="/"
           className="flex shrink-0 items-center gap-3 transition-opacity hover:opacity-[0.88]"
           aria-label="Boogeymen Club Stats — home"
@@ -86,6 +87,9 @@ export async function TopNav() {
           </Suspense>
         </div>
       </div>
+
+      {/* Loading cue for a nav tap that beat its preload (nav-pending-cue.tsx). */}
+      <span aria-hidden className="nav-pending-bar" />
     </header>
   )
 }

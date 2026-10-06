@@ -40,6 +40,7 @@ export function FullPlayerPageLink({ bgmRow }: { bgmRow: LineupRow | null }) {
   if (player === null) return null
   return (
     <Link
+      prefetch
       href={`/roster/${player.id.toString()}`}
       className="inline-flex min-h-[44px] items-center self-start font-condensed text-[12px] font-bold uppercase tracking-[0.12em] text-accent hover:underline"
     >

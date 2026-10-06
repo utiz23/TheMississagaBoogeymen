@@ -62,6 +62,7 @@ export function LatestResult({
 
   return (
     <Link
+      prefetch
       href={`/games/${match.id.toString()}`}
       className="group block transition-transform hover:-translate-y-0.5"
     >

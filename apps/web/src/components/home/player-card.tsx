@@ -104,6 +104,7 @@ export function PlayerCard({ player, isActive = false, depth = false }: PlayerCa
 
   return (
     <Link
+      prefetch
       href={`/roster/${player.playerId.toString()}`}
       className={classNames.join(' ')}
       aria-label={`Show ${player.gamertag}`}

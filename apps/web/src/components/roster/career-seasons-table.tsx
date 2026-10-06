@@ -98,6 +98,7 @@ function SkaterRow({ row }: { row: PlayerCareerSeasonRow }) {
     <tr className="border-b border-zinc-800/60 transition-colors hover:bg-surface-raised">
       <td className="py-2.5 pl-4 pr-2">
         <Link
+          prefetch
           href={`/stats?title=${row.gameTitleSlug}`}
           className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
         >
@@ -183,6 +184,7 @@ function GoalieRow({ row }: { row: PlayerCareerSeasonRow }) {
     <tr className="border-b border-zinc-800/60 transition-colors hover:bg-surface-raised">
       <td className="py-2.5 pl-4 pr-2">
         <Link
+          prefetch
           href={`/stats?title=${row.gameTitleSlug}`}
           className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
         >

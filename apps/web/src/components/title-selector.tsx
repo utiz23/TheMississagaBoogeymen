@@ -44,6 +44,7 @@ export function TitleSelector({
         const isSelected = title.slug === activeTitleSlug
         return (
           <Link
+            prefetch
             key={title.id}
             href={buildTitleHref(pathname, { title: title.slug, mode: activeMode })}
             className={[
@@ -111,6 +112,7 @@ export function ModeFilter({
         const isSelected = value === activeMode
         return (
           <Link
+            prefetch
             key={mode}
             href={buildTitleHref(pathname, { title: titleSlug, mode: value })}
             className={[

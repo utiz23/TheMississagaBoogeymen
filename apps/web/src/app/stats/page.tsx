@@ -356,6 +356,7 @@ async function ActiveStats({
           <div className="flex items-baseline justify-between gap-3">
             <SectionHeader label="Recent Games" />
             <Link
+              prefetch
               href="/games"
               className="font-condensed text-xs font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:text-accent"
             >

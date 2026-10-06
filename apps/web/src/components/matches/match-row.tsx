@@ -27,6 +27,7 @@ export function MatchRow({ match, isMostRecent = false }: MatchRowProps) {
 
         {/* Row link — entire row is clickable */}
         <Link
+          prefetch
           href={`/games/${match.id.toString()}`}
           className="flex flex-1 items-center gap-4 px-4 py-3"
         >

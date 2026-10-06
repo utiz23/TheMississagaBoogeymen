@@ -414,6 +414,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                           <div className="flex min-w-0 flex-col gap-0.5">
                             {row.playerId !== null ? (
                               <Link
+                                prefetch
                                 href={`/roster/${row.playerId.toString()}`}
                                 title={tip}
                                 className="truncate font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"

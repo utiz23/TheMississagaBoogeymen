@@ -157,6 +157,7 @@ export function PerformerRow({
           <SeasonDelta vsSeasonAvg={vsSeasonAvg} isBgm={isBgm} />
           {isBgm && entry.playerId !== null ? (
             <Link
+              prefetch
               href={`/roster/${entry.playerId.toString()}`}
               className="gs-nudge-host self-start font-condensed text-[12px] font-bold uppercase tracking-[0.12em] text-accent hover:underline"
             >

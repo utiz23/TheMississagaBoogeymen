@@ -161,6 +161,7 @@ export function ScoreCard({
 
   return (
     <Link
+      prefetch
       href={href ?? `/games/${match.id.toString()}`}
       className={`group block overflow-hidden border transition-[border-color,transform] hover:-translate-y-0.5 ${cardStyles.border} ${cardStyles.bg} ${cardStyles.hoverBorder}`}
     >

@@ -25,7 +25,7 @@ function AdjacentLink({ match, direction }: { match: AdjacentMatch; direction: '
   const label = direction === 'prev' ? 'Previous game' : 'Next game'
 
   return (
-    <Link href={`/games/${match.id.toString()}`} className="group block">
+    <Link prefetch href={`/games/${match.id.toString()}`} className="group block">
       <Panel
         hoverable
         className={`flex flex-col gap-1.5 p-4 ${

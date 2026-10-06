@@ -180,7 +180,9 @@ export function ScoringLeadersPanel({
           {source ? <>{source} · </> : null}
           <b>{modeLabel}</b>
         </span>
-        <Link href={ctaHref}>View all →</Link>
+        <Link prefetch href={ctaHref}>
+          View all →
+        </Link>
       </footer>
     </section>
   )
@@ -227,7 +229,12 @@ function LeaderColumn({
   return (
     <div className="sl-col">
       {focused ? (
-        <Link href={`/roster/${String(focused.playerId)}`} className="sl-spot" aria-live="polite">
+        <Link
+          prefetch
+          href={`/roster/${String(focused.playerId)}`}
+          className="sl-spot"
+          aria-live="polite"
+        >
           <span className="sl-spot-eyebrow">{focusedEyebrow}</span>
           <div className="sl-spot-frame">
             <SilhouetteIcon />
@@ -279,6 +286,7 @@ function LeaderColumn({
         ) : (
           rows.map((r, i) => (
             <Link
+              prefetch
               key={r.playerId}
               href={`/roster/${String(r.playerId)}`}
               className={i === focusedIndex ? 'sl-row selected' : 'sl-row'}

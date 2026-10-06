@@ -48,6 +48,7 @@ export function GameTitleSwitcher({ titles, defaultSlug }: GameTitleSwitcherProp
         const isActive = t.slug === currentSlug
         return (
           <Link
+            prefetch
             key={t.id}
             href={`${pathname}?${params.toString()}`}
             aria-current={isActive ? 'true' : undefined}

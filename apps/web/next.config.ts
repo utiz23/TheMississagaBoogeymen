@@ -18,6 +18,21 @@ const nextConfig: NextConfig = {
   // Don't advertise the framework in every response.
   poweredByHeader: false,
 
+  // Client-side page cache. Links to data pages carry `prefetch`, so their full
+  // page is fetched in the background and kept for `static` (Next's default,
+  // 300s). `dynamic` covers a page reached WITHOUT a preload, notably the one a
+  // visit started on: at the default 0 it is refetched on every return, and the
+  // always-visible brand/Home links never preload it again because they never
+  // leave the viewport. Matching both at 300s gives one rule: anything shown
+  // while clicking around is at most 5 minutes old (the worker's own poll
+  // interval); a browser refresh always renders fresh.
+  experimental: {
+    staleTimes: {
+      dynamic: 300,
+      static: 300,
+    },
+  },
+
   // Unlisted launch: keep every response out of search results. The header
   // also covers non-HTML responses; the page-level meta tag is set in
   // app/layout.tsx, and app/robots.ts explains why crawling stays allowed.

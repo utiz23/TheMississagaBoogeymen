@@ -102,6 +102,7 @@ export default function NotFound() {
 
         <nav aria-label="Where to next" className="mt-6 flex flex-wrap gap-3">
           <Link
+            prefetch
             href="/"
             className={`${BUTTON} border-accent-line bg-accent-soft text-accent-readable hover:bg-[rgba(232,65,49,0.18)]`}
           >
@@ -109,6 +110,7 @@ export default function NotFound() {
           </Link>
           {SECONDARY_LINKS.map((link) => (
             <Link
+              prefetch
               key={link.href}
               href={link.href}
               className={`${BUTTON} border-border text-fg-3 hover:border-fg-5 hover:text-fg-1`}

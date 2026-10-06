@@ -168,6 +168,7 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
               <tr key={row.playerId} className="transition-colors hover:bg-surface-raised">
                 <td className="py-2.5 pl-4 pr-3">
                   <Link
+                    prefetch
                     href={`/roster/${row.playerId.toString()}`}
                     className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
                   >
@@ -286,6 +287,7 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
                 <td className="py-2.5 pl-4 pr-3">
                   <span className="inline-flex items-center gap-1.5 text-sm">
                     <Link
+                      prefetch
                       href={`/roster/${row.p1Id.toString()}`}
                       className="font-condensed font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
                     >
@@ -293,6 +295,7 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
                     </Link>
                     <span className="text-zinc-700">+</span>
                     <Link
+                      prefetch
                       href={`/roster/${row.p2Id.toString()}`}
                       className="font-condensed font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
                     >

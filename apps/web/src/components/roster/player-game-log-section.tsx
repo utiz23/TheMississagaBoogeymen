@@ -69,6 +69,7 @@ export function PlayerGameLogSection({
             Page {logPage} is beyond the available games.
           </p>
           <Link
+            prefetch
             href={gameLogPageHref(playerId, gameMode, 1)}
             className="font-condensed text-xs font-semibold uppercase tracking-wider text-accent hover:underline"
           >
@@ -130,6 +131,7 @@ function GameModeFilter({
         const isActive = mode === activeMode
         return (
           <Link
+            prefetch
             key={label}
             href={gameLogPageHref(playerId, mode, 1)}
             className={[
@@ -171,6 +173,7 @@ function GameLogPaginationNav({
   return (
     <div className="flex items-center justify-between gap-3">
       <Link
+        prefetch
         href={gameLogPageHref(playerId, gameMode, Math.max(1, logPage - 1))}
         className={`font-condensed text-xs font-semibold uppercase tracking-wider ${logPage > 1 ? 'text-zinc-300 hover:text-accent' : 'pointer-events-none text-zinc-700'}`}
       >
@@ -180,6 +183,7 @@ function GameLogPaginationNav({
         Page {logPage} / {totalPages}
       </span>
       <Link
+        prefetch
         href={gameLogPageHref(playerId, gameMode, Math.min(totalPages, logPage + 1))}
         className={`font-condensed text-xs font-semibold uppercase tracking-wider ${logPage < totalPages ? 'text-zinc-300 hover:text-accent' : 'pointer-events-none text-zinc-700'}`}
       >
@@ -228,6 +232,7 @@ function GameLogDataRow({ row, showMode }: { row: PlayerGameLogRow; showMode: bo
       </td>
       <td className="max-w-[12rem] truncate px-2 py-2.5">
         <Link
+          prefetch
           href={`/games/${row.matchId.toString()}`}
           className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
         >

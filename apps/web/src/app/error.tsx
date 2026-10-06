@@ -25,7 +25,7 @@ export default function RouteError({
       <button type="button" onClick={reset} className={routeStatusLinkClass}>
         Try again
       </button>
-      <Link href="/" className={routeStatusLinkClass}>
+      <Link prefetch href="/" className={routeStatusLinkClass}>
         Back to home
       </Link>
       {error.digest ? (

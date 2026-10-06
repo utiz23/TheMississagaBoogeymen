@@ -178,6 +178,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   return (
     <div className="space-y-8">
       <Link
+        prefetch
         href="/roster"
         className="inline-flex items-center gap-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-300"
       >

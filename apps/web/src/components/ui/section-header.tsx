@@ -50,6 +50,7 @@ export function SectionHeader({
       </div>
       {cta ? (
         <Link
+          prefetch
           href={cta.href}
           className="font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-400 transition-colors hover:text-zinc-100"
         >

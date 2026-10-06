@@ -927,7 +927,7 @@ function ActorName({
     )
   }
   return (
-    <Link href={`/roster/${String(id)}`} className={`${base} hover:text-accent`}>
+    <Link prefetch href={`/roster/${String(id)}`} className={`${base} hover:text-accent`}>
       {name}
     </Link>
   )
@@ -995,7 +995,7 @@ function AssistName({ name, id }: { name: string; id: number | null }) {
     )
   }
   return (
-    <Link href={`/roster/${String(id)}`} className={`${base} hover:text-accent`}>
+    <Link prefetch href={`/roster/${String(id)}`} className={`${base} hover:text-accent`}>
       {name}
     </Link>
   )

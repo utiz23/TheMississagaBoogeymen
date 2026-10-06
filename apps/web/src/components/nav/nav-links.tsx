@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
+import { NavPendingCue } from './nav-pending-cue'
 
 /**
  * The site's four destinations. Shared with the mobile drawer (`nav-drawer`)
@@ -46,6 +47,7 @@ export function NavLinks() {
         const active = isActive(pathname, href)
         return (
           <Link
+            prefetch
             key={href}
             href={buildHref(href, title)}
             aria-current={active ? 'page' : undefined}
@@ -56,6 +58,7 @@ export function NavLinks() {
             ].join(' ')}
           >
             {label}
+            <NavPendingCue />
           </Link>
         )
       })}

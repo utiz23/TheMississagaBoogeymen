@@ -299,7 +299,7 @@ export function RosterLedger({
           </div>
           {svLeader ? (
             <>
-              <Link href={`/roster/${String(svLeader.playerId)}`} className="rl-lead-line">
+              <Link prefetch href={`/roster/${String(svLeader.playerId)}`} className="rl-lead-line">
                 <span className="seat">
                   {svLeader.jerseyNumber != null ? `#${String(svLeader.jerseyNumber)}` : '#—'}
                 </span>
@@ -377,7 +377,7 @@ function LeaderTile({
       </div>
       {leader ? (
         <>
-          <Link href={`/roster/${String(leader.playerId)}`} className="rl-lead-line">
+          <Link prefetch href={`/roster/${String(leader.playerId)}`} className="rl-lead-line">
             <span className="seat">
               {leader.jerseyNumber != null ? `#${String(leader.jerseyNumber)}` : '#—'}
             </span>

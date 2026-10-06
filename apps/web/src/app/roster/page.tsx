@@ -732,7 +732,7 @@ async function ArchiveRoster({
         Club-scoped roster from reviewed CLUBS → MEMBERS captures — what each member produced for
         the BGM in {gameTitle.name}. Depth chart unavailable — match-level data was not captured.
         Broader player-card season totals (which can include other-club games) live on the{' '}
-        <Link href={`/stats?title=${gameTitle.slug}`} className="text-zinc-400 underline">
+        <Link prefetch href={`/stats?title=${gameTitle.slug}`} className="text-zinc-400 underline">
           /stats
         </Link>{' '}
         page.
