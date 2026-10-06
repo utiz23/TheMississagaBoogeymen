@@ -21,8 +21,32 @@ const nextConfig: NextConfig = {
   // Unlisted launch: keep every response out of search results. The header
   // also covers non-HTML responses; the page-level meta tag is set in
   // app/layout.tsx, and app/robots.ts explains why crawling stays allowed.
+  //
+  // The rest is standard browser hardening for a read-only site with no
+  // logins: no framing by other sites (the legacy header and the CSP
+  // directive), no MIME sniffing, no Referer leaking this unlisted URL to
+  // other sites, no device APIs. The CSP sets ONLY frame-ancestors — it does
+  // not restrict scripts or styles. HSTS is belt-and-braces: every .app domain
+  // is already HTTPS-only in browsers through the TLD-wide preload list.
+  // Checked over HTTP by test/disabled-routes-http.test.ts.
   async headers() {
-    return [{ source: '/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] }]
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'Referrer-Policy', value: 'same-origin' },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()',
+          },
+        ],
+      },
+    ]
   },
 
   images: {

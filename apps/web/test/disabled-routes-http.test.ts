@@ -23,7 +23,8 @@
  * asserts the status code. It talks to no external service; the only thing it
  * needs beyond the build is whatever `/` already needs to render, and `/` is
  * used ONLY as a control ("the server is serving this app"), never as an
- * assertion about data.
+ * assertion about data. It also checks the browser-hardening headers from
+ * next.config.ts on a page, an unknown path and the auth tombstone.
  *
  * REQUIRES A BUILD. It skips — loudly, not silently — when `.next/BUILD_ID` is
  * absent, because a stale or missing build would otherwise let it pass while
@@ -164,4 +165,26 @@ void test('the served home page offers no login or account CTA', { skip }, async
   const links = [...html.matchAll(/href="(\/(?:login|account|me|admin)[^"]*)"/g)].map((m) => m[1])
   assert.deepEqual(links, [], 'the served markup must contain no link into a disabled route')
   assert.ok(!/>\s*(Login|Sign In|Sign Out)\s*</i.test(html), 'no auth CTA may be rendered')
+})
+
+void test('every response carries the browser-hardening headers', { skip }, async () => {
+  // Set in next.config.ts. Checked on a page, an unknown path and the auth
+  // tombstone, because a header rule that only reached rendered pages would
+  // leave the 404s and route handlers unprotected.
+  const expected: Record<string, string> = {
+    'x-robots-tag': 'noindex, nofollow',
+    'strict-transport-security': 'max-age=31536000; includeSubDomains',
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+    'content-security-policy': "frame-ancestors 'none'",
+    'referrer-policy': 'same-origin',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), browsing-topics=()',
+  }
+  for (const urlPath of ['/', '/no-such-page', '/api/auth/session']) {
+    const response = await fetch(`${BASE}${urlPath}`, { redirect: 'manual' })
+    for (const [name, value] of Object.entries(expected)) {
+      assert.equal(response.headers.get(name), value, `${urlPath}: ${name}`)
+    }
+    assert.equal(response.headers.get('x-powered-by'), null, `${urlPath}: x-powered-by`)
+  }
 })
