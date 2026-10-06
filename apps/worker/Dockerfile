@@ -32,4 +32,8 @@ RUN pnpm --filter @eanhl/db build && \
 EXPOSE 3001
 ENV NODE_ENV=production
 WORKDIR /app/apps/worker
+# The base image's unprivileged `node` user (uid 1000), not root. The worker
+# writes only to the OS temp dir; `docker compose exec worker …` CLIs run as
+# this user too.
+USER node
 CMD ["node", "dist/index.js"]
