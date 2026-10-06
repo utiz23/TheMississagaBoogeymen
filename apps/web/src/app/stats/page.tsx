@@ -233,9 +233,8 @@ async function ActiveStats({
     teamGoalieAggregates = null
   }
 
-  const isNhl26 = gameTitle.slug === 'nhl26'
-  const offenseHasData = isNhl26 && (teamShotAggregates?.shotsIce.some((v) => v > 0) ?? false)
-  const defenseHasData = isNhl26 && (teamGoalieAggregates?.shotsIce.some((v) => v > 0) ?? false)
+  const offenseHasData = teamShotAggregates?.shotsIce.some((v) => v > 0) ?? false
+  const defenseHasData = teamGoalieAggregates?.shotsIce.some((v) => v > 0) ?? false
 
   return (
     <PageShell gameTitle={gameTitle}>
@@ -282,6 +281,7 @@ async function ActiveStats({
         offenseHasData={offenseHasData}
         defense={teamGoalieAggregates ?? emptyShotLocations()}
         defenseHasData={defenseHasData}
+        titleName={gameTitle.name}
         {...(clubStats !== null && clubStats.gamesPlayed > 0
           ? { teamGp: clubStats.gamesPlayed }
           : {})}

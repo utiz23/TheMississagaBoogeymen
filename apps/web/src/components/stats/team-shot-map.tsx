@@ -13,6 +13,8 @@ interface Props {
   /** Team aggregate defensive shot map (shots faced & goals allowed). */
   defense: ShotLocations
   defenseHasData: boolean
+  /** Game title the aggregates belong to (e.g. "NHL 27"). */
+  titleName: string
   /** Total team games played for the active mode — drives the rink-legend "GP" cell. */
   teamGp?: number | undefined
   /** ISO date for the footer "Updated" cell. */
@@ -37,6 +39,7 @@ export function TeamShotMap({
   offenseHasData,
   defense,
   defenseHasData,
+  titleName,
   teamGp,
   updatedDate,
 }: Props) {
@@ -72,6 +75,7 @@ export function TeamShotMap({
     <ShotMap
       player={aggregates}
       hasData={hasData}
+      titleName={titleName}
       role={isOffense ? 'skater' : 'goalie'}
       subject="Team"
       gamertag="Boogeymen"

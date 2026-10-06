@@ -22,6 +22,8 @@ interface Props {
    */
   teamAverage?: ShotLocations | undefined
   hasData: boolean
+  /** Game title the data belongs to (e.g. "NHL 27") — shown in the header scope. */
+  titleName: string
   /**
    * 'skater' (default): player's shots taken / goals scored — SOG / Goals / Shooting %.
    * 'goalie': shots faced / goals allowed / save % — ice flipped 180° so the
@@ -30,9 +32,9 @@ interface Props {
   role?: Role | undefined
   /** Used in the rink legend + footer center cell. */
   gamertag?: string | undefined
-  /** Player games played (NHL 26 skater). Drives shots/game calc. */
+  /** Player games played in this title. Drives shots/game calc. */
   playerGp?: number | undefined
-  /** Team-average games played (NHL 26 skaters with GP≥5). Drives team shots/game. */
+  /** Team-average games played (skaters with GP≥5). Drives team shots/game. */
   teamAvgGp?: number | undefined
   /** Optional rank summary card data (e.g. points rank within the club). */
   pointsRank?: { rank: number; total: number } | undefined
@@ -106,13 +108,13 @@ export function ShotMap(props: Props) {
               <span className="accent">▌</span>
               {titleWord} Zone Map · Season
             </h2>
-            <span className="scope">NHL 26 · Regular</span>
+            <span className="scope">{props.titleName} · Regular</span>
           </div>
         </header>
         <div className="sm-ticker" />
         <p className="sm-empty">
-          {role === 'goalie' ? 'Goalie shot' : 'Shot'} location data is only collected for{' '}
-          <span style={{ fontWeight: 800, color: 'var(--color-fg-1)' }}>NHL 26</span>.
+          No {role === 'goalie' ? 'goalie shot' : 'shot'} location data recorded for{' '}
+          <span style={{ fontWeight: 800, color: 'var(--color-fg-1)' }}>{props.titleName}</span>.
         </p>
       </section>
     )
@@ -123,6 +125,7 @@ export function ShotMap(props: Props) {
 function ShotMapContent({
   player,
   teamAverage,
+  titleName,
   gamertag = 'player',
   playerGp,
   teamAvgGp,
@@ -189,7 +192,7 @@ function ShotMapContent({
             <span className="accent">▌</span>
             {titleWord} Zone Map · Season
           </h2>
-          <span className="scope">NHL 26 · Regular</span>
+          <span className="scope">{titleName} · Regular</span>
         </div>
         <div className="sm-tabs" role="tablist">
           {modeTabs.map((t) => (
