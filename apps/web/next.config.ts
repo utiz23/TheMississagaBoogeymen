@@ -65,6 +65,14 @@ const nextConfig: NextConfig = {
   },
 
   images: {
+    // Cache optimized images (logos, opponent crests) for 7 days, in browsers
+    // and in the server's own image cache, instead of Next's 60s default, which
+    // re-requested every image through the tunnel after a minute and
+    // re-optimized it on the server. The URL is the cache key, so if
+    // public/images/bgm-logo.png is ever replaced, give the new file a new
+    // name; otherwise browsers keep showing the old logo for up to a week.
+    // Opponent crest URLs carry their asset id, so a changed crest is a new URL.
+    minimumCacheTTL: 604800,
     remotePatterns: [
       {
         // EA Pro Clubs custom crest CDN — used for opponent logos only.
