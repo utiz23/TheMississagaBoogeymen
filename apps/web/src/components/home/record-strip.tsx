@@ -243,7 +243,8 @@ export function RecordStrip({
               {Array.from({ length: 10 }).map((_, i) => {
                 const r = dots[i]
                 if (!r) {
-                  return <span key={i} className="d l" />
+                  // Not played yet (fewer than 10 games) — a neutral slot, not a loss.
+                  return <span key={i} className="d empty" />
                 }
                 const cls = resultClass(r.result)
                 return (

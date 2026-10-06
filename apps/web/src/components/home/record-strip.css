@@ -556,8 +556,13 @@
   border: 1px solid rgba(232, 65, 49, 0.50);
   color: #9a9798;
 }
+/* Unplayed slot when the title has fewer than 10 games. */
+.rs-form .dots .d.empty {
+  background: transparent;
+  border: 1px dashed rgba(113, 113, 122, 0.45);
+}
 /* Most-recent game (leftmost since dots flow newest → oldest). */
-.rs-form .dots .d:first-child {
+.rs-form .dots .d:first-child:not(.empty) {
   outline: 1px solid rgba(232, 65, 49, 0.85);
   outline-offset: 1px;
 }
