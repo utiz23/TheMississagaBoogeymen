@@ -34,6 +34,7 @@ post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 image `eanhl-team-website-web:rollback-he-2026-10-06-pre-perf`). No route
 loading screens, full link preloading, 7-day image cache, 20 KB favicon.
 Live, same benchmark before/after:
+
 - Phone: content 598 → 303 ms, taps 349 → 187 ms.
 - Fast CPU: taps ~312 → 31 ms, with no network request.
 
