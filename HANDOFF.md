@@ -30,6 +30,15 @@ post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
 ## Latest Verified Checkpoint
 
+**2026-10-06 — NHL 26 contamination cleaned up** (worker `3f35733`; rollback
+image `eanhl-team-website-worker:rollback-2026-10-05-quarantine`; pre-change
+dump `~/eanhl-backups/pre-quarantine-2026-10-05/` on Hotel-Echo). EA's NHL 26
+club 19224 has been another club ("Chipstuttar") since 2026-09-07. Its 172
+matches and 6 players are out, NHL 26 is back to 204 games, and the record
+strip is restored to 365-229-27 / 621 GP. Detail:
+[plan](docs/planning/2026-10-05-nhl26-club-19224-quarantine.md),
+[journal 2026-10-06](docs/journal/2026-10.md).
+
 **2026-10-06 — performance pass deployed** (`351354d`, web only; rollback
 image `eanhl-team-website-web:rollback-he-2026-10-06-pre-perf`). No route
 loading screens, full link preloading, 7-day image cache, 20 KB favicon.
@@ -72,11 +81,11 @@ nofollow` and robots meta; no `X-Powered-By`, no cookies, no Cloudflare
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup on `main` at `67ff9c4`, web and worker as the non-root
+  and nightly backup (web at `351354d`, worker at `3f35733`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
-  check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 449
-  matches = both hosts' union. Rollback: images
+  check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
+  matches (449-match union minus the 172 quarantined). Rollback: images
   `:rollback-he-2026-10-05-pre-sec-polish` (web + worker at `225a4e9`; retag
   as `:latest`, `up -d --no-deps web worker`) /
   `:rollback-he-2026-10-05-pre-logs` / `:rollback-he-2026-09-04` and the old
@@ -100,12 +109,19 @@ nofollow` and robots meta; no `X-Powered-By`, no cookies, no Cloudflare
   pre-launch `.env` (still holding the old `TUNNEL_TOKEN` line) is at
   `~/eanhl-moved-aside/env-before-launch-2026-10-05` (600) — delete once the
   launch is settled. The main PC has no tunnel. Login/auth is removed.
-- NHL 27 ingestion has been live since 2026-09-05; NHL 26 is preserved. Since
-  migration 0057 (applied 2026-10-05) three settings are separate:
-  collection (`is_active`: NHL 26 and 27), site default (`is_default`: NHL 27)
-  and order (`release_order`). Stopping NHL 26 collection later
-  (`UPDATE game_titles SET is_active = false WHERE slug = 'nhl26';`) keeps its
-  pages.
+- NHL 27 ingestion has been live since 2026-09-05. Since migration 0057
+  three settings are separate: collection (`is_active`: **NHL 27 only** —
+  NHL 26 was switched off 2026-10-06; its pages remain), site default
+  (`is_default`: NHL 27) and order (`release_order`). **Never re-enable NHL
+  26 collection:** club 19224 now belongs to another club.
+- **Club identity guard** (migration 0058): the worker refuses any match where
+  the club under our ID isn't named `game_titles.ea_club_name` ('The
+  Boogeymen' for nhl26/nhl27). Refusals land as `error` rows and turn the
+  heartbeat red, which is intended. If the team renames its club, update
+  `ea_club_name`, then `reprocess`. Refused-on-purpose payloads live verbatim in
+  `quarantined_raw_match_payloads` (0059), outside monitoring and reprocess.
+  The club record, member stats and season rank are not guarded yet (plan
+  step 3, optional).
 - Backups are enabled by `COMPOSE_PROFILES=backup` in `.env`. Setup, alerts
   and restore steps: [`ops/nightly-backup/README.md`](ops/nightly-backup/README.md).
   The B2 key is Backblaze's stock "Write Only" key, which can still delete

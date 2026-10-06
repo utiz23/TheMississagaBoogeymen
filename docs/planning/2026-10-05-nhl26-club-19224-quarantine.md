@@ -1,8 +1,7 @@
 # NHL 26: quarantine the "Chipstuttar" matches on club 19224
 
-Status: **Step 0 applied; step 1 committed (`09ba638`); step 2 revised after
-Codex review (quarantine table, 0059) and re-rehearsed. Operator said go
-2026-10-05; production apply in progress.**
+Status: **DONE on production 2026-10-06 (~04:10 UTC)** — steps 0-2 applied and
+verified live (journal 2026-10-06). Step 3 is open.
 Opened 2026-10-05.
 
 ## What happened
@@ -77,8 +76,8 @@ update `ea_club_name` and run `reprocess`. Nothing is lost.
 
 Verified: 9/9 transform tests pass. Run against every stored NHL 26/27 payload,
 the guard accepts 204 + 73 and refuses exactly the 172 Chipstuttar matches.
-Deploy the **worker image only**: the web perf commits still awaiting deploy
-shouldn't ship as a side effect. Apply 0058 before the new image starts.
+Deploy the **worker image only** (the web needs no change). Apply 0058
+before the new image starts.
 
 ## Step 2 — quarantine the data (live DB, one transaction)
 
