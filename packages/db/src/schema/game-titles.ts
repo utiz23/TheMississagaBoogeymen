@@ -33,6 +33,13 @@ export const gameTitles = pgTable(
     eaPlatform: text('ea_platform').notNull(),
     /** Our club ID within this game title. e.g. '19224' */
     eaClubId: text('ea_club_id').notNull(),
+    /**
+     * Expected EA display name of our club (clubs[eaClubId].details.name), e.g.
+     * 'The Boogeymen'. When set, the worker refuses any match whose club under
+     * eaClubId has a different name — EA reassigned NHL 26 club 19224 to another
+     * club in 2026-09. NULL = no check (archive titles).
+     */
+    eaClubName: text('ea_club_name'),
     /** Base URL for this game title's EA API. May change between releases. */
     apiBaseUrl: text('api_base_url').notNull(),
     /** Ingestion eligibility only: the worker polls EA for titles where this is true. */

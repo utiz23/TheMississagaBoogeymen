@@ -12,6 +12,8 @@ function buildPayload(opts: {
   ourTeamSide?: string
   ourPlayerTeamSide?: string
   omitClubTeamSide?: boolean
+  /** Our club's details.name; null omits `details` entirely. */
+  ourClubName?: string | null
 }): unknown {
   const ourPlayer = {
     playername: 'silkyjoker85',
@@ -46,7 +48,7 @@ function buildPayload(opts: {
   const ourClub: Record<string, unknown> = {
     score: '2',
     shots: '20',
-    details: { name: 'BGM' },
+    ...(opts.ourClubName === null ? {} : { details: { name: opts.ourClubName ?? 'BGM' } }),
   }
   if (!opts.omitClubTeamSide && opts.ourTeamSide !== undefined) {
     ourClub.teamSide = opts.ourTeamSide
@@ -98,4 +100,40 @@ void test('bgmWasHome=null when both club and player teamSide are missing', () =
 void test('bgmWasHome=null on non-numeric club teamSide', () => {
   const result = transformMatch(buildPayload({ ourTeamSide: '--' }), 1, '19224', 'gameType5')
   assert.equal(result.match.bgmWasHome, null)
+})
+
+// ─── Club identity guard ──────────────────────────────────────────────────────
+// EA can hand our club ID to a different club (NHL 26 club 19224 came back as
+// "Chipstuttar" from 2026-09-07). An expected name set on the game title must
+// match clubs[ourClubId].details.name, or the transform refuses the match.
+
+void test('club identity: matching expected name transforms normally', () => {
+  const result = transformMatch(buildPayload({}), 1, '19224', 'gameType5', 'BGM')
+  assert.equal(result.match.eaMatchId, '99999999999999')
+})
+
+void test('club identity: a different club name under our ID is refused', () => {
+  assert.throws(
+    () =>
+      transformMatch(buildPayload({ ourClubName: 'Chipstuttar' }), 1, '19224', 'gameType5', 'BGM'),
+    /club identity mismatch: expected "BGM", got "Chipstuttar"/,
+  )
+})
+
+void test('club identity: a missing club name is refused when a name is expected', () => {
+  assert.throws(
+    () => transformMatch(buildPayload({ ourClubName: null }), 1, '19224', 'gameType5', 'BGM'),
+    /club identity mismatch: expected "BGM", got no club name/,
+  )
+})
+
+void test('club identity: no expected name (null) skips the check', () => {
+  const result = transformMatch(
+    buildPayload({ ourClubName: 'Chipstuttar' }),
+    1,
+    '19224',
+    'gameType5',
+    null,
+  )
+  assert.equal(result.match.eaMatchId, '99999999999999')
 })

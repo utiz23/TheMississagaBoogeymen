@@ -414,12 +414,17 @@ function parseRankPoints(val: unknown): number | null {
  *
  * Throws on any unrecoverable parse failure. The caller catches the error,
  * stores it in raw_match_payloads.transform_error, and sets transform_status = 'error'.
+ *
+ * `expectedClubName` (game_titles.ea_club_name) guards against EA handing our
+ * club ID to another club: when set, clubs[eaClubId].details.name must equal it
+ * or the match is refused. NULL skips the check.
  */
 export function transformMatch(
   rawPayload: unknown,
   gameTitleId: number,
   eaClubId: string,
   matchType: EaMatchType,
+  expectedClubName: string | null = null,
 ): TransformResult {
   // Cast to EaMatch. Fields are accessed defensively since the structure is UNVERIFIED.
   const match = rawPayload as EaMatch
@@ -460,6 +465,24 @@ export function transformMatch(
 
   if (!ourClub || !opponentClub) {
     throw new Error(`Club data missing for one or both clubs in match ${eaMatchId}`)
+  }
+
+  // ── Club identity ────────────────────────────────────────────────────────────
+  // Fail closed: an unreadable name is refused too. The raw payload is kept, so
+  // a refused match can be reprocessed after correcting game_titles.ea_club_name.
+  if (expectedClubName !== null) {
+    const ourDetails =
+      typeof ourClub.details === 'object' && ourClub.details !== null
+        ? (ourClub.details as Record<string, unknown>)
+        : null
+    const ourName = typeof ourDetails?.name === 'string' ? ourDetails.name.trim() : ''
+    if (ourName !== expectedClubName.trim()) {
+      throw new Error(
+        `club identity mismatch: expected "${expectedClubName}", got ` +
+          (ourName === '' ? 'no club name' : `"${ourName}"`) +
+          ` for club ${eaClubId} in match ${eaMatchId}`,
+      )
+    }
   }
 
   // ── Scores and result ────────────────────────────────────────────────────────

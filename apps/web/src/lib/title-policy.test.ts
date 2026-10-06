@@ -33,6 +33,7 @@ function title(
     name: `NHL ${slug.replace(/^nhl/u, '')}`,
     eaPlatform: 'common-gen5',
     eaClubId: '19224',
+    eaClubName: null,
     apiBaseUrl: 'https://proclubs.ea.com/api/nhl',
     isActive: flags.isActive ?? false,
     isDefault: flags.isDefault ?? false,

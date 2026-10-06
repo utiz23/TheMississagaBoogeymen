@@ -189,7 +189,13 @@ async function ingestMatchType(title: GameTitle, matchType: EaMatchType): Promis
       matchesNew++
 
       try {
-        const result = transformMatch(rawMatch, title.id, title.eaClubId, matchType)
+        const result = transformMatch(
+          rawMatch,
+          title.id,
+          title.eaClubId,
+          matchType,
+          title.eaClubName,
+        )
         await persistTransform(result)
         await db
           .update(rawMatchPayloads)

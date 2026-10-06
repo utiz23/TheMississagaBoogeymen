@@ -69,6 +69,7 @@ async function main(): Promise<void> {
         row.gameTitleId,
         title.eaClubId,
         row.matchType as Parameters<typeof transformMatch>[3],
+        title.eaClubName,
       )
       await persistTransform(result)
       await db
