@@ -121,12 +121,11 @@ None.
 
 ## Next 1-3 Actions
 
-1. **Operator-run follow-ups from the security review** (the deploy itself
-   is done, see checkpoint): reboot Hotel-Echo (updates waiting);
-   `shred -u ~/eanhl-moved-aside/env-before-launch-2026-10-05`; confirm
-   DNSSEC's DS record reached the `.app` registry. Polish continues from
-   [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md) (next: honest numbers —
-   real "Updated" dates, one SV% format, readable time deltas).
+1. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
+   (next: honest numbers — real "Updated" dates, one SV% format, readable
+   time deltas). The security review is closed: deployed, Hotel-Echo
+   rebooted onto kernel 7.0.0-34 (02:18 UTC 10-06), old env copy gone,
+   DNSSEC DS record live.
 2. Observe the launch for a few days: Healthchecks (backup + collector)
    emails, nightly backups on Hotel-Echo (item 1 closes after three green
    nights), teammates' feedback. Run the owed Codex review of the nightly
