@@ -1,6 +1,7 @@
 # NHL 26: quarantine the "Chipstuttar" matches on club 19224
 
-Status: **PLAN — awaiting operator approval.** Step 0 is done; nothing else applied.
+Status: **Step 0 applied; step 1 committed (`09ba638`, not deployed); step 2
+rehearsed on a copy. Production apply awaiting operator go-ahead.**
 Opened 2026-10-05.
 
 ## What happened
@@ -54,7 +55,7 @@ cycle polled NHL 27 only. The NHL 26 match count stays at 376. Undo: set it back
 to `true`. The site still shows NHL 26 because a title with matches counts as
 live.
 
-## Step 1 — guard: never re-create these matches (code)
+## Step 1 — guard: never re-create these matches (code) — COMMITTED `09ba638`
 
 `reprocess` retries error rows, and `reprocess --all` re-transforms every
 payload. Either would re-create the 172 matches from the stored raw payloads
@@ -73,10 +74,15 @@ today. So the guard ships **before** the data change.
 If the team renames the club for real, transforms fail loudly. The fix is to
 update `ea_club_name` and run `reprocess`. Nothing is lost.
 
+Verified: 9/9 transform tests pass. Run against every stored NHL 26/27 payload,
+the guard accepts 204 + 73 and refuses exactly the 172 Chipstuttar matches.
+Deploy the **worker image only**: the web perf commits still awaiting deploy
+shouldn't ship as a side effect. Apply 0058 before the new image starts.
+
 ## Step 2 — quarantine the data (live DB, one transaction)
 
-Before: take a fresh `pg_dump` on Hotel-Echo. Rehearse the script on a
-restored copy and compare the results with the expected numbers below.
+Script: `apps/worker/src/__scripts__/nhl26-chipstuttar-quarantine-2026-10-05.sql`
+(the apply command is in its header). Before: take a fresh `pg_dump` on Hotel-Echo.
 
 All of this runs in one transaction that checks each row count against the
 table above and rolls back on any mismatch:
@@ -92,8 +98,9 @@ The Boogeymen — see docs/planning/2026-10-05-nhl26-club-19224-quarantine.md'`.
    `player_gamertag_history` (6), then `players` (6).
 4. Restore NHL 26 `club_seasonal_stats` and `club_season_rank` to the 09-03
    dump values above.
-5. Recompute NHL 26 aggregates (`recomputeAggregates(1)` in the worker
-   container).
+5. After COMMIT, recompute NHL 26 aggregates. NHL 26 is no longer polled, so
+   the worker won't do it itself:
+   `docker exec -w /app/apps/worker eanhl-team-website-worker-1 node -e "import('./dist/aggregate.js').then(m=>m.recomputeAggregates(1)).then(()=>process.exit(0),e=>{console.error(e);process.exit(1)})"`
 
 Everything deleted can be rebuilt from the kept raw payloads plus the
 pre-change dump.
@@ -109,6 +116,17 @@ pre-change dump.
 The 6s row equals today's live 6s row, because all 172 Chipstuttar games were
 3s. The record strip shows 365-229-27. None of the six outsiders appear in
 any table, including All Time. NHL 27 is unchanged.
+
+### Rehearsal (2026-10-05, throwaway container, Hotel-Echo daily dump of 10-06 02:19 UTC)
+
+- Without its preconditions (flag on, no 0058) the script refused and changed nothing.
+- 0058 set both titles; a second run was a no-op (`UPDATE 0`).
+- The script committed with every row count as listed, then post-check: 204
+  matches, 172 refused payloads, 0 outsiders, record 365-229-27 / 621 GP.
+- `recomputeAggregates(1)` produced exactly the table above. The NHL 26 EA
+  skater list is the 10 Boogeymen members. NHL 27 stayed at 73 matches.
+- `reprocess` afterwards refused all 172 ("club identity mismatch") and created
+  nothing. It overwrites the quarantine note with the guard's message.
 
 ## Step 3 — catch it next time (later, smaller)
 
