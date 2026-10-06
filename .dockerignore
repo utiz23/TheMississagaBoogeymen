@@ -2,7 +2,10 @@
 node_modules
 **/node_modules
 **/.next
-.env
-.env.local
+# Env files and secrets at ANY depth. A bare `.env.local` matches only the
+# context root, which let apps/web/.env.local into locally built web images.
+**/.env
+**/.env.*
+secrets/
 **/*.log
 imgs/
