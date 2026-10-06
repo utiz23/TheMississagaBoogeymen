@@ -42,6 +42,21 @@ export function formatTOA(seconds: number | null): string {
 }
 
 /**
+ * Format a long running total of seconds (season TOI, possession) as
+ * "17d 22h 47m". Leading zero units are dropped; partial minutes are floored.
+ * Returns "—" when null, non-finite or not positive.
+ */
+export function formatDuration(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return '—'
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (d > 0) return `${d.toString()}d ${h.toString()}h ${m.toString()}m`
+  if (h > 0) return `${h.toString()}h ${m.toString()}m`
+  return `${m.toString()}m`
+}
+
+/**
  * Format a save percentage string from the DB (e.g. "67.00") as hockey style ".670".
  * Returns "—" when null or unparseable.
  */

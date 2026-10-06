@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { formatPosition } from '@/lib/format'
+import { formatDuration, formatPosition } from '@/lib/format'
 import './club-stats-tabs.css'
 
 interface SeasonRow {
@@ -797,7 +797,7 @@ const TAB_BUILDERS_SKATER: Record<SkaterTabKey, TabBuilder> = {
             },
             {
               label: 'Possession',
-              value: formatHrsMin(s.possessionSeconds),
+              value: formatDuration(s.possessionSeconds),
               bar: s.possessionSeconds,
               rankKey: (r) => r.possessionSeconds,
             },
@@ -834,7 +834,7 @@ const TAB_BUILDERS_SKATER: Record<SkaterTabKey, TabBuilder> = {
           cells: [
             {
               label: 'Time on Ice',
-              value: s.toiSeconds !== null ? formatHrsMin(s.toiSeconds) : '—',
+              value: formatDuration(s.toiSeconds),
               bar: s.toiSeconds ?? 0,
               lead: true,
               rankKey: (r) => r.toiSeconds,
@@ -1257,7 +1257,7 @@ const TAB_BUILDERS_GOALIE: Record<GoalieTabKey, TabBuilder> = {
           cells: [
             {
               label: 'Time on Ice',
-              value: formatHrsMin(toi),
+              value: formatDuration(toi),
               bar: toi,
               lead: true,
               rankKey: (r) => r.goalieToiSeconds ?? null,
@@ -1550,14 +1550,6 @@ function formatRecord(w: number, l: number, otl: number): string {
 
 function formatThousands(v: number): string {
   return v.toLocaleString('en-US')
-}
-
-function formatHrsMin(seconds: number): string {
-  if (seconds <= 0) return '—'
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  if (h > 0) return `${String(h)}h ${String(m)}m`
-  return `${String(m)}m`
 }
 
 /** Format a per-game TOI value (seconds) as MM:SS. */
