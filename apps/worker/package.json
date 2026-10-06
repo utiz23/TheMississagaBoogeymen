@@ -40,7 +40,7 @@
   "dependencies": {
     "@eanhl/db": "workspace:*",
     "@eanhl/ea-client": "workspace:*",
-    "better-auth": "^1.6.10",
+    "better-auth": "~1.6.33",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {

@@ -16,12 +16,13 @@
     "lint": "eslint src \"test/**/*.ts\""
   },
   "dependencies": {
-    "@better-auth/drizzle-adapter": "^1.6.10",
+    "@better-auth/core": "~1.6.33",
+    "@better-auth/drizzle-adapter": "~1.6.33",
     "@eanhl/db": "workspace:*",
     "@tailwindcss/postcss": "^4.2.2",
-    "better-auth": "^1.6.10",
-    "next": "^15.3.0",
-    "postcss": "^8.5.9",
+    "better-auth": "~1.6.33",
+    "next": "^15.5.27",
+    "postcss": "^8.5.29",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tailwindcss": "^4.2.2"
