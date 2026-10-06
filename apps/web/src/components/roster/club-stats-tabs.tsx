@@ -275,7 +275,7 @@ export function ClubStatsTabs({
 
       <div className="cs-panel">
         <div className="cs-panel-grid">
-          <Marquee marquee={marquee} pool={pool} season={season} />
+          <Marquee marquee={marquee} pool={pool} season={season} role={role} />
           <div className="cs-subsections">
             {subsections.map((sub) => (
               <Subsection key={sub.title} title={sub.title} cells={sub.cells} pool={pool} />
@@ -303,10 +303,12 @@ function Marquee({
   marquee,
   pool,
   season,
+  role,
 }: {
   marquee: MarqueeSpec
   pool: TeammateRow[]
   season: SeasonRow
+  role: Role
 }) {
   const rank =
     marquee.rankPick && pool.length > 0
@@ -333,7 +335,10 @@ function Marquee({
       {rank !== null ? (
         <div className="cs-marquee-rank">
           <span className="num">#{String(rank.rank)}</span>
-          <span className="of">of {String(rank.total)} skaters</span>
+          <span className="of">
+            of {String(rank.total)} {role === 'goalie' ? 'goalie' : 'skater'}
+            {rank.total === 1 ? '' : 's'}
+          </span>
         </div>
       ) : null}
     </aside>
