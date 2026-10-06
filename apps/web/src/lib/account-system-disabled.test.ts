@@ -62,11 +62,12 @@ const TOMBSTONES = [AUTH_API_ROUTE, ACCOUNT_ACTIONS]
  * URL prefixes that must not resolve to any App Router module.
  *
  * Deleting the page files, rather than making them 404 themselves, is
- * deliberate and was forced by measurement: this app has a root
- * `src/app/loading.tsx`, so a page renders inside a Suspense boundary whose
- * shell is flushed before the page component runs. A `notFound()` thrown from
- * there cannot change a status that has already been sent, and the built app
- * answered **200** on /login, /account, /me and /admin/accounts.
+ * deliberate and was forced by measurement: this app then had a root
+ * `src/app/loading.tsx` (removed in October 2026), so a page rendered inside a
+ * Suspense boundary whose shell was flushed before the page component ran. A
+ * `notFound()` thrown from there could not change a status that had already
+ * been sent, and the built app answered **200** on /login, /account, /me and
+ * /admin/accounts.
  * `export const dynamic = 'force-dynamic'` did not change it. With no module,
  * the URL is as absent as any URL the site never had and Next's own 404
  * answers it — proved over HTTP in ../../test/disabled-routes-http.test.ts.

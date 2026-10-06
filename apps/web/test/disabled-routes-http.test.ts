@@ -9,13 +9,17 @@
  * the same statement as "a client asking for /login gets a 404", and this
  * project has already been bitten by the difference. Tombstone pages that
  * called `notFound()` looked correct in every module-level test and served
- * **200** from the real server: the app has a root `src/app/loading.tsx`, so
- * pages render inside a Suspense boundary whose shell is flushed before the
- * page component runs, and a status cannot be changed after the headers are
+ * **200** from the real server: the app then had a root `src/app/loading.tsx`,
+ * so pages rendered inside a Suspense boundary whose shell was flushed before
+ * the page component ran, and a status cannot be changed after the headers are
  * sent. `export const dynamic = 'force-dynamic'` did not change that. The fix
  * was to delete the page modules outright, so the URLs are as absent as any URL
  * this site never had — and only a request over a socket could tell the
  * difference between the two.
+ *
+ * The route loading.tsx files were removed in October 2026 (they delayed every
+ * first paint behind a skeleton). Since then a page's own `notFound()` sends a
+ * real 404 as well, which the unknown-game/unknown-player test below pins.
  *
  * WHAT IT DOES
  * ------------
@@ -24,7 +28,9 @@
  * needs beyond the build is whatever `/` already needs to render, and `/` is
  * used ONLY as a control ("the server is serving this app"), never as an
  * assertion about data. It also checks the browser-hardening headers from
- * next.config.ts on a page, an unknown path and the auth tombstone.
+ * next.config.ts on a page, an unknown path and the auth tombstone, and that
+ * an unknown game or player id gets a real 404 (that lookup uses the same
+ * database `/` does).
  *
  * REQUIRES A BUILD. It skips — loudly, not silently — when `.next/BUILD_ID` is
  * absent, because a stale or missing build would otherwise let it pass while
@@ -128,6 +134,21 @@ void test('a POST to a disabled page route is a 404 too', { skip }, async () => 
   // The pages are gone, so there is no Server Action target behind them either.
   for (const urlPath of ['/login', '/account', '/admin/accounts']) {
     assert.equal(await status('POST', urlPath), 404, `POST ${urlPath} must be 404`)
+  }
+})
+
+void test('an unknown game or player is a real 404, not a soft 200', { skip }, async () => {
+  // These pages exist and call notFound() themselves. With no route
+  // loading.tsx streaming a shell first, that call can still set the status.
+  // The numeric ids are far past any real row yet inside players.id's int4; the
+  // non-numeric ones take the pages' parseInt guard instead of the DB lookup.
+  for (const urlPath of [
+    '/games/999999999',
+    '/roster/999999999',
+    '/games/not-a-number',
+    '/roster/not-a-number',
+  ]) {
+    assert.equal(await status('GET', urlPath), 404, `GET ${urlPath} must be 404`)
   }
 })
 

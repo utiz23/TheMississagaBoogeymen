@@ -36,11 +36,12 @@
  * import and invoke, which is why they are not in this file.
  *
  * That was not the first attempt. Tombstone pages that called `notFound()` were
- * tried and MEASURED AT 200: this app has a root `src/app/loading.tsx`, so every
- * page renders inside a Suspense boundary, the shell is flushed before the page
- * component runs, and a `notFound()` thrown after that cannot change a status
- * that has already gone out. `export const dynamic = 'force-dynamic'` did not
- * help. Deleting the modules does, and it is the stronger answer anyway.
+ * tried and MEASURED AT 200: this app then had a root `src/app/loading.tsx`, so
+ * every page rendered inside a Suspense boundary, the shell was flushed before
+ * the page component ran, and a `notFound()` thrown after that could not change
+ * a status that had already gone out. `export const dynamic = 'force-dynamic'`
+ * did not help. Deleting the modules does, and it is the stronger answer anyway
+ * (the root loading.tsx itself was removed in October 2026).
  * Their 404s are proved end-to-end in ./disabled-routes-http.test.ts, against a
  * real server, and structurally in ../src/lib/account-system-disabled.test.ts.
  *
