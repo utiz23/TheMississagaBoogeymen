@@ -30,7 +30,15 @@ post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
 ## Latest Verified Checkpoint
 
-**2026-10-05 — launched.** Detail: [journal 2026-10-05](docs/journal/2026-10.md).
+**2026-10-05 — launched; security update + polish deployed.** Detail:
+[journal 2026-10-05](docs/journal/2026-10.md).
+
+- Evening deploy to Hotel-Echo at `67ff9c4` (web + worker rebuilt with
+  `--no-deps`; db, backup, cloudflared untouched): web and worker run as
+  `node`; Next 15.5.27; all 7 security headers present once; image optimizer
+  200 `image/webp` and writes its cache as `node`; no `EACCES`/`EPERM`; no
+  `.env*` in the web image; worker cycle succeeded for both titles, `/health`
+  200, heartbeat URL set. Polish fixes live (NHL 27 zone maps, goalie rank).
 
 - Public checks via `https://boogeymen.app`: core and legal pages 200
   (~0.5 s); `/preview/*`, `/login`, `/admin`, `/api/auth/session`, `/health`
@@ -53,10 +61,13 @@ nofollow` and robots meta; no `X-Powered-By`, no cookies, no Cloudflare
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup on `main` at `225a4e9` (container logs capped at
+  and nightly backup on `main` at `67ff9c4`, web and worker as the non-root
+  `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 449
   matches = both hosts' union. Rollback: images
+  `:rollback-he-2026-10-05-pre-sec-polish` (web + worker at `225a4e9`; retag
+  as `:latest`, `up -d --no-deps web worker`) /
   `:rollback-he-2026-10-05-pre-logs` / `:rollback-he-2026-09-04` and the old
   Hotel-Echo database kept as
   `eanhl_he_old`; the main-PC fallback below.
@@ -110,13 +121,12 @@ None.
 
 ## Next 1-3 Actions
 
-1. **Deploy `main` to Hotel-Echo** (awaiting the operator's OK): the
-   security update (`2789f03` deps, `05ffebe` headers, `fd2949a`
-   .dockerignore, `e09bbc2` non-root web/worker) and the §1 polish fixes,
-   all verified, none deployed. Rebuild web AND worker. From the security
-   review ([journal 2026-10-05](docs/journal/2026-10.md)), operator-run: reboot
-   Hotel-Echo (updates waiting); `shred -u ~/eanhl-moved-aside/env-before-launch-2026-10-05`.
-   Confirm DNSSEC's DS record reached the `.app` registry.
+1. **Operator-run follow-ups from the security review** (the deploy itself
+   is done, see checkpoint): reboot Hotel-Echo (updates waiting);
+   `shred -u ~/eanhl-moved-aside/env-before-launch-2026-10-05`; confirm
+   DNSSEC's DS record reached the `.app` registry. Polish continues from
+   [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md) (next: honest numbers —
+   real "Updated" dates, one SV% format, readable time deltas).
 2. Observe the launch for a few days: Healthchecks (backup + collector)
    emails, nightly backups on Hotel-Echo (item 1 closes after three green
    nights), teammates' feedback. Run the owed Codex review of the nightly
