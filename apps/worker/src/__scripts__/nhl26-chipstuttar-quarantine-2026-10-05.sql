@@ -3,16 +3,17 @@
 --
 -- From 2026-09-07 EA's NHL 26 club 19224 reported as "Chipstuttar", not The Boogeymen, and 172
 -- of its matches were ingested as ours. This file, in ONE transaction:
---   1. marks their 172 raw payloads transform_status='error' (payloads KEPT verbatim);
+--   1. moves their 172 raw payloads, verbatim, into quarantined_raw_match_payloads (0059) — out
+--      of raw_match_payloads so the heartbeat, `reprocess` and `reprocess --all` never see them;
 --   2. deletes their player_match_stats, opponent_player_match_stats and matches rows;
 --   3. deletes the 6 players who appear ONLY in those matches, with their derived rows;
 --   4. restores NHL 26 club_seasonal_stats / club_season_rank from the 2026-09-03 dump
 --      (~/backups/pre-rotation-20260903/eanhl-pre-rotation.dump on the main PC).
 -- Every statement asserts its exact row count; any difference raises and nothing is applied.
 --
--- PRECONDITIONS (asserted): nhl26 polling is off (is_active=false) and migration 0058 has set
--- ea_club_name='The Boogeymen' for nhl26 — so neither the worker nor `reprocess` can re-create
--- these matches afterwards.
+-- PRECONDITIONS (asserted): nhl26 polling is off (is_active=false), migration 0058 has set
+-- ea_club_name='The Boogeymen' for nhl26 (so neither the worker nor `reprocess` can re-create
+-- these matches), and migration 0059's quarantine table exists and is empty.
 --
 -- APPLY (Hotel-Echo; take a fresh pg_dump first):
 --   docker exec -i -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=60s" \
@@ -21,8 +22,8 @@
 -- THEN recompute NHL 26 aggregates (club_game_title_stats still counts the 172 until this runs):
 --   recomputeAggregates(1) from the worker image — see the plan's step 2.5.
 --
--- UNDO: restore the pre-change pg_dump. Every deleted row is also re-derivable from the kept raw
--- payloads (set ea_club_name to NULL for nhl26, then `reprocess`).
+-- UNDO: restore the pre-change pg_dump. Every deleted row is also re-derivable from the
+-- quarantined payloads (move them back per 0059's header, clear nhl26 ea_club_name, `reprocess`).
 
 \set ON_ERROR_STOP 1
 
@@ -37,6 +38,12 @@ BEGIN
   END IF;
   IF (SELECT ea_club_name FROM game_titles WHERE id = 1) IS DISTINCT FROM 'The Boogeymen' THEN
     RAISE EXCEPTION 'precondition: apply migration 0058 first (nhl26 ea_club_name)';
+  END IF;
+  IF to_regclass('public.quarantined_raw_match_payloads') IS NULL THEN
+    RAISE EXCEPTION 'precondition: apply migration 0059 first (quarantine table)';
+  END IF;
+  IF EXISTS (SELECT 1 FROM quarantined_raw_match_payloads) THEN
+    RAISE EXCEPTION 'precondition: quarantined_raw_match_payloads is not empty — already applied?';
   END IF;
 END $$;
 
@@ -99,17 +106,37 @@ BEGIN
   IF n <> 0 THEN RAISE EXCEPTION 'scope: % unexpected dependent rows (claims/notes/aliases/loadouts/historical/invites/events/OCR)', n; END IF;
 END $$;
 
--- ── 1. Raw payloads: keep, mark refused ────────────────────────────────────────
+-- ── 1. Raw payloads: move verbatim into quarantine ─────────────────────────────
 DO $$
 DECLARE n int;
 BEGIN
-  UPDATE raw_match_payloads
-     SET transform_status = 'error',
-         transform_error  = 'quarantined 2026-10: club 19224 is "Chipstuttar", not The Boogeymen'
-                            ' — see docs/planning/2026-10-05-nhl26-club-19224-quarantine.md'
-   WHERE id IN (SELECT raw_id FROM q_matches);
+  INSERT INTO quarantined_raw_match_payloads (
+    id, game_title_id, ea_match_id, match_type, source_endpoint, payload, payload_hash,
+    schema_version, transform_status, transform_error, ingestion_log_id, ingested_at,
+    quarantine_reason)
+  SELECT r.id, r.game_title_id, r.ea_match_id, r.match_type, r.source_endpoint, r.payload,
+         r.payload_hash, r.schema_version, r.transform_status, r.transform_error,
+         r.ingestion_log_id, r.ingested_at,
+         'club 19224 is "Chipstuttar", not The Boogeymen (from 2026-09-07)'
+         ' — see docs/planning/2026-10-05-nhl26-club-19224-quarantine.md'
+    FROM raw_match_payloads r
+   WHERE r.id IN (SELECT raw_id FROM q_matches);
   GET DIAGNOSTICS n = ROW_COUNT;
-  IF n <> 172 THEN RAISE EXCEPTION 'raw_match_payloads: expected 172, got %', n; END IF;
+  IF n <> 172 THEN RAISE EXCEPTION 'quarantine insert: expected 172, got %', n; END IF;
+
+  -- Verbatim check before anything leaves raw_match_payloads.
+  SELECT count(*) INTO n
+    FROM quarantined_raw_match_payloads q
+    JOIN raw_match_payloads r ON r.id = q.id
+   WHERE q.payload = r.payload AND q.payload_hash = r.payload_hash
+     AND q.game_title_id = r.game_title_id AND q.ea_match_id = r.ea_match_id
+     AND q.match_type = r.match_type AND q.source_endpoint = r.source_endpoint
+     AND q.ingested_at = r.ingested_at AND q.schema_version = r.schema_version;
+  IF n <> 172 THEN RAISE EXCEPTION 'quarantine copy: only % of 172 rows identical', n; END IF;
+
+  DELETE FROM raw_match_payloads WHERE id IN (SELECT raw_id FROM q_matches);
+  GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 172 THEN RAISE EXCEPTION 'raw_match_payloads delete: expected 172, got %', n; END IF;
 END $$;
 
 -- ── 2. Match-level rows ────────────────────────────────────────────────────────
@@ -180,7 +207,9 @@ COMMIT;
 
 -- ── Post-check (read-only) ─────────────────────────────────────────────────────
 SELECT 'nhl26 matches' AS what, count(*)::text AS value FROM matches WHERE game_title_id = 1
-UNION ALL SELECT 'refused raw payloads', count(*)::text FROM raw_match_payloads
- WHERE game_title_id = 1 AND transform_status = 'error'
+UNION ALL SELECT 'nhl26 raw payloads', count(*)::text FROM raw_match_payloads WHERE game_title_id = 1
+UNION ALL SELECT 'quarantined payloads', count(*)::text FROM quarantined_raw_match_payloads
+UNION ALL SELECT 'error rows (heartbeat; expect 0)', count(*)::text FROM raw_match_payloads
+ WHERE transform_status = 'error'
 UNION ALL SELECT 'outsider players left', count(*)::text FROM players WHERE id IN (206, 207, 208, 209, 213, 228)
 UNION ALL SELECT 'nhl26 official record', record || ' / ' || games_played || ' GP' FROM club_seasonal_stats WHERE game_title_id = 1;

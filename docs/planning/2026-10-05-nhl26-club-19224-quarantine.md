@@ -1,7 +1,8 @@
 # NHL 26: quarantine the "Chipstuttar" matches on club 19224
 
-Status: **Step 0 applied; step 1 committed (`09ba638`, not deployed); step 2
-rehearsed on a copy. Production apply awaiting operator go-ahead.**
+Status: **Step 0 applied; step 1 committed (`09ba638`); step 2 revised after
+Codex review (quarantine table, 0059) and re-rehearsed. Operator said go
+2026-10-05; production apply in progress.**
 Opened 2026-10-05.
 
 ## What happened
@@ -82,15 +83,19 @@ shouldn't ship as a side effect. Apply 0058 before the new image starts.
 ## Step 2 — quarantine the data (live DB, one transaction)
 
 Script: `apps/worker/src/__scripts__/nhl26-chipstuttar-quarantine-2026-10-05.sql`
-(the apply command is in its header). Before: take a fresh `pg_dump` on Hotel-Echo.
+(the apply command is in its header). Before: take a fresh `pg_dump` on Hotel-Echo,
+then apply migrations 0058 and 0059.
 
 All of this runs in one transaction that checks each row count against the
 table above and rolls back on any mismatch:
 
-1. Mark the 172 raw payloads `transform_status = 'error'`,
-   `transform_error = 'quarantined 2026-10: club 19224 is "Chipstuttar", not
-The Boogeymen — see docs/planning/2026-10-05-nhl26-club-19224-quarantine.md'`.
-   **The raw payloads themselves are kept, verbatim.**
+1. Move the 172 raw payloads **verbatim** into `quarantined_raw_match_payloads`
+   (migration 0059; original ids kept, plus the time and reason). The script
+   checks the copy matches byte-for-byte before removing them from
+   `raw_match_payloads`. They are deliberately **not** left there as
+   `transform_status = 'error'`: the worker heartbeat pings `/fail` while any
+   error row exists, and the guard would refuse them on every `reprocess`,
+   so the alert could never clear (Codex review finding, confirmed).
 2. Delete their `player_match_stats` (411), `opponent_player_match_stats`
    (440), then the `matches` (172).
 3. Delete the 6 outsider players' rows: `player_game_title_stats` (12),
@@ -102,7 +107,7 @@ The Boogeymen — see docs/planning/2026-10-05-nhl26-club-19224-quarantine.md'`.
    the worker won't do it itself:
    `docker exec -w /app/apps/worker eanhl-team-website-worker-1 node -e "import('./dist/aggregate.js').then(m=>m.recomputeAggregates(1)).then(()=>process.exit(0),e=>{console.error(e);process.exit(1)})"`
 
-Everything deleted can be rebuilt from the kept raw payloads plus the
+Everything deleted can be rebuilt from the quarantined payloads plus the
 pre-change dump.
 
 ### Expected NHL 26 after (local aggregate, from the 204 kept matches)
@@ -119,14 +124,23 @@ any table, including All Time. NHL 27 is unchanged.
 
 ### Rehearsal (2026-10-05, throwaway container, Hotel-Echo daily dump of 10-06 02:19 UTC)
 
+First pass (error-marking version, superseded):
+
 - Without its preconditions (flag on, no 0058) the script refused and changed nothing.
-- 0058 set both titles; a second run was a no-op (`UPDATE 0`).
-- The script committed with every row count as listed, then post-check: 204
-  matches, 172 refused payloads, 0 outsiders, record 365-229-27 / 621 GP.
-- `recomputeAggregates(1)` produced exactly the table above. The NHL 26 EA
-  skater list is the 10 Boogeymen members. NHL 27 stayed at 73 matches.
-- `reprocess` afterwards refused all 172 ("club identity mismatch") and created
-  nothing. It overwrites the quarantine note with the guard's message.
+- It reproduced every count and the table above, but left 172 error rows. That
+  was the defect Codex caught.
+
+Second pass (quarantine-table version, current):
+
+- 0058 and 0059 applied; re-running each was a no-op.
+- Post-check: 204 NHL 26 matches, 204 NHL 26 raw payloads, 172 quarantined,
+  **0 error rows** (heartbeat stays green), 0 outsiders, record 365-229-27 / 621 GP.
+- A second script run refused ("quarantine table not empty").
+- `recomputeAggregates(1)` produced exactly the table above. NHL 27 stayed at
+  73 matches.
+- `reprocess` found nothing to do. `reprocess --all` re-transformed all 277
+  payloads with 0 failures; afterwards the numbers were identical and there
+  were still 0 error rows.
 
 ## Step 3 — catch it next time (later, smaller)
 
@@ -138,16 +152,21 @@ on a mismatch. Scope that separately.
 ## Review and approvals
 
 - Policy: deleting data and changing the live DB means **Codex adversarial
-  review** before applying (operator runs
-  `/codex:adversarial-review --wait <focus>`), and **operator approval of
-  step 2**.
+  review** before applying, and **operator approval of step 2**.
+- Codex adversarial review, 2026-10-05: needs-attention.
+  - [high] Error-marked payloads would keep the heartbeat red forever.
+    **Confirmed** (production has `HC_WORKER_PING_URL` set and currently 0
+    error rows). **Fixed** with the quarantine table and re-rehearsed.
+  - [medium] The untracked `apps/web/src/app/preview/` route would be
+    republished. **Not applicable**: it is uncommitted scratch on the main PC,
+    the Hotel-Echo checkout has no copy, and only the worker image is rebuilt.
+- Operator approved ("go") on 2026-10-05, including deleting the 6 outsider
+  players.
 - Order: step 1 (commit, deploy) → backup → rehearse → review → step 2 →
   verify on the live site.
 
-## Open questions for the operator
+## Notes
 
-- Delete the 6 outsider `players` rows (proposed) or keep them hidden?
-  Deleting is cleaner; they are re-derivable from raw payloads.
 - The 621-GP record is EA's as of 2026-08-18. Any NHL 26 games played after
   that and before NHL 27 aren't in it, but no Boogeymen NHL 26 match exists
   after 08-06 in our data.
