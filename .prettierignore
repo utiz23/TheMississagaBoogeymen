@@ -15,3 +15,6 @@ pnpm-lock.yaml
 # --ignore-path REPLACES Prettier's default ignore-file list, so dropping the
 # second flag makes this file dead config again.
 tools/game_ocr/game_ocr/weights/
+
+# Verbatim design-handoff reference copies (docs/design/handoffs/*/SOURCE.md) — keep byte-identical.
+docs/design/handoffs/
