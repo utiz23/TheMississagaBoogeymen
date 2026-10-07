@@ -16,7 +16,8 @@ export interface EaTitleTotals {
   goals: number
   assists: number
   shots: number
-  dekes: number
+  /** Successful dekes (EA `dekes_made`), not attempts — operator decision 2026-10-07. */
+  dekesMade: number
   hatTricks: number
   breakaways: number
   hits: number
@@ -84,7 +85,7 @@ export function mergeCareerTotals(input: CareerTotalsInput): Map<number, BadgeVa
     v.pgoals += r.goals
     v.pasts += r.assists
     v.pshots += r.shots
-    v.pdekes += r.dekes
+    v.pdekes += r.dekesMade
     v.pht += r.hatTricks
     v.pbrk += r.breakaways
     v.phits += r.hits

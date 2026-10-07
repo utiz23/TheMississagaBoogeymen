@@ -34,7 +34,7 @@ export async function loadCareerTotalsInput(): Promise<CareerTotalsInput> {
       SELECT player_id AS "playerId", game_title_id AS "gameTitleId",
         COALESCE(skater_wins, 0) AS "skaterWins", COALESCE(goalie_wins, 0) AS "goalieWins",
         COALESCE(goals, 0) AS "goals", COALESCE(assists, 0) AS "assists", COALESCE(shots, 0) AS "shots",
-        COALESCE(dekes, 0) AS "dekes", COALESCE(hat_tricks, 0) AS "hatTricks",
+        COALESCE(dekes_made, 0) AS "dekesMade", COALESCE(hat_tricks, 0) AS "hatTricks",
         COALESCE(breakaways, 0) AS "breakaways", COALESCE(hits, 0) AS "hits",
         COALESCE(faceoff_wins, 0) AS "faceoffWins", COALESCE(takeaways, 0) AS "takeaways",
         COALESCE(blocked_shots, 0) AS "blockedShots", COALESCE(fights_won, 0) AS "fightsWon",

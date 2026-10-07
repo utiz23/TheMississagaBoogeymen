@@ -49,4 +49,6 @@ void test('ladders match the approved spec table (spot checks)', () => {
   assert.deepEqual(BADGE_LADDERS.gsv.slice(0, 5), [15, 39, 100, 260, 350])
   assert.equal(BADGE_LADDERS.gso[29], 63)
   assert.equal(BADGE_LADDERS.p6g[29], 200)
+  assert.deepEqual(BADGE_LADDERS.pdekes.slice(0, 5), [5, 11, 23, 50, 75])
+  assert.equal(BADGE_LADDERS.pdekes[29], 2000)
 })
