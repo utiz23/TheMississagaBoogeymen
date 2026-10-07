@@ -93,6 +93,11 @@ interface Props {
   hasSkaterData: boolean
   hasGoalieData: boolean
   gameMode: GameMode | null
+  /**
+   * Replaces the portrait card in the left column. Unset on the live page, which
+   * keeps the built-in portrait; the player-card preview passes the new card.
+   */
+  portrait?: ReactNode
 }
 
 export function ProfileHero({
@@ -103,6 +108,7 @@ export function ProfileHero({
   hasSkaterData,
   hasGoalieData,
   gameMode,
+  portrait,
 }: Props) {
   const { player, currentEaSeason } = overview
   const positionEntries = buildPositionEntries(currentEaSeason)
@@ -169,86 +175,88 @@ export function ProfileHero({
         <div className="ph-body">
           {/* ── Col 1 — Portrait Monolith ────────────────────────────── */}
           <div className="ph-col-portrait">
-            <PortraitCard>
-              <div className="ph-pc-jersey">
-                <span className="num">
-                  {player.jerseyNumber !== null ? player.jerseyNumber.toString() : '—'}
-                </span>
-                {positionTag !== null && (
-                  <span
-                    className="pos-pill"
-                    style={
-                      {
-                        borderColor: `color-mix(in srgb, ${positionColor} 40%, transparent)`,
-                        background: `color-mix(in srgb, ${positionColor} 10%, transparent)`,
-                        color: positionColor,
-                      } as CSSProperties
-                    }
-                  >
-                    {positionTag}
+            {portrait ?? (
+              <PortraitCard>
+                <div className="ph-pc-jersey">
+                  <span className="num">
+                    {player.jerseyNumber !== null ? player.jerseyNumber.toString() : '—'}
                   </span>
-                )}
-                {portraitRecord && (
-                  <>
-                    <span className="rec">{portraitRecord.rec}</span>
-                    <span className="pct">{portraitRecord.pct}</span>
-                  </>
-                )}
-              </div>
-
-              <div className="ph-pc-portrait">
-                <svg
-                  className="silh"
-                  viewBox="0 0 100 110"
-                  fill="currentColor"
-                  preserveAspectRatio="xMidYMax meet"
-                  aria-hidden
-                >
-                  <circle cx="50" cy="32" r="21" />
-                  <path d="M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z" />
-                </svg>
-                <div className="scan" />
-              </div>
-
-              <div className="ph-pc-name">
-                <span className="ph-pc-platform" aria-hidden>
-                  <PlatformIcon platform={currentEaSeason?.clientPlatform ?? null} />
-                </span>
-                <span className="gamertag" title={displayName}>
-                  {displayName}
-                </span>
-              </div>
-
-              <div className="ph-pc-stats">
-                {portraitStats.map((s) => (
-                  <div key={s.label} className={`s ${s.lead === true ? 'lead' : ''}`.trim()}>
-                    <span className="l">{s.label}</span>
-                    <span className="v">{s.value}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="ph-pc-identity">
-                <div className="cell">
-                  {player.nationality !== null ? (
-                    <span className="ph-flag-2x">
-                      <NationalityFlag code={player.nationality} />
+                  {positionTag !== null && (
+                    <span
+                      className="pos-pill"
+                      style={
+                        {
+                          borderColor: `color-mix(in srgb, ${positionColor} 40%, transparent)`,
+                          background: `color-mix(in srgb, ${positionColor} 10%, transparent)`,
+                          color: positionColor,
+                        } as CSSProperties
+                      }
+                    >
+                      {positionTag}
                     </span>
-                  ) : null}
+                  )}
+                  {portraitRecord && (
+                    <>
+                      <span className="rec">{portraitRecord.rec}</span>
+                      <span className="pct">{portraitRecord.pct}</span>
+                    </>
+                  )}
                 </div>
-                <div className="cell">
-                  <Image
-                    src="/images/bgm-logo.png"
-                    alt="BGM"
-                    width={56}
-                    height={56}
-                    className="opacity-90"
-                    style={{ width: 56, height: 56, objectFit: 'contain' }}
-                  />
+
+                <div className="ph-pc-portrait">
+                  <svg
+                    className="silh"
+                    viewBox="0 0 100 110"
+                    fill="currentColor"
+                    preserveAspectRatio="xMidYMax meet"
+                    aria-hidden
+                  >
+                    <circle cx="50" cy="32" r="21" />
+                    <path d="M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z" />
+                  </svg>
+                  <div className="scan" />
                 </div>
-                <div className="cell" aria-hidden />
-              </div>
-            </PortraitCard>
+
+                <div className="ph-pc-name">
+                  <span className="ph-pc-platform" aria-hidden>
+                    <PlatformIcon platform={currentEaSeason?.clientPlatform ?? null} />
+                  </span>
+                  <span className="gamertag" title={displayName}>
+                    {displayName}
+                  </span>
+                </div>
+
+                <div className="ph-pc-stats">
+                  {portraitStats.map((s) => (
+                    <div key={s.label} className={`s ${s.lead === true ? 'lead' : ''}`.trim()}>
+                      <span className="l">{s.label}</span>
+                      <span className="v">{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="ph-pc-identity">
+                  <div className="cell">
+                    {player.nationality !== null ? (
+                      <span className="ph-flag-2x">
+                        <NationalityFlag code={player.nationality} />
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="cell">
+                    <Image
+                      src="/images/bgm-logo.png"
+                      alt="BGM"
+                      width={56}
+                      height={56}
+                      className="opacity-90"
+                      style={{ width: 56, height: 56, objectFit: 'contain' }}
+                    />
+                  </div>
+                  <div className="cell" aria-hidden />
+                </div>
+              </PortraitCard>
+            )}
           </div>
 
           {/* ── Col 2 — Identity ─────────────────────────────────────── */}
