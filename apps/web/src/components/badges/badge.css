@@ -1,0 +1,15 @@
+.bdg {
+  position: relative;
+  display: block;
+  flex: none;
+}
+.bdg-layer {
+  position: absolute;
+}
+.bdg-icon {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
