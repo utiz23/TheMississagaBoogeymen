@@ -3647,3 +3647,48 @@ Send the operator three links:
 - the goalie view, `/preview/roster/12`.
 
 Ask for tweaks. Leave the dev server running. Do not push the branch without the operator's OK.
+
+---
+
+## Execution record (2026-10-07)
+
+Executed inline on `feat/player-cards` (`bd6f6ed..c0c214d`). All 10 tasks complete.
+
+- **`card-recompute --dry-run` on `eanhl_preview`** reproduced the approved tier table exactly.
+  - The preview database was restored from `eanhl-2026-10-06.dump`: 277 matches, which is 449 minus the 172 quarantined.
+  - Write plus rerun was idempotent: 89 players, 1,869 badge rows, 0 events.
+- **Final whole-branch review** (fresh reviewer) found 0 Critical and 1 Important issue.
+  - **Fixed in `c0c214d`:** a recompute racing `card-mythic --clear` re-wrote the stale tier-6 row.
+  - The fix adds `planCardRecompute`, with a RED→GREEN test that was mutation-checked.
+- **Spec open item resolved:**
+  - The 11 NHL 26 `ea_member_season_stats` rows were all fetched 2026-09-07 15:01 UTC.
+  - All of them are BGM members.
+
+**Rulings:**
+
+- Branch in the main checkout, not a worktree. The dev server and CLIs need `.env` / `.env.local`.
+- `docs/design/handoffs/` was added to `.prettierignore`, so the verbatim reference copies stay byte-identical.
+- `roundedPoly` uses `?? [0, 0]`, because ESLint forbids both the cast and `!`. The output is identical.
+- `eslint --fix` added braces to 4 void arrow handlers. Behavior is identical.
+- The race fix skips manual rows rather than adding an advisory lock. The cost: overlapping write-mode recomputes can still log duplicate events.
+- The Dekes badge counts EA `dekes` (attempts), not `dekes_made`, as the spec names it. **Operator to confirm.**
+
+**Deferred follow-ups**, to settle before or at the switch:
+
+1. **Before the switch:**
+   - Relabel the Badges footer "Source EA NHL · Boogeymen". The values blend EA totals, NHL 22–25 history and site-recorded games.
+   - Downscale the badge textures to about 160 px. All 5 (about 85 KB) load on every player page, because levels 16–30 always render.
+   - Gate ladder hover on `pointerType === 'mouse'`. On touch, hover sticks after tapping.
+2. **Step-2 plan:**
+   - Add `getCardProgressForPlayers` (spec Part 1 queries).
+   - Consider an automated test for the `setWhere` guard.
+3. **Operator decisions:**
+   - Badge-level high-water mark. Today a drop and recovery re-logs `badge_level_up`, and an easier ladder change floods the history.
+   - Contrast of the prototype's accent `#e84131` and `#52525b` small text, both below 4.5:1.
+4. **Latent or minor:**
+   - An advisory lock against duplicate events from overlapping recomputes.
+   - `RecordedModeGames` has no title, so `p6v6` could double-count if history is ever imported for a recorded title with no EA row.
+   - Every cycle rewrites every row, and the single INSERT hits the 65,535-parameter limit at about 624 players.
+   - The early return in `runIngestionCycle` skips the recompute when no title is active.
+   - A mythic awarded before a player's first recompute makes the next run log every unlocked family as a badge level-up.
+   - The preview route's `generateMetadata` still queries the database before its production `notFound()`. The route is deleted at the switch.
