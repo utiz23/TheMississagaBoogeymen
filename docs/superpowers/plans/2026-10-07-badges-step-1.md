@@ -3671,7 +3671,7 @@ Executed inline on `feat/player-cards` (`bd6f6ed..c0c214d`). All 10 tasks comple
 - `roundedPoly` uses `?? [0, 0]`, because ESLint forbids both the cast and `!`. The output is identical.
 - `eslint --fix` added braces to 4 void arrow handlers. Behavior is identical.
 - The race fix skips manual rows rather than adding an advisory lock. The cost: overlapping write-mode recomputes can still log duplicate events.
-- The Dekes badge counts EA `dekes` (attempts), not `dekes_made`, as the spec names it. **Operator to confirm.**
+- The Dekes badge counts EA `dekes` (attempts), not `dekes_made`, as the spec names it. **Operator decided: count successful dekes. Done in `e21e1b5` (spec D12).**
 
 **Deferred follow-ups**, to settle before or at the switch:
 
@@ -3692,3 +3692,5 @@ Executed inline on `feat/player-cards` (`bd6f6ed..c0c214d`). All 10 tasks comple
    - The early return in `runIngestionCycle` skips the recompute when no title is active.
    - A mythic awarded before a player's first recompute makes the next run log every unlocked family as a badge level-up.
    - The preview route's `generateMetadata` still queries the database before its production `notFound()`. The route is deleted at the switch.
+
+**Follow-up decisions (2026-10-07):** Dekes counts successful dekes (`e21e1b5`, D12). The Badges section moved to the bottom of the page (D13). The badge icons are placeholders to be replaced (D14). Branch kept local as-is.

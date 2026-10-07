@@ -44,6 +44,9 @@ The first implementation step copies the HTML/JS/MD reference files, but not the
 | D9  | **The player-page hero stays exactly as it is**, except the portrait card becomes the new card and an **EDIT button** sits under it. The design's identity column, Card Progress button and Last-10 strip are **not** adopted.                        |
 | D10 | **EDIT is visible to everyone** and opens the locker read-only. Equip stays disabled until logins.                                                                                                                                                    |
 | D11 | Build Locker v2 and the Action Map follow Parts 4–5 below.                                                                                                                                                                                            |
+| D12 | **The Dekes badge counts successful dekes** (EA `dekes_made`), not attempts (operator, 2026-10-07). Re-sized with the same rule; it fits the design's own ladder. No tier changes; Stick Menace L7 → L6.                                              |
+| D13 | **The Badges section goes toward the bottom of the player page** in the final version (operator, 2026-10-07). This supersedes "directly under the hero" in Part 3.                                                                                    |
+| D14 | **The badge icons are placeholders.** The 21 lucide glyphs must be replaced with final icon art before the switch (operator, 2026-10-07). Source to be decided.                                                                                       |
 
 ---
 
@@ -60,7 +63,7 @@ There are 21 player families, ported from `badge-levels.js` `PLAYER`. Team famil
 | `p6g` 6's with Goalie                                | site-recorded: distinct 6s matches the player appears in where any BGM player `is_goalie`        |
 | `pwins` Wins                                         | EA `skater_wins + goalie_wins` + history `wins`                                                  |
 | `pgoals`, `pasts`, `pshots`, `phits`, `ptka`, `pblk` | EA columns + history columns                                                                     |
-| `pdekes`, `pht`, `pbrk`, `pfo`, `pfight`             | EA only (`dekes`, `hat_tricks`, `breakaways`, `faceoff_wins`, `fights_won`)                      |
+| `pdekes`, `pht`, `pbrk`, `pfo`, `pfight`             | EA only (`dekes_made`, `hat_tricks`, `breakaways`, `faceoff_wins`, `fights_won`)                 |
 | `gg` Goalie Games Completed                          | EA `goalie_games_completed`                                                                      |
 | `gw`, `gdsv`, `gpoke`                                | EA `goalie_wins`, `goalie_desperation_saves`, `goalie_poke_checks`                               |
 | `gsv` Saves, `gso` Shutouts                          | EA `goalie_saves`, `goalie_shutouts` + history `total_saves`, `shutouts`                         |
@@ -89,7 +92,7 @@ Generated from live data on 2026-10-07. The single source of truth becomes `pack
 | Goals (`pgoals`)              | 1 4 16 65 130     | 260 390 520 650 780      | 920 1000 1200 1300 1400  | 1600 1800 2100 2400 2600  | 2900 3100 3400 3700 3900      | 4200 4400 4700 5000 5200      |
 | Assists (`pasts`)             | 1 5 25 120 250    | 370 490 740 990 1200     | 1500 1700 2000 2200 2500 | 3000 3500 3900 4400 4900  | 5400 5900 6400 6900 7400      | 7900 8400 8900 9400 9900      |
 | Shots (`pshots`)              | 5 23 110 510 760  | 1000 1300 1500 2000 2500 | 3100 3600 4100 4600 5100 | 6100 7100 8100 9200 10000 | 11000 12000 13000 14000 15000 | 16000 17000 18000 19000 20000 |
-| Dekes (`pdekes`)              | 5 12 30 74 110    | 150 190 220 300 370      | 450 520 590 670 740      | 890 1000 1200 1300 1500   | 1600 1800 1900 2100 2200      | 2400 2500 2700 2800 3000      |
+| Dekes (`pdekes`)              | 5 11 23 50 75     | 100 130 150 200 250      | 300 350 400 450 500      | 600 700 800 900 1000      | 1100 1200 1300 1400 1500      | 1600 1700 1800 1900 2000      |
 | Hat-Tricks (`pht`)            | 1 3 6 16 20       | 24 28 33 37 41           | 45 49 53 57 61           | 81 100 120 140 160        | 180 200 220 240 260           | 280 310 330 370 410           |
 | Breakaways (`pbrk`)           | 1 3 8 23 30       | 38 45 53 61 68           | 76 83 91 98 110          | 120 130 140 150 160       | 170 180 200 210 230           | 240 260 270 290 300           |
 | Hits (`phits`)                | 5 23 110 500 750  | 1000 1300 1500 2000 2500 | 3000 3500 4000 4500 5000 | 6000 7000 8000 9000 10000 | 11000 12000 13000 14000 15000 | 16000 17000 18000 19000 20000 |
@@ -104,7 +107,7 @@ Generated from live data on 2026-10-07. The single source of truth becomes `pack
 | Goalie Poke-Checks (`gpoke`)  | 5 6 7 8 9         | 10 11 12 13 14           | 15 16 17 18 19           | 20 21 22 23 24            | 25 26 27 28 29                | 30 32 34 36 38                |
 | Shutouts (`gso`)              | 1 2 3 4 5         | 6 7 8 9 10               | 11 12 13 14 15           | 16 17 18 19 21            | 25 29 33 38 42                | 46 50 54 58 63                |
 
-Resulting tiers on 2026-10-07 live data:
+Resulting tiers on 2026-10-07 live data (unchanged by D12):
 
 | Tier        | Players                                          |
 | ----------- | ------------------------------------------------ |
@@ -233,7 +236,7 @@ This migration is hand-written, idempotent SQL, applied via `psql`. Migrations 0
     - the T1–T6 tier track, where T6 shows "5 MYTHICS · AWARDED";
     - HISTORY from `player_card_events`, with an empty state "History starts <date>".
 - **Badges section** (`components/badges/*`):
-  - A new section **directly under the hero**: `badge.tsx`, `badge-shapes.ts` (port of `badge-shapes.js`) and `player-badges.tsx`.
+  - A new section **toward the bottom of the player page** (D13; it sat directly under the hero during the first preview): `badge.tsx`, `badge-shapes.ts` (port of `badge-shapes.js`) and `player-badges.tsx`.
   - Layout: header with `{unlocked} / 21 Unlocked · {levels} / 630 Levels`; a list grouped by family with the group→shape mapping; and a detail panel with a 76 px badge, progress, "n to LVL x+1", and the 30-cell ladder (hover previews, click pins).
   - Marker = frame step (`single/double/heavy`). Locked badges use the `dim` treatment.
   - Visual level → theme index `ceil(lvl/3)−1`, step `(lvl−1)%3+1`.
