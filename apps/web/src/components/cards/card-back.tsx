@@ -236,7 +236,13 @@ export function CardBack({
                 key={b.familyId}
                 style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center' }}
               >
-                <CardBadge badge={b} size={30} labelSize={7.5} labelColor={tk.badgeLabel} />
+                <CardBadge
+                  badge={b}
+                  size={30}
+                  labelSize={7.5}
+                  labelColor={tk.badgeLabel}
+                  labelTracking="0.06em"
+                />
               </div>
             ))}
           </div>

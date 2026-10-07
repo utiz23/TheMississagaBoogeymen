@@ -38,13 +38,15 @@ export function PlayerCard({
   const rootRef = useRef<HTMLDivElement>(null)
   const tiltRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState(false)
-  const [face, setFace] = useState<'front' | 'back'>(initialFace)
+  const flippable = context === 'hero' && card.back !== null
+  const [face, setFace] = useState<'front' | 'back'>(flippable ? initialFace : 'front')
   const reduced = useReducedMotion()
   const inView = useInView(rootRef)
   const uid = `pc${useId().replace(/[^\w-]/g, '')}`
 
   const hot = hover || active
-  const motionOn = !reduced && inView && (context === 'hero' || hot)
+  const motionAllowed = !reduced && inView
+  const motionOn = motionAllowed && (context === 'hero' || hot)
   const theme = CARD_THEMES[card.front.theme]
   const look = cardLook(theme, {
     tier: card.front.tier,
@@ -53,8 +55,7 @@ export function PlayerCard({
     role: card.front.role,
     position: card.front.position,
   })
-  const fx = resolveFx(theme, card.front.tier, { motionOn, hot })
-  const flippable = context === 'hero' && card.back !== null
+  const fx = resolveFx(theme, card.front.tier, { motionOn, hot, motionAllowed })
 
   const resetTilt = () => {
     if (tiltRef.current) tiltRef.current.style.transform = ''
@@ -110,7 +111,7 @@ export function PlayerCard({
           }}
         >
           <CardFront card={card.front} theme={theme} look={look} fx={fx} uid={uid} hover={hover} />
-          {card.back !== null && (
+          {flippable && card.back !== null && (
             <CardBack front={card.front} back={card.back} theme={theme} look={look} />
           )}
         </div>

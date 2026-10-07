@@ -67,18 +67,35 @@ void test('level pips: first `level` segments lit', () => {
 })
 
 void test('effect gates follow the prototype: foil from tier 4 (not Inferno), pulse from tier 2 or when hot', () => {
-  const on = { motionOn: true, hot: false }
+  const on = { motionOn: true, hot: false, motionAllowed: true }
   assert.equal(resolveFx(CARD_THEMES.carbon, 4, on).foil, true)
   assert.equal(resolveFx(CARD_THEMES.alternate, 3, on).foil, false)
   assert.equal(resolveFx(CARD_THEMES.inferno, 6, on).foil, false)
   assert.equal(resolveFx(CARD_THEMES.away, 1, on).pulse, false)
-  assert.equal(resolveFx(CARD_THEMES.away, 1, { motionOn: true, hot: true }).pulse, true)
+  assert.equal(
+    resolveFx(CARD_THEMES.away, 1, { motionOn: true, hot: true, motionAllowed: true }).pulse,
+    true,
+  )
   assert.equal(resolveFx(CARD_THEMES.home, 2, on).pulse, true)
   assert.equal(resolveFx(CARD_THEMES.futureB, 5, on).gridAnimated, true)
-  const off = resolveFx(CARD_THEMES.futureB, 5, { motionOn: false, hot: true })
+  const off = resolveFx(CARD_THEMES.futureB, 5, {
+    motionOn: false,
+    hot: true,
+    motionAllowed: false,
+  })
   assert.deepEqual(
     [off.foil, off.pulse, off.sweep, off.tilt, off.gridAnimated, off.scan],
     [false, false, false, false, false, false],
   )
   assert.equal(off.grid, true)
+})
+
+void test('the hover sweep stays mounted on idle list cards so it can animate on hover', () => {
+  const idle = resolveFx(CARD_THEMES.home, 2, { motionOn: false, hot: false, motionAllowed: true })
+  assert.equal(idle.sweep, true)
+  assert.equal(idle.foil, false)
+  assert.equal(
+    resolveFx(CARD_THEMES.home, 2, { motionOn: false, hot: false, motionAllowed: false }).sweep,
+    false,
+  )
 })

@@ -97,6 +97,7 @@ export interface CardProfileInput {
   /** The newest EA season row (getPlayerProfileOverview().currentEaSeason). */
   season: {
     gameTitleId: number
+    favoritePosition: string | null
     clientPlatform: string | null
     skaterGp: number
     goalieGp: number
@@ -134,7 +135,8 @@ function careerSource(career: readonly CardCareerRow[]): string {
 
 export function cardFromProfile(input: CardProfileInput): CardViewModel {
   const { player, season, role, progress } = input
-  const preferred = player.preferredPosition ?? player.position
+  // Same fallback chain as the live hero's position pill.
+  const preferred = player.preferredPosition ?? season?.favoritePosition ?? player.position
   const position = role === 'goalie' ? 'G' : positionTag(preferred === 'goalie' ? null : preferred)
   const [w, l, otl] =
     season === null
@@ -164,7 +166,10 @@ export function cardFromProfile(input: CardProfileInput): CardViewModel {
       position,
       record: formatRecord(w, l, otl),
       winPct: formatWinPct(w, l, otl),
-      stats: cardStats(role, totals),
+      stats:
+        season === null
+          ? cardStats(role, totals).map((s) => ({ label: s.label, value: '—' }))
+          : cardStats(role, totals),
       platform: season?.clientPlatform ?? null,
       nationality: player.nationality,
       tier,

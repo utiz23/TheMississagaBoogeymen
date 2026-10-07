@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import { NationalityFlag, PlatformIcon } from '@/components/player-meta-icons'
-import type { CardFront as CardFrontModel } from './card-model'
+import { hasFlag, type CardFront as CardFrontModel } from './card-model'
 import type { CardLook, resolveFx } from './card-style'
 import type { CardTheme } from './card-theme-types'
 import { CardBadge } from './card-badge'
@@ -364,7 +364,7 @@ export function CardFront({
           }}
         >
           <div className="pcard-flag" style={plate}>
-            <NationalityFlag code={card.nationality} />
+            {hasFlag(card.nationality) && <NationalityFlag code={card.nationality} />}
           </div>
           <div style={plate}>
             {footSep}

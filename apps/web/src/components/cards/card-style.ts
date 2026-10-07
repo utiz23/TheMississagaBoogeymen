@@ -136,17 +136,24 @@ export function cardLook(th: CardTheme, input: CardLookInput) {
 export type CardLook = ReturnType<typeof cardLook>
 
 export interface CardFxInput {
-  /** Motion allowed right now (not reduced, on screen, and hero or hot). */
+  /** Effects run right now (motion allowed, and hero or hot). */
   motionOn: boolean
   hot: boolean
+  /** Not reduced motion and on screen — idle layers that animate on hover stay mounted. */
+  motionAllowed: boolean
 }
 
 /** Which effect layers render — the prototype's `mo()` gates. */
-export function resolveFx(th: CardTheme, tier: CardTier, { motionOn, hot }: CardFxInput) {
+export function resolveFx(
+  th: CardTheme,
+  tier: CardTier,
+  { motionOn, hot, motionAllowed }: CardFxInput,
+) {
   return {
     foil: motionOn && tier >= 4 && !th.inferno,
     pulse: motionOn && (tier >= 2 || hot),
-    sweep: motionOn,
+    /** Mounted while idle (at -130%) so the hover transition can run on list cards. */
+    sweep: motionAllowed,
     tilt: motionOn,
     flip: motionOn,
     /** Hardlight synthwave grid: drawn static when motion is off. */

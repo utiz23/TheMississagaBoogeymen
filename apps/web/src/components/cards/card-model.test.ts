@@ -13,6 +13,7 @@ import {
   formatRecord,
   formatSavePct,
   formatWinPct,
+  hasFlag,
   positionTag,
   type CardCareerRow,
   type CardGame,
@@ -220,4 +221,12 @@ void test('badge showcase: earned count and top 4 within the role pool', () => {
   )
   const goalie = buildBadgeShowcase(badges, 'goalie')
   assert.deepEqual([goalie.earned, goalie.pool, goalie.top.length], [1, 6, 1])
+})
+
+void test('flags: only codes the site has artwork for render a flag', () => {
+  assert.equal(hasFlag('US'), true)
+  assert.equal(hasFlag('can'), true)
+  assert.equal(hasFlag('Canada'), true)
+  assert.equal(hasFlag('SE'), false)
+  assert.equal(hasFlag(null), false)
 })

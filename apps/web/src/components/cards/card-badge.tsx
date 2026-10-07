@@ -14,11 +14,14 @@ export function CardBadge({
   size,
   labelSize,
   labelColor,
+  labelTracking = '0.16em',
 }: {
   badge: BadgeLevelRef
   size: number
   labelSize: number
   labelColor?: string | undefined
+  /** Label letter-spacing; the back face uses the prototype's tighter 0.06em so names fit. */
+  labelTracking?: string
 }) {
   const family = BADGE_FAMILIES.find((f) => f.id === badge.familyId)
   if (family === undefined) return null
@@ -42,7 +45,7 @@ export function CardBadge({
         style={{
           fontSize: `${String(labelSize)}px`,
           fontWeight: 800,
-          letterSpacing: '0.16em',
+          letterSpacing: labelTracking,
           color: labelColor ?? resolveBadgeSkin(look.theme).label,
           whiteSpace: 'nowrap',
           lineHeight: 1,

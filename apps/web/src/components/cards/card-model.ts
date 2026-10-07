@@ -90,6 +90,13 @@ const POSITION_TAGS: Readonly<Record<string, string>> = {
   rightWing: 'RW',
 }
 
+const FLAG_CODES = new Set(['ca', 'can', 'canada', 'us', 'usa', 'united states'])
+
+/** True when the site has flag artwork for this code (NationalityFlag's CA/US set). */
+export function hasFlag(code: string | null): boolean {
+  return code !== null && FLAG_CODES.has(code.toLowerCase())
+}
+
 /** Same labels as lib/format `formatPosition`. */
 export function positionTag(position: string | null): string | null {
   if (position === null) return null

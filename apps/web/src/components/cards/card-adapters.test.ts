@@ -117,6 +117,7 @@ void test('profile → card with a back: ledger, role-pool badges, career source
     },
     season: {
       gameTitleId: 7,
+      favoritePosition: 'leftWing',
       clientPlatform: 'xbox',
       skaterGp: 68,
       goalieGp: 6,
@@ -217,6 +218,43 @@ void test('profile viewed as goalie uses the goalie side; missing progress falls
   )
   assert.deepEqual(
     card.front.stats.map((s) => s.value),
-    ['0', '—', '—', '—'],
+    ['—', '—', '—', '—'],
   )
+})
+
+void test('hero position falls back to the EA favourite position like the live hero pill', () => {
+  const card = cardFromProfile({
+    player: {
+      id: 9,
+      gamertag: 'NoPref',
+      playerName: null,
+      jerseyNumber: 7,
+      nationality: null,
+      position: null,
+      preferredPosition: null,
+    },
+    season: {
+      gameTitleId: 7,
+      favoritePosition: 'rightWing',
+      clientPlatform: null,
+      skaterGp: 3,
+      goalieGp: 0,
+      goals: 1,
+      assists: 1,
+      points: 2,
+      skaterWins: 2,
+      skaterLosses: 1,
+      skaterOtl: 0,
+      goalieWins: null,
+      goalieLosses: null,
+      goalieOtl: null,
+      goalieSavePct: null,
+      goalieGaa: null,
+    },
+    trendGames: [],
+    career: [],
+    role: 'skater',
+    progress: null,
+  })
+  assert.equal(card.front.position, 'RW')
 })
