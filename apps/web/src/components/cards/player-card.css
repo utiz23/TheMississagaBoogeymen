@@ -1,0 +1,78 @@
+/* Player card (PlayerCard.dc.html port). Theme values are inline styles from
+   card-style.ts; this file holds structure, icon sizing and the keyframes.
+   Prefix .pcard / pcard-* so nothing collides with the live .hpc card. */
+
+.pcard {
+  position: relative;
+  width: 264px;
+  transition: transform 240ms ease;
+  font-family: var(--font-condensed);
+}
+.pcard-tilt {
+  transition: transform 160ms ease-out;
+  transform-style: preserve-3d;
+}
+.pcard-flip {
+  position: relative;
+  transform-style: preserve-3d;
+}
+.pcard[data-flippable='true'] {
+  cursor: pointer;
+}
+.pcard:focus-visible {
+  outline: 2px solid #e84131;
+  outline-offset: 4px;
+  border-radius: 20px;
+}
+.pcard-link {
+  display: block;
+  width: 264px;
+}
+.pcard-layer {
+  position: absolute;
+  pointer-events: none;
+}
+.pcard-flag svg {
+  width: 56px;
+  height: 56px;
+}
+.pcard-platform svg {
+  width: 22px;
+  height: 22px;
+}
+
+@keyframes pcard-foil {
+  0% {
+    background-position: 160% 0;
+  }
+  100% {
+    background-position: -60% 0;
+  }
+}
+@keyframes pcard-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes pcard-scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(1100%);
+  }
+}
+
+/* Safety net: effects are not even mounted under reduced motion, but nothing
+   inside a card may animate or transition (the flip becomes instant). */
+@media (prefers-reduced-motion: reduce) {
+  .pcard,
+  .pcard * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
