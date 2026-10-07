@@ -22,10 +22,24 @@ const tkDefaults = (th) => ({
   pipOn: th.pip || '#e84131', pipOff: '#2f2c2d', edition: '#6e6b6c', arch: '#a1a1aa',
   backLabel: '#71717a', backHead: '#6e6b6c', backFoot: '#6e6b6c',
 })
-// Design-bundle asset paths → the site's public folder (round 2 produces the files).
+// Design-bundle asset → the file make-card-assets.sh ships (videos by base name).
+const ASSET_MAP = {
+  'tex-ice-glacier.png': 'tex-ice-glacier.webp',
+  'tex-storm-clouds.png': 'tex-storm-clouds.webp',
+  'tex-olympus-temple.png': 'tex-olympus-temple.webp',
+  'tex-inferno-gate.webp': 'tex-inferno-gate.webp',
+  'tex-future-circuit.webp': 'tex-future-circuit.webp',
+  'fx-future-mask.png': 'fx-future-mask.webp',
+  'fx-storm-rain.gif': 'fx-storm-rain.webp',
+  'fx-inferno-embers-slow.gif': 'fx-inferno-embers',
+  'tex-storm-live.webp': 'fx-storm-live',
+}
 const rewrite = (v) =>
   typeof v === 'string'
-    ? v.replace(/(['"(]|^)assets\/([\w.-]+)/g, (_, pre, file) => `${pre}/images/cards/${file}`)
+    ? v.replace(/(['"(]|^)assets\/([\w.-]+)/g, (_, pre, file) => {
+        if (!(file in ASSET_MAP)) throw new Error(`no shipped asset for ${file}`)
+        return `${pre}/images/cards/${ASSET_MAP[file]}`
+      })
     : Array.isArray(v)
       ? v.map(rewrite)
       : v && typeof v === 'object'
