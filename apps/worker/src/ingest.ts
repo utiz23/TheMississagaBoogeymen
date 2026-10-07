@@ -32,6 +32,7 @@ import { eq, isNull, and } from 'drizzle-orm'
 import { fetchMatches, matchesUrl, throttle, EaApiError, type EaMatchType } from '@eanhl/ea-client'
 import { transformMatch, type TransformResult, type PlayerIdentity } from './transform.js'
 import { recomputeAggregates } from './aggregate.js'
+import { recomputeCardProgression } from './card-progression.js'
 import { fetchAndStoreMemberStats, fetchAndStoreSeasonalStats } from './ingest-members.js'
 import { fetchAndStoreOpponentClubs } from './ingest-opponents.js'
 import { fetchAndStoreSeasonRank } from './ingest-season-rank.js'
@@ -105,6 +106,16 @@ export async function runIngestionCycle(): Promise<void> {
     } catch (err) {
       console.error(`[ingest] Season rank fetch failed for ${title.slug}:`, err)
     }
+  }
+
+  // Card progression (badge levels, tier, level) reads EA totals, history and
+  // recorded matches across all titles, so it runs once per cycle, after them.
+  // Non-fatal: never blocks match ingestion. Needs migration 0060 applied first.
+  try {
+    const results = await recomputeCardProgression({ dryRun: false })
+    console.log(`[ingest] Card progression recomputed for ${String(results.length)} players`)
+  } catch (err) {
+    console.error('[ingest] Card progression recompute failed:', err)
   }
 }
 

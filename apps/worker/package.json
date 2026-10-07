@@ -27,6 +27,7 @@
     "auto-drain": "node dist/auto-drain-cli.js",
     "reconcile-periods": "node dist/reconcile-periods-cli.js",
     "run-quality": "node dist/run-quality-cli.js",
+    "card-recompute": "node dist/card-recompute-cli.js",
     "match-rink-diff": "node dist/match-rink-diff-cli.js",
     "ocr-segments-report": "node dist/ocr-segments-report-cli.js",
     "loadout-evidence-report": "node dist/loadout-evidence-report-cli.js",
