@@ -1,0 +1,57 @@
+/**
+ * What one card-progression recompute should write, per player. Pure: the
+ * worker loads totals and stored state, calls this, and turns the plan into
+ * upserts. Spec: docs/superpowers/specs/2026-10-07-player-cards-badges-design.md.
+ */
+import type { BadgeFamilyId } from './badge-catalog.js'
+import {
+  applyStanding,
+  badgeLevels,
+  computeStanding,
+  diffCardEvents,
+  type BadgeValues,
+  type CardEvent,
+  type CardStanding,
+} from './progression.js'
+
+export interface PlannedPlayer {
+  playerId: number
+  standing: CardStanding
+  levels: Record<BadgeFamilyId, number>
+  values: BadgeValues
+  events: CardEvent[]
+  firstRun: boolean
+  /**
+   * False for a hand-awarded (manual) standing: only `card-mythic` changes that
+   * row. Re-writing the copy this run read could undo a `--clear` that committed
+   * after the read.
+   */
+  writeStanding: boolean
+}
+
+export function planCardRecompute(
+  totals: ReadonlyMap<number, BadgeValues>,
+  storedStanding: ReadonlyMap<number, CardStanding>,
+  storedLevels: ReadonlyMap<number, Partial<Record<BadgeFamilyId, number>>>,
+): PlannedPlayer[] {
+  const plan: PlannedPlayer[] = []
+  for (const [playerId, values] of totals) {
+    const levels = badgeLevels(values)
+    const prev = storedStanding.get(playerId) ?? null
+    const standing = applyStanding(prev, computeStanding(values))
+    const events = diffCardEvents(
+      prev === null ? null : { standing: prev, levels: storedLevels.get(playerId) ?? {} },
+      { standing, levels },
+    )
+    plan.push({
+      playerId,
+      standing,
+      levels,
+      values,
+      events,
+      firstRun: prev === null,
+      writeStanding: standing.pool !== 'manual',
+    })
+  }
+  return plan
+}

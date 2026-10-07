@@ -8,11 +8,8 @@ import { sql, type SQL } from 'drizzle-orm'
 import { db, playerBadgeLevels, playerCardEvents, playerCardProgress } from '@eanhl/db'
 import {
   BADGE_FAMILIES,
-  applyStanding,
-  badgeLevels,
-  computeStanding,
-  diffCardEvents,
   mergeCareerTotals,
+  planCardRecompute,
   type BadgeFamilyId,
   type CardStanding,
   type CareerTotalsInput,
@@ -110,14 +107,15 @@ export async function recomputeCardProgression(opts: {
   const progressRows: (typeof playerCardProgress.$inferInsert)[] = []
   const eventRows: (typeof playerCardEvents.$inferInsert)[] = []
 
-  for (const [playerId, values] of totals) {
-    const levels = badgeLevels(values)
-    const prev = prevStanding.get(playerId) ?? null
-    const standing = applyStanding(prev, computeStanding(values))
-    const events = diffCardEvents(
-      prev === null ? null : { standing: prev, levels: prevLevels.get(playerId) ?? {} },
-      { standing, levels },
-    )
+  for (const {
+    playerId,
+    values,
+    levels,
+    standing,
+    events,
+    firstRun,
+    writeStanding,
+  } of planCardRecompute(totals, prevStanding, prevLevels)) {
     for (const f of BADGE_FAMILIES) {
       levelRows.push({
         playerId,
@@ -127,22 +125,24 @@ export async function recomputeCardProgression(opts: {
         computedAt: now,
       })
     }
-    progressRows.push({
-      playerId,
-      tier: standing.tier,
-      level: standing.level,
-      tierPool: standing.pool,
-      mythicTheme: standing.mythicTheme,
-      computedAt: now,
-      updatedAt: now,
-    })
+    if (writeStanding) {
+      progressRows.push({
+        playerId,
+        tier: standing.tier,
+        level: standing.level,
+        tierPool: standing.pool,
+        mythicTheme: standing.mythicTheme,
+        computedAt: now,
+        updatedAt: now,
+      })
+    }
     for (const e of events) eventRows.push({ playerId, ...e, occurredAt: now })
     results.push({
       playerId,
       gamertag: gamertags.get(playerId) ?? `#${String(playerId)}`,
       standing,
       events: events.length,
-      firstRun: prev === null,
+      firstRun,
     })
   }
 
