@@ -28,7 +28,14 @@ export function CardBadge({
   return (
     <div
       title={`${family.name} · Level ${String(badge.level)}`}
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '4px',
+        maxWidth: '100%',
+        minWidth: 0,
+      }}
     >
       <Badge familyId={family.id} shape={shape} theme={look.theme} frame="single" size={size} />
       <span
@@ -39,6 +46,9 @@ export function CardBadge({
           color: labelColor ?? resolveBadgeSkin(look.theme).label,
           whiteSpace: 'nowrap',
           lineHeight: 1,
+          maxWidth: '100%',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
         }}
       >
         {family.short} {roman}
