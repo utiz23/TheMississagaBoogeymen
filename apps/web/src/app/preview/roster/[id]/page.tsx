@@ -14,6 +14,8 @@ import {
   getPlayerLoadoutSnapshots,
   getPlayerCareerShots,
   getPlayerCardProgress,
+  getEARoster,
+  getCardProgressForPlayers,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -31,6 +33,12 @@ import { LoadoutHistoryStrip } from '@/components/roster/loadout-history-strip'
 import { CareerShotMap } from '@/components/roster/career-shot-map'
 import { Panel } from '@/components/ui/panel'
 import { PlayerBadges } from '@/components/badges/player-badges'
+import { PlayerCard } from '@/components/cards/player-card'
+import { cardFromProfile, cardFromRosterRow } from '@/components/cards/card-adapters'
+import type { CardViewModel } from '@/components/cards/card-model'
+import { CardGallery } from '../../_cards/card-gallery'
+import { PreviewCardRow } from '../../_cards/preview-card-row'
+import { applyCardOverrides, parseCardPreviewParams } from '../../_cards/preview-params'
 
 export const revalidate = 3600
 
@@ -128,6 +136,22 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
     cardProgress = null
   }
 
+  // Card preview (dev only): the roster's cards for the carousel copy and depth strip.
+  const cardParams = parseCardPreviewParams(sp)
+  let rowCards: CardViewModel[] = []
+  try {
+    const titleId = eaStats[0]?.gameTitleId
+    if (cardParams.gallery && titleId !== undefined) {
+      const roster = await getEARoster(titleId)
+      const summaries = await getCardProgressForPlayers(roster.map((r) => r.playerId))
+      rowCards = [...roster]
+        .sort((a, b) => b.points - a.points || b.gamesPlayed - a.gamesPlayed)
+        .map((r) => cardFromRosterRow(r, summaries.get(r.playerId)))
+    }
+  } catch {
+    rowCards = []
+  }
+
   // Club Stats and both zone maps describe the player's newest EA title, so
   // the teammate pool and team baselines come from that same title.
   const focalEaRow = eaStats[0]
@@ -180,6 +204,18 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
   const selectedContribution =
     selectedRole === 'skater' ? overview.skaterContribution : overview.goalieContribution
 
+  const heroCard = applyCardOverrides(
+    cardFromProfile({
+      player: overview.player,
+      season: overview.currentEaSeason,
+      trendGames: overview.trendGames,
+      career: careerSeasons,
+      role: selectedRole,
+      progress: cardProgress,
+    }),
+    cardParams,
+  )
+
   // Trend: role-filtered, oldest first, max 15
   const trendGames = [...overview.trendGames]
     .filter((g) => g.isGoalie === (selectedRole === 'goalie'))
@@ -204,7 +240,30 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
         hasSkaterData={hasSkaterData}
         hasGoalieData={hasGoalieData}
         gameMode={gameMode}
+        portrait={
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <PlayerCard card={heroCard} context="hero" initialFace={cardParams.face} />
+          </div>
+        }
       />
+
+      {cardParams.gallery && (
+        <Panel className="space-y-10 px-1 py-6 sm:px-4">
+          <p className="font-condensed text-xs font-bold uppercase tracking-[0.22em] text-zinc-500">
+            Card preview · dev only · params: ?cardTheme= ?cardTier= ?cardLevel= ?face=back ·
+            ?gallery=0 hides this panel
+          </p>
+          <CardGallery card={heroCard} />
+          {rowCards.length > 0 && <PreviewCardRow cards={rowCards} />}
+          {rowCards.length > 0 && (
+            <div className="hidden justify-center gap-10 sm:flex" style={{ zoom: 0.66 }}>
+              {rowCards.slice(0, 3).map((c) => (
+                <PlayerCard key={c.front.playerId} card={c} context="list" />
+              ))}
+            </div>
+          )}
+        </Panel>
+      )}
 
       {hasNoLocalData && (
         <Panel className="px-4 py-3">
