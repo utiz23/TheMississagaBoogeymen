@@ -206,8 +206,6 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
         gameMode={gameMode}
       />
 
-      <PlayerBadges gamertag={overview.player.gamertag} rows={cardProgress?.badges ?? []} />
-
       {hasNoLocalData && (
         <Panel className="px-4 py-3">
           <p className="font-condensed text-sm text-zinc-400">
@@ -296,6 +294,9 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
           )
         }
       />
+
+      {/* Final placement (operator, 2026-10-07): toward the bottom of the player page. */}
+      <PlayerBadges gamertag={overview.player.gamertag} rows={cardProgress?.badges ?? []} />
     </div>
   )
 }
