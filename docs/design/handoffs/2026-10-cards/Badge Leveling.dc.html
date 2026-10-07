@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+<link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/styles.css">
+<script src="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/_ds_bundle.js"></script>
+<script src="card-data.js"></script>
+<script src="badge-shapes.js"></script>
+<script src="badge-levels.js"></script>
+<style>
+html, body { margin: 0; background: #1a1819; color: #ebebeb; }
+a { color: #ef6a5e; } a:hover { color: #e84131; }
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-direction: column; background: #1a1819; font-family: var(--font-sans);">
+  <div style="height: 1px; background: linear-gradient(90deg, #7f1d1d, #e84131, #7f1d1d);"></div>
+  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px; border-bottom: 1px solid rgba(232,65,49,0.15);">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <img src="assets/bgm-logo.png" alt="BGM" style="width: 34px; height: 34px; object-fit: contain;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-family: var(--font-condensed); font-size: 22px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1;">Badge Leveling</span>
+        <span style="font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.24em; color: #6e6b6c; line-height: 1;">10 THEMES · LEVELS PER THEME · SHAPE BY FAMILY</span>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ ready }}" hint-placeholder-val="{{ false }}">
+  <div style="padding: 28px; display: flex; flex-direction: column; gap: 36px;">
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-family: var(--font-condensed); font-size: 11px; font-weight: 600; letter-spacing: 0.24em; color: #71717a;">SUB-LEVEL MARKERS · STEPS I–III INSIDE A THEME</span>
+        <span style="font-size: 12px; color: #6e6b6c;">Pick one to apply it to the ladder below. Bottom row is roster-row scale (28px).</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px;">
+        <sc-for list="{{ subOpts }}" as="o" hint-placeholder-count="6">
+          <button onClick="{{ o.on }}" style="display: flex; flex-direction: column; gap: 0; padding: 0; border: 1px solid {{ o.b }}; background: {{ o.bg }}; cursor: pointer; text-align: left; font-family: var(--font-condensed);">
+            <div style="display: flex; align-items: baseline; gap: 10px; padding: 12px 14px 0;">
+              <span style="font-size: 12px; font-weight: 900; color: #71717a;">{{ o.letter }}</span>
+              <span style="font-size: 15px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: {{ o.c }};">{{ o.name }}</span>
+              <span style="margin-left: auto; font-size: 9px; font-weight: 700; letter-spacing: 0.2em; color: #ef6a5e;">{{ o.tag }}</span>
+            </div>
+            <span style="padding: 4px 14px 0; font-family: var(--font-sans); font-size: 12px; color: #a1a1aa; line-height: 1.35;">{{ o.desc }}</span>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; padding: 16px 8px 10px; min-height: 120px;">
+              <sc-for list="{{ o.big }}" as="s" hint-placeholder-count="3">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                  <dc-import name="Badge" cfg="{{ s.cfg }}" hint-size="60px,90px"></dc-import>
+                  <span style="font-size: 9px; font-weight: 700; letter-spacing: 0.16em; color: #71717a;">{{ s.lab }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display: flex; align-items: flex-end; justify-content: center; gap: 18px; padding: 10px 8px 12px; border-top: 1px solid #2a2829; background: #18181b;">
+              <sc-for list="{{ o.small }}" as="s" hint-placeholder-count="3">
+                <dc-import name="Badge" cfg="{{ s.cfg }}" hint-size="28px,40px"></dc-import>
+              </sc-for>
+            </div>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 6px; font-family: var(--font-condensed);">
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.24em; color: #71717a; text-transform: uppercase;">{{ famSub }}</span>
+          <span style="font-size: 34px; font-weight: 900; text-transform: uppercase; line-height: 0.95; color: #fafafa;">{{ famName }}</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px 22px; font-family: var(--font-condensed); font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;">
+          <sc-for list="{{ famSpec }}" as="r" hint-placeholder-count="4">
+            <span style="display: flex; gap: 6px;"><span style="color: #6e6b6c;">{{ r.k }}</span><span style="color: #d4d4d8; font-variant-numeric: tabular-nums;">{{ r.v }}</span></span>
+          </sc-for>
+        </div>
+      </div>
+      <div style="overflow-x: auto; border: 1px solid #2a2829; background: radial-gradient(ellipse at 50% 0%, rgba(232,65,49,0.06), transparent 60%), linear-gradient(180deg, #1f1d1e, #131112);">
+        <div style="display: grid; grid-template-columns: repeat(10, minmax(96px, 1fr)); min-width: 980px;">
+          <sc-for list="{{ ladder }}" as="col" hint-placeholder-count="10">
+            <div style="display: flex; flex-direction: column; border-right: 1px solid #2a2829; background: {{ col.bg }};">
+              <button onClick="{{ col.on }}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 12px 10px; border: none; background: transparent; box-shadow: {{ col.bar }}; cursor: pointer; text-align: left; font-family: var(--font-condensed);">
+                <span style="font-size: 9px; font-weight: 700; letter-spacing: 0.2em; color: #6e6b6c; font-variant-numeric: tabular-nums;">{{ col.idx }}</span>
+                <span style="font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: {{ col.c }}; line-height: 1; white-space: nowrap;">{{ col.name }}</span>
+                <span style="font-size: 9px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #71717a;">{{ col.range }}</span>
+              </button>
+              <div style="display: flex; flex-direction: column; gap: 4px; padding: 14px 0 12px;">
+                <sc-for list="{{ col.steps }}" as="s" hint-placeholder-count="3">
+                  <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 6px;">
+                    <dc-import name="Badge" cfg="{{ s.cfg }}" hint-size="52px,58px"></dc-import>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: var(--font-condensed);">
+                      <span style="font-size: 18px; font-weight: 900; color: #fafafa; line-height: 1; font-variant-numeric: tabular-nums;">{{ s.thr }}</span>
+                      <span style="font-size: 9px; font-weight: 700; letter-spacing: 0.16em; color: #71717a; font-variant-numeric: tabular-nums;">{{ s.lv }}</span>
+                      <span style="font-size: 9px; font-weight: 600; letter-spacing: 0.14em; color: #52525b; font-variant-numeric: tabular-nums;">{{ s.dt }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <span style="font-size: 12px; color: #6e6b6c;">Themes without a drafted badge skin fall back to neutral styling. {{ subName }} mark the step inside each theme. T·L is the source table's tier and level.</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <span style="font-family: var(--font-condensed); font-size: 11px; font-weight: 600; letter-spacing: 0.24em; color: #71717a;">FAMILY → SHAPE</span>
+      <div style="display: flex; flex-direction: column; border: 1px solid #2a2829;">
+        <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+          <div style="display: grid; grid-template-columns: minmax(160px, 220px) minmax(0, 1fr); border-bottom: 1px solid #2a2829;">
+            <div style="display: flex; align-items: center; gap: 14px; padding: 16px 18px; background: #1f1d1e; border-right: 1px solid #2a2829;">
+              <dc-import name="Badge" cfg="{{ g.shapeCfg }}" hint-size="36px,40px"></dc-import>
+              <div style="display: flex; flex-direction: column; gap: 4px; font-family: var(--font-condensed);">
+                <span style="font-size: 15px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #fafafa; line-height: 1;">{{ g.name }}</span>
+                <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #ef6a5e; line-height: 1;">{{ g.shapeName }}</span>
+                <span style="font-size: 11px; color: #6e6b6c; font-family: var(--font-sans); line-height: 1.3;">{{ g.desc }}</span>
+                <select value="{{ g.shapeId }}" onChange="{{ g.onShape }}" style="margin-top: 4px; font-family: var(--font-condensed); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 6px; border: 1px solid #3a3839; background: #1a1819; color: #ebebeb;">
+                  <sc-for list="{{ shapeList }}" as="so" hint-placeholder-count="10"><option value="{{ so.id }}">{{ so.name }}</option></sc-for>
+                </select>
+              </div>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; align-items: flex-end;">
+              <sc-for list="{{ g.members }}" as="m" hint-placeholder-count="5">
+                <button onClick="{{ m.on }}" style="width: 104px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 6px 12px; border: none; background: {{ m.bg }}; box-shadow: {{ m.bar }}; cursor: pointer; font-family: var(--font-condensed);">
+                  <dc-import name="Badge" cfg="{{ m.cfg }}" hint-size="44px,50px"></dc-import>
+                  <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: {{ m.c }}; white-space: nowrap;">{{ m.short }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 760px;">
+      <span style="font-family: var(--font-condensed); font-size: 11px; font-weight: 600; letter-spacing: 0.24em; color: #71717a;">OPEN ITEMS</span>
+      <sc-for list="{{ notes }}" as="n" hint-placeholder-count="4">
+        <div style="display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid #2a2829; font-size: 13px; line-height: 1.45; color: #a1a1aa; text-wrap: pretty;">
+          <span style="font-family: var(--font-condensed); font-weight: 800; color: #52525b; font-variant-numeric: tabular-nums;">{{ n.i }}</span><span>{{ n.t }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;frame&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;single&quot;,&quot;double&quot;,&quot;heavy&quot;,&quot;bevel&quot;],&quot;default&quot;:&quot;single&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;neutralTier&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;min&quot;:1,&quot;max&quot;:6,&quot;default&quot;:3,&quot;tsType&quot;:&quot;number&quot;}}">
+const KEY = 'bgm-badge-leveling';
+class Component extends DCLogic {
+  state = (() => { try { return Object.assign({ fam: 'pgoals', theme: 'carbon', sub: 'frame' }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return { fam: 'pgoals', theme: 'carbon', sub: 'frame' }; } })();
+  componentDidMount() {
+    const ok = () => window.BGM_CARD && window.BGM_BADGE && window.BGM_LEVELS;
+    if (!ok()) this._t = setInterval(() => { if (ok()) { clearInterval(this._t); this.forceUpdate(); } }, 60);
+  }
+  componentWillUnmount() { clearInterval(this._t); }
+  set(p) { this.setState(p, () => { try { localStorage.setItem(KEY, JSON.stringify(this.state)); } catch (e) {} }); }
+  renderVals() {
+    const D = window.BGM_CARD, B = window.BGM_BADGE, L = window.BGM_LEVELS, st = this.state;
+    if (!D || !B || !L) return { ready: false };
+    const frame = this.props.frame ?? 'single', tier = this.props.neutralTier ?? 3;
+    const list = L.PLAYER;
+    const fam = list.find(f => f.id === st.fam) || list[0];
+    const n = fam.ladder.length, per = n / 10;
+    const ti = Math.max(0, L.THEME_ORDER.indexOf(st.theme));
+    const shapeOf = gid => (st.shapes && st.shapes[gid]) || L.GROUPS[gid].shape;
+    const RN = ['I', 'II', 'III'];
+    const SUBS = [
+      { id: 'pips', name: 'Pips', desc: '1–3 dots under the glyph.', m: 'pips' },
+      { id: 'roman', name: 'Numeral', desc: 'I · II · III under the glyph.', m: 'roman' },
+      { id: 'tab', name: 'Tab', desc: 'Numeral on a tab hung from the bottom edge.', m: 'tab' },
+      { id: 'bars', name: 'Chevrons', desc: 'Rank chevrons stacked under the badge.', m: 'bars' },
+      { id: 'stars', name: 'Stars', desc: 'Stars in an arc over the badge.', m: 'stars' },
+      { id: 'frame', name: 'Frame step', desc: 'Rim builds up: single, double, heavy. No added marks.', m: 'none', frames: ['single', 'double', 'heavy'] }
+    ];
+    const sub = SUBS.find(s => s.id === st.sub) || SUBS[0];
+    const mkS = (o, f, step, lv, size, skin) => ({ skin: skin || null, tier, shape: shapeOf(f.group), fam: f, size, label: 'none', marker: o.m, pips: step, levelText: RN[step - 1], frame: o.frames ? o.frames[step - 1] : frame, glow: false });
+    const mk = (f, step, lv, size, skin) => mkS(sub, f, step, lv, size, skin);
+    const subOpts = SUBS.map((o, i) => {
+      const on = o.id === sub.id;
+      return { letter: 'ABCDEF'[i], name: o.name, desc: o.desc, on: () => this.set({ sub: o.id }),
+        b: on ? '#e84131' : '#2a2829', bg: on ? 'rgba(232,65,49,0.06)' : 'transparent', c: on ? '#ef6a5e' : '#fafafa', tag: on ? 'IN USE' : '',
+        big: [1, 2, 3].map(s => ({ cfg: mkS(o, fam, s, 0, 60), lab: 'STEP ' + RN[s - 1] })),
+        small: [1, 2, 3].map(s => ({ cfg: mkS(o, fam, s, 0, 28) })) };
+    });
+    const ladder = L.THEME_ORDER.map((key, i) => {
+      const T = D.THEMES[key], on = i === ti, skin = L.skinFor(key);
+      return {
+        idx: String(i + 1).padStart(2, '0'), name: T.name, range: 'LVL ' + (i * per + 1) + '–' + ((i + 1) * per),
+        on: () => this.set({ theme: key }), c: on ? '#ef6a5e' : '#e4e4e7',
+        bar: on ? 'inset 0 -2px 0 #e84131' : 'inset 0 -1px 0 #2a2829', bg: on ? 'rgba(232,65,49,0.05)' : 'transparent',
+        steps: Array.from({ length: per }, (_, j) => {
+          const lv = i * per + j + 1;
+          return { cfg: mk(fam, j + 1, lv, 52, skin), thr: fam.ladder[lv - 1].toLocaleString(), lv: 'LVL ' + lv, dt: 'T' + Math.ceil(lv / 5) + ' · L' + ((lv - 1) % 5 + 1) };
+        })
+      };
+    });
+    const G = L.GROUPS[fam.group];
+    const S = B.SHAPES.find(s => s.id === shapeOf(fam.group));
+    const topLv = (ti + 1) * per;
+    const groups = L.GROUP_LIST.map(g => {
+      const gid = shapeOf(g.id), gs = B.SHAPES.find(s => s.id === gid);
+      return {
+        name: g.name, desc: g.desc, shapeName: gs.name, shapeId: gid,
+        onShape: e => this.set({ shapes: Object.assign({}, st.shapes, { [g.id]: e.target.value }) }),
+        shapeCfg: { tier, shape: gid, fam: g.members[0], size: 36, label: 'none', marker: 'none', frame, glow: false },
+        members: g.members.map(f => {
+          const on = f.id === fam.id;
+          return { short: f.short, cfg: mk(f, per, topLv, 44, L.skinFor(L.THEME_ORDER[ti])), on: () => this.set({ fam: f.id }), c: on ? '#ef6a5e' : '#d4d4d8', bg: on ? 'rgba(232,65,49,0.08)' : 'transparent', bar: on ? 'inset 0 -2px 0 #e84131' : 'none' };
+        })
+      };
+    });
+    return {
+      ready: true, ladder, groups, subOpts, subName: sub.name.toUpperCase(), shapeList: B.SHAPES.map(s => ({ id: s.id, name: s.name })),
+      famName: fam.name, famSub: G.name + ' · ' + S.name,
+      famSpec: [
+        { k: 'Levels', v: n + ' · ' + per + ' per theme' },
+        { k: 'Range', v: fam.ladder[0].toLocaleString() + ' → ' + fam.ladder[n - 1].toLocaleString() + ' ' + fam.unit },
+        { k: 'Glyph', v: fam.glyph }
+      ],
+      notes: L.NOTES.map((t, i) => ({ i: String(i + 1).padStart(2, '0'), t }))
+    };
+  }
+}
+</script>
+</body>
+</html>

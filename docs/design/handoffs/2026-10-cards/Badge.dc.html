@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+<script src="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/_ds_bundle.js"></script>
+<script src="card-data.js"></script>
+<script src="badge-shapes.js"></script>
+<script src="badge-levels.js"></script>
+</helmet>
+<sc-if value="{{ ready }}" hint-placeholder-val="{{ false }}">
+<div title="{{ title }}" style="display: inline-flex; flex-direction: column; align-items: center; gap: {{ gapPx }}; font-family: var(--font-condensed);">
+  <sc-if value="{{ hasStars }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; align-items: flex-end; gap: {{ stGap }}; height: {{ stH }};">
+      <sc-for list="{{ stars }}" as="sx" hint-placeholder-count="3"><span style="width: {{ sx.sz }}; height: {{ sx.sz }}; margin-bottom: {{ sx.lift }}; background: {{ outer }}; clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);"></span></sc-for>
+    </div>
+  </sc-if>
+  <div style="filter: {{ filter }}; margin-bottom: {{ mb }};">
+    <div style="position: relative; width: {{ wpx }}; height: {{ hpx }};">
+      <div style="position: absolute; inset: 0; clip-path: {{ clip }}; background: {{ outer }};"></div>
+      <div style="position: absolute; inset: {{ i1 }}; clip-path: {{ clip }}; background: {{ gap }};"></div>
+      <div style="position: absolute; inset: {{ i2 }}; clip-path: {{ clip }}; background: {{ ring }};"></div>
+      <div style="position: absolute; inset: {{ i3 }}; clip-path: {{ clip }}; background: {{ face0 }};"></div>
+      <sc-if value="{{ hasInner }}" hint-placeholder-val="{{ false }}">
+        <div style="position: absolute; inset: {{ i4 }}; clip-path: {{ clip }}; background: {{ fill }};"></div>
+      </sc-if>
+      <sc-if value="{{ bevel }}" hint-placeholder-val="{{ false }}">
+        <div style="position: absolute; inset: 0; clip-path: {{ clip }}; background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.04) 46%, transparent 50%, rgba(0,0,0,0.28));"></div>
+      </sc-if>
+      <div style="position: absolute; inset: {{ i3 }}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: {{ mGap }}; padding-bottom: {{ icPad }}; padding-top: {{ icPadT }};">
+        <span style="width: {{ icW }}; height: {{ icW }}; background: {{ iconC }}; mask: {{ mask }}; -webkit-mask: {{ mask }};"></span>
+        <sc-if value="{{ hasRoman }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size: {{ romanFs }}; font-weight: 900; letter-spacing: 0.08em; color: {{ iconC }}; line-height: 1;">{{ roman }}</span>
+        </sc-if>
+        <sc-if value="{{ hasPips }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; gap: {{ pipGap }};">
+            <sc-for list="{{ pips }}" as="pp" hint-placeholder-count="3"><span style="width: {{ pipSz }}; height: {{ pipSz }}; border-radius: 50%; background: {{ iconC }};"></span></sc-for>
+          </div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ hasTab }}" hint-placeholder-val="{{ false }}">
+        <div style="position: absolute; left: {{ tabL }}; bottom: {{ tabB }}; width: {{ tabW }}; height: {{ tabH }}; clip-path: polygon(14% 0, 86% 0, 100% 50%, 86% 100%, 14% 100%, 0 50%); background: {{ outer }};">
+          <div style="position: absolute; inset: 1px 1.5px; clip-path: polygon(14% 0, 86% 0, 100% 50%, 86% 100%, 14% 100%, 0 50%); background: {{ tabFill }}; display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: {{ tabFs }}; font-weight: 900; letter-spacing: 0.06em; color: {{ iconC }}; line-height: 1;">{{ roman }}</span>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showRibbon }}" hint-placeholder-val="{{ false }}">
+        <div style="position: absolute; left: {{ rL }}; bottom: {{ rB }}; width: {{ rW }}; height: {{ rH }}; clip-path: polygon(0 0, 100% 0, 94% 50%, 100% 100%, 0 100%, 6% 50%); background: {{ outer }};">
+          <div style="position: absolute; inset: 1.5px 0; clip-path: polygon(0 0, 100% 0, 94% 50%, 100% 100%, 0 100%, 6% 50%); background: #0a0909; display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: {{ rFs }}; font-weight: 800; letter-spacing: 0.14em; color: {{ ribbonC }}; line-height: 1; white-space: nowrap;">{{ labelText }}</span>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+  <sc-if value="{{ hasBars }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: {{ barGap }};">
+      <sc-for list="{{ pips }}" as="bx" hint-placeholder-count="3"><span style="width: {{ barW }}; height: {{ barH }}; background: {{ outer }}; clip-path: polygon(0 0, 50% 55%, 100% 0, 100% 45%, 50% 100%, 0 45%);"></span></sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{ showBelow }}" hint-placeholder-val="{{ false }}">
+    <span style="font-size: {{ labelFs }}; font-weight: 800; letter-spacing: 0.16em; color: {{ labelC }}; white-space: nowrap; line-height: 1;">{{ labelText }}</span>
+  </sc-if>
+</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:200,&quot;height&quot;:200},&quot;cfg&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;},&quot;shape&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;hex&quot;,&quot;shield&quot;,&quot;round&quot;,&quot;octagon&quot;,&quot;diamond&quot;,&quot;chamfer&quot;,&quot;triangle&quot;,&quot;square&quot;,&quot;invtri&quot;,&quot;banner&quot;],&quot;default&quot;:&quot;hex&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tier&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;min&quot;:1,&quot;max&quot;:6,&quot;default&quot;:3,&quot;tsType&quot;:&quot;number&quot;},&quot;family&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;goals&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;size&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;min&quot;:24,&quot;max&quot;:240,&quot;default&quot;:64,&quot;tsType&quot;:&quot;number&quot;},&quot;frame&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;single&quot;,&quot;double&quot;,&quot;heavy&quot;,&quot;bevel&quot;],&quot;default&quot;:&quot;single&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;marker&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;roman&quot;,&quot;pips&quot;,&quot;tab&quot;,&quot;bars&quot;,&quot;stars&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;label&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;below&quot;,&quot;ribbon&quot;,&quot;none&quot;],&quot;default&quot;:&quot;below&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;glow&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  componentDidMount() {
+    if (!window.BGM_CARD || !window.BGM_BADGE) {
+      this._t = setInterval(() => { if (window.BGM_CARD && window.BGM_BADGE) { clearInterval(this._t); this.forceUpdate(); } }, 60);
+    }
+  }
+  componentWillUnmount() { clearInterval(this._t); }
+  renderVals() {
+    const D = window.BGM_CARD, B = window.BGM_BADGE;
+    if (!D || !B) return { ready: false };
+    const p = Object.assign({ shape: 'hex', tier: 3, family: 'goals', size: 64, frame: 'single', marker: 'none', label: 'below', glow: true }, this.props.cfg || {});
+    ['shape', 'tier', 'family', 'size', 'frame', 'marker', 'label', 'glow', 'labelSize', 'labelColor'].forEach(k => { if (this.props[k] !== undefined) p[k] = this.props[k]; });
+    const S = B.SHAPES.find(s => s.id === p.shape) || B.SHAPES[0];
+    const t0 = D.BADGE_TIERS[Math.max(1, Math.min(6, p.tier | 0))];
+    const t = p.skin ? Object.assign({}, t0, p.skin) : t0;
+    const fam = p.fam || D.FAMILIES.find(f => f.id === p.family) || D.FAMILIES[0];
+    const px = n => (Math.round(n * 10) / 10) + 'px';
+    const w = p.size, h = w * S.ar, s = w / 38;
+    let rim = t.inset * s * (p.frame === 'heavy' ? 2.4 : 1);
+    let i1 = rim, i2 = rim, i3 = rim, gap = t.fill, ring = t.fill;
+    if (p.frame === 'double') { const g = Math.max(1.5, 1.3 * s); gap = t.gap || '#070606'; ring = t.outer; i2 = rim + g; i3 = i2 + Math.max(1, rim * 0.8); }
+    const inside = p.marker === 'roman' || p.marker === 'pips';
+    const ribbon = p.label === 'ribbon';
+    const tab = p.marker === 'tab' && !ribbon;
+    const tabW = Math.max(18, w * 0.36), tabH = Math.max(10, w * 0.2);
+    const rW = w * 1.3, rH = Math.max(12, w * 0.22);
+    const labelText = fam.short + ' ' + t.roman;
+    const labelFs = p.labelSize || Math.max(8, w * 0.2);
+    const pipSz = Math.max(2, w * 0.045);
+    const mb = Math.max(tab ? tabH * 0.5 : 0, ribbon ? rH * 0.65 : 0);
+    return {
+      ready: true,
+      title: fam.name + ' · ' + t.name + ' (' + t.rarity + ')',
+      wpx: px(w), hpx: px(h), clip: S.clip, outer: t.outer, fill: t.fill, gap, ring,
+      i1: px(i1), i2: px(i2), i3: px(i3), i4: px(i3 + Math.max(1, s * 0.9)), hasInner: !!t.inner, face0: t.inner || t.fill,
+      filter: p.glow || (p.skin && p.skin.filter && p.skin.filter !== 'none') ? t.filter : 'none', bevel: p.frame === 'bevel' || !!t.gloss,
+      icW: px(w * S.ic * (inside ? 0.8 : 1)), iconC: t.icon, mask: fam.icon,
+      icPad: px(h * S.pad), icPadT: px(h * (S.padTop || 0)), mGap: px(Math.max(2, w * 0.04)),
+      hasRoman: p.marker === 'roman', roman: p.levelText || t.roman, romanFs: px(Math.max(7, w * 0.12)),
+      hasPips: p.marker === 'pips', pips: Array.from({ length: p.pips || t.n }, (_, i) => i), pipSz: px(pipSz), pipGap: px(Math.max(1.5, pipSz * 0.6)),
+      hasTab: tab, tabW: px(tabW), tabH: px(tabH), tabL: px((w - tabW) / 2), tabB: px(-tabH / 2), tabFs: px(Math.max(7, tabH * 0.6)),
+      tabFill: typeof t.fill === 'string' && t.fill.indexOf('gradient') === -1 ? t.fill : '#0a0909',
+      showRibbon: ribbon, rW: px(rW), rH: px(rH), rL: px((w - rW) / 2), rB: px(-rH * 0.35), rFs: px(Math.max(7, rH * 0.46)),
+      ribbonC: t.n <= 2 ? '#d4d4d8' : t.label,
+      showBelow: p.label === 'below', labelText, labelFs: px(labelFs), labelC: p.labelColor || t.label,
+      mb: px(mb), gapPx: px(Math.max(p.marker === 'bars' || p.marker === 'stars' ? 3 : 4, w * (p.marker === 'bars' || p.marker === 'stars' ? 0.06 : 0.08))),
+      hasBars: p.marker === 'bars', barW: px(Math.max(8, w * 0.34)), barH: px(Math.max(3, w * 0.1)), barGap: px(Math.max(1, w * 0.025)),
+      hasStars: p.marker === 'stars', stGap: px(Math.max(1.5, w * 0.04)), stH: px(Math.max(6, w * 0.2)),
+      stars: Array.from({ length: p.pips || t.n }, (_, i) => { const nS = p.pips || t.n, mid = (nS - 1) / 2, off = Math.abs(i - mid); return { sz: px(Math.max(5, w * (off === 0 && nS !== 2 ? 0.17 : 0.14))), lift: px(Math.max(0, w * 0.05 * (mid - off))) }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

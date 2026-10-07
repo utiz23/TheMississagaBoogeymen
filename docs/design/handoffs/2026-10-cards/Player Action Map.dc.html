@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+<link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/styles.css">
+<script src="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/_ds_bundle.js"></script>
+<style>
+body{margin:0;background:var(--color-background);color:var(--fg-1);font-family:var(--font-sans);}
+a{color:var(--fg-3);text-decoration:none;}a:hover{color:var(--fg-1);}
+button{font:inherit;}
+.am-list::-webkit-scrollbar{width:6px}.am-list::-webkit-scrollbar-thumb{background:#3a3839}.am-list::-webkit-scrollbar-thumb:hover{background:#514e4f}
+</style>
+</helmet>
+<section style="display:flex;flex-direction:column;gap:12px;max-width:1280px;margin:0 auto;padding:24px 16px;box-sizing:border-box;">
+  <div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 16px;">
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <h2 style="margin:0;font-family:var(--font-condensed);font-size:14px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--fg-4);">Career Action Map</h2>
+      <p style="margin:0;font-family:var(--font-condensed);font-size:11px;letter-spacing:0.05em;text-transform:uppercase;color:var(--fg-5);">All positioned events across reviewed matches</p>
+    </div>
+    <span style="font-family:var(--font-condensed);font-size:11px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:var(--fg-4);">silkyjoker85 · {{ gameCount }} reviewed games</span>
+  </div>
+
+  <div style="position:relative;overflow:hidden;padding:16px;background:var(--bg-broadcast-soft);border:1px solid rgba(63,63,70,0.85);">
+    <div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 16px;padding-bottom:12px;">
+      <h3 style="margin:0;font-family:var(--font-condensed);font-size:12px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--fg-4);"><span style="padding-right:4px;color:var(--fg-5);">▰</span>Action Tracker Map · Career</h3>
+      <span style="font-family:var(--font-condensed);font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg-4);">Click a marker or card to pin it</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;border:1px solid var(--color-border);background:var(--color-surface);padding:10px 12px;">
+        <div style="display:inline-flex;border:1px solid var(--color-border);background:var(--color-background);">
+          <sc-for list="{{ periods }}" as="p" hint-placeholder-count="5">
+            <button type="button" onClick="{{ p.onClick }}" style="{{ p.style }}"><span>{{ p.label }}</span><span style="{{ p.countStyle }}">{{ p.n }}</span></button>
+          </sc-for>
+        </div>
+        <div style="display:inline-flex;border:1px solid var(--color-border);background:var(--color-background);">
+          <sc-for list="{{ invs }}" as="p" hint-placeholder-count="3">
+            <button type="button" onClick="{{ p.onClick }}" title="{{ p.title }}" style="{{ p.style }}"><span>{{ p.label }}</span><span style="{{ p.countStyle }}">{{ p.n }}</span></button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ iso }}" hint-placeholder-val="{{ false }}">
+          <button type="button" onClick="{{ iso.clear }}" style="display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--color-accent-line);background:var(--color-accent-soft);color:var(--fg-1);font-family:var(--font-condensed);font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;"><span style="color:var(--fg-3);">Game</span><span>{{ iso.label }}</span><span style="color:var(--color-accent);">✕</span></button>
+        </sc-if>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-left:auto;">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;">
+            <button type="button" onClick="{{ chips.goal.toggle }}" style="{{ chips.goal.style }}"><svg viewBox="0 0 39.78 34.45" width="14" height="12.12"><polygon fill="#fff" points="39.78 17.22 29.84 34.45 9.95 34.45 0 17.22 9.95 0 29.84 0 39.78 17.22"></polygon><polygon fill="var(--color-accent)" points="36.34 17.22 28.12 31.47 11.67 31.47 3.44 17.22 11.67 2.98 28.12 2.98 36.34 17.22"></polygon><path fill="#fff" d="M21.06,19.77h-1.67l.64-3.28h5.19l-1.39,7.18c-.13,.67-.5,1.24-1.110,1.72-.6,.47-1.25,.7-1.96,.7h-5.18c-.71,0-1.27-.23-1.69-.7-.43-.47-.57-1.05-.44-1.72l2.5-12.89c.13-.67,.5-1.24,1.11-1.72,.6-.47,1.25-.7,1.96-.7h5.18c.71,0,1.27,.23,1.69,.7,.43,.48,.57,1.05,.44,1.72l-.69,3.56h-3.52l.52-2.7h-3.33l-2.17,11.17h3.330l.59-3.04h0Z"></path></svg><span>Goals</span><span style="{{ chips.goal.countStyle }}">{{ chips.goal.n }}</span></button>
+            <button type="button" onClick="{{ chips.shot.toggle }}" style="{{ chips.shot.style }}"><svg viewBox="0 0 36.56 36.56" width="14" height="14"><circle fill="var(--color-accent)" cx="18.28" cy="18.28" r="16.87"></circle><path fill="#fff" d="M18.28,36.56C8.2,36.56,0,28.360,0,18.28S8.2,0,18.28,0s18.28,8.2,18.28,18.28-8.2,18.28-18.28,18.28Zm0-33.75C9.75,2.81,2.81,9.75,2.81,18.28s6.94,15.47,15.47,15.47,15.47-6.94,15.47-15.47S26.81,2.81,18.28,2.81Z"></path><path fill="#fff" d="M20.9,12.97h-3.17l-.52,2.66c-.14,.72,.32,1.08,1.37,1.08,1.38,0,2.47,.37,3.25,1.11,.83,.78,1.12,1.82,.87,3.1l-.67,3.48c-.13,.64-.48,1.18-1.07,1.62-.57,.45-1.18,.67-1.85,.67h-4.92c-.67,0-1.21-.22-1.61-.67s-.53-.99-.41-1.62l.66-3.4h3.34l-.5,2.58h3.17l.51-2.66c.14-.73-.32-1.090-1.37-1.09-1.38,0-2.45-.37-3.23-1.1-.84-.78-1.130-1.82-.88-3.1l.68-3.48c.12-.64,.47-1.180,1.05-1.64,.57-.44,1.19-.66,1.87-.66h4.92c.67,0,1.21,.22,1.6,.66,.4,.46,.55,1,.43,1.64l-.66,3.38h-3.35l.5-2.57h-.01Z"></path></svg><span>Shots</span><span style="{{ chips.shot.countStyle }}">{{ chips.shot.n }}</span></button>
+            <button type="button" onClick="{{ chips.hit.toggle }}" style="{{ chips.hit.style }}"><svg viewBox="0 0 34.45 34.45" width="14" height="14"><rect fill="#fff" width="34.45" height="34.45"></rect><rect fill="var(--color-accent)" x="3.11" y="3.11" width="28.23" height="28.23"></rect><path fill="#fff" d="M15.24,18.87l-1.4,7.22h-3.52l3.45-17.73h3.52l-1.4,7.22h3.33l1.4-7.22h3.52l-3.45,17.73h-3.52l1.4-7.22h-3.33Z"></path></svg><span>Hits</span><span style="{{ chips.hit.countStyle }}">{{ chips.hit.n }}</span></button>
+            <button type="button" onClick="{{ chips.penalty.toggle }}" style="{{ chips.penalty.style }}"><svg viewBox="0 0 48.72 48.72" width="14" height="14"><rect fill="#fff" x="7.13" y="7.13" width="34.45" height="34.45" transform="translate(-10.09 24.36) rotate(-45)"></rect><rect fill="var(--color-accent)" x="10.51" y="10.5" width="27.7" height="27.7" transform="translate(-10.09 24.36) rotate(-45)"></rect><path fill="#fff" d="M21.12,15.49h7.78c.71,0,1.27,.23,1.69,.7,.43,.48,.57,1.05,.44,1.72l-.89,4.57c-.26,1.35-.99,2.44-2.18,3.26-1.12,.78-2.41,1.16-3.87,1.16h-1.67l-1.23,6.32h-3.52l3.45-17.73h0Zm2.88,3.28l-.94,4.85h1.67c1.11,0,1.74-.38,1.89-1.14l.72-3.71h-3.34Z"></path></svg><span>Penalties</span><span style="{{ chips.penalty.countStyle }}">{{ chips.penalty.n }}</span></button>
+            <button type="button" onClick="{{ chips.faceoff.toggle }}" title="Faceoffs are tracked in the event list. The post-game screen carries no rink position for them, so they draw no marker." style="{{ chips.faceoff.style }}"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:1px dashed var(--fg-4);"></span><span>Faceoffs</span><span style="{{ chips.faceoff.countStyle }}">{{ chips.faceoff.n }}</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:stretch;">
+        <div style="flex:999 1 560px;min-width:0;border:1px solid var(--color-border);background:var(--bg-broadcast-strong);padding:12px 14px;box-sizing:border-box;">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-bottom:8px;">
+            <span style="font-family:var(--font-condensed);font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--fg-3);">Event map · all games · normalized</span>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:8px;font-family:var(--font-condensed);font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;white-space:nowrap;">
+              <span style="color:#81878D;">OPP ←</span><span style="color:var(--fg-3);">defends · attacks</span><span style="color:var(--color-accent);">→ BGM</span>
+            </div>
+          </div>
+          <div style="position:relative;width:100%;aspect-ratio:2405 / 1025;">
+            <svg viewBox="0 0 2405 1025" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:100%;" aria-label="Hockey rink"><rect x="2.5" y="2.5" width="2400" height="1020" rx="336" ry="336" fill="rgba(235,235,235,0.04)" stroke="rgba(235,235,235,0.32)" stroke-width="5" stroke-miterlimit="10"></rect><line x1="2270.5" y1="953.5" x2="2270.5" y2="71.49" stroke="rgba(232,65,49,0.85)" stroke-width="2" stroke-miterlimit="10" fill="none"></line><line x1="134.5" y1="953.5" x2="134.5" y2="71.49" stroke="rgba(232,65,49,0.85)" stroke-width="2" stroke-miterlimit="10" fill="none"></line><line x1="1202.5" y1="1022.5" x2="1202.5" y2="2.5" stroke="rgba(232,65,49,0.85)" stroke-width="12" stroke-miterlimit="10" fill="none"></line><line x1="902.5" y1="1022.5" x2="902.5" y2="2.5" stroke="rgba(140,170,235,0.55)" stroke-width="12" stroke-miterlimit="10" fill="none"></line><line x1="1502.5" y1="1022.5" x2="1502.5" y2="2.5" stroke="rgba(140,170,235,0.55)" stroke-width="12" stroke-miterlimit="10" fill="none"></line><circle cx="1202.5" cy="512.5" r="180" fill="none" stroke="rgba(140,170,235,0.55)" stroke-width="2" stroke-miterlimit="10"></circle><circle cx="962.5" cy="248.5" r="12" fill="rgba(232,65,49,0.90)"></circle><circle cx="962.5" cy="770.15" r="12" fill="rgba(232,65,49,0.90)"></circle><circle cx="1444.89" cy="248.5" r="12" fill="rgba(232,65,49,0.90)"></circle><circle cx="1444.89" cy="770.15" r="12" fill="rgba(232,65,49,0.90)"></circle><path d="M1142.5,1022.5c0-33.14,26.86-60,60-60s60,26.86,60,60" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2" stroke-miterlimit="10"></path><g><circle cx="2030.5" cy="785.17" r="180" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2" stroke-miterlimit="10"></circle><line x1="2065" y1="584.65" x2="2065" y2="608.48" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="1996" y1="584.65" x2="1996" y2="608.48" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="2065" y1="961.85" x2="2065" y2="985.85" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="1996" y1="961.87" x2="1996" y2="985.85" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><circle cx="2030.5" cy="785.17" r="12" fill="rgba(232,65,49,0.90)"></circle><polyline points="2054.5 828.15 2054.5 792.15 2102.5 792.15" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="2006.5 828.15 2006.5 792.15 1958.5 792.15" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="2054.5 736.15 2054.5 772.15 2102.5 772.15" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="2006.5 736.15 2006.5 772.15 1958.5 772.15" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline></g><g><circle cx="2030.5" cy="248.5" r="180" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2" stroke-miterlimit="10"></circle><line x1="2065" y1="47.98" x2="2065" y2="71.8" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="1996" y1="47.98" x2="1996" y2="71.8" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="2065" y1="425.17" x2="2065" y2="449.17" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="1996" y1="425.2" x2="1996" y2="449.17" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><circle cx="2030.5" cy="248.5" r="12" fill="rgba(232,65,49,0.90)"></circle><polyline points="2054.5 291.48 2054.5 255.48 2102.5 255.48" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="2006.5 291.48 2006.5 255.48 1958.5 255.48" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="2054.5 199.48 2054.5 235.48 2102.5 235.48" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="2006.5 199.48 2006.5 235.48 1958.5 235.48" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline></g><g><circle cx="374.5" cy="776.42" r="180" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2" stroke-miterlimit="10"></circle><line x1="409" y1="575.9" x2="409" y2="599.73" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="340" y1="575.9" x2="340" y2="599.73" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="409" y1="953.1" x2="409" y2="977.1" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="340" y1="953.12" x2="340" y2="977.1" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><circle cx="374.5" cy="776.42" r="12" fill="rgba(232,65,49,0.90)"></circle><polyline points="398.5 819.4 398.5 783.4 446.5 783.4" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="350.5 819.4 350.5 783.4 302.5 783.4" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="398.5 727.4 398.5 763.4 446.5 763.4" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="350.5 727.4 350.5 763.4 302.5 763.4" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline></g><g><circle cx="374.5" cy="248.42" r="180" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2" stroke-miterlimit="10"></circle><line x1="409" y1="47.9" x2="409" y2="71.73" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="340" y1="47.9" x2="340" y2="71.73" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="409" y1="425.1" x2="409" y2="449.1" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><line x1="340" y1="425.12" x2="340" y2="449.1" stroke="rgba(232,65,49,0.85)" stroke-width="4"></line><circle cx="374.5" cy="248.42" r="12" fill="rgba(232,65,49,0.90)"></circle><polyline points="398.5 291.4 398.5 255.4 446.5 255.4" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="350.5 291.4 350.5 255.4 302.5 255.4" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="398.5 199.4 398.5 235.4 446.5 235.4" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline><polyline points="350.5 199.4 350.5 235.4 302.5 235.4" fill="none" stroke="rgba(232,65,49,0.85)" stroke-width="2"></polyline></g><circle cx="1202.5" cy="512.5" r="6" fill="rgba(232,65,49,0.90)"></circle><g><polygon points="134.5 644.5 134.5 380.5 2.5 344.5 2.5 680.5 134.5 644.5" fill="none" stroke="rgba(235,235,235,0.32)" stroke-width="2" stroke-miterlimit="10"></polygon><path d="M206.5,512.5c0,18.44-6.93,35.26-18.34,48h-53.66v-96h53.66c11.41,12.74,18.34,29.56,18.34,48Z" fill="none" stroke="rgba(235,235,235,0.32)" stroke-width="2" stroke-miterlimit="10"></path><polyline points="134.5 560.5 182.5 560.5 182.5 554.37" fill="none" stroke="rgba(235,235,235,0.32)" stroke-width="2"></polyline><polyline points="134.5 464.5 182.5 464.5 182.5 470.63" fill="none" stroke="rgba(235,235,235,0.32)" stroke-width="2"></polyline><path d="M114.11,476.5h20v72h-20c-11.04,0-20-8.96-20-20v-32c0-11.04,8.96-20,20-20Z" fill="none" stroke="rgba(235,235,235,0.32)" stroke-width="2"></path></g><g><polygon points="2270.5 644.5 2270.5 380.5 2402.5 344.5 2402.5 680.5 2270.5 644.5" fill="none" stroke="rgba(235,235,235,0.32)" stroke-width="2" stroke-miterlimit="10"></polygon><path d="M2198.5,512.5c0,18.44,6.93,35.26,18.34,48h53.66v-96h-53.66c-11.41,12.74-18.34,29.56-18.34,48Z" fill="none" stroke="rgba(235,235,235,0.32)" stroke-width="2" stroke-miterlimit="10"></path><polyline points="2270.5 560.5 2222.5 560.5 2222.5 554.37" fill="none" stroke="rgba(235,235,235,0.32)" stroke-width="2"></polyline><polyline points="2270.5 464.5 2222.5 464.5 2222.5 470.63" fill="none" stroke="rgba(235,235,235,0.32)" stroke-width="2"></polyline><path d="M2290.89,476.5h20v72h-20c-11.04,0-20-8.96-20-20v-32c0-11.04,8.96-20,20-20Z" fill="none" stroke="rgba(235,235,235,0.32)" stroke-width="2" transform="translate(4581.78 1025) rotate(180)"></path></g></svg>
+            <svg viewBox="0 0 2405 1025" preserveAspectRatio="xMidYMid meet" style="position:absolute;inset:0;display:block;width:100%;height:100%;">
+              <sc-for list="{{ markers }}" as="m" hint-placeholder-count="0">
+                <g transform="{{ m.tf }}" opacity="{{ m.op }}" onClick="{{ m.onClick }}" style="cursor:pointer;">
+                  <title>{{ m.tip }}</title>
+                  <sc-if value="{{ m.pinned }}" hint-placeholder-val="{{ false }}">
+                    <circle cx="0" cy="0" r="{{ m.ring }}" fill="none" stroke="#ebebeb" stroke-width="5" stroke-dasharray="14 10"></circle>
+                  </sc-if>
+                  <g transform="{{ m.off }}">
+                    <sc-if value="{{ m.isGoal }}" hint-placeholder-val="{{ false }}">
+                      <svg viewBox="0 0 39.78 34.45" width="{{ m.w }}" height="{{ m.h }}"><polygon fill="#fff" points="39.78 17.22 29.84 34.45 9.95 34.45 0 17.22 9.95 0 29.84 0 39.78 17.22"></polygon><polygon fill="{{ m.fill }}" points="36.34 17.22 28.12 31.47 11.67 31.47 3.44 17.22 11.67 2.98 28.12 2.98 36.34 17.22"></polygon><path fill="{{ m.glyph }}" d="M21.06,19.77h-1.67l.64-3.28h5.19l-1.39,7.18c-.13,.67-.5,1.24-1.11,1.72-.6,.47-1.25,.7-1.96,.7h-5.18c-.71,0-1.27-.23-1.69-.7-.43-.47-.57-1.05-.44-1.72l2.5-12.89c.13-.67,.5-1.24,1.11-1.72,.6-.47,1.25-.7,1.96-.7h5.18c.71,0,1.270,.23,1.69,.7,.43,.48,.57,1.05,.44,1.72l-.69,3.56h-3.52l.52-2.7h-3.33l-2.17,11.17h3.33l.59-3.04h0Z"></path></svg>
+                    </sc-if>
+                    <sc-if value="{{ m.isShot }}" hint-placeholder-val="{{ false }}">
+                      <svg viewBox="0 0 36.56 36.56" width="{{ m.w }}" height="{{ m.w }}"><circle fill="{{ m.fill }}" cx="18.28" cy="18.28" r="16.87"></circle><path fill="#fff" d="M18.28,36.56C8.2,36.56,0,28.36,0,18.28S8.2,0,18.28,0s18.28,8.2,18.28,18.28-8.2,18.28-18.28,18.28Zm0-33.75C9.75,2.81,2.81,9.75,2.81,18.28s6.94,15.47,15.47,15.47,15.47-6.94,15.47-15.47S26.81,2.81,18.28,2.81Z"></path><path fill="{{ m.glyph }}" d="M20.9,12.97h-3.17l-.52,2.66c-.14,.72,.32,1.08,1.37,1.08,1.38,0,2.47,.37,3.25,1.11,.83,.78,1.12,1.82,.87,3.1l-.67,3.48c-.13,.64-.48,1.18-1.07,1.62-.57,.45-1.18,.67-1.85,.67h-4.92c-.67,0-1.21-.22-1.61-.67s-.53-.99-.41-1.62l.66-3.4h3.34l-.5,2.58h3.17l.51-2.66c.14-.73-.32-1.09-1.37-1.09-1.38,0-2.45-.37-3.23-1.1-.84-.78-1.13-1.82-.88-3.1l.68-3.48c.12-.64,.47-1.18,1.05-1.64,.57-.44,1.19-.66,1.87-.66h4.92c.67,0,1.21,.22,1.6,.66,.4,.46,.55,1,.43,1.64l-.66,3.38h-3.35l.5-2.57h-.01Z"></path></svg>
+                    </sc-if>
+                    <sc-if value="{{ m.isHit }}" hint-placeholder-val="{{ false }}">
+                      <svg viewBox="0 0 34.45 34.45" width="{{ m.w }}" height="{{ m.w }}"><rect fill="#fff" width="34.45" height="34.45"></rect><rect fill="{{ m.fill }}" x="3.11" y="3.11" width="28.23" height="28.23"></rect><path fill="{{ m.glyph }}" d="M15.24,18.87l-1.4,7.22h-3.52l3.45-17.73h3.52l-1.4,7.22h3.33l1.4-7.22h3.52l-3.45,17.73h-3.52l1.4-7.22h-3.33Z"></path></svg>
+                    </sc-if>
+                    <sc-if value="{{ m.isPen }}" hint-placeholder-val="{{ false }}">
+                      <svg viewBox="0 0 48.72 48.72" width="{{ m.w }}" height="{{ m.w }}"><rect fill="#fff" x="7.13" y="7.13" width="34.45" height="34.45" transform="translate(-10.09 24.36) rotate(-45)"></rect><rect fill="{{ m.fill }}" x="10.51" y="10.5" width="27.7" height="27.7" transform="translate(-10.09 24.36) rotate(-45)"></rect><path fill="{{ m.glyph }}" d="M21.12,15.49h7.78c.71,0,1.27,.23,1.69,.7,.43,.48,.57,1.05,.44,1.72l-.89,4.57c-.26,1.35-.99,2.44-2.18,3.26-1.12,.78-2.41,1.16-3.87,1.16h-1.67l-1.23,6.32h-3.52l3.45-17.73h0Zm2.88,3.28l-.94,4.85h1.67c1.11,0,1.74-.38,1.89-1.14l.72-3.71h-3.34Z"></path></svg>
+                    </sc-if>
+                  </g>
+                </g>
+              </sc-for>
+            </svg>
+          </div>
+
+          <sc-if value="{{ pin }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;border:1px solid var(--color-border);background:var(--color-background);padding:8px 12px;font-family:var(--font-condensed);text-transform:uppercase;">
+              <span style="{{ pin.pillStyle }}">{{ pin.label }}</span>
+              <span style="font-size:14px;font-weight:800;letter-spacing:0.04em;color:var(--fg-1);">{{ pin.actor }}<span style="margin:0 6px;color:var(--fg-3);">›</span><span style="color:var(--fg-2);">{{ pin.target }}</span></span>
+              <span style="font-size:12px;font-weight:800;color:var(--fg-1);font-variant-numeric:tabular-nums;">{{ pin.clock }}</span>
+              <span style="font-size:10px;font-weight:800;letter-spacing:0.18em;color:var(--fg-3);">{{ pin.period }}</span>
+              <span style="font-size:10px;font-weight:800;letter-spacing:0.18em;color:var(--fg-3);">vs {{ pin.opp }} · {{ pin.date }} · {{ pin.mode }}</span>
+              <span style="{{ pin.resStyle }}">{{ pin.result }}</span>
+              <button type="button" onClick="{{ clearPin }}" style="margin-left:auto;background:transparent;border:1px solid var(--color-border);color:var(--fg-3);padding:4px 8px;font-family:var(--font-condensed);font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;cursor:pointer;">Clear pin</button>
+            </div>
+          </sc-if>
+
+          <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;font-family:var(--font-condensed);font-size:9.5px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:var(--fg-3);">
+            <span>Legend</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;background:var(--color-accent);outline:1.5px solid #fff;"></span>By silkyjoker85</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;background:#81878D;outline:1.5px solid #fff;"></span>On silkyjoker85</span>
+            <span>Hex goal · circle shot · square hit · diamond penalty</span>
+            <span><b style="font-weight:900;font-variant-numeric:tabular-nums;">{{ notPlotted }}</b> not plotted</span>
+          </div>
+        </div>
+
+        <div style="flex:1 1 340px;min-width:0;position:relative;min-height:440px;">
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;border:1px solid var(--color-border);background:var(--color-surface);">
+            <div style="display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--color-border);padding:10px 14px;">
+              <span style="font-family:var(--font-condensed);font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--fg-3);">Events</span>
+              <select value="{{ sort }}" onChange="{{ onSort }}" style="border:1px solid var(--color-border);background:var(--color-background);color:var(--fg-2);padding:3px 6px;font-family:var(--font-condensed);font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;">
+                <option value="game">By game</option>
+                <option value="newest">Newest first</option>
+                <option value="type">By type</option>
+              </select>
+              <span style="margin-left:auto;font-family:var(--font-condensed);font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg-3);"><b style="font-weight:900;color:var(--color-accent);font-variant-numeric:tabular-nums;">{{ shown }}</b> shown</span>
+            </div>
+            <div class="am-list" ref="{{ listRef }}" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;position:relative;">
+              <sc-if value="{{ empty }}" hint-placeholder-val="{{ false }}">
+                <p style="margin:0;padding:24px 14px;font-size:13px;color:var(--fg-4);">No events match these filters.</p>
+              </sc-if>
+              <sc-for list="{{ groups }}" as="g" hint-placeholder-count="2">
+                <div>
+                  <div onClick="{{ g.onClick }}" title="{{ g.title }}" style="{{ g.headStyle }}">
+                    <span style="font-family:var(--font-condensed);font-size:9.5px;font-weight:800;letter-spacing:0.22em;text-transform:uppercase;color:var(--color-accent);white-space:nowrap;">{{ g.label }}</span>
+                    <span style="font-family:var(--font-condensed);font-size:9.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg-3);white-space:nowrap;">{{ g.sub }}</span>
+                    <span style="height:1px;flex:1;background:var(--color-border);"></span>
+                    <span style="{{ g.resStyle }}">{{ g.result }}</span>
+                    <span style="font-family:var(--font-condensed);font-size:9.5px;font-weight:700;letter-spacing:0.18em;color:var(--fg-3);font-variant-numeric:tabular-nums;white-space:nowrap;">{{ g.n }}</span>
+                  </div>
+                  <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="3">
+                    <div data-ev="{{ r.id }}" onClick="{{ r.onClick }}" style="{{ r.rowStyle }}">
+                      <span style="{{ r.railStyle }}"></span>
+                      <div style="{{ r.avatarStyle }}"><svg viewBox="0 0 100 110" fill="currentColor" width="28" height="28" style="color:var(--fg-5);"><circle cx="50" cy="32" r="21"></circle><path d="M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z"></path></svg></div>
+                      <div style="min-width:0;">
+                        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-condensed);font-size:14px;line-height:1.3;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--fg-1);">{{ r.actor }}<span style="margin:0 6px;color:var(--fg-3);">›</span><span style="color:var(--fg-2);">{{ r.target }}</span></div>
+                        <div style="margin-top:6px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;">
+                          <span style="{{ r.pillStyle }}">{{ r.label }}</span>
+                          <span style="font-family:var(--font-condensed);font-size:12px;line-height:1;font-weight:800;letter-spacing:0.04em;color:var(--fg-1);font-variant-numeric:tabular-nums;">{{ r.clock }}</span>
+                          <span style="font-family:var(--font-condensed);font-size:10px;line-height:1;font-weight:800;letter-spacing:0.18em;text-transform:uppercase;color:var(--fg-3);">{{ r.meta }}</span>
+                        </div>
+                      </div>
+                      <sc-if value="{{ r.unplotted }}" hint-placeholder-val="{{ false }}">
+                        <svg viewBox="0 0 24 24" width="20" height="20" title="No rink position"><circle cx="12" cy="12" r="9" fill="none" stroke="{{ r.color }}" stroke-dasharray="2 2" stroke-width="1.75"></circle></svg>
+                      </sc-if>
+                      <sc-if value="{{ r.plotted }}" hint-placeholder-val="{{ false }}">
+                        <span style="{{ r.dotStyle }}"></span>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;font-family:var(--font-condensed);font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--fg-5);">
+    <span>Source action tracker · {{ gameCount }} reviewed games · all directions normalized to BGM attacking right</span>
+    <span>— Action map · silkyjoker85 — Sheet BGM/ATM/0010</span>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;markerSize&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:56,&quot;min&quot;:32,&quot;max&quot;:100,&quot;step&quot;:4,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Map&quot;},&quot;showFaceoffs&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;List&quot;},&quot;defaultSort&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;game&quot;,&quot;newest&quot;,&quot;type&quot;],&quot;default&quot;:&quot;game&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;List&quot;}}">
+const ACC = 'var(--color-accent)', OPPC = '#81878D';
+const PLAYER = 'silkyjoker85';
+const OPPS = [
+  { a: '4L', g: 'M. Lehmann', s: ['Toews', 'P. Magroyne', 'S. Zubov', 'Wilde'] },
+  { a: 'JCA', g: 'J. Wagner', s: ['K. Rourke', 'D. Vance', 'Hollis', 'T. Brandt'] },
+  { a: 'NBK', g: 'R. Okafor', s: ['L. Sato', 'Kincaid', 'B. Mercer', 'Ostrowski'] },
+  { a: 'GLD', g: 'E. Varga', s: ['Duquette', 'A. Lind', 'C. Pruitt', 'Haverford'] },
+  { a: 'WLF', g: 'N. Castell', s: ['Brisco', 'M. Toft', 'Raines', 'J. Pell'] },
+];
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const MON = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const PER = { 1: '1st period', 2: '2nd period', 3: '3rd period', 4: 'OT' };
+const LABEL = { goal: 'Goal', shot: 'Shot', hit: 'Hit', penalty: 'Penalty', faceoff: 'Faceoff' };
+const RES = { W: 'var(--color-win)', L: 'var(--color-loss)', OTL: 'var(--color-otl)' };
+
+function buildData() {
+  const r = rng(10);
+  const gauss = () => (r() + r() + r() - 1.5) / 1.5;
+  const games = [];
+  let d = new Date(2026, 9, 4);
+  for (let i = 0; i < 24; i++) {
+    const o = OPPS[Math.floor(r() * OPPS.length)];
+    const res = r() < 0.52 ? 'W' : r() < 0.85 ? 'L' : 'OTL';
+    const a = 1 + Math.floor(r() * 5), b = 1 + Math.floor(r() * 5);
+    let gf = res === 'W' ? Math.max(a, b) + 1 : Math.min(a, b), ga = res === 'W' ? Math.min(a, b) : (res === 'OTL' ? gf + 1 : Math.max(a, b) + 1);
+    games.push({ i, opp: o, res, score: gf + '–' + ga, ot: res === 'OTL' || r() < 0.15, mode: r() < 0.8 ? '6s' : '3s', date: MON[d.getMonth()] + ' ' + d.getDate(), ts: d.getTime() });
+    d = new Date(d.getTime() - (1 + Math.floor(r() * 3)) * 86400000);
+  }
+  const bag = [];
+  const add = (type, dir, n) => { for (let k = 0; k < n; k++) bag.push({ type, dir }); };
+  add('goal', 'for', 31); add('shot', 'for', 77); add('hit', 'for', 74); add('hit', 'against', 45); add('penalty', 'for', 9); add('penalty', 'against', 6); add('faceoff', 'for', 11); add('faceoff', 'against', 7);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ev = bag.map((e, id) => {
+    const g = games[Math.floor(r() * games.length)];
+    let period = 1 + Math.floor(r() * 3);
+    if (g.ot && r() < 0.08) period = 4;
+    const t = Math.floor(r() * 1200);
+    let x = null, y = null;
+    if (e.type === 'goal') { x = 2240 - Math.abs(gauss()) * 380; y = 512 + gauss() * 170; }
+    else if (e.type === 'shot') { x = 2230 - r() * 720; y = 512 + gauss() * 330; }
+    else if (e.type === 'hit') { x = 200 + r() * 2000; const edge = r() < 0.6; y = edge ? (r() < 0.5 ? 90 + r() * 120 : 935 - r() * 120) : 200 + r() * 625; }
+    else if (e.type === 'penalty') { x = 220 + r() * 1960; y = 512 + gauss() * 380; }
+    if (x != null) { x = clamp(x, 160, 2250); y = clamp(y, 85, 940); }
+    const skater = g.opp.s[Math.floor(r() * g.opp.s.length)];
+    let actor = PLAYER, target = skater;
+    if (e.type === 'goal' || e.type === 'shot') target = g.opp.g;
+    if (e.dir === 'against') { actor = skater; target = PLAYER; }
+    if (e.type === 'penalty') e.infr = ['Tripping', 'Slashing', 'Hooking', 'Interference', 'Roughing'][Math.floor(r() * 5)];
+    return { id, ...e, g, period, t, x, y, actor, target };
+  });
+  return { games, ev };
+}
+
+class Component extends DCLogic {
+  state = { period: 'all', inv: 'all', types: { goal: true, shot: true, hit: true, penalty: true, faceoff: true }, sort: null, pin: null, iso: null };
+  data = buildData();
+  listRef = React.createRef();
+
+
+  match(e, skip) {
+    const s = this.state;
+    if (s.iso != null && e.g.i !== s.iso) return false;
+    if (skip !== 'period' && s.period !== 'all' && e.period !== s.period) return false;
+    if (skip !== 'inv' && s.inv !== 'all' && e.dir !== s.inv) return false;
+    if (skip !== 'type' && !s.types[e.type]) return false;
+    return true;
+  }
+
+  seg(active, disabled, color) {
+    return {
+      display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', padding: '6px 8px', border: 0, borderLeft: '1px solid var(--color-border)',
+      fontFamily: 'var(--font-condensed)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      background: active ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)' : 'transparent',
+      color: active ? ACC : disabled ? 'var(--fg-5)' : (color || 'var(--fg-3)'),
+    };
+  }
+  count(active) {
+    return { minWidth: 16, border: '1px solid ' + (active ? 'color-mix(in srgb, var(--color-accent) 40%, transparent)' : 'var(--color-border)'), padding: '1px 4px', textAlign: 'center', fontFamily: 'var(--font-condensed)', fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: active ? ACC : 'var(--fg-3)' };
+  }
+  pill(e) {
+    const c = e.dir === 'for' ? ACC : OPPC;
+    return { display: 'inline-flex', alignItems: 'center', padding: '3px 8px', fontFamily: 'var(--font-condensed)', fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: e.dir === 'for' ? ACC : '#c3c7cb', background: 'color-mix(in srgb, ' + c + ' 20%, transparent)', border: '1px solid color-mix(in srgb, ' + c + ' 65%, transparent)' };
+  }
+  resPill(res) {
+    return { fontFamily: 'var(--font-condensed)', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: RES[res], border: '1px solid currentColor', padding: '1px 5px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' };
+  }
+  label(e) {
+    if (e.type === 'hit' && e.dir === 'against') return 'Hit taken';
+    if (e.type === 'faceoff') return e.dir === 'for' ? 'Faceoff won' : 'Faceoff lost';
+    if (e.type === 'penalty') return e.dir === 'for' ? 'Penalty · ' + e.infr : 'Penalty drawn · ' + e.infr;
+    return LABEL[e.type];
+  }
+  clock(t) { const m = Math.floor(t / 60), s = t % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+
+  pinEv = (id, scroll) => {
+    this.setState(s => ({ pin: s.pin === id ? null : id }));
+    if (!scroll) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const box = this.listRef.current;
+      const el = box && box.querySelector('[data-ev="' + id + '"]');
+      if (!el) return;
+      let top = 0, n = el;
+      while (n && n !== box) { top += n.offsetTop; n = n.offsetParent; }
+      box.scrollTop = top - 44;
+    }));
+  };
+
+  renderVals() {
+    const s = this.state, P = this.props;
+    const { ev, games } = this.data;
+    const sort = s.sort || P.defaultSort || 'game';
+    const size = P.markerSize ?? 56;
+    const showFo = P.showFaceoffs ?? true;
+    const vis = ev.filter(e => this.match(e) && (showFo || e.type !== 'faceoff'));
+
+    const pc = ['all', 1, 2, 3, 4].map(k => {
+      const n = ev.filter(e => this.match(e, 'period') && (k === 'all' || e.period === k)).length;
+      const active = s.period === k, dis = n === 0 && k !== 'all';
+      return { label: k === 'all' ? 'All' : ['', '1st', '2nd', '3rd', 'OT'][k], n, style: { ...this.seg(active, dis), ...(k === 'all' ? { borderLeft: 0 } : {}) }, countStyle: this.count(active), onClick: () => !dis && this.setState({ period: k }) };
+    });
+    const invs = [['all', 'All', ''], ['for', 'By', 'Events made by ' + PLAYER], ['against', 'On', 'Events against ' + PLAYER]].map(([k, l, title], i) => {
+      const n = ev.filter(e => this.match(e, 'inv') && (k === 'all' || e.dir === k)).length;
+      const active = s.inv === k;
+      return { label: l, title, n, style: { ...this.seg(active, false, k === 'against' ? OPPC : undefined), ...(i === 0 ? { borderLeft: 0 } : {}) }, countStyle: this.count(active), onClick: () => this.setState({ inv: k }) };
+    });
+    const chips = {};
+    ['goal', 'shot', 'hit', 'penalty', 'faceoff'].forEach(t => {
+      const n = ev.filter(e => this.match(e, 'type') && e.type === t).length;
+      const on = s.types[t];
+      chips[t] = {
+        n,
+        style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 6px', fontFamily: 'var(--font-condensed)', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer',
+          border: (t === 'faceoff' ? '1px dashed ' : '1px solid ') + (on ? 'color-mix(in srgb, var(--color-accent) 40%, transparent)' : 'var(--color-border)'),
+          background: on ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)' : 'transparent', color: on ? 'var(--fg-1)' : 'var(--fg-4)', filter: on && n > 0 ? 'none' : 'saturate(0)', opacity: on ? 1 : 0.7 },
+        countStyle: this.count(on),
+        toggle: () => this.setState(st => ({ types: { ...st.types, [t]: !st.types[t] } })),
+      };
+    });
+
+    const zOrder = { hit: 0, penalty: 1, shot: 2, goal: 3 };
+    const plotted = vis.filter(e => e.x != null).sort((a, b) => (a.id === s.pin) - (b.id === s.pin) || zOrder[a.type] - zOrder[b.type]);
+    const hasPin = s.pin != null && plotted.some(e => e.id === s.pin);
+    const markers = plotted.map(e => {
+      const pinned = e.id === s.pin;
+      const w = pinned ? size * 1.5 : size;
+      const h = e.type === 'goal' ? w * 34.45 / 39.78 : w;
+      return {
+        tf: 'translate(' + e.x.toFixed(1) + ',' + e.y.toFixed(1) + ')', off: 'translate(' + (-w / 2) + ',' + (-h / 2) + ')', w, h, ring: w * 0.95, pinned,
+        op: hasPin && !pinned ? 0.28 : 1,
+        fill: e.dir === 'for' ? ACC : OPPC, glyph: e.dir === 'for' ? '#fff' : '#1A1819',
+        isGoal: e.type === 'goal', isShot: e.type === 'shot', isHit: e.type === 'hit', isPen: e.type === 'penalty',
+        tip: this.label(e).toUpperCase() + ' · vs ' + e.g.opp.a + ' · ' + e.g.date + ' · ' + PER[e.period].toUpperCase() + ' ' + this.clock(e.t),
+        onClick: () => this.pinEv(e.id, true),
+      };
+    });
+
+    const row = e => {
+      const pinned = e.id === s.pin, c = e.dir === 'for' ? ACC : OPPC;
+      return {
+        id: String(e.id), actor: e.actor, target: e.target, label: this.label(e), clock: this.clock(e.t),
+        meta: sort === 'game' ? PER[e.period] : PER[e.period] + ' · vs ' + e.g.opp.a + ' · ' + e.g.date,
+        unplotted: e.x == null, plotted: e.x != null, color: c,
+        rowStyle: { position: 'relative', display: 'grid', gridTemplateColumns: '3px 32px minmax(0,1fr) auto', alignItems: 'center', gap: 10, padding: '12px 12px 12px 0', borderBottom: '1px solid rgba(58,56,57,0.5)', cursor: 'pointer', background: pinned ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'transparent', boxShadow: pinned ? 'inset 0 0 0 1px var(--color-accent-line)' : 'none' },
+        railStyle: { alignSelf: 'stretch', margin: '-12px 0', background: c },
+        avatarStyle: { width: 32, height: 32, boxSizing: 'border-box', borderRadius: '50%', border: '1px solid color-mix(in srgb, ' + c + ' 65%, transparent)', background: 'linear-gradient(180deg,rgba(50,48,49,0.9),rgba(26,24,25,1))', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' },
+        pillStyle: this.pill(e),
+        dotStyle: { width: 10, height: 10, background: c, outline: '1.5px solid #fff', borderRadius: e.type === 'shot' ? '50%' : 0, transform: e.type === 'penalty' ? 'rotate(45deg)' : 'none' },
+        onClick: () => this.pinEv(e.id, false),
+      };
+    };
+    const headStyle = clickable => ({ position: 'sticky', top: 0, zIndex: 1, display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)', background: 'var(--color-background)', padding: '8px 14px', cursor: clickable ? 'pointer' : 'default' });
+    const chrono = (a, b) => a.period - b.period || b.t - a.t;
+    let groups = [];
+    if (sort === 'game') {
+      games.forEach(g => {
+        const list = vis.filter(e => e.g === g).sort(chrono);
+        if (!list.length) return;
+        groups.push({ label: 'vs ' + g.opp.a, sub: g.date + ' · ' + g.mode, result: g.res + ' ' + g.score, resStyle: this.resPill(g.res), n: list.length + ' ev', title: s.iso === g.i ? 'Show all games' : 'Isolate this game on the map', headStyle: headStyle(true), onClick: () => this.setState(st => ({ iso: st.iso === g.i ? null : g.i, pin: null })), rows: list.map(row) });
+      });
+    } else if (sort === 'newest') {
+      const list = [...vis].sort((a, b) => b.g.ts - a.g.ts || b.period - a.period || a.t - b.t);
+      if (list.length) groups.push({ label: 'All events', sub: 'newest first', result: '', resStyle: { display: 'none' }, n: list.length + ' ev', title: '', headStyle: headStyle(false), onClick: null, rows: list.map(row) });
+    } else {
+      ['goal', 'shot', 'hit', 'penalty', 'faceoff'].forEach(t => {
+        const list = vis.filter(e => e.type === t).sort((a, b) => b.g.ts - a.g.ts || chrono(a, b));
+        if (list.length) groups.push({ label: LABEL[t] + 's', sub: list.filter(e => e.dir === 'for').length + ' by · ' + list.filter(e => e.dir === 'against').length + ' on', result: '', resStyle: { display: 'none' }, n: list.length + ' ev', title: '', headStyle: headStyle(false), onClick: null, rows: list.map(row) });
+      });
+    }
+
+    const pe = s.pin != null ? ev.find(e => e.id === s.pin) : null;
+    const pin = pe && vis.includes(pe) ? { label: this.label(pe), pillStyle: this.pill(pe), actor: pe.actor, target: pe.target, clock: this.clock(pe.t), period: PER[pe.period], opp: pe.g.opp.a, date: pe.g.date, mode: pe.g.mode, result: pe.g.res + ' ' + pe.g.score, resStyle: this.resPill(pe.g.res) } : null;
+    const isoG = s.iso != null ? games[s.iso] : null;
+
+    return {
+      gameCount: games.length,
+      periods: pc, invs, chips, markers, groups, pin,
+      iso: isoG ? { label: 'vs ' + isoG.opp.a + ' · ' + isoG.date, clear: () => this.setState({ iso: null }) } : null,
+      notPlotted: vis.filter(e => e.x == null).length,
+      shown: vis.length, empty: vis.length === 0,
+      sort, onSort: ev2 => this.setState({ sort: ev2.target.value }),
+      clearPin: () => this.setState({ pin: null }),
+      listRef: this.listRef,
+    };
+  }
+}
+</script>
+</body>
+</html>

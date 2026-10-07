@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/styles.css">
+  <script src="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/_ds_bundle.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600;700;800;900&display=swap">
+  <style>body{margin:0;background:var(--color-background);color:var(--fg-1);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}a{color:var(--fg-3);text-decoration:none}a:hover{color:var(--fg-1)}</style>
+</helmet>
+<div style="padding:32px 24px; display:flex; justify-content:center;">
+<section data-screen-label="Build Locker" style="width:100%; max-width:1248px; display:flex; flex-direction:column; gap:12px; font-family:var(--font-condensed);">
+
+  <div style="display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:8px 16px;">
+    <div style="display:flex; flex-direction:column; gap:4px;">
+      <h2 style="margin:0; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.16em; color:var(--fg-4);"><span style="padding-right:4px; color:var(--fg-5);">▰</span>Build Locker</h2>
+      <p style="margin:0; font-size:12px; text-transform:uppercase; letter-spacing:0.12em; color:var(--fg-5);">Last {{ count }} builds · newest first · from game sheets</p>
+    </div>
+    <span style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.14em; color:var(--fg-5);">NHL 27</span>
+  </div>
+
+  <div style="border:1px solid var(--color-border); background:var(--color-surface);">
+    <div style="display:grid; grid-auto-flow:column; grid-auto-columns:minmax(200px, 1fr); gap:8px; overflow-x:auto; padding:14px 14px 12px;">
+      <sc-for list="{{ tiles }}" as="b" hint-placeholder-count="5">
+        <button type="button" onClick="{{ b.select }}" aria-pressed="{{ b.selected }}" style="position:relative; overflow:hidden; display:flex; flex-direction:column; gap:10px; min-width:0; padding:12px; text-align:left; font:inherit; color:inherit; cursor:pointer; background:{{ b.bg }}; border:1px solid {{ b.border }}; box-shadow:{{ b.shadow }}; transition:border-color .15s, background-color .15s, transform .15s;" style-hover="transform:translateY(-2px);">
+          <sc-if value="{{ b.isCurrent }}" hint-placeholder-val="{{ false }}">
+            <span style="position:absolute; left:0; top:0; height:2px; width:100%; background:var(--bg-ticker-red);"></span>
+          </sc-if>
+          <span style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <span style="display:inline-flex; align-items:center; height:18px; padding:0 6px; border:1px solid {{ b.arcBorder }}; background:{{ b.arcBg }}; color:{{ b.arcColor }}; font-size:11px; font-weight:800; letter-spacing:0.1em;">{{ b.arc }}</span>
+            <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.14em; color:{{ b.tagColor }};">{{ b.tag }}</span>
+          </span>
+          <span style="font-size:17px; font-weight:900; text-transform:uppercase; letter-spacing:0.03em; line-height:1; color:var(--fg-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ b.arcName }}</span>
+          <span style="display:flex; gap:6px;">
+            <sc-for list="{{ b.xf }}" as="x" hint-placeholder-count="3">
+              <span title="{{ x.title }}" style="flex:none; width:40px; height:40px; display:flex; align-items:center; justify-content:center; border:1px solid {{ x.color }}; background:var(--color-charcoal); font-size:12px; font-weight:900; letter-spacing:0.04em; color:var(--fg-2);">{{ x.abbr }}</span>
+            </sc-for>
+          </span>
+          <span style="display:flex; gap:12px; border-top:1px solid var(--color-border-subtle); padding-top:9px;">
+            <span style="display:flex; flex-direction:column; gap:3px;"><span style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.18em; color:var(--fg-5);">Ht / Wt</span><span style="font-size:13px; font-weight:700; text-transform:uppercase; color:var(--fg-2); font-variant-numeric:tabular-nums;">{{ b.htwt }}</span></span>
+            <span style="display:flex; flex-direction:column; gap:3px;"><span style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.18em; color:var(--fg-5);">Hand</span><span style="font-size:13px; font-weight:700; text-transform:uppercase; color:var(--fg-2);">{{ b.hand }}</span></span>
+          </span>
+          <span style="display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-variant-numeric:tabular-nums;">
+            <span style="display:flex; align-items:baseline; gap:5px;"><span style="font-size:20px; font-weight:900; color:var(--fg-1); line-height:1;">{{ b.gp }}</span><span style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.16em; color:var(--fg-4);">GP</span></span>
+            <span style="font-size:13px; font-weight:800; letter-spacing:0.04em; color:var(--fg-3);">{{ b.record }}</span>
+          </span>
+        </button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ true }}">
+      <div style="position:relative; margin:0 14px 14px; border:1px solid var(--color-border); background:var(--color-background);">
+        <span style="position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--color-accent); box-shadow:0 0 8px rgba(232,65,49,0.35);"></span>
+        <div style="display:flex; flex-direction:column; gap:12px; padding:12px 16px 16px;">
+          <div style="display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:6px 16px;">
+            <span style="display:flex; align-items:baseline; gap:10px;"><span style="font-size:15px; font-weight:900; text-transform:uppercase; letter-spacing:0.05em; color:var(--fg-1);">{{ sel.name }}</span><span style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.12em; color:var(--fg-4);">{{ sel.meta }}</span></span>
+            <span style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.14em; color:var(--fg-5);">{{ sel.note }}</span>
+          </div>
+          <div style="display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));">
+            <sc-for list="{{ sel.groups }}" as="g" hint-placeholder-count="5">
+              <div style="display:flex; flex-direction:column; gap:6px; border:1px solid var(--color-border); background:var(--color-surface); padding:9px 10px;">
+                <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; border-bottom:1px solid var(--color-border-subtle); padding-bottom:6px;">
+                  <span style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.18em; color:var(--fg-4);">{{ g.name }}</span>
+                  <span style="display:flex; align-items:baseline; gap:6px; font-variant-numeric:tabular-nums;"><span style="font-size:20px; font-weight:900; line-height:1; color:var(--fg-1);">{{ g.avg }}</span><span style="min-width:20px; text-align:right; font-size:12px; font-weight:700; color:{{ g.dColor }};">{{ g.dTxt }}</span></span>
+                </div>
+                <sc-for list="{{ g.attrs }}" as="a" hint-placeholder-count="5">
+                  <div style="display:grid; grid-template-columns:minmax(0,1fr) auto 20px; align-items:center; column-gap:8px;">
+                    <span style="font-size:12px; text-transform:uppercase; color:var(--fg-4); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ a.name }}</span>
+                    <span style="min-width:24px; text-align:right; font-size:12px; font-weight:800; color:{{ a.vColor }}; font-variant-numeric:tabular-nums;">{{ a.v }}</span>
+                    <span style="text-align:right; font-size:12px; font-weight:700; color:{{ a.dColor }}; font-variant-numeric:tabular-nums;">{{ a.dTxt }}</span>
+                    <span style="grid-column:1 / -1; margin-top:2px; padding-bottom:4px;">
+                      <span style="position:relative; display:block; height:3px; background:var(--color-border-subtle);">
+                        <span style="position:absolute; left:0; top:0; height:100%; width:{{ a.baseW }}; background:{{ a.baseBg }};"></span>
+                        <span style="position:absolute; top:0; height:100%; left:{{ a.segL }}; width:{{ a.segW }}; background:{{ a.segBg }};"></span>
+                      </span>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280},&quot;count&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:4,&quot;min&quot;:2,&quot;max&quot;:5,&quot;step&quot;:1,&quot;tsType&quot;:&quot;number&quot;},&quot;showDeltas&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;openFirst&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const ATTRS = [
+  ['Technique', ['Wrist Shot Acc','Slap Shot Acc','Speed','Balance','Agility']],
+  ['Power', ['Wrist Shot Pwr','Slap Shot Pwr','Acceleration','Puck Control','Endurance']],
+  ['Playstyle', ['Passing','Off. Awareness','Body Checking','Stick Checking','Def. Awareness']],
+  ['Tenacity', ['Hand-Eye','Strength','Durability','Shot Blocking']],
+  ['Tactics', ['Deking','Faceoffs','Discipline','Fighting Skill']],
+];
+const ARCH = {
+  PWF: { name: 'Power Forward', c: '#FF9B42', rgb: '255,155,66', base: [86,84,85,92,84, 90,92,86,86,90, 82,86,92,80,80, 88,95,90,82, 84,80,82,92] },
+  SNP: { name: 'Sniper', c: '#FF5A4F', rgb: '255,90,79', base: [94,92,90,84,90, 93,90,90,88,88, 82,92,72,78,76, 92,80,80,72, 88,78,86,74] },
+  PLY: { name: 'Playmaker', c: '#3AB7FF', rgb: '58,183,255', base: [84,82,94,82,94, 80,80,95,92,92, 94,92,72,84,84, 92,82,78,74, 92,90,88,78] },
+};
+const TIER = { AS: ['All Star', '#3AB7FF'], SPC: ['Specialist', '#f59e0b'], ELT: ['Elite', '#e84131'] };
+const BUILDS = [
+  { date: 'Oct 4', arc: 'PWF', ht: "6'6\"", wt: 220, hand: 'R', gp: 6, rec: '4–2–0', xf: [['Big Rig','AS'],['One T','AS'],['Ankle Breaker','SPC']], j: [2,1,0,1,0, 1,2,1,0,1, 0,1,2,0,0, 1,2,0,0, 0,0,1,2] },
+  { date: 'Sep 28', arc: 'PWF', ht: "6'5\"", wt: 215, hand: 'R', gp: 9, rec: '5–3–1', xf: [['Big Rig','AS'],['One T','AS'],['Quick Release','SPC']], j: [0,0,1,0,1, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0, 0,0,0,0] },
+  { date: 'Sep 19', arc: 'PLY', ht: "6'0\"", wt: 180, hand: 'R', gp: 7, rec: '3–4–0', xf: [['Wheels','AS'],['Tape to Tape','SPC'],['One T','AS']], j: [0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0, 0,0,0,0, 0,2,0,0] },
+  { date: 'Sep 10', arc: 'SNP', ht: "5'11\"", wt: 185, hand: 'L', gp: 12, rec: '7–4–1', xf: [['Quick Release','ELT'],['Ankle Breaker','SPC'],['One T','AS']], j: [1,0,0,1,0, 1,0,0,1,0, 0,0,0,0,0, 1,0,0,0, 0,0,0,0] },
+  { date: 'Aug 30', arc: 'SNP', ht: "5'10\"", wt: 180, hand: 'L', gp: 5, rec: '2–3–0', xf: [['Quick Release','SPC'],['Wheels','AS'],['Send It','AS']], j: [-2,-2,-1,-2,-1, -2,-1,-1,-1,-2, -1,-1,0,-1,0, -2,-1,-1,0, -1,0,-1,0] },
+];
+const vals = (b) => ARCH[b.arc].base.map((v, i) => Math.min(99, v + (b.j[i] || 0)));
+const avgs = (v) => { let k = 0; return ATTRS.map(([, l]) => { const s = l.map(() => v[k++]); return Math.round(s.reduce((a, c) => a + c, 0) / s.length); }); };
+const abbr = (n) => n.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+const dTxt = (d) => d > 0 ? '+' + d : d < 0 ? String(d) : '';
+const dCol = (d) => d > 0 ? 'var(--color-win)' : d < 0 ? 'var(--color-loss)' : 'var(--fg-5)';
+
+class Component extends DCLogic {
+  state = { sel: this.props.openFirst === false ? -1 : 0 };
+  renderVals() {
+    const count = Math.max(2, Math.min(5, this.props.count ?? 4));
+    const showDeltas = this.props.showDeltas ?? true;
+    const list = BUILDS.slice(0, count);
+    const all = BUILDS.map(vals);
+    const tiles = list.map((b, i) => {
+      const a = ARCH[b.arc], selected = this.state.sel === i;
+      return {
+        arc: b.arc, arcName: a.name, arcColor: a.c, arcBg: `rgba(${a.rgb},0.12)`, arcBorder: `rgba(${a.rgb},0.45)`,
+        isCurrent: i === 0, selected,
+        tag: i === 0 ? 'Current' : b.date, tagColor: i === 0 ? 'var(--color-accent)' : 'var(--fg-5)',
+        xf: b.xf.map(([n, t]) => ({ abbr: abbr(n), title: `${n} — ${TIER[t][0]}`, color: TIER[t][1] })),
+        htwt: `${b.ht} · ${b.wt} lb`, hand: b.hand === 'R' ? 'Right' : 'Left',
+        gp: b.gp, record: b.rec,
+        bg: selected ? 'var(--color-surface-raised)' : 'var(--color-background)',
+        border: selected ? 'var(--color-accent-line)' : 'var(--color-border)',
+        shadow: selected ? 'var(--inset-leader-rail)' : 'none',
+        select: () => this.setState(s => ({ sel: s.sel === i ? -1 : i })),
+      };
+    });
+    const si = this.state.sel;
+    let sel = null;
+    if (si >= 0 && si < list.length) {
+      const b = list[si], v = all[si], prev = showDeltas ? all[si + 1] : null;
+      const av = avgs(v), pav = prev ? avgs(prev) : null;
+      let k = 0;
+      sel = {
+        name: ARCH[b.arc].name,
+        meta: `${si === 0 ? 'Current' : 'Last used ' + b.date} · ${b.gp} GP · ${b.rec}`,
+        note: prev ? 'Δ vs previous build' : '',
+        groups: ATTRS.map(([name, names], gi) => {
+          const gd = pav ? av[gi] - pav[gi] : 0;
+          return { name, avg: av[gi], dTxt: dTxt(gd), dColor: dCol(gd), attrs: names.map(n => {
+            const val = v[k], d = prev ? val - prev[k] : 0; k++;
+            const baseW = d > 0 ? val - d : val;
+            return { name: n, v: val, dTxt: dTxt(d), dColor: dCol(d),
+              vColor: d > 0 ? 'var(--color-win)' : d < 0 ? 'var(--color-loss)' : 'var(--fg-2)',
+              baseW: baseW + '%', baseBg: d > 0 ? 'var(--fg-1)' : 'var(--fg-4)', segL: baseW + '%', segW: Math.abs(d) + '%',
+              segBg: d > 0 ? 'var(--color-win)' : 'var(--color-loss)' };
+          }) };
+        }),
+      };
+    }
+    return { tiles, count: list.length, hasSel: !!sel, sel: sel || { name: '', meta: '', note: '', groups: [] } };
+  }
+}
+</script>
+</body>
+</html>

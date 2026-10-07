@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/colors_and_type.css">
+<link rel="stylesheet" href="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/styles.css">
+<script src="_ds/boogeymen-design-system-019df013-7ada-79ec-ac26-22b50894a2b1/_ds_bundle.js"></script>
+<script src="card-data.js"></script>
+<script src="badge-shapes.js"></script>
+<script src="badge-levels.js"></script>
+<style>
+html, body { margin: 0; background: #1a1819; color: #ebebeb; }
+a { color: #a1a1aa; } a:hover { color: #fafafa; }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #1a1819; font-family: var(--font-sans); position: relative;">
+
+  <nav style="position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 28px; padding: 0 24px; height: 56px; background: rgba(31,29,30,0.95); backdrop-filter: blur(4px); border-bottom: 1px solid rgba(232,65,49,0.15); font-family: var(--font-condensed);">
+    <span style="display: flex; align-items: center; gap: 10px;"><img src="assets/bgm-logo.png" alt="BGM" style="width: 30px; height: 30px; object-fit: contain;"><span style="font-size: 16px; font-weight: 800; letter-spacing: 0.14em;">BOOGEYMEN</span></span>
+    <div style="display: flex; gap: 22px; height: 100%; font-size: 13px; font-weight: 600; letter-spacing: 0.16em;">
+      <span style="display: flex; align-items: center; color: #a1a1aa;">HOME</span>
+      <span style="display: flex; align-items: center; color: #a1a1aa;">GAMES</span>
+      <span style="display: flex; align-items: center; color: #fafafa; box-shadow: inset 0 -2px 0 #e84131;">ROSTER</span>
+      <span style="display: flex; align-items: center; color: #a1a1aa;">STATS</span>
+    </div>
+  </nav>
+
+  <main style="max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; display: flex; flex-direction: column; gap: 24px;">
+    <span style="font-family: var(--font-condensed); font-size: 12px; font-weight: 600; letter-spacing: 0.2em; color: #71717a;">← ROSTER</span>
+
+    <section style="position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 40px; align-items: center; padding: 32px; border: 1px solid #2a2829; background: radial-gradient(60% 80% at 15% 0%, rgba(232,65,49,0.08), transparent 70%), linear-gradient(180deg, #1f1d1e, #161415);">
+      <div style="position: absolute; left: 0; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, #7f1d1d, #e84131, #7f1d1d);"></div>
+      <div style="display: flex; flex-direction: column; gap: 14px; width: 264px;">
+        <div onClick="{{ flipHero }}" title="Click to flip" style="cursor: pointer;"><dc-import name="PlayerCard" player-id="igor" cfg="{{ heroCfg }}" hint-size="264px,430px"></dc-import></div>
+        <sc-if value="{{ owner }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ openLocker }}" aria-label="Edit card" style="position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 10px 12px; border: 1px solid #e84131; background: #1a1819; color: #ef6a5e; cursor: pointer; font-family: var(--font-condensed); font-size: 12px; font-weight: 700; letter-spacing: 0.16em; transition: background-color 150ms, color 150ms;" style-hover="background: #e84131; color: #ffffff;">
+            <span style="width: 14px; height: 14px; background: currentColor; -webkit-mask: url(https://unpkg.com/lucide-static@0.460.0/icons/pencil.svg) center / contain no-repeat; mask: url(https://unpkg.com/lucide-static@0.460.0/icons/pencil.svg) center / contain no-repeat;"></span>
+            EDIT
+            <sc-if value="{{ showNewDot }}" hint-placeholder-val="{{ false }}">
+              <span style="position: absolute; top: -5px; right: -5px; width: 10px; height: 10px; border-radius: 50%; background: #e84131; box-shadow: 0 0 0 2px #1a1819, 0 0 10px rgba(232,65,49,0.7);"></span>
+            </sc-if>
+          </button>
+        </sc-if>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 18px; min-width: 0; font-family: var(--font-condensed);">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; letter-spacing: 0.16em;">
+          <span style="font-size: 22px; font-weight: 900; color: #fafafa;">28</span>
+          <span style="padding: 2px 8px; border-radius: 3px; border: 1px solid rgba(35,207,29,0.45); color: #23cf1d; background: rgba(35,207,29,0.08);">LW</span>
+          <span style="color: #a1a1aa; font-variant-numeric: tabular-nums;">35-30-3</span>
+          <span style="color: #52525b;">·</span>
+          <span style="color: #a1a1aa;">51% WIN</span>
+        </div>
+        <h1 style="margin: 0; font-size: 56px; font-weight: 900; line-height: 0.95; letter-spacing: 0.01em; text-transform: uppercase; color: #fafafa;">Igor Orlov</h1>
+        <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.22em; color: #71717a;">PLAYER · SKATER · LEFT WING · SNIPER</span>
+        <div style="display: flex; gap: 32px; padding-top: 14px; border-top: 1px solid #2a2829;">
+          <sc-for list="{{ heroStats }}" as="s" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.2em; color: #6e6b6c;">{{ s.k }}</span><span style="font-size: 34px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; color: {{ s.c }};">{{ s.v }}</span></div>
+          </sc-for>
+        </div>
+        <button onClick="{{ openProgress }}" style="align-self: flex-start; display: flex; align-items: center; gap: 14px; padding: 10px 14px; border: 1px solid #2a2829; background: rgba(0,0,0,0.2); cursor: pointer; font-family: var(--font-condensed); text-align: left; transition: border-color 150ms;" style-hover="border-color: #52525b;">
+          <span style="display: flex; flex-direction: column; gap: 6px;">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.2em; color: #d4d4d8;">{{ tierChip }}</span>
+            <span style="display: grid; grid-template-columns: repeat(10, 14px); gap: 3px;">
+              <sc-for list="{{ pips }}" as="p" hint-placeholder-count="10"><span style="height: 4px; background: {{ p.bg }};"></span></sc-for>
+            </span>
+          </span>
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; color: #71717a;">CARD PROGRESS →</span>
+        </button>
+      </div>
+    </section>
+
+    <div style="display: flex; align-items: center; gap: 10px; font-family: var(--font-condensed); font-size: 14px; font-weight: 800; letter-spacing: 0.14em; color: #52525b;"><span style="color: #e84131;">▌</span>LAST 10 GAMES <span style="flex: 1; height: 1px; background: #2a2829;"></span></div>
+  </main>
+
+  <sc-if value="{{ open }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeLocker }}" style="position: fixed; inset: 0; z-index: 50; background: rgba(9,9,11,0.78); display: flex; align-items: center; justify-content: center; padding: 24px;">
+      <div onClick="{{ stop }}" role="dialog" aria-label="Card locker" style="width: 820px; max-width: 100%; max-height: calc(100vh - 48px); display: flex; flex-direction: column; border: 1px solid #3a3839; background: #1f1d1e; overflow: hidden;">
+        <div style="height: 1px; flex: none; background: linear-gradient(90deg, #7f1d1d, #e84131, #7f1d1d);"></div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 22px; border-bottom: 1px solid #2a2829; font-family: var(--font-condensed);">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 20px; font-weight: 800; letter-spacing: 0.12em; color: #fafafa; line-height: 1;">CARD LOCKER</span>
+            <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.2em; color: #6e6b6c; line-height: 1;">IGOR ORLOV · {{ tierChip }} · {{ unlockedCount }} / 10 THEMES</span>
+          </div>
+          <button onClick="{{ closeLocker }}" aria-label="Close" style="width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #3a3839; background: transparent; color: #a1a1aa; cursor: pointer;" style-hover="border-color: #71717a; color: #fafafa;">
+            <span style="width: 16px; height: 16px; background: currentColor; -webkit-mask: url(https://unpkg.com/lucide-static@0.460.0/icons/x.svg) center / contain no-repeat; mask: url(https://unpkg.com/lucide-static@0.460.0/icons/x.svg) center / contain no-repeat;"></span>
+          </button>
+        </div>
+        <div style="display: flex; border-bottom: 1px solid #2a2829; padding: 0 22px; gap: 26px;">
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="2">
+            <button onClick="{{ t.on }}" style="padding: 13px 0 11px; border: none; background: transparent; cursor: pointer; font-family: var(--font-condensed); font-size: 13px; font-weight: 700; letter-spacing: 0.18em; color: {{ t.c }}; box-shadow: {{ t.bar }};">{{ t.label }}</button>
+          </sc-for>
+        </div>
+
+        <div style="flex: 1; overflow-y: auto;">
+          <sc-if value="{{ tabTheme }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: center; padding: 22px 22px 18px; gap: 20px 36px; background: radial-gradient(50% 60% at 50% 30%, rgba(232,65,49,0.07), transparent 70%);">
+              <div style="display: flex; align-items: center; gap: 28px;">
+                <button onClick="{{ prev }}" aria-label="Previous theme" style="width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid #3a3839; background: transparent; color: #a1a1aa; cursor: pointer;" style-hover="border-color: #71717a; color: #fafafa;"><span style="width: 18px; height: 18px; background: currentColor; -webkit-mask: url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-left.svg) center / contain no-repeat; mask: url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-left.svg) center / contain no-repeat;"></span></button>
+                <div style="position: relative; width: 238px; height: 387px;">
+                  <div style="zoom: 0.9; filter: {{ previewFlt }};"><dc-import name="PlayerCard" player-id="igor" cfg="{{ previewCfg }}" hint-size="264px,430px"></dc-import></div>
+                </div>
+                <button onClick="{{ next }}" aria-label="Next theme" style="width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid #3a3839; background: transparent; color: #a1a1aa; cursor: pointer;" style-hover="border-color: #71717a; color: #fafafa;"><span style="width: 18px; height: 18px; background: currentColor; -webkit-mask: url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-right.svg) center / contain no-repeat; mask: url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-right.svg) center / contain no-repeat;"></span></button>
+              </div>
+              <div style="flex: 1; min-width: 240px; max-width: 320px; display: flex; flex-direction: column; gap: 18px;">
+              <div style="display: flex; flex-direction: column; gap: 6px; font-family: var(--font-condensed);">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <span style="font-size: 32px; font-weight: 900; letter-spacing: 0.04em; line-height: 1; text-transform: uppercase; color: #fafafa;">{{ browse.name }}</span>
+                  <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.18em; color: {{ browse.tagC }};">{{ browse.tag }}</span>
+                </div>
+              </div>
+              <sc-if value="{{ browseLocked }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid rgba(232,65,49,0.35); background: rgba(232,65,49,0.05); font-family: var(--font-condensed);">
+                  <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.16em;">
+                    <span style="color: #ef6a5e;">{{ req.title }}</span>
+                    <span style="color: #a1a1aa; font-variant-numeric: tabular-nums;">{{ req.count }}</span>
+                  </div>
+                  <div style="height: 4px; background: #2a2829;"><div style="height: 100%; width: {{ req.pct }}; background: #e84131;"></div></div>
+                  <span style="font-family: var(--font-sans); font-size: 12px; color: #71717a;">{{ req.note }}</span>
+                </div>
+              </sc-if>
+              </div>
+            </div>
+            <div style="padding: 14px 22px 18px; border-top: 1px solid #2a2829; display: flex; flex-direction: column; gap: 10px;">
+              <div style="display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 6px;">
+                <sc-for list="{{ rail }}" as="r" hint-placeholder-count="10">
+                  <button onClick="{{ r.on }}" title="{{ r.title }}" style="flex: none; position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: none; background: transparent; cursor: pointer; font-family: var(--font-condensed);">
+                    <span style="position: relative; width: 50px; height: 68px; border-radius: 5px; background: {{ r.sw }}; border: {{ r.swBorder }}; box-shadow: {{ r.ring }}; opacity: {{ r.op }}; filter: {{ r.flt }};"></span>
+                    <sc-if value="{{ r.locked }}" hint-placeholder-val="{{ false }}">
+                      <span style="position: absolute; top: 24px; left: 18px; width: 14px; height: 14px; background: #d4d4d8; -webkit-mask: url(https://unpkg.com/lucide-static@0.460.0/icons/lock.svg) center / contain no-repeat; mask: url(https://unpkg.com/lucide-static@0.460.0/icons/lock.svg) center / contain no-repeat;"></span>
+                    </sc-if>
+                    <sc-if value="{{ r.isNew }}" hint-placeholder-val="{{ false }}">
+                      <span style="position: absolute; top: -6px; right: -6px; padding: 2px 4px; background: #e84131; color: #fff; font-size: 8px; font-weight: 800; letter-spacing: 0.12em;">NEW</span>
+                    </sc-if>
+                    <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: {{ r.c }}; white-space: nowrap;">{{ r.short }}</span>
+                    <span style="width: 5px; height: 5px; border-radius: 50%; background: {{ r.dot }};"></span>
+                  </button>
+                </sc-for>
+              </div>
+              <div style="display: flex; gap: 18px; font-family: var(--font-condensed); font-size: 10px; font-weight: 600; letter-spacing: 0.18em; color: #52525b;">
+                <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 5px; height: 5px; border-radius: 50%; background: #e84131;"></span>EQUIPPED</span>
+                <span>T1–T5 · ONE THEME PER TIER</span><span>T6 · FIVE MYTHICS</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ tabProgress }}" hint-placeholder-val="{{ false }}">
+            <div style="display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; padding: 22px;">
+              <div style="zoom: 0.72;"><dc-import name="PlayerCard" player-id="igor" cfg="{{ heroCfg }}" hint-size="264px,430px"></dc-import></div>
+              <div style="display: flex; flex-direction: column; gap: 22px; min-width: 0; font-family: var(--font-condensed);">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.24em; color: #71717a;">LEVEL · {{ tierLabelUp }}</span>
+                    <span style="font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums;">{{ level }}<span style="font-size: 13px; color: #6e6b6c;"> / 10</span></span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px;">
+                    <sc-for list="{{ pips }}" as="p" hint-placeholder-count="10"><span style="height: 8px; background: {{ p.bg }}; box-shadow: {{ p.glow }};"></span></sc-for>
+                  </div>
+                  <span style="font-family: var(--font-sans); font-size: 12px; color: #6e6b6c;">Participation progress: GP, wins, role production. Never downgrades.</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px;">
+                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.24em; color: #71717a;">{{ req.title }}</span>
+                    <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: #ef6a5e; font-variant-numeric: tabular-nums;">{{ req.count }}</span>
+                  </div>
+                  <sc-for list="{{ reqRows }}" as="b" hint-placeholder-count="5">
+                    <div style="display: grid; grid-template-columns: 30px 110px minmax(0, 1fr) 54px; gap: 12px; align-items: center;">
+                      <dc-import name="Badge" cfg="{{ b.cfg }}" hint-size="28px,32px"></dc-import>
+                      <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.1em; color: {{ b.nameC }}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ b.short }}</span>
+                      <div style="height: 4px; background: #2a2829;"><div style="height: 100%; width: {{ b.pct }}; background: {{ b.bar }};"></div></div>
+                      <span style="font-size: 12px; font-weight: 700; text-align: right; color: {{ b.valC }}; font-variant-numeric: tabular-nums;">{{ b.val }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.24em; color: #71717a;">TIER TRACK</span>
+                  <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px;">
+                    <sc-for list="{{ track }}" as="t" hint-placeholder-count="6">
+                      <div style="display: flex; flex-direction: column; gap: 3px; padding: 8px 8px 7px; background: {{ t.bg }}; border-top: 2px solid {{ t.line }};">
+                        <span style="font-size: 14px; font-weight: 900; color: {{ t.c }}; line-height: 1;">{{ t.n }}</span>
+                        <span style="font-size: 9px; font-weight: 700; letter-spacing: 0.14em; color: {{ t.subC }}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ t.label }}</span>
+                        <span style="font-size: 9px; font-weight: 600; letter-spacing: 0.12em; color: #52525b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ t.theme }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                  <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.24em; color: #71717a;">HISTORY</span>
+                  <sc-for list="{{ history }}" as="h" hint-placeholder-count="4">
+                    <div style="display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 6px 0; border-bottom: 1px solid #2a2829; font-size: 12px;">
+                      <span style="font-weight: 600; letter-spacing: 0.14em; color: #52525b; font-variant-numeric: tabular-nums;">{{ h.d }}</span>
+                      <span style="font-weight: 700; letter-spacing: 0.1em; color: #d4d4d8; text-transform: uppercase;">{{ h.t }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <sc-if value="{{ tabTheme }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; border-top: 1px solid #2a2829; font-family: var(--font-condensed);">
+            <button onClick="{{ setAuto }}" style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid {{ autoB }}; background: {{ autoBg }}; color: {{ autoC }}; cursor: pointer; font-family: var(--font-condensed); font-size: 12px; font-weight: 700; letter-spacing: 0.16em;">
+              <span style="width: 12px; height: 12px; border: 1px solid {{ autoB }}; background: {{ autoBox }};"></span>AUTO · FOLLOW TIER
+            </button>
+            <div style="display: flex; gap: 8px;">
+              <button onClick="{{ closeLocker }}" style="padding: 10px 16px; border: 1px solid #3a3839; background: transparent; color: #a1a1aa; cursor: pointer; font-family: var(--font-condensed); font-size: 12px; font-weight: 700; letter-spacing: 0.16em;" style-hover="border-color: #71717a; color: #fafafa;">CANCEL</button>
+              <button onClick="{{ equip }}" disabled="{{ equipDisabled }}" style="padding: 10px 18px; border: 1px solid {{ equipB }}; background: {{ equipBg }}; color: {{ equipC }}; cursor: {{ equipCursor }}; font-family: var(--font-condensed); font-size: 12px; font-weight: 800; letter-spacing: 0.16em;">{{ equipLabel }}</button>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 18px; padding: 12px 16px; background: #1f1d1e; border: 1px solid #3a3839; box-shadow: inset 0 1px 0 #e84131; font-family: var(--font-condensed); font-size: 12px; font-weight: 700; letter-spacing: 0.16em;">
+      <span style="color: #fafafa;">{{ toastText }}</span>
+      <button onClick="{{ undo }}" style="border: none; background: transparent; padding: 0; color: #ef6a5e; cursor: pointer; font-family: var(--font-condensed); font-size: 12px; font-weight: 700; letter-spacing: 0.16em;" style-hover="color: #fafafa;">UNDO</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;owner&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;tier&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:3,&quot;min&quot;:1,&quot;max&quot;:6,&quot;step&quot;:1,&quot;tsType&quot;:&quot;number&quot;},&quot;level&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:6,&quot;min&quot;:1,&quot;max&quot;:10,&quot;step&quot;:1,&quot;tsType&quot;:&quot;number&quot;},&quot;hasNew&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const KEY = 'bgm-card-locker-v1';
+const MOTION = { on: true, tilt: true, sweep: true, pulse: true, foil: true, smoke: true, frost: true, storm: true, inferno: true, flip: true };
+const DEMO_LV = [12, 18, 7, 14, 9, 11, 16, 8, 3, 5, 13, 0, 10, 6, 2, 0, 0, 0, 0, 0, 0];
+const HISTORY = [['OCT 04', 'Level 6 reached'], ['SEP 22', 'T3 Stud · Alternate unlocked'], ['AUG 30', 'T2 Rookie · Home unlocked'], ['AUG 02', 'T1 Prospect · Away unlocked']];
+const SHORT = { away: 'AWAY', home: 'HOME', alternate: 'ALT', carbon: 'CARBON', futureB: 'HARDLIGHT', frozen: 'FROZEN', futureC: 'CYBER', inferno: 'INFERNO', stormLive: 'STORM', olympus: 'MAXIMUS' };
+
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    let s = {}; try { s = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) {}
+    this.state = { equipped: s.equipped || 'auto', seen: !!s.seen, open: false, tab: 'theme', browse: null, face: 'front', toast: null, ready: false };
+  }
+  componentDidMount() {
+    const ok = () => window.BGM_CARD && window.BGM_LEVELS && window.BGM_BADGE;
+    if (ok()) this.setState({ ready: true });
+    else this._t = setInterval(() => { if (ok()) { clearInterval(this._t); this.setState({ ready: true }); } }, 40);
+    this._key = (e) => {
+      if (!this.state.open) return;
+      if (e.key === 'Escape') this.close();
+      if (this.state.tab === 'theme' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) this.step(e.key === 'ArrowLeft' ? -1 : 1);
+    };
+    window.addEventListener('keydown', this._key);
+  }
+  componentWillUnmount() { clearInterval(this._t); clearTimeout(this._toastT); clearTimeout(this._flipT); window.removeEventListener('keydown', this._key); }
+  persist() { try { localStorage.setItem(KEY, JSON.stringify({ equipped: this.state.equipped, seen: this.state.seen })); } catch (e) {} }
+  tier() { return Math.max(1, Math.min(6, this.props.tier ?? 3)); }
+  activeKey(eq) { const D = window.BGM_CARD; const e = eq ?? this.state.equipped; return e === 'auto' || !D.THEMES[e] ? D.TIERS[this.tier()].theme : e; }
+  themeTier(k) { const th = window.BGM_CARD.THEMES[k]; return th.mythic ? 6 : th.tier; }
+  open(tab) { this.setState({ open: true, tab, browse: this.activeKey(), seen: true }, () => this.persist()); }
+  close() { this.setState({ open: false }); }
+  step(d) { const O = window.BGM_CARD.THEME_ORDER; const i = O.indexOf(this.state.browse); this.setState({ browse: O[(i + d + O.length) % O.length] }); }
+  apply(next, label) {
+    const prev = this.state.equipped;
+    clearTimeout(this._flipT); clearTimeout(this._toastT);
+    this.setState({ open: false, face: 'back' });
+    this._flipT = setTimeout(() => this.setState({ equipped: next, face: 'front', toast: { text: label, prev } }, () => this.persist()), 420);
+    this._toastT = setTimeout(() => this.setState({ toast: null }), 6000);
+  }
+
+  renderVals() {
+    const D = window.BGM_CARD, L = window.BGM_LEVELS;
+    if (!this.state.ready || !D || !L) return { heroStats: [], pips: [], rail: [], tabs: [], reqRows: [], track: [], history: [], browse: {}, req: {} };
+    const tierN = this.tier(), T = D.TIERS[tierN];
+    const level = Math.max(1, Math.min(10, this.props.level ?? 6));
+    const owner = this.props.owner ?? true;
+    const hasNew = this.props.hasNew ?? true;
+    const unlocked = k => this.themeTier(k) <= tierN;
+    const active = this.activeKey();
+    const browseKey = this.state.browse && D.THEMES[this.state.browse] ? this.state.browse : active;
+    const bth = D.THEMES[browseKey], bTier = this.themeTier(browseKey), bLocked = !unlocked(browseKey);
+    const newKey = T.theme;
+
+    const base = { pos: 'LW', badge: { fam: 'pgoals', level: 12 }, levelStyle: 'back', motion: MOTION, level };
+    const heroCfg = Object.assign({}, base, { tier: tierN, theme: active, face: this.state.face });
+    const previewCfg = Object.assign({}, base, { tier: bLocked ? bTier : tierN, theme: browseKey, face: 'front', level: bLocked ? 1 : level });
+
+    const pips = Array.from({ length: 10 }, (_, i) => ({ bg: i < level ? '#e84131' : '#2a2829', glow: i < level ? '0 0 6px rgba(232,65,49,0.45)' : 'none' }));
+    const nextN = Math.min(tierN + 1, 6), need = 4, thr = (nextN - 1) * 5 + 1;
+    const fams = L.PLAYER.map((f, i) => ({ f, lv: DEMO_LV[i] || 0 })).filter(x => x.f.group !== 'goalie');
+    const met = fams.filter(x => x.lv >= thr).length;
+    const ROM = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+    const req = tierN >= 6
+      ? { title: 'T6 LEGEND · MAX TIER', count: 'COMPLETE', pct: '100%', note: 'All themes unlocked.' }
+      : { title: 'NEXT · T' + nextN + ' ' + D.TIERS[nextN].label.toUpperCase(), count: Math.min(met, need) + ' / ' + need + ' BADGES',
+          pct: (Math.min(met, need) / need * 100).toFixed(0) + '%',
+          note: need + ' role badges at Tier ' + ROM[nextN - 1] + ' (LVL ' + thr + '+).' + (bLocked && bTier > nextN ? ' ' + bth.name + ' unlocks at T' + bTier + ' ' + D.TIERS[bTier].label + '.' : '') };
+    const mkB = (f, lv) => ({ fam: f, shape: (L.GROUPS[f.group] || {}).shape || 'hex', tier: Math.max(1, Math.ceil(lv / 5)), skin: L.skinFor(L.THEME_ORDER[Math.max(0, Math.ceil(lv / 3) - 1)]), size: 28, frame: 'single', marker: 'none', label: 'none', glow: false });
+    const reqRows = fams.slice().sort((a, b) => b.lv - a.lv).slice(0, 6).map(({ f, lv }) => {
+      const done = lv >= thr;
+      return { cfg: mkB(f, Math.max(1, lv)), short: f.short, pct: Math.min(100, lv / thr * 100).toFixed(0) + '%', bar: done ? '#10b981' : '#e84131',
+        val: done ? 'DONE' : 'LVL ' + lv + '/' + thr, valC: done ? '#10b981' : '#a1a1aa', nameC: done ? '#fafafa' : '#d4d4d8' };
+    });
+    const track = D.TIERS.slice(1).map(t => {
+      const done = t.n < tierN, now = t.n === tierN;
+      return { n: 'T' + t.n, label: t.label.toUpperCase(), theme: t.n === 6 ? '5 MYTHICS' : D.THEMES[t.theme].name.toUpperCase(),
+        bg: now ? 'rgba(232,65,49,0.10)' : done ? '#262425' : 'transparent', line: now ? '#e84131' : done ? '#71717a' : '#2a2829',
+        c: now ? '#e84131' : done ? '#fafafa' : '#52525b', subC: now ? '#ef6a5e' : done ? '#a1a1aa' : '#52525b' };
+    });
+
+    const rail = D.THEME_ORDER.map(k => {
+      const th = D.THEMES[k], lock = !unlocked(k), sel = k === browseKey, eq = k === active;
+      const pad = l => l + ' padding-box';
+      return { short: SHORT[k] || th.name.toUpperCase(), title: th.name + ' · T' + this.themeTier(k) + (lock ? ' · locked' : ''),
+        sw: th.grad ? th.layers.map(pad).concat([th.grad + ' border-box']).join(', ') : th.layers.join(', '),
+        swBorder: th.grad ? '1px solid transparent' : '1px solid ' + (th.border || '#3a3839'),
+        ring: sel ? '0 0 0 2px #1f1d1e, 0 0 0 3px #e84131' : 'none',
+        op: lock ? 0.45 : 1, flt: lock ? 'grayscale(0.85) brightness(0.7)' : 'none', locked: lock,
+        isNew: hasNew && !this.state.seenRail && k === newKey && tierN > 1,
+        c: sel ? '#fafafa' : lock ? '#52525b' : '#a1a1aa', dot: eq ? '#e84131' : 'transparent',
+        on: () => this.setState({ browse: k }) };
+    });
+
+    const bEq = browseKey === active;
+    const autoOn = this.state.equipped === 'auto';
+    const browse = { name: bth.name, desc: bth.desc,
+      tag: bLocked ? 'T' + bTier + ' · LOCKED · PREVIEW' : bEq ? 'T' + bTier + ' · EQUIPPED' + (autoOn ? ' (AUTO)' : '') : 'T' + bTier + ' · UNLOCKED',
+      tagC: bLocked ? '#71717a' : bEq ? '#e84131' : '#10b981' };
+    const equipDisabled = bLocked || (bEq && !autoOn);
+    const tabs = [['theme', 'THEME'], ['progress', 'PROGRESS']].map(([k, label]) => ({ label, on: () => this.setState({ tab: k }),
+      c: this.state.tab === k ? '#fafafa' : '#71717a', bar: this.state.tab === k ? 'inset 0 -2px 0 #e84131' : 'none' }));
+    const up = t => t.toUpperCase();
+
+    return {
+      owner, flipHero: () => this.setState(s => ({ face: s.face === 'back' ? 'front' : 'back' })), heroCfg, previewCfg, pips, level, tierLabelUp: up(T.label),
+      tierChip: 'T' + tierN + ' ' + up(T.label) + ' · LVL ' + level + '/10',
+      heroStats: [{ k: 'GP', v: 68, c: '#fafafa' }, { k: 'G', v: 65, c: '#fafafa' }, { k: 'A', v: 65, c: '#fafafa' }, { k: 'PTS', v: 130, c: '#e84131' }],
+      showNewDot: owner && hasNew && !this.state.seen && tierN > 1,
+      openLocker: () => this.open('theme'), openProgress: () => this.open('progress'),
+      closeLocker: () => this.close(), stop: e => e.stopPropagation(),
+      open: this.state.open, tabs, tabTheme: this.state.tab === 'theme', tabProgress: this.state.tab === 'progress',
+      unlockedCount: D.THEME_ORDER.filter(unlocked).length,
+      browse, browseLocked: bLocked, previewFlt: bLocked ? 'saturate(0.55) brightness(0.8)' : 'none', req, reqRows, track,
+      history: HISTORY.map(([d, t]) => ({ d, t })), rail,
+      prev: () => this.step(-1), next: () => this.step(1),
+      autoB: autoOn ? '#e84131' : '#3a3839', autoBg: autoOn ? 'rgba(232,65,49,0.10)' : 'transparent', autoC: autoOn ? '#ef6a5e' : '#a1a1aa', autoBox: autoOn ? '#e84131' : 'transparent',
+      setAuto: () => { if (!autoOn) this.apply('auto', 'AUTO · ' + up(D.THEMES[T.theme].name) + ' EQUIPPED'); },
+      equipDisabled, equipLabel: bLocked ? 'LOCKED' : (bEq && !autoOn) ? 'EQUIPPED' : 'EQUIP ' + up(bth.name),
+      equipB: equipDisabled ? '#3a3839' : '#e84131', equipBg: equipDisabled ? 'transparent' : '#e84131', equipC: equipDisabled ? '#52525b' : '#ffffff', equipCursor: equipDisabled ? 'not-allowed' : 'pointer',
+      equip: () => { if (!equipDisabled) this.apply(browseKey, up(bth.name) + ' EQUIPPED'); },
+      toast: !!this.state.toast, toastText: this.state.toast ? this.state.toast.text : '',
+      undo: () => { const t = this.state.toast; if (t) { clearTimeout(this._toastT); this.setState({ equipped: t.prev, toast: null }, () => this.persist()); } }
+    };
+  }
+}
+</script>
+</body>
+</html>
