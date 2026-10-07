@@ -1,6 +1,6 @@
 # Player Cards, Badges, Build Locker v2 & Action Map — Design
 
-**Status:** approved in conversation 2026-10-07 and awaiting the operator's review of this written spec.
+**Status:** approved by the operator 2026-10-07, including the test-run amendment. Step 1 (badges) is next.
 **Supersedes:** for these features only, the open questions in
 [`docs/cards/card-system-brief.md`](../../cards/card-system-brief.md) and the
 "Reality check" ladders in [`docs/cards/badge-catalog.md`](../../cards/badge-catalog.md).
@@ -292,20 +292,43 @@ It replaces `CareerShotMap` (`page.tsx:247`) only. The EA zone heat map (`ShotMa
 
 ---
 
+## Test run (operator, 2026-10-07)
+
+Everything is first built **side by side** on a parallel preview page, so the operator can compare before and after and ask for tweaks:
+
+- **Branch:** all work happens on `feat/player-cards`. New components are added next to the old ones, and existing pages and components are not modified during the test run.
+- **Preview route:** `/preview/roster/[id]` is a copy of the player page using the new pieces, plus a gallery of all 10 themes and a home-style card row. The reference player is **#3 Stick Menace (Igor Orlov)**; a goalie (#12 Pratt2016) is the second check.
+  - The route renders only outside production: `notFound()` when `NODE_ENV === 'production'`. It is never deployed.
+- **Data:**
+  - Last night's Hotel-Echo backup is restored into a **separate local database `eanhl_preview`** in the main PC's db container. The frozen 2026-10-05 fallback database `eanhl` is not touched.
+  - The dev server and the worker CLIs point at `eanhl_preview` for the test run.
+  - Migration 0060 and the recompute run there first.
+- **Viewing:** the dev server on the main PC, `localhost:3000/preview/roster/3` next to `/roster/3`. From the phone, use the same paths over Tailscale.
+- **Live is untouched** until the final switch. **Switch:**
+  1. Move the new components into the real pages (hero, home carousel, depth chart, Build Locker, Action Map).
+  2. Delete the preview route and the replaced components.
+  3. Apply migration 0060 on Hotel-Echo after a fresh backup.
+  4. Deploy web + worker.
+  5. Verify `card-recompute --dry-run` on live reproduces the tier table.
+
 ## Build order
 
-Each step gets its own implementation plan, verification and commit, and is deployed when verified.
+Each step gets its own implementation plan, verification and commit on `feat/player-cards`. Nothing is deployed until the switch.
 
-1. **Data foundation (Part 1)**
+1. **Badges (Part 1 + the badges section of Part 3)**
    - copy the design references into `docs/design/handoffs/2026-10-cards/`;
+   - set up the `eanhl_preview` database;
    - shared ladders/rules module with unit tests;
-   - migration 0060 (verification DB first, then live with a fresh backup);
+   - migration 0060 on `eanhl_preview`;
    - worker step and both CLIs; queries;
-   - **live check:** `card-recompute --dry-run` reproduces the tier table above.
-2. **Card (Part 2):** themes, CSS, optimised assets, rollout to the carousel, depth chart and hero.
-3. **Locker + badges (Part 3).**
-4. **Build Locker v2 (Part 4).** Independent; may go before 2–3.
-5. **Action Map (Part 5).** Independent; may go before 2–3.
+   - the preview route scaffold;
+   - the Badge component and the Player Badges section.
+   - **Check:** `card-recompute --dry-run` reproduces the tier table above.
+2. **Card (Part 2):** themes, CSS, optimised assets, shown on the preview page (hero slot, gallery, card row).
+3. **Locker (rest of Part 3):** EDIT button and drawer on the preview page.
+4. **Build Locker v2 (Part 4).** Independent.
+5. **Action Map (Part 5).** Independent.
+6. **Switch** (see Test run).
 
 ## Testing
 
