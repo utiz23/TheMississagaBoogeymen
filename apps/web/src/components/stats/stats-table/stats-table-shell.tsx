@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { Panel } from '@/components/ui/panel'
 import { DASH } from './format.ts'
@@ -26,6 +27,20 @@ export interface ShellDataset<R> {
   hasExpanded: boolean
 }
 
+/**
+ * Rows that are not players (e.g. one row per season) replace the Player
+ * column with this label. The rows' input order becomes the default sort,
+ * and clicking the label header flips it.
+ */
+export interface RowLabel<R> {
+  header: string
+  /** Stable row key; also the tiebreak when sorting by a stat. */
+  id: (row: R) => string
+  render: (row: R) => ReactNode
+  /** Plain words for the input order and its reverse, e.g. "newest first". */
+  order: { input: string; reversed: string }
+}
+
 export interface StatsTableShellProps<R extends BaseDisplayRow> {
   role: 'skaters' | 'goalies'
   title: string
@@ -42,7 +57,11 @@ export interface StatsTableShellProps<R extends BaseDisplayRow> {
   expandedFailed?: boolean
   emptyMessage?: string
   playerMeta?: Record<number, PlayerMeta>
+  rowLabel?: RowLabel<R>
 }
+
+/** Sort key for "the rows' input order" — only valid with a `rowLabel`. */
+const INPUT_ORDER = '__input'
 
 /**
  * `state` above describes the CURRENT dataset's load result ONLY. It must
@@ -65,7 +84,17 @@ const RAIL = [
 ]
 
 export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShellProps<R>) {
-  const { role, title, metrics, views, current, allTime, allTimeUnavailable, playerMeta } = props
+  const {
+    role,
+    title,
+    metrics,
+    views,
+    current,
+    allTime,
+    allTimeUnavailable,
+    playerMeta,
+    rowLabel,
+  } = props
   const currentState = props.state ?? 'ok'
 
   const [scope, setScope] = useState<'current' | 'allTime'>('current')
@@ -88,8 +117,13 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
   const view = resolved.find((v) => v.id === viewId) ?? resolved[0]
   const visibleKeys = view ? visibleKeysFor(view) : ['gp']
 
+  const defaultKey = rowLabel ? INPUT_ORDER : (view?.defaultSort ?? 'gp')
   const activeKey =
-    sort.key !== null && visibleKeys.includes(sort.key) ? sort.key : (view?.defaultSort ?? 'gp')
+    sort.key !== null &&
+    (visibleKeys.includes(sort.key) || (rowLabel !== undefined && sort.key === INPUT_ORDER))
+      ? sort.key
+      : defaultKey
+  const inputOrder = activeKey === INPUT_ORDER
   const activeMetric: Metric<R> | undefined = metrics[activeKey]
   const activeAsc = sort.asc ?? activeMetric?.sortAsc ?? false
 
@@ -97,14 +131,14 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
   const rateOn = perGameMode && anyRate
 
   const sorted = useMemo(() => {
-    if (!activeMetric) return active.rows
+    if (!activeMetric) return activeAsc ? active.rows.slice().reverse() : active.rows
     return sortRows(
       active.rows,
       (r) => resolveCell(activeMetric, r, rateOn).value,
-      (r) => r.gamertag,
+      (r) => (rowLabel ? rowLabel.id(r) : r.gamertag),
       activeAsc,
     )
-  }, [active.rows, activeMetric, rateOn, activeAsc])
+  }, [active.rows, activeMetric, rateOn, activeAsc, rowLabel])
 
   const footnotes = collectFootnotes({
     role,
@@ -248,8 +282,9 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
               })}
             </div>
             <p className="font-condensed text-[11px] uppercase tracking-wider text-zinc-500">
-              Sorted by {activeSortDesc} {activeAsc ? '↑ low to high' : '↓ high to low'} · rank
-              follows sort, no minimum GP
+              {inputOrder && rowLabel
+                ? `Sorted by ${rowLabel.header} ${activeAsc ? `↑ ${rowLabel.order.reversed}` : `↓ ${rowLabel.order.input}`} · click a stat to rank`
+                : `Sorted by ${activeSortDesc} ${activeAsc ? '↑ low to high' : '↓ high to low'} · rank follows sort, no minimum GP`}
             </p>
           </div>
           <button
@@ -329,12 +364,41 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                   </tr>
                 )}
                 <tr className="bg-surface-raised">
-                  <th
-                    scope="col"
-                    className="sticky left-0 z-20 w-[var(--pw)] min-w-[var(--pw)] max-w-[var(--pw)] border-b border-zinc-800 bg-surface-raised py-2 pl-4 pr-2 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
-                  >
-                    Player
-                  </th>
+                  {rowLabel ? (
+                    <th
+                      scope="col"
+                      aria-sort={inputOrder ? (activeAsc ? 'ascending' : 'descending') : 'none'}
+                      className="sticky left-0 z-20 w-[var(--pw)] min-w-[var(--pw)] max-w-[var(--pw)] border-b border-zinc-800 bg-surface-raised p-0 text-left"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSortClick(INPUT_ORDER)
+                        }}
+                        aria-label={`${rowLabel.header}, ${
+                          inputOrder
+                            ? `sorted ${activeAsc ? rowLabel.order.reversed : rowLabel.order.input}`
+                            : 'sort'
+                        }`}
+                        className={[
+                          'flex w-full items-center gap-1 py-2 pl-4 pr-2 font-condensed text-[10px] font-semibold uppercase tracking-widest transition-colors',
+                          inputOrder ? 'text-zinc-100' : 'text-zinc-500 hover:text-zinc-300',
+                        ].join(' ')}
+                      >
+                        {rowLabel.header}
+                        <span aria-hidden className="min-w-[0.6rem] text-[10px] text-accent">
+                          {inputOrder ? (activeAsc ? '↑' : '↓') : ''}
+                        </span>
+                      </button>
+                    </th>
+                  ) : (
+                    <th
+                      scope="col"
+                      className="sticky left-0 z-20 w-[var(--pw)] min-w-[var(--pw)] max-w-[var(--pw)] border-b border-zinc-800 bg-surface-raised py-2 pl-4 pr-2 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+                    >
+                      Player
+                    </th>
+                  )}
                   {[...(metrics.gp ? ['gp'] : []), ...cols].map((k) => {
                     const m = metrics[k]
                     if (!m) return null
@@ -401,7 +465,11 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                     return (
                       <tr
                         key={
-                          row.playerId !== null ? `p${row.playerId.toString()}` : `g${row.gamertag}`
+                          rowLabel
+                            ? rowLabel.id(row)
+                            : row.playerId !== null
+                              ? `p${row.playerId.toString()}`
+                              : `g${row.gamertag}`
                         }
                         className="group transition-colors"
                       >
@@ -411,38 +479,44 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                             rank !== undefined && rank < 3 ? { boxShadow: RAIL[rank] } : undefined
                           }
                         >
-                          <div className="flex min-w-0 flex-col gap-0.5">
-                            {row.playerId !== null ? (
-                              <Link
-                                prefetch
-                                href={`/roster/${row.playerId.toString()}`}
-                                title={tip}
-                                className="truncate font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
-                              >
-                                {row.gamertag}
-                              </Link>
-                            ) : (
-                              <span
-                                title="Unmatched gamertag: no current player profile"
-                                className="truncate font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-400"
-                              >
-                                {row.gamertag}
-                              </span>
-                            )}
-                            {(sub.jersey !== null || sub.pos !== null || row.playerId === null) && (
-                              <span className="flex gap-1.5 whitespace-nowrap font-condensed text-[10px] uppercase tracking-[0.12em] text-zinc-500">
-                                {sub.jersey !== null && (
-                                  <span className="tabular-nums">{sub.jersey}</span>
-                                )}
-                                {sub.pos !== null && <span>{sub.pos}</span>}
-                                {row.playerId === null && (
-                                  <span className="border border-amber-500/40 px-1 text-amber-500">
-                                    No profile
-                                  </span>
-                                )}
-                              </span>
-                            )}
-                          </div>
+                          {rowLabel ? (
+                            rowLabel.render(row)
+                          ) : (
+                            <div className="flex min-w-0 flex-col gap-0.5">
+                              {row.playerId !== null ? (
+                                <Link
+                                  prefetch
+                                  href={`/roster/${row.playerId.toString()}`}
+                                  title={tip}
+                                  className="truncate font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
+                                >
+                                  {row.gamertag}
+                                </Link>
+                              ) : (
+                                <span
+                                  title="Unmatched gamertag: no current player profile"
+                                  className="truncate font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-400"
+                                >
+                                  {row.gamertag}
+                                </span>
+                              )}
+                              {(sub.jersey !== null ||
+                                sub.pos !== null ||
+                                row.playerId === null) && (
+                                <span className="flex gap-1.5 whitespace-nowrap font-condensed text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                                  {sub.jersey !== null && (
+                                    <span className="tabular-nums">{sub.jersey}</span>
+                                  )}
+                                  {sub.pos !== null && <span>{sub.pos}</span>}
+                                  {row.playerId === null && (
+                                    <span className="border border-amber-500/40 px-1 text-amber-500">
+                                      No profile
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
                         {[...(metrics.gp ? ['gp'] : []), ...cols].map((k) => {
                           const m = metrics[k]

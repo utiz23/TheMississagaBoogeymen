@@ -305,3 +305,54 @@ export async function getHistoricalGoalieStatsAllModes(gameTitleId: number) {
 
   return result
 }
+
+/**
+ * One player's archive skater detail per title, summed across 6s + 3s — the
+ * counts `getHistoricalSkaterStatsAllModes` reads but does not return. Feeds
+ * the deeper columns of the profile's season-by-season table for titles whose
+ * row comes from the archive (same reviewed `all_skaters` rows, so the GP
+ * denominators match). Nullable columns stay null when nothing was captured.
+ */
+export async function getPlayerArchiveSkaterDetail(playerId: number) {
+  const rows = await db
+    .select({
+      gameTitleId: historicalPlayerSeasonStats.gameTitleId,
+      shortHandedGoals: sql<string>`SUM(${historicalPlayerSeasonStats.shGoals})`,
+      gameWinningGoals: sql<string>`SUM(${historicalPlayerSeasonStats.gwGoals})`,
+      blockedShots: sql<string>`SUM(${historicalPlayerSeasonStats.blockedShots})`,
+      interceptions: sql<string>`SUM(${historicalPlayerSeasonStats.interceptions})`,
+      faceoffWins: sql<string | null>`SUM(${historicalPlayerSeasonStats.faceoffWins})`,
+      faceoffLosses: sql<string | null>`SUM(${historicalPlayerSeasonStats.faceoffLosses})`,
+      passes: sql<string | null>`SUM(${historicalPlayerSeasonStats.passCompletions})`,
+      passAttempts: sql<string | null>`SUM(${historicalPlayerSeasonStats.passAttempts})`,
+    })
+    .from(historicalPlayerSeasonStats)
+    .where(
+      and(
+        eq(historicalPlayerSeasonStats.playerId, playerId),
+        eq(historicalPlayerSeasonStats.roleGroup, 'skater'),
+        eq(historicalPlayerSeasonStats.positionScope, 'all_skaters'),
+        eq(historicalPlayerSeasonStats.reviewStatus, 'reviewed'),
+      ),
+    )
+    .groupBy(historicalPlayerSeasonStats.gameTitleId)
+
+  const toIntOrNull = (v: string | number | null): number | null =>
+    v === null ? null : typeof v === 'number' ? v : Number.parseInt(v, 10)
+
+  return rows.map((r) => ({
+    gameTitleId: r.gameTitleId,
+    shortHandedGoals: toIntOrNull(r.shortHandedGoals),
+    gameWinningGoals: toIntOrNull(r.gameWinningGoals),
+    blockedShots: toIntOrNull(r.blockedShots),
+    interceptions: toIntOrNull(r.interceptions),
+    faceoffWins: toIntOrNull(r.faceoffWins),
+    faceoffLosses: toIntOrNull(r.faceoffLosses),
+    passes: toIntOrNull(r.passes),
+    passAttempts: toIntOrNull(r.passAttempts),
+  }))
+}
+
+export type PlayerArchiveSkaterDetailRow = Awaited<
+  ReturnType<typeof getPlayerArchiveSkaterDetail>
+>[number]

@@ -24,6 +24,10 @@ export interface StatsSource {
 export type SkaterExpanded = Omit<EASkaterExpandedRow, 'playerId'>
 export type GoalieExpanded = Omit<EAGoalieExpandedRow, 'playerId'>
 
+/** Expanded payload where any field may be missing: archive seasons carry only
+ * some of these counts (see `career-season-rows.ts`). */
+export type PartialExpanded<T> = { [K in keyof T]: T[K] | null }
+
 export interface BaseDisplayRow {
   playerId: number | null
   gamertag: string
@@ -47,7 +51,7 @@ export interface SkaterDisplayRow extends BaseDisplayRow {
   passPct: string | null
   shotAttempts: number | null
   toiSeconds: number | null
-  expanded: SkaterExpanded | null
+  expanded: PartialExpanded<SkaterExpanded> | null
   /** Set only on career (All Time) rows — the GP from exactly the TOI-covered
    * source rows, the correct TOI/GP denominator. Undefined for every other
    * source (EA, local, archive), which use `gamesPlayed` directly. */
@@ -68,7 +72,7 @@ export interface GoalieDisplayRow extends BaseDisplayRow {
   toiSeconds: number | null
   /** Set only by the local 6s/3s query: W/L/OTL withheld (player-wide, not goalie-only). */
   recordUnavailable: boolean
-  expanded: GoalieExpanded | null
+  expanded: PartialExpanded<GoalieExpanded> | null
   /** Career-only TOI coverage — see `SkaterDisplayRow.toiCoverageGp`. */
   toiCoverageGp?: number
   toiCoverage?: CareerCoverage

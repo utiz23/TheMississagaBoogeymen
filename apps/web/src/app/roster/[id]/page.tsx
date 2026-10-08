@@ -14,6 +14,7 @@ import {
   getPlayerBuilds,
   getPlayerCareerActions,
   getPlayerCardProgress,
+  getPlayerArchiveSkaterDetail,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -23,6 +24,7 @@ import { ContributionSection } from '@/components/roster/contribution-section'
 import { TrendChart } from '@/components/roster/trend-chart'
 import { ProfileHero } from '@/components/roster/profile-hero'
 import { CareerSeasonsTable } from '@/components/roster/career-seasons-table'
+import { buildSeasonTable } from '@/components/roster/career-season-rows'
 import { StatsRecordCard } from '@/components/roster/stats-record-card'
 import { ChartsVisualsSection } from '@/components/roster/charts-visuals-section'
 import { ComingSoonCard } from '@/components/roster/coming-soon-card'
@@ -117,6 +119,15 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     builds = await getPlayerBuilds(id)
   } catch {
     builds = null
+  }
+
+  // Archive seasons' deeper skater counts (blocks, faceoffs, passes …). A
+  // failure only blanks those columns to "—" in the season table.
+  let archiveSkaterDetail: Awaited<ReturnType<typeof getPlayerArchiveSkaterDetail>> = []
+  try {
+    archiveSkaterDetail = await getPlayerArchiveSkaterDetail(id)
+  } catch {
+    archiveSkaterDetail = []
   }
 
   // Career Action Map (spec Part 5).
@@ -250,7 +261,11 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       )}
 
       <StatsRecordCard
-        seasonTable={<CareerSeasonsTable seasons={careerSeasons} selectedRole={selectedRole} />}
+        seasonTable={
+          <CareerSeasonsTable
+            table={buildSeasonTable(careerSeasons, eaStats, archiveSkaterDetail, selectedRole)}
+          />
+        }
         gameLog={
           <PlayerGameLogSection
             playerId={id}
