@@ -9,6 +9,8 @@ import type { CardViewModel } from './card-model'
 import { CardFront } from './card-front'
 import { CardBack } from './card-back'
 import { useInView } from './use-in-view'
+import { useStormStrike } from './fx/use-storm-strike'
+import './card-fx.css'
 import './player-card.css'
 
 interface PlayerCardProps {
@@ -56,6 +58,7 @@ export function PlayerCard({
     position: card.front.position,
   })
   const fx = resolveFx(theme, card.front.tier, { motionOn, hot, motionAllowed })
+  const strike = useStormStrike(fx.themeFx && theme.storm === true)
 
   const resetTilt = () => {
     if (tiltRef.current) tiltRef.current.style.transform = ''
@@ -110,7 +113,15 @@ export function PlayerCard({
             transition: fx.flip ? 'transform 650ms cubic-bezier(.3,.7,.3,1)' : 'none',
           }}
         >
-          <CardFront card={card.front} theme={theme} look={look} fx={fx} uid={uid} hover={hover} />
+          <CardFront
+            card={card.front}
+            theme={theme}
+            look={look}
+            fx={fx}
+            uid={uid}
+            hover={hover}
+            strike={strike}
+          />
           {flippable && card.back !== null && (
             <CardBack front={card.front} back={card.back} theme={theme} look={look} />
           )}

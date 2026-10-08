@@ -88,6 +88,8 @@ void test('effect gates follow the prototype: foil from tier 4 (not Inferno), pu
     [false, false, false, false, false, false],
   )
   assert.equal(off.grid, true)
+  assert.equal(off.themeFx, false)
+  assert.equal(resolveFx(CARD_THEMES.inferno, 6, on).themeFx, true)
 })
 
 void test('the hover sweep stays mounted on idle list cards so it can animate on hover', () => {

@@ -156,6 +156,8 @@ export function resolveFx(
     sweep: motionAllowed,
     tilt: motionOn,
     flip: motionOn,
+    /** Theme effect layers animate (mythic fx components take this as `on`). */
+    themeFx: motionOn,
     /** Hardlight synthwave grid: drawn static when motion is off. */
     grid: th.future === 'grid',
     gridAnimated: motionOn && th.future === 'grid',

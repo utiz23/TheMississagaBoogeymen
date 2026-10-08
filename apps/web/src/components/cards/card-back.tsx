@@ -3,6 +3,7 @@ import type { CardBack as CardBackModel, CardFront } from './card-model'
 import type { CardLook } from './card-style'
 import type { CardTheme } from './card-theme-types'
 import { CardBadge } from './card-badge'
+import { MeanderBand } from './fx/olympus'
 
 /** Back face — port of PlayerCard.dc.html L208–281: level, ledger, badges, source. */
 export function CardBack({
@@ -111,6 +112,9 @@ export function CardBack({
         </div>
       </div>
 
+      {th.backMeander === true && th.meander !== undefined && (
+        <MeanderBand image={th.meander} back />
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px 16px' }}>
         <div
           style={{

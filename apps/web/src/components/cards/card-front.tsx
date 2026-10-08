@@ -5,6 +5,11 @@ import type { CardLook, resolveFx } from './card-style'
 import type { CardTheme } from './card-theme-types'
 import { CardBadge } from './card-badge'
 import { HardlightOverlay, HardlightPortrait } from './fx/hardlight'
+import { FrostOverlay, FrostRim, IcePanel, StatGem } from './fx/frozen'
+import { MeanderBand, OlympusOverlay, OlympusPortrait } from './fx/olympus'
+import { CyberOverlay, TraceFoot, TraceFrame, TraceStats } from './fx/cyber'
+import { InfernoBg, InfernoOverlay, InfernoPortrait } from './fx/inferno'
+import { ArcFoot, ArcFrame, ArcStats, StormBg, StormOverlay } from './fx/storm'
 
 type CardFx = ReturnType<typeof resolveFx>
 
@@ -19,6 +24,7 @@ export function CardFront({
   fx,
   uid,
   hover,
+  strike,
 }: {
   card: CardFrontModel
   theme: CardTheme
@@ -26,8 +32,11 @@ export function CardFront({
   fx: CardFx
   uid: string
   hover: boolean
+  /** Storm lightning strike in progress (useStormStrike). */
+  strike: boolean
 }) {
   const tk = th.tk
+  const on = fx.themeFx
   const plate = {
     display: 'flex',
     alignItems: 'center',
@@ -94,6 +103,10 @@ export function CardFront({
           }}
         />
       )}
+      {th.storm === true && th.art !== undefined && (
+        <StormBg art={th.art} on={on} strike={strike} />
+      )}
+      {th.inferno === true && <InfernoBg embers={th.embers} on={on} />}
 
       <div
         style={{
@@ -191,7 +204,9 @@ export function CardFront({
             }}
           />
         )}
+        {th.olympus === true && <OlympusPortrait on={on} />}
         {fx.grid && <HardlightPortrait uid={uid} animated={fx.gridAnimated} />}
+        {th.inferno === true && <InfernoPortrait on={on} />}
         <svg
           viewBox="0 0 100 110"
           fill="currentColor"
@@ -231,6 +246,7 @@ export function CardFront({
         </span>
       </div>
 
+      {th.meander !== undefined && <MeanderBand image={th.meander} back={false} />}
       <div
         style={{
           margin: look.panelM,
@@ -241,6 +257,9 @@ export function CardFront({
           boxShadow: look.shelfSh,
         }}
       >
+        {th.traces !== undefined && <TraceFrame traces={th.traces} on={on} />}
+        {th.arc !== undefined && <ArcFrame arc={th.arc} on={on} strike={strike} />}
+        {th.icePanel === true && <IcePanel uid={uid} on={on} />}
         <div
           style={{
             display: 'flex',
@@ -293,6 +312,8 @@ export function CardFront({
             padding: look.statPad,
           }}
         >
+          {th.traces !== undefined && <TraceStats traces={th.traces} on={on} />}
+          {th.arc !== undefined && <ArcStats arc={th.arc} on={on} strike={strike} />}
           {card.stats.map((stat, i) => {
             const s = look.stats[i]
             if (s === undefined) return null
@@ -312,6 +333,7 @@ export function CardFront({
                   borderRadius: look.plateR,
                 }}
               >
+                {s.gem && <StatGem />}
                 {s.sep && (
                   <div
                     style={{
@@ -363,6 +385,8 @@ export function CardFront({
             padding: look.footPad,
           }}
         >
+          {th.traces !== undefined && <TraceFoot traces={th.traces} />}
+          {th.arc !== undefined && <ArcFoot arc={th.arc} on={on} strike={strike} />}
           <div className="pcard-flag" style={plate}>
             {hasFlag(card.nationality) && <NationalityFlag code={card.nationality} />}
           </div>
@@ -438,6 +462,7 @@ export function CardFront({
           />
         </>
       )}
+      {th.frost === true && <FrostRim />}
       {th.innerRim !== undefined && (
         <div
           className="pcard-layer"
@@ -462,7 +487,16 @@ export function CardFront({
           }}
         />
       )}
+      {th.frost === true && <FrostOverlay on={on} />}
+      {th.storm === true && th.art !== undefined && (
+        <StormOverlay art={th.art} uid={uid} on={on} strike={strike} />
+      )}
+      {th.olympus === true && <OlympusOverlay on={on} />}
       {fx.grid && <HardlightOverlay scan={fx.scan} />}
+      {th.future === 'lab' && th.circuit !== undefined && (
+        <CyberOverlay circuit={th.circuit} on={on} />
+      )}
+      {th.inferno === true && <InfernoOverlay on={on} />}
       {fx.sweep && (
         <div className="pcard-layer" style={{ inset: 0, zIndex: 9, overflow: 'hidden' }}>
           <div
