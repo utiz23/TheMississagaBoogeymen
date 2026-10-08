@@ -89,6 +89,65 @@ export const playerGameTitleStats = pgTable(
   ],
 )
 
+/** Stored position of a `player_position_stats` row; `wing` = leftWing + rightWing. */
+export type PositionStatsPosition = 'center' | 'leftWing' | 'rightWing' | 'wing' | 'defenseMen'
+
+/**
+ * Precomputed per-position skater stats: one row per player × title × mode
+ * (NULL = all modes) × position, from player_match_stats skater appearances.
+ * Recomputed by the worker alongside player_game_title_stats (migration 0063,
+ * hand-applied). Raw counts are kept so rates can be recombined.
+ */
+export const playerPositionStats = pgTable(
+  'player_position_stats',
+  {
+    id: serial('id').primaryKey(),
+    playerId: integer('player_id')
+      .notNull()
+      .references(() => players.id),
+    gameTitleId: integer('game_title_id')
+      .notNull()
+      .references(() => gameTitles.id),
+    gameMode: text('game_mode').$type<GameMode>(),
+    position: text('position').$type<PositionStatsPosition>().notNull(),
+    gp: integer('gp').notNull().default(0),
+    goals: integer('goals').notNull().default(0),
+    assists: integer('assists').notNull().default(0),
+    points: integer('points').notNull().default(0),
+    plusMinus: integer('plus_minus').notNull().default(0),
+    shots: integer('shots').notNull().default(0),
+    shotAttempts: integer('shot_attempts').notNull().default(0),
+    hits: integer('hits').notNull().default(0),
+    pim: integer('pim').notNull().default(0),
+    takeaways: integer('takeaways').notNull().default(0),
+    giveaways: integer('giveaways').notNull().default(0),
+    faceoffWins: integer('faceoff_wins').notNull().default(0),
+    faceoffLosses: integer('faceoff_losses').notNull().default(0),
+    faceoffPct: numeric('faceoff_pct', { precision: 5, scale: 2 }),
+    passCompletions: integer('pass_completions').notNull().default(0),
+    passAttempts: integer('pass_attempts').notNull().default(0),
+    passPct: numeric('pass_pct', { precision: 5, scale: 2 }),
+    blockedShots: integer('blocked_shots').notNull().default(0),
+    ppGoals: integer('pp_goals').notNull().default(0),
+    shGoals: integer('sh_goals').notNull().default(0),
+    hatTricks: integer('hat_tricks').notNull().default(0),
+    interceptions: integer('interceptions').notNull().default(0),
+    penaltiesDrawn: integer('penalties_drawn').notNull().default(0),
+    possessionSeconds: integer('possession_seconds').notNull().default(0),
+    deflections: integer('deflections').notNull().default(0),
+    saucerPasses: integer('saucer_passes').notNull().default(0),
+    toiSeconds: integer('toi_seconds'),
+  },
+  (table) => [
+    uniqueIndex('player_position_stats_uniq').on(
+      table.playerId,
+      table.gameTitleId,
+      sql`COALESCE(${table.gameMode}, '')`,
+      table.position,
+    ),
+  ],
+)
+
 /**
  * Precomputed club stats aggregated per game title.
  * One row per (game_title_id, COALESCE(game_mode, '')) combination.

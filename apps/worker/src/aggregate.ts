@@ -1,7 +1,8 @@
 /**
  * Aggregate recomputation.
  *
- * Recomputes player_game_title_stats and club_game_title_stats for a given
+ * Recomputes player_game_title_stats, club_game_title_stats and
+ * player_position_stats (per-position skater rows) for a given
  * game title using INSERT ... ON CONFLICT UPDATE from aggregate queries.
  * player_game_title_stats groups by player_id; club_game_title_stats has no
  * GROUP BY (one row per game title/mode), so it relies on HAVING COUNT(*) > 0
@@ -19,7 +20,7 @@
 
 import { db } from '@eanhl/db'
 import type { GameMode } from '@eanhl/db'
-import { sql } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm'
 
 /**
  * Recompute player_game_title_stats and club_game_title_stats for one game title.
@@ -37,12 +38,117 @@ export async function recomputeAggregates(gameTitleId: number): Promise<void> {
   // All-modes combined row
   await recomputePlayerStats(gameTitleId, null)
   await recomputeClubStats(gameTitleId, null)
+  await recomputePositionStats(gameTitleId, null)
 
   // Per-mode rows — SQL returns nothing when no matches exist for that mode
   for (const mode of ['6s', '3s'] as const) {
     await recomputePlayerStats(gameTitleId, mode)
     await recomputeClubStats(gameTitleId, mode)
+    await recomputePositionStats(gameTitleId, mode)
   }
+}
+
+/**
+ * Rebuild player_position_stats for one title/mode: one row per player ×
+ * skater position, plus a `wing` row (leftWing + rightWing). Goalie
+ * appearances (including AI goalies) are excluded. DNF games count, matching
+ * player_game_title_stats. Delete-then-insert in one transaction, so a
+ * position a player no longer has (e.g. after a reprocess) disappears.
+ */
+async function recomputePositionStats(
+  gameTitleId: number,
+  gameMode: GameMode | null,
+): Promise<void> {
+  const modeFilter = gameMode !== null ? sql` AND m.game_mode = ${gameMode}` : sql``
+  const modeMatch = gameMode !== null ? sql`game_mode = ${gameMode}` : sql`game_mode IS NULL`
+  await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`DELETE FROM player_position_stats WHERE game_title_id = ${gameTitleId} AND ${modeMatch}`,
+    )
+    await tx.execute(
+      positionInsert(
+        gameTitleId,
+        gameMode,
+        sql`pms.position`,
+        sql`pms.position IN ('center', 'leftWing', 'rightWing', 'defenseMen')${modeFilter}`,
+        sql`pms.player_id, pms.position`,
+      ),
+    )
+    await tx.execute(
+      positionInsert(
+        gameTitleId,
+        gameMode,
+        sql`'wing'`,
+        sql`pms.position IN ('leftWing', 'rightWing')${modeFilter}`,
+        sql`pms.player_id`,
+      ),
+    )
+  })
+}
+
+function positionInsert(
+  gameTitleId: number,
+  gameMode: GameMode | null,
+  positionExpr: SQL,
+  where: SQL,
+  groupBy: SQL,
+) {
+  return sql`
+    INSERT INTO player_position_stats (
+      player_id, game_title_id, game_mode, position, gp,
+      goals, assists, points, plus_minus, shots, shot_attempts, hits, pim,
+      takeaways, giveaways, faceoff_wins, faceoff_losses, faceoff_pct,
+      pass_completions, pass_attempts, pass_pct, blocked_shots, pp_goals,
+      sh_goals, hat_tricks, interceptions, penalties_drawn, possession_seconds,
+      deflections, saucer_passes, toi_seconds
+    )
+    SELECT
+      pms.player_id,
+      ${gameTitleId}::int,
+      ${gameMode}::text,
+      ${positionExpr},
+      COUNT(*)::int,
+      SUM(pms.goals)::int,
+      SUM(pms.assists)::int,
+      (SUM(pms.goals) + SUM(pms.assists))::int,
+      SUM(pms.plus_minus)::int,
+      SUM(pms.shots)::int,
+      SUM(pms.shot_attempts)::int,
+      SUM(pms.hits)::int,
+      SUM(pms.pim)::int,
+      SUM(pms.takeaways)::int,
+      SUM(pms.giveaways)::int,
+      SUM(pms.faceoff_wins)::int,
+      SUM(pms.faceoff_losses)::int,
+      CASE
+        WHEN SUM(pms.faceoff_wins + pms.faceoff_losses) > 0
+        THEN ROUND(
+          SUM(pms.faceoff_wins)::numeric / SUM(pms.faceoff_wins + pms.faceoff_losses) * 100,
+          2
+        )
+      END,
+      SUM(pms.pass_completions)::int,
+      SUM(pms.pass_attempts)::int,
+      CASE
+        WHEN SUM(pms.pass_attempts) > 0
+        THEN ROUND(SUM(pms.pass_completions)::numeric / SUM(pms.pass_attempts) * 100, 2)
+      END,
+      SUM(pms.blocked_shots)::int,
+      SUM(pms.pp_goals)::int,
+      SUM(pms.sh_goals)::int,
+      COUNT(*) FILTER (WHERE pms.goals >= 3)::int,
+      SUM(pms.interceptions)::int,
+      SUM(pms.penalties_drawn)::int,
+      SUM(pms.possession)::int,
+      SUM(pms.deflections)::int,
+      SUM(pms.saucer_passes)::int,
+      -- NULL only when every appearance lacks TOI (SUM ignores NULLs).
+      SUM(pms.toi_seconds)::int
+    FROM player_match_stats pms
+    JOIN matches m ON pms.match_id = m.id
+    WHERE m.game_title_id = ${gameTitleId} AND NOT pms.is_goalie AND ${where}
+    GROUP BY ${groupBy}
+  `
 }
 
 async function recomputePlayerStats(gameTitleId: number, gameMode: GameMode | null): Promise<void> {
