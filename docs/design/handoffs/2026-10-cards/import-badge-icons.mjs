@@ -40,7 +40,7 @@ const FILE_TO_FAMILY = {
   Breakaways: { skip: 'superseded by Breakaways-solid.svg' },
   'Breakaways-solid': { id: 'pbrk' },
   // Hits: centred on the hammer head; the handle runs off the badge (operator, 2026-10-08).
-  Hits: { id: 'phits', scale: 1.5, offsetX: -0.17, offsetY: 0.24 },
+  Hits: { id: 'phits', scale: 1.7, offsetX: -0.17, offsetY: 0.24 },
   Faceoffs: { id: 'pfo' },
   Takeaways: { id: 'ptka' },
   Blocks: { id: 'pblk' },
