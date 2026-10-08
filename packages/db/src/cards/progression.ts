@@ -9,6 +9,7 @@ import {
   poolOf,
   type BadgeFamilyId,
   type CardTier,
+  type LadderSet,
   type MythicThemeKey,
   type StatsTier,
   type TierPool,
@@ -30,9 +31,12 @@ export function badgeLevel(ladder: readonly number[], value: number): number {
   return level
 }
 
-export function badgeLevels(values: BadgeValues): Record<BadgeFamilyId, number> {
+export function badgeLevels(
+  values: BadgeValues,
+  ladders: LadderSet = BADGE_LADDERS,
+): Record<BadgeFamilyId, number> {
   return Object.fromEntries(
-    BADGE_FAMILIES.map((f) => [f.id, badgeLevel(BADGE_LADDERS[f.id], values[f.id])]),
+    BADGE_FAMILIES.map((f) => [f.id, badgeLevel(ladders[f.id], values[f.id])]),
   ) as Record<BadgeFamilyId, number>
 }
 
@@ -85,17 +89,26 @@ export interface PoolStanding {
   level: number
 }
 
-function familyProgress(familyId: BadgeFamilyId, value: number, tier: StatsTier): number {
-  const ladder = BADGE_LADDERS[familyId]
+function familyProgress(
+  familyId: BadgeFamilyId,
+  value: number,
+  tier: StatsTier,
+  ladders: LadderSet,
+): number {
+  const ladder = ladders[familyId]
   const from = ladder[tierBar(tier) - 1] ?? 0
   const to = ladder[tierBar(tier + 1) - 1] ?? from
   if (to <= from) return 0
   return Math.min(1, Math.max(0, (value - from) / (to - from)))
 }
 
-export function evaluatePool(pool: TierPool, values: BadgeValues): PoolStanding {
+export function evaluatePool(
+  pool: TierPool,
+  values: BadgeValues,
+  ladders: LadderSet = BADGE_LADDERS,
+): PoolStanding {
   const families = BADGE_FAMILIES.filter((f) => poolOf(f) === pool)
-  const levels = families.map((f) => badgeLevel(BADGE_LADDERS[f.id], values[f.id]))
+  const levels = families.map((f) => badgeLevel(ladders[f.id], values[f.id]))
   let tier: StatsTier = 1
   for (let next = 2; next <= MAX_STATS_TIER; next++) {
     const bar = tierBar(next)
@@ -104,7 +117,7 @@ export function evaluatePool(pool: TierPool, values: BadgeValues): PoolStanding 
   }
   if (tier === MAX_STATS_TIER) return { pool, tier, avgProgress: 1, level: 10 }
   const progresses = families
-    .map((f) => familyProgress(f.id, values[f.id], tier))
+    .map((f) => familyProgress(f.id, values[f.id], tier, ladders))
     .sort((a, b) => b - a)
     .slice(0, FAMILIES_PER_TIER)
   const avgProgress = progresses.reduce((s, p) => s + p, 0) / FAMILIES_PER_TIER
@@ -120,9 +133,12 @@ export interface CardStanding {
 }
 
 /** Stats-only standing: the better of the skater and goalie pools (tie → higher progress). */
-export function computeStanding(values: BadgeValues): CardStanding {
-  const skater = evaluatePool('skater', values)
-  const goalie = evaluatePool('goalie', values)
+export function computeStanding(
+  values: BadgeValues,
+  ladders: LadderSet = BADGE_LADDERS,
+): CardStanding {
+  const skater = evaluatePool('skater', values, ladders)
+  const goalie = evaluatePool('goalie', values, ladders)
   const best =
     goalie.tier > skater.tier ||
     (goalie.tier === skater.tier && goalie.avgProgress > skater.avgProgress)

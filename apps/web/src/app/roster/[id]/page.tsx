@@ -335,6 +335,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         <PlayerBadges
           gamertag={overview.player.gamertag}
           seasonName={cardProgress?.gameTitle?.name ?? null}
+          aiGoalie={cardProgress?.aiGoalie ?? false}
           rows={cardProgress?.badges ?? []}
         />
       </LazyMount>

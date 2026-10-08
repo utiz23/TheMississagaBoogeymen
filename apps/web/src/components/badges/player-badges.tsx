@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { BADGE_LADDERS, BADGE_MAX_LEVEL } from '@eanhl/db/cards'
+import { BADGE_MAX_LEVEL, laddersFor } from '@eanhl/db/cards'
 import type { BadgeFamilyId } from '@eanhl/db/cards'
 import { Badge } from './badge'
 import {
@@ -33,12 +33,15 @@ interface PlayerBadgesProps {
   gamertag: string
   /** The season (game title) these badges count, e.g. "NHL 27"; null before the first card. */
   seasonName: string | null
+  /** The AI goalies use their own ladders (badge-catalog AI_GOALIE_LADDERS). */
+  aiGoalie?: boolean
   rows: readonly BadgeRowInput[]
 }
 
 /** Profile "Badges" section — port of Player Badges.dc.html (marker = frame step, locked = dim). */
-export function PlayerBadges({ gamertag, seasonName, rows }: PlayerBadgesProps) {
-  const board = useMemo(() => buildBadgeBoard(rows), [rows])
+export function PlayerBadges({ gamertag, seasonName, aiGoalie = false, rows }: PlayerBadgesProps) {
+  const ladders = laddersFor(aiGoalie)
+  const board = useMemo(() => buildBadgeBoard(rows, ladders), [rows, ladders])
   const [selId, setSelId] = useState<BadgeFamilyId>(() => defaultSelection(board))
   const [hover, setHover] = useState<number | null>(null)
   const [pin, setPin] = useState<number | null>(null)
@@ -46,7 +49,7 @@ export function PlayerBadges({ gamertag, seasonName, rows }: PlayerBadgesProps) 
   const sel = board.rows.find((r) => r.family.id === selId) ?? board.rows[0]
   if (sel === undefined) return null
 
-  const ladder = BADGE_LADDERS[sel.family.id]
+  const ladder = ladders[sel.family.id]
   const level = sel.progress.level
   const focus = hover ?? pin
   const focusAt = focus === null ? 0 : (ladder[focus - 1] ?? 0)

@@ -8,7 +8,7 @@
  */
 import { and, eq, sql } from 'drizzle-orm'
 import { db, sql as dbSql, playerCardEvents, playerCardProgress } from '@eanhl/db'
-import { computeStanding, emptyBadgeValues } from '@eanhl/db/cards'
+import { computeStanding, emptyBadgeValues, laddersFor } from '@eanhl/db/cards'
 import { currentDatabase, loadCardTitles, loadSeasonTotals } from './card-progression.js'
 import { parseMythicArgs } from './lib/card-mythic-args.js'
 
@@ -17,8 +17,8 @@ async function main(): Promise<void> {
   console.log(`[card-mythic] database=${await currentDatabase()}`)
 
   const found = (await db.execute(
-    sql`SELECT id, gamertag FROM players WHERE lower(gamertag) = lower(${cmd.player})`,
-  )) as unknown as { id: number; gamertag: string }[]
+    sql`SELECT id, gamertag, ai_goalie_side IS NOT NULL AS "aiGoalie" FROM players WHERE lower(gamertag) = lower(${cmd.player})`,
+  )) as unknown as { id: number; gamertag: string; aiGoalie: boolean }[]
   const player = found[0]
   if (player === undefined || found.length !== 1) {
     throw new Error(
@@ -43,6 +43,7 @@ async function main(): Promise<void> {
     cmd.action === 'clear'
       ? computeStanding(
           (await loadSeasonTotals([title.id])).get(title.id)?.get(player.id) ?? emptyBadgeValues(),
+          laddersFor(player.aiGoalie),
         )
       : null
   const thisCard = and(

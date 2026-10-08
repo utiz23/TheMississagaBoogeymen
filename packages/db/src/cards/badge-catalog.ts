@@ -270,6 +270,29 @@ export const BADGE_LADDERS: Readonly<Record<BadgeFamilyId, readonly number[]>> =
   gso: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
 }
 
+export type LadderSet = Readonly<Record<BadgeFamilyId, readonly number[]>>
+
+/**
+ * Ladders for the two AI goalies (operator, 2026-10-08). EA reports only their
+ * starts, wins, saves and shutouts (no desperation saves or poke-checks), so
+ * these four are sized to max out at their projected season end: NHL 27 pace on
+ * 2026-10-08 (about 32 starts each in 4.9 of 48 weeks) → ~300 starts, ~150
+ * wins, ~3,500 saves, ~30 shutouts. Same nice-number rules as BADGE_LADDERS.
+ */
+// prettier-ignore
+export const AI_GOALIE_LADDERS: LadderSet = {
+  ...BADGE_LADDERS,
+  gg: [1, 2, 3, 5, 8, 12, 15, 20, 25, 35, 40, 50, 55, 65, 75, 85, 95, 110, 120, 130, 150, 160, 180, 190, 210, 230, 240, 260, 280, 300],
+  gw: [1, 2, 3, 4, 5, 6, 8, 11, 12, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 75, 80, 90, 95, 100, 110, 120, 130, 140, 150],
+  gsv: [5, 15, 35, 60, 95, 140, 190, 250, 320, 390, 470, 560, 660, 760, 880, 1000, 1100, 1250, 1400, 1550, 1700, 1900, 2050, 2250, 2450, 2650, 2850, 3050, 3250, 3500],
+  gso: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
+}
+
+/** The ladder set a player's badges use: the AI goalies' own, else the standard one. */
+export function laddersFor(isAiGoalie: boolean): LadderSet {
+  return isAiGoalie ? AI_GOALIE_LADDERS : BADGE_LADDERS
+}
+
 export const CARD_THEME_ORDER = [
   'away',
   'home',

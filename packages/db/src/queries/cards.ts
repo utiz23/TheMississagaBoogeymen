@@ -5,6 +5,7 @@ import {
   playerBadgeLevels,
   playerCardEvents,
   playerCardProgress,
+  players,
 } from '../schema/index.js'
 import type {
   BadgeFamilyId,
@@ -17,6 +18,8 @@ import type { CardEventKind } from '../cards/progression.js'
 import { pickBestBadge, resolveCardTheme, type BadgeLevelRef } from '../cards/card-theme.js'
 
 export interface PlayerCardProgress {
+  /** One of the two AI goalies (their badges use AI_GOALIE_LADDERS). */
+  aiGoalie: boolean
   /** The season (game title) this card belongs to; null when the player has no card yet. */
   gameTitle: { id: number; name: string } | null
   /** null until the worker's first recompute has seen this player. */
@@ -68,8 +71,16 @@ export async function getPlayerCardProgress(
   playerId: number,
   eventLimit = 20,
 ): Promise<PlayerCardProgress> {
-  const [s] = await cardRowsNewestFirst([playerId])
-  if (s === undefined) return { gameTitle: null, standing: null, badges: [], events: [] }
+  const [[s], [who]] = await Promise.all([
+    cardRowsNewestFirst([playerId]),
+    db
+      .select({ aiGoalieSide: players.aiGoalieSide })
+      .from(players)
+      .where(eq(players.id, playerId))
+      .limit(1),
+  ])
+  const aiGoalie = (who?.aiGoalieSide ?? null) !== null
+  if (s === undefined) return { aiGoalie, gameTitle: null, standing: null, badges: [], events: [] }
   const [badges, events] = await Promise.all([
     db
       .select({
@@ -104,6 +115,7 @@ export async function getPlayerCardProgress(
       .limit(eventLimit),
   ])
   return {
+    aiGoalie,
     gameTitle: { id: s.gameTitleId, name: s.gameTitleName },
     standing: {
       tier: s.tier,

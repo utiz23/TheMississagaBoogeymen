@@ -6,6 +6,7 @@ import {
   BADGE_FAMILIES,
   BADGE_GROUPS,
   BADGE_LADDERS,
+  type LadderSet,
   BADGE_MAX_LEVEL,
   CARD_THEME_NAMES,
   CARD_THEME_ORDER,
@@ -86,11 +87,14 @@ export interface BadgeBoardView {
   maxLevels: number
 }
 
-export function buildBadgeBoard(input: readonly BadgeRowInput[]): BadgeBoardView {
+export function buildBadgeBoard(
+  input: readonly BadgeRowInput[],
+  ladders: LadderSet = BADGE_LADDERS,
+): BadgeBoardView {
   const valueById = new Map(input.map((r) => [r.familyId, r.value]))
   const shapeByGroup = new Map(BADGE_GROUPS.map((g) => [g.id, g.shape]))
   const rows: BadgeRowView[] = BADGE_FAMILIES.map((family) => {
-    const progress = badgeProgress(BADGE_LADDERS[family.id], valueById.get(family.id) ?? 0)
+    const progress = badgeProgress(ladders[family.id], valueById.get(family.id) ?? 0)
     return {
       family,
       shape: shapeByGroup.get(family.group) ?? 'hex',

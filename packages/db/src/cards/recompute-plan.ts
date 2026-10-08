@@ -3,7 +3,7 @@
  * worker loads totals and stored state, calls this, and turns the plan into
  * upserts. Spec: docs/superpowers/specs/2026-10-07-player-cards-badges-design.md.
  */
-import type { BadgeFamilyId } from './badge-catalog.js'
+import { BADGE_LADDERS, type BadgeFamilyId, type LadderSet } from './badge-catalog.js'
 import {
   applyStanding,
   badgeLevels,
@@ -29,16 +29,19 @@ export interface PlannedPlayer {
   writeStanding: boolean
 }
 
+/** `laddersOf`: the ladder set per player (the AI goalies have their own). */
 export function planCardRecompute(
   totals: ReadonlyMap<number, BadgeValues>,
   storedStanding: ReadonlyMap<number, CardStanding>,
   storedLevels: ReadonlyMap<number, Partial<Record<BadgeFamilyId, number>>>,
+  laddersOf: (playerId: number) => LadderSet = () => BADGE_LADDERS,
 ): PlannedPlayer[] {
   const plan: PlannedPlayer[] = []
   for (const [playerId, values] of totals) {
-    const levels = badgeLevels(values)
+    const ladders = laddersOf(playerId)
+    const levels = badgeLevels(values, ladders)
     const prev = storedStanding.get(playerId) ?? null
-    const standing = applyStanding(prev, computeStanding(values))
+    const standing = applyStanding(prev, computeStanding(values, ladders))
     const events = diffCardEvents(
       prev === null ? null : { standing: prev, levels: storedLevels.get(playerId) ?? {} },
       { standing, levels },

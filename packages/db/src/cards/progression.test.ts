@@ -11,7 +11,7 @@ import {
   type BadgeValues,
   type CardStanding,
 } from './progression.js'
-import { BADGE_LADDERS } from './badge-catalog.js'
+import { AI_GOALIE_LADDERS, BADGE_LADDERS } from './badge-catalog.js'
 import { NHL27_2026_10_08 } from './test-fixtures.js'
 
 const values = (partial: Partial<BadgeValues>): BadgeValues => ({
@@ -159,4 +159,20 @@ void test('diffCardEvents: tier up beats level up; badge rises are listed; drops
     ),
     [{ kind: 'level_up', familyId: null, fromValue: 3, toValue: 5 }],
   )
+})
+
+void test('AI goalie ladders: their projected full season maxes the four badges they can earn', () => {
+  const season = values({ gg: 300, gw: 150, gsv: 3500, gso: 30 })
+  const ai = computeStanding(season, AI_GOALIE_LADDERS)
+  assert.equal(ai.tier, 5)
+  assert.equal(ai.pool, 'goalie')
+  // A half season is only halfway: the ladders are sized for the full season.
+  assert.ok(
+    computeStanding(values({ gg: 150, gw: 75, gsv: 1750, gso: 15 }), AI_GOALIE_LADDERS).tier < 5,
+  )
+  // Shutouts (a 1-per-level ladder) set the pace: today's ~32 starts and 3
+  // shutouts are still T1; the 5th shutout makes T2.
+  const now = values({ gg: 32, gw: 16, gsv: 365, gso: 3 })
+  assert.equal(computeStanding(now, AI_GOALIE_LADDERS).tier, 1)
+  assert.equal(computeStanding({ ...now, gso: 5 }, AI_GOALIE_LADDERS).tier, 2)
 })

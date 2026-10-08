@@ -10,6 +10,7 @@ import { db, playerBadgeLevels, playerCardEvents, playerCardProgress } from '@ea
 import {
   BADGE_FAMILIES,
   FIRST_CARD_RELEASE_ORDER,
+  laddersFor,
   computeStanding,
   mergeSeasonTotals,
   pickFeaturedBadges,
@@ -105,9 +106,13 @@ export async function recomputeCardProgression(opts: {
   const [storedProgress, storedLevels, names] = await Promise.all([
     db.select().from(playerCardProgress),
     db.select().from(playerBadgeLevels),
-    rows<{ id: number; gamertag: string }>(sql`SELECT id, gamertag FROM players`),
+    rows<{ id: number; gamertag: string; aiGoalie: boolean }>(
+      sql`SELECT id, gamertag, ai_goalie_side IS NOT NULL AS "aiGoalie" FROM players`,
+    ),
   ])
   const gamertags = new Map(names.map((n) => [n.id, n.gamertag]))
+  const aiGoalies = new Set(names.filter((n) => n.aiGoalie).map((n) => n.id))
+  const laddersOf = (playerId: number) => laddersFor(aiGoalies.has(playerId))
 
   const now = new Date()
   const results: RecomputeResult[] = []
@@ -133,13 +138,19 @@ export async function recomputeCardProgression(opts: {
       prevLevels.set(r.playerId, levels)
     }
 
-    const plan = planCardRecompute(totals.get(gameTitleId) ?? new Map(), prevStanding, prevLevels)
+    const plan = planCardRecompute(
+      totals.get(gameTitleId) ?? new Map(),
+      prevStanding,
+      prevLevels,
+      laddersOf,
+    )
     // The featured badge compares the whole club's season, so it is picked per title.
     // A mythic card still features a badge from its stats pool.
     const featured = pickFeaturedBadges(
       plan.map((p) => ({
         playerId: p.playerId,
-        pool: computeStanding(p.values).pool === 'goalie' ? 'goalie' : 'skater',
+        pool:
+          computeStanding(p.values, laddersOf(p.playerId)).pool === 'goalie' ? 'goalie' : 'skater',
         values: p.values,
         levels: p.levels,
       })),
