@@ -1,5 +1,7 @@
 import type {
-  PlayerArchiveSkaterDetailRow,
+  ArchiveGoalieDetail,
+  ArchiveSeasonDetail,
+  ArchiveSkaterDetail,
   PlayerCareerSeasonRow,
   getPlayerEASeasonStats,
 } from '@eanhl/db/queries'
@@ -48,9 +50,9 @@ export type SeasonTable =
   | { role: 'goalie'; rows: SeasonGoalieRow[]; source: StatsSource }
 
 const ARCHIVE_SKATER_NOTE =
-  'Archive seasons come from reviewed screenshots, which never showed power-play goals, hat tricks, possession, dekes, breakaways, penalty shots or time on ice; those cells show —. Their S% and SOG% are computed from goals, shots and attempts.'
+  'Archive seasons come from reviewed screenshots, which didn’t show possession or time on ice; those cells show —. Their percentages are computed from the screenshot counts.'
 const ARCHIVE_GOALIE_NOTE =
-  'Archive seasons come from reviewed screenshots, which never showed shots against, time in net or EA’s detailed goalie stats; those cells show —.'
+  'Archive seasons come from reviewed screenshots, which didn’t show shutout periods or poke checks; those cells show —. Their shots against (saves + goals against), GAA and save percentages are computed from the screenshot counts.'
 
 /** Percentage string (2 dp) of num/den, or null when it can't be computed. */
 function pct(num: number | null, den: number | null): string | null {
@@ -91,43 +93,45 @@ function eaSkaterExpanded(e: EASeasonDetail): SkaterExpanded {
 }
 
 /**
- * Archive seasons only carry the counts the screenshots showed; everything
- * else is null (rendered "—"), never 0. S% and SOG% are derived with EA's
- * formulas (goals ÷ SOG, SOG ÷ attempts) since the archive never stored them.
+ * Archive seasons carry the screenshot counts (`ArchiveSkaterDetail`); a
+ * count the screenshots lacked is null (rendered "—"), never 0. Rates are
+ * derived with EA's formulas since the archive's own rates are rounded
+ * display strings that can't be combined across 6s + 3s.
  */
 function archiveSkaterExpanded(
   row: PlayerCareerSeasonRow,
-  a: PlayerArchiveSkaterDetailRow | undefined,
+  a: ArchiveSkaterDetail | null,
 ): PartialExpanded<SkaterExpanded> {
+  const n = <K extends keyof ArchiveSkaterDetail>(k: K) => a?.[k] ?? null
   return {
-    powerPlayGoals: null,
-    shortHandedGoals: a?.shortHandedGoals ?? null,
-    gameWinningGoals: a?.gameWinningGoals ?? null,
-    hatTricks: null,
+    powerPlayGoals: n('powerPlayGoals'),
+    shortHandedGoals: n('shortHandedGoals'),
+    gameWinningGoals: n('gameWinningGoals'),
+    hatTricks: n('hatTricks'),
     shotPct: pct(row.goals, row.shots),
     shotOnNetPct: pct(row.shots, row.shotAttempts),
-    passes: a?.passes ?? null,
-    passAttempts: a?.passAttempts ?? null,
-    saucerPasses: null,
+    passes: n('passes'),
+    passAttempts: n('passAttempts'),
+    saucerPasses: n('saucerPasses'),
     possessionSeconds: null,
-    dekes: null,
-    dekesMade: null,
-    deflections: null,
-    faceoffWins: a?.faceoffWins ?? null,
-    faceoffLosses: a?.faceoffLosses ?? null,
-    blockedShots: a?.blockedShots ?? null,
-    interceptions: a?.interceptions ?? null,
-    pkClearZone: null,
-    penaltiesDrawn: null,
-    offsides: null,
-    fights: null,
-    fightsWon: null,
-    breakaways: null,
-    breakawayGoals: null,
-    breakawayPct: null,
-    penaltyShotAttempts: null,
-    penaltyShotGoals: null,
-    penaltyShotPct: null,
+    dekes: n('dekes'),
+    dekesMade: n('dekesMade'),
+    deflections: n('deflections'),
+    faceoffWins: n('faceoffWins'),
+    faceoffLosses: n('faceoffLosses'),
+    blockedShots: n('blockedShots'),
+    interceptions: n('interceptions'),
+    pkClearZone: n('pkClearZone'),
+    penaltiesDrawn: n('penaltiesDrawn'),
+    offsides: n('offsides'),
+    fights: n('fights'),
+    fightsWon: n('fightsWon'),
+    breakaways: n('breakaways'),
+    breakawayGoals: n('breakawayGoals'),
+    breakawayPct: pct(n('breakawayGoals'), n('breakaways')),
+    penaltyShotAttempts: n('penaltyShotAttempts'),
+    penaltyShotGoals: n('penaltyShotGoals'),
+    penaltyShotPct: pct(n('penaltyShotGoals'), n('penaltyShotAttempts')),
   }
 }
 
@@ -143,6 +147,22 @@ function eaGoalieExpanded(e: EASeasonDetail): GoalieExpanded {
     penaltyShotSavePct: e.goaliePenSavePct,
     pokeChecks: e.goaliePokeChecks,
     pkClearZone: e.goaliePkClearZone,
+  }
+}
+
+function archiveGoalieExpanded(g: ArchiveGoalieDetail | null): PartialExpanded<GoalieExpanded> {
+  const n = <K extends keyof ArchiveGoalieDetail>(k: K) => g?.[k] ?? null
+  return {
+    shutoutPeriods: null,
+    desperationSaves: n('desperationSaves'),
+    breakawayShots: n('breakawayShots'),
+    breakawaySaves: n('breakawaySaves'),
+    breakawaySavePct: pct(n('breakawaySaves'), n('breakawayShots')),
+    penaltyShots: n('penaltyShots'),
+    penaltyShotSaves: n('penaltyShotSaves'),
+    penaltyShotSavePct: pct(n('penaltyShotSaves'), n('penaltyShots')),
+    pokeChecks: null,
+    pkClearZone: n('pkClearZone'),
   }
 }
 
@@ -167,6 +187,25 @@ function seasonSource(sources: readonly ('ea' | 'historical')[], archiveNote: st
   }
 }
 
+function goalieBase(row: PlayerCareerSeasonRow): Omit<SeasonGoalieRow, 'toiSeconds' | 'expanded'> {
+  return {
+    playerId: null,
+    gamertag: row.gameTitleName,
+    gamesPlayed: row.goalieGp,
+    wins: row.wins,
+    losses: row.losses,
+    otl: row.otl,
+    savePct: row.savePct,
+    gaa: row.gaa,
+    shutouts: row.shutouts,
+    totalSaves: row.saves,
+    totalShotsAgainst: row.shotsAgainst,
+    totalGoalsAgainst: row.goalsAgainst,
+    recordUnavailable: false,
+    season: label(row),
+  }
+}
+
 /**
  * Season-by-season rows for the selected role, in the input order (newest
  * title first). Each row takes its detail from the same single source as its
@@ -176,36 +215,42 @@ function seasonSource(sources: readonly ('ea' | 'historical')[], archiveNote: st
 export function buildSeasonTable(
   seasons: readonly PlayerCareerSeasonRow[],
   eaSeasons: readonly EASeasonDetail[],
-  archiveSkater: readonly PlayerArchiveSkaterDetailRow[],
+  archive: readonly ArchiveSeasonDetail[],
   role: 'skater' | 'goalie',
 ): SeasonTable {
   const eaByTitle = new Map(eaSeasons.map((e) => [e.gameTitleId, e]))
-  const archiveByTitle = new Map(archiveSkater.map((a) => [a.gameTitleId, a]))
+  const archiveByTitle = new Map(archive.map((a) => [a.gameTitleId, a]))
   const eaFor = (row: PlayerCareerSeasonRow) =>
     row.source === 'ea' ? eaByTitle.get(row.gameTitleId) : undefined
+  const archiveFor = (row: PlayerCareerSeasonRow) =>
+    row.source === 'historical' ? archiveByTitle.get(row.gameTitleId) : undefined
 
   if (role === 'goalie') {
     const rows = seasons
       .filter((row) => row.goalieGp > 0)
       .map((row): SeasonGoalieRow => {
         const ea = eaFor(row)
+        if (row.source === 'ea') {
+          return {
+            ...goalieBase(row),
+            toiSeconds: ea?.goalieToiSeconds ?? null,
+            expanded: ea !== undefined ? eaGoalieExpanded(ea) : null,
+          }
+        }
+        // Archive: TOI from the screenshot minutes; SA and GAA derived from
+        // the counts when the archive row didn't store them.
+        const g = archiveFor(row)?.goalie ?? null
+        const toi = g?.minutesPlayed != null ? g.minutesPlayed * 60 : null
+        const sv = row.saves
+        const ga = row.goalsAgainst
         return {
-          playerId: null,
-          gamertag: row.gameTitleName,
-          gamesPlayed: row.goalieGp,
-          wins: row.wins,
-          losses: row.losses,
-          otl: row.otl,
-          savePct: row.savePct,
-          gaa: row.gaa,
-          shutouts: row.shutouts,
-          totalSaves: row.saves,
-          totalShotsAgainst: row.shotsAgainst,
-          totalGoalsAgainst: row.goalsAgainst,
-          toiSeconds: ea?.goalieToiSeconds ?? null,
-          recordUnavailable: false,
-          expanded: ea !== undefined ? eaGoalieExpanded(ea) : null,
-          season: label(row),
+          ...goalieBase(row),
+          gaa:
+            row.gaa ??
+            (ga !== null && toi !== null && toi > 0 ? ((ga * 3600) / toi).toFixed(2) : null),
+          totalShotsAgainst: row.shotsAgainst ?? (sv !== null && ga !== null ? sv + ga : null),
+          toiSeconds: toi,
+          expanded: archiveGoalieExpanded(g),
         }
       })
     return {
@@ -222,6 +267,19 @@ export function buildSeasonTable(
     .filter((row) => row.skaterGp > 0)
     .map((row): SeasonSkaterRow => {
       const ea = eaFor(row)
+      const sk = archiveFor(row)?.skater ?? null
+      const archiveRates =
+        sk === null
+          ? null
+          : {
+              faceoffPct: pct(
+                sk.faceoffWins,
+                sk.faceoffWins !== null && sk.faceoffLosses !== null
+                  ? sk.faceoffWins + sk.faceoffLosses
+                  : null,
+              ),
+              passPct: pct(sk.passes, sk.passAttempts),
+            }
       return {
         playerId: null,
         gamertag: row.gameTitleName,
@@ -236,8 +294,11 @@ export function buildSeasonTable(
         hits: row.hits,
         takeaways: row.takeaways,
         giveaways: row.giveaways,
-        faceoffPct: row.faceoffPct,
-        passPct: row.passPct,
+        // Archive FO%/PASS% are recomputed from the complete-or-null screenshot
+        // totals: the all-modes helper treats a missing count as 0 (a 3-0
+        // faceoff record would read 100%).
+        faceoffPct: archiveRates?.faceoffPct ?? (archiveRates ? null : row.faceoffPct),
+        passPct: archiveRates?.passPct ?? (archiveRates ? null : row.passPct),
         shotAttempts: row.shotAttempts,
         toiSeconds: ea?.toiSeconds ?? null,
         expanded:
@@ -245,7 +306,7 @@ export function buildSeasonTable(
             ? ea !== undefined
               ? eaSkaterExpanded(ea)
               : null
-            : archiveSkaterExpanded(row, archiveByTitle.get(row.gameTitleId)),
+            : archiveSkaterExpanded(row, sk),
         season: label(row),
       }
     })

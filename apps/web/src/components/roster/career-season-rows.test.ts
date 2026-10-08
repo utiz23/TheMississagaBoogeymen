@@ -71,17 +71,32 @@ const ea = {
   goalieDesperationSaves: 4,
 } as unknown as EASeasonDetail
 
-const archive = {
-  gameTitleId: 2,
+const archiveSkater = {
+  powerPlayGoals: 3,
   shortHandedGoals: 0,
   gameWinningGoals: 1,
-  blockedShots: 7,
-  interceptions: 8,
-  faceoffWins: null,
-  faceoffLosses: null,
+  hatTricks: null,
   passes: 50,
   passAttempts: 80,
+  saucerPasses: 4,
+  dekes: 10,
+  dekesMade: 6,
+  deflections: 2,
+  faceoffWins: null,
+  faceoffLosses: null,
+  blockedShots: 7,
+  interceptions: 8,
+  pkClearZone: 1,
+  penaltiesDrawn: 2,
+  offsides: 3,
+  fights: 0,
+  fightsWon: 0,
+  breakaways: 4,
+  breakawayGoals: 1,
+  penaltyShotAttempts: 0,
+  penaltyShotGoals: 0,
 }
+const archive = { gameTitleId: 2, skater: archiveSkater, goalie: null }
 
 void test('EA season takes its detail and TOI from the EA row', () => {
   const t = buildSeasonTable([season({})], [ea], [], 'skater')
@@ -104,8 +119,15 @@ void test('archive season never reads EA detail; uncaptured stats stay null, nev
   const r = first(skaters(t))
   const e = expanded(r)
   assert.equal(r.toiSeconds, null)
-  assert.equal(e.powerPlayGoals, null)
+  assert.equal(e.powerPlayGoals, 3)
+  assert.equal(e.hatTricks, null)
+  assert.equal(e.dekesMade, 6)
   assert.equal(e.possessionSeconds, null)
+  assert.equal(e.breakawayPct, '25.00')
+  // FO% unknown when a faceoff count is missing; PASS% from the archive totals.
+  assert.equal(r.faceoffPct, null)
+  assert.equal(r.passPct, '62.50')
+  assert.equal(e.penaltyShotPct, null)
   assert.equal(e.shortHandedGoals, 0)
   assert.equal(e.blockedShots, 7)
   assert.equal(e.passes, 50)
@@ -142,6 +164,46 @@ void test('rows keep input order and filter by role GP', () => {
     ['nhl26', 'nhl24'],
   )
   assert.equal(t.source.label, 'EA + archive')
+})
+
+void test('archive goalie: TOI from minutes, SA and GAA derived when not stored', () => {
+  const t = buildSeasonTable(
+    [
+      season({
+        source: 'historical',
+        goalieGp: 138,
+        saves: 1912,
+        goalsAgainst: 443,
+        shotsAgainst: null,
+        gaa: null,
+      }),
+    ],
+    [ea],
+    [
+      {
+        gameTitleId: 1,
+        skater: null,
+        goalie: {
+          desperationSaves: 99,
+          breakawayShots: 74,
+          breakawaySaves: 52,
+          penaltyShots: 3,
+          penaltyShotSaves: 3,
+          pkClearZone: 0,
+          minutesPlayed: 7208,
+        },
+      },
+    ],
+    'goalie',
+  )
+  const r = first(goalies(t))
+  assert.equal(r.toiSeconds, 432480)
+  assert.equal(r.gaa, '3.69')
+  assert.equal(r.totalShotsAgainst, 2355)
+  const e = expanded(r)
+  assert.equal(e.desperationSaves, 99)
+  assert.equal(e.breakawaySavePct, '70.27')
+  assert.equal(e.shutoutPeriods, null)
 })
 
 void test('goalie rows map goalie fields and EA goalie detail', () => {

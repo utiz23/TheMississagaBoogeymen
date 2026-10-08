@@ -14,7 +14,7 @@ import {
   getPlayerBuilds,
   getPlayerCareerActions,
   getPlayerCardProgress,
-  getPlayerArchiveSkaterDetail,
+  getPlayerArchiveSeasonDetail,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -121,13 +121,13 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     builds = null
   }
 
-  // Archive seasons' deeper skater counts (blocks, faceoffs, passes …). A
-  // failure only blanks those columns to "—" in the season table.
-  let archiveSkaterDetail: Awaited<ReturnType<typeof getPlayerArchiveSkaterDetail>> = []
+  // Archive seasons' screenshot detail (PPG, dekes, breakaways, goalie
+  // minutes …). A failure only blanks those columns to "—" in the season table.
+  let archiveDetail: Awaited<ReturnType<typeof getPlayerArchiveSeasonDetail>> = []
   try {
-    archiveSkaterDetail = await getPlayerArchiveSkaterDetail(id)
+    archiveDetail = await getPlayerArchiveSeasonDetail(id)
   } catch {
-    archiveSkaterDetail = []
+    archiveDetail = []
   }
 
   // Career Action Map (spec Part 5).
@@ -263,7 +263,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       <StatsRecordCard
         seasonTable={
           <CareerSeasonsTable
-            table={buildSeasonTable(careerSeasons, eaStats, archiveSkaterDetail, selectedRole)}
+            table={buildSeasonTable(careerSeasons, eaStats, archiveDetail, selectedRole)}
           />
         }
         gameLog={

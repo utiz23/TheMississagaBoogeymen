@@ -6,6 +6,7 @@ import {
   type HistoricalGameMode,
   type HistoricalPositionScope,
 } from '../schema/index.js'
+import { summarizeArchiveDetail } from './archive-season-detail.js'
 
 /**
  * Historical skater season totals imported from reviewed archive assets.
@@ -307,52 +308,31 @@ export async function getHistoricalGoalieStatsAllModes(gameTitleId: number) {
 }
 
 /**
- * One player's archive skater detail per title, summed across 6s + 3s — the
- * counts `getHistoricalSkaterStatsAllModes` reads but does not return. Feeds
- * the deeper columns of the profile's season-by-season table for titles whose
- * row comes from the archive (same reviewed `all_skaters` rows, so the GP
- * denominators match). Nullable columns stay null when nothing was captured.
+ * One player's archive season detail per title (skater and goalie), summed
+ * across 6s + 3s from the screenshot fields kept in `stats_json` — see
+ * `archive-season-detail.ts`. Same reviewed `all_skaters` / `goalie` rows as
+ * the all-modes helpers, so GP denominators match the career season rows.
  */
-export async function getPlayerArchiveSkaterDetail(playerId: number) {
+export async function getPlayerArchiveSeasonDetail(playerId: number) {
   const rows = await db
     .select({
       gameTitleId: historicalPlayerSeasonStats.gameTitleId,
-      shortHandedGoals: sql<string>`SUM(${historicalPlayerSeasonStats.shGoals})`,
-      gameWinningGoals: sql<string>`SUM(${historicalPlayerSeasonStats.gwGoals})`,
-      blockedShots: sql<string>`SUM(${historicalPlayerSeasonStats.blockedShots})`,
-      interceptions: sql<string>`SUM(${historicalPlayerSeasonStats.interceptions})`,
-      faceoffWins: sql<string | null>`SUM(${historicalPlayerSeasonStats.faceoffWins})`,
-      faceoffLosses: sql<string | null>`SUM(${historicalPlayerSeasonStats.faceoffLosses})`,
-      passes: sql<string | null>`SUM(${historicalPlayerSeasonStats.passCompletions})`,
-      passAttempts: sql<string | null>`SUM(${historicalPlayerSeasonStats.passAttempts})`,
+      roleGroup: historicalPlayerSeasonStats.roleGroup,
+      statsJson: historicalPlayerSeasonStats.statsJson,
     })
     .from(historicalPlayerSeasonStats)
     .where(
       and(
         eq(historicalPlayerSeasonStats.playerId, playerId),
-        eq(historicalPlayerSeasonStats.roleGroup, 'skater'),
-        eq(historicalPlayerSeasonStats.positionScope, 'all_skaters'),
         eq(historicalPlayerSeasonStats.reviewStatus, 'reviewed'),
+        sql`(
+          (${historicalPlayerSeasonStats.roleGroup} = 'skater'
+            AND ${historicalPlayerSeasonStats.positionScope} = 'all_skaters')
+          OR
+          (${historicalPlayerSeasonStats.roleGroup} = 'goalie'
+            AND ${historicalPlayerSeasonStats.positionScope} = 'goalie')
+        )`,
       ),
     )
-    .groupBy(historicalPlayerSeasonStats.gameTitleId)
-
-  const toIntOrNull = (v: string | number | null): number | null =>
-    v === null ? null : typeof v === 'number' ? v : Number.parseInt(v, 10)
-
-  return rows.map((r) => ({
-    gameTitleId: r.gameTitleId,
-    shortHandedGoals: toIntOrNull(r.shortHandedGoals),
-    gameWinningGoals: toIntOrNull(r.gameWinningGoals),
-    blockedShots: toIntOrNull(r.blockedShots),
-    interceptions: toIntOrNull(r.interceptions),
-    faceoffWins: toIntOrNull(r.faceoffWins),
-    faceoffLosses: toIntOrNull(r.faceoffLosses),
-    passes: toIntOrNull(r.passes),
-    passAttempts: toIntOrNull(r.passAttempts),
-  }))
+  return summarizeArchiveDetail(rows)
 }
-
-export type PlayerArchiveSkaterDetailRow = Awaited<
-  ReturnType<typeof getPlayerArchiveSkaterDetail>
->[number]
