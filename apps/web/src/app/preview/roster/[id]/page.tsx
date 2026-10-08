@@ -12,7 +12,7 @@ import {
   getTeamAverageShotLocations,
   getTeamAverageGoalieShotLocations,
   getPlayerBuilds,
-  getPlayerCareerShots,
+  getPlayerCareerActions,
   getPlayerCardProgress,
   getEARoster,
   getCardProgressForPlayers,
@@ -31,7 +31,8 @@ import { ComingSoonCard } from '@/components/roster/coming-soon-card'
 import { ShotMap } from '@/components/roster/shot-map'
 import { BuildLocker } from '@/components/roster/build-locker'
 import { toBuildLockerView } from '@/components/roster/build-locker-model'
-import { CareerShotMap } from '@/components/roster/career-shot-map'
+import { CareerActionMap } from '@/components/roster/career-action-map'
+import { shouldShowActionMap } from '@/components/roster/action-map-model'
 import { Panel } from '@/components/ui/panel'
 import { PlayerBadges } from '@/components/badges/player-badges'
 import { PlayerCard } from '@/components/cards/player-card'
@@ -126,11 +127,12 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
     builds = null
   }
 
-  let careerShots: Awaited<ReturnType<typeof getPlayerCareerShots>> = []
+  // Career Action Map (spec Part 5): replaces the career shot map on this page.
+  let careerActions: Awaited<ReturnType<typeof getPlayerCareerActions>> = []
   try {
-    careerShots = await getPlayerCareerShots(id, 500)
+    careerActions = await getPlayerCareerActions(id)
   } catch {
-    careerShots = []
+    careerActions = []
   }
 
   let cardProgress: Awaited<ReturnType<typeof getPlayerCardProgress>> | null = null
@@ -326,7 +328,9 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
 
       {builds !== null && <BuildLocker view={toBuildLockerView(builds)} />}
 
-      <CareerShotMap events={careerShots} />
+      {shouldShowActionMap(careerActions) && (
+        <CareerActionMap events={careerActions} gamertag={overview.player.gamertag} />
+      )}
 
       {selectedRole === 'skater' && focalEaRow !== undefined && (
         <ShotMap
