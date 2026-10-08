@@ -30,6 +30,11 @@ export const players = pgTable('players', {
    * AI-goalie sync from games with no human BGM goalie.
    */
   aiGoalieSide: text('ai_goalie_side').$type<'home' | 'away'>(),
+  /**
+   * Always on the current title's roster (depth chart, carousel) even without
+   * EA stats — like a carried-over member (migration 0062; e.g. Jimmy Cap).
+   */
+  pinnedToRoster: boolean('pinned_to_roster').notNull().default(false),
   firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
 })

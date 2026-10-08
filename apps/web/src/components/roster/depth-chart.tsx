@@ -6,9 +6,9 @@ import './depth-chart.css'
 type RosterRow = Awaited<ReturnType<typeof getEARoster>>[number]
 
 /**
- * One depth-chart slot. `isDepth` flags slots filled by a player whose role
- * class (forward / defense / goalie) doesn't match the slot, OR a player
- * already placed in the same role earlier in the chart.
+ * One depth-chart slot. A player has a card at every position they play
+ * (lib/depth-chart-build.ts); `isDepth` marks every card except their main
+ * position (most games).
  */
 export interface DepthSlot {
   player: RosterRow
@@ -27,9 +27,8 @@ export interface DepthChartProps {
   sheetCode?: string | undefined
 }
 
-const FORWARD_LINE_LABELS = ['Line', 'Line', 'Line', 'Line']
-const DEFENSE_PAIR_LABELS = ['Pair', 'Pair', 'Pair']
-const GOALIE_SLOT_LABELS = ['Starter', 'Backup', '3rd String', '4th String', '5th String']
+const GOALIE_SLOT_LABELS = ['Starter', 'Backup', '3rd String']
+const goalieSlotLabel = (i: number) => GOALIE_SLOT_LABELS[i] ?? `${String(i + 1)}th String`
 
 export function DepthChart({
   forwards,
@@ -59,11 +58,11 @@ export function DepthChart({
         <div className="legend">
           <span className="pip">
             <i />
-            Primary slot
+            Main position
           </span>
           <span className="pip dup">
             <i />
-            Depth · reused
+            Depth · also plays
           </span>
         </div>
         <div className="meta">
@@ -86,11 +85,13 @@ export function DepthChart({
       {/* ─── Forwards + Defense ──────────────────────────────────────────── */}
       <div className="dc-section-bar">
         <h3>
-          <span className="accent">▌</span>Forwards <span className="count">12 SLOTS</span>
+          <span className="accent">▌</span>Forwards{' '}
+          <span className="count">{`${String(forwards.length * 3)} SLOTS`}</span>
         </h3>
         <div className="rule" />
         <h3>
-          <span className="accent">▌</span>Defense <span className="count">6 SLOTS</span>
+          <span className="accent">▌</span>Defense{' '}
+          <span className="count">{`${String(defense.length * 2)} SLOTS`}</span>
         </h3>
         <div className="rule" />
         <span className="units">Placement · GP at position</span>
@@ -108,16 +109,16 @@ export function DepthChart({
           <span className="col-head">LD</span>
           <span className="col-head">RD</span>
 
-          {/* 4 skater rows: rail + 3 forwards + gap + rail/empty + 2 defense */}
-          {Array.from({ length: 4 }).map((_, i) => {
+          {/* Skater rows: rail + 3 forwards + gap + rail/empty + 2 defense */}
+          {Array.from({ length: Math.max(forwards.length, defense.length) }).map((_, i) => {
             const fwd = forwards[i] ?? { lw: null, c: null, rw: null }
             const pair = defense[i] ?? null
             return (
               <RowGroup
                 key={i}
                 rowIndex={i}
-                lineLabel={FORWARD_LINE_LABELS[i] ?? 'Line'}
-                pairLabel={pair ? (DEFENSE_PAIR_LABELS[i] ?? 'Pair') : null}
+                lineLabel="Line"
+                pairLabel={pair ? 'Pair' : null}
                 fwd={fwd}
                 def={pair}
               />
@@ -139,9 +140,9 @@ export function DepthChart({
       <div className="dc-goalies-scroll">
         <div className="dc-goalies" style={{ gridTemplateColumns: goalieGridTemplate }}>
           <span />
-          {GOALIE_SLOT_LABELS.slice(0, goalieSlots.length).map((label) => (
-            <span key={label} className="col-head">
-              {label}
+          {goalieSlots.map((_, i) => (
+            <span key={i} className="col-head">
+              {goalieSlotLabel(i)}
             </span>
           ))}
 
@@ -219,7 +220,7 @@ function SlotCell({ slot, positionLabel }: { slot: DepthSlot | null; positionLab
   return (
     <div className="dc-card">
       <PlayerCard
-        card={cardFromRosterRow(slot.player, slot.card)}
+        card={cardFromRosterRow(slot.player, slot.card, positionLabel)}
         context="list"
         href={`/roster/${String(slot.player.playerId)}`}
       />

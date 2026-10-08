@@ -1,4 +1,4 @@
--- Migration: the two EASHL AI goaltenders as players
+-- Migration: the two EASHL AI goaltenders as players, and pinned roster members
 -- Spec: docs/superpowers/specs/2026-10-08-ai-goalies-design.md
 --
 -- When no human BGM goalie plays, EA puts an AI goalie in net: Matteo Lehmann
@@ -19,6 +19,8 @@
 --   DELETE FROM player_game_title_stats WHERE player_id IN (SELECT id FROM players WHERE ai_goalie_side IS NOT NULL);
 --   (card tables cascade) DELETE FROM players WHERE ai_goalie_side IS NOT NULL;
 --   ALTER TABLE players DROP COLUMN ai_goalie_side;
+--   DELETE FROM players WHERE gamertag = 'Jimmy Cap' AND pinned_to_roster;  -- (profile first)
+--   ALTER TABLE players DROP COLUMN pinned_to_roster;
 
 BEGIN;
 
@@ -50,6 +52,20 @@ INSERT INTO "player_profiles" ("player_id", "player_name", "preferred_position")
 SELECT "id", "gamertag", 'goalie' FROM "players" WHERE "ai_goalie_side" IS NOT NULL
 ON CONFLICT ("player_id") DO NOTHING;
 
+-- Pinned roster members (operator, 2026-10-08): always on the current title's
+-- roster (depth chart, card carousel) even with no EA stats, like a carried-over
+-- member. First one: Jimmy Cap, #20, a skater (right wing until told otherwise).
+ALTER TABLE "players" ADD COLUMN IF NOT EXISTS "pinned_to_roster" boolean NOT NULL DEFAULT false;
+
+INSERT INTO "players" ("gamertag", "position", "is_active", "pinned_to_roster")
+SELECT 'Jimmy Cap', 'rightWing', true, true
+WHERE NOT EXISTS (SELECT 1 FROM "players" WHERE "gamertag" = 'Jimmy Cap' AND "pinned_to_roster");
+
+INSERT INTO "player_profiles" ("player_id", "player_name", "jersey_number", "preferred_position")
+SELECT "id", 'Jimmy Cap', 20, 'rightWing' FROM "players"
+WHERE "gamertag" = 'Jimmy Cap' AND "pinned_to_roster"
+ON CONFLICT ("player_id") DO NOTHING;
+
 -- Jersey numbers (operator, 2026-10-08): Lehmann #31, Wagner #1. Filled only
 -- while unset, so a later hand edit survives a re-run.
 UPDATE "player_profiles" pp
@@ -59,6 +75,6 @@ WHERE pp."player_id" = p."id" AND p."ai_goalie_side" IS NOT NULL AND pp."jersey_
 
 COMMIT;
 
-SELECT p."id", p."gamertag", p."ai_goalie_side", pp."player_name", pp."jersey_number"
+SELECT p."id", p."gamertag", p."ai_goalie_side", p."pinned_to_roster", pp."player_name", pp."jersey_number"
 FROM "players" p LEFT JOIN "player_profiles" pp ON pp."player_id" = p."id"
-WHERE p."ai_goalie_side" IS NOT NULL ORDER BY p."ai_goalie_side" DESC;
+WHERE p."ai_goalie_side" IS NOT NULL OR p."pinned_to_roster" ORDER BY p."id";

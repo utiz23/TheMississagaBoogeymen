@@ -56,9 +56,25 @@ export interface CardSummaryInput {
 
 const jersey = (n: number | null) => (n === null ? '##' : String(n))
 
-export function cardFromRosterRow(row: CardRosterRow, summary?: CardSummaryInput): CardViewModel {
+/**
+ * `slotPosition` (depth chart) shows the card as that position: a goalie slot
+ * gets the goalie side (record, SV%, GAA), a skater slot the skater side, and
+ * the chip reads the slot's position.
+ */
+export function cardFromRosterRow(
+  row: CardRosterRow,
+  summary?: CardSummaryInput,
+  slotPosition?: string,
+): CardViewModel {
   const effective = row.preferredPosition ?? row.favoritePosition ?? row.position
-  const role: CardRole = effective === 'goalie' ? 'goalie' : 'skater'
+  const role: CardRole =
+    slotPosition !== undefined
+      ? slotPosition === 'G'
+        ? 'goalie'
+        : 'skater'
+      : effective === 'goalie'
+        ? 'goalie'
+        : 'skater'
   const [w, l, otl] =
     role === 'goalie'
       ? [row.goalieWins, row.goalieLosses, row.goalieOtl]
@@ -69,7 +85,7 @@ export function cardFromRosterRow(row: CardRosterRow, summary?: CardSummaryInput
       name: row.playerName ?? row.gamertag,
       jersey: jersey(row.jerseyNumber),
       role,
-      position: positionTag(effective),
+      position: slotPosition ?? positionTag(effective),
       record: formatRecord(w, l, otl),
       winPct: formatWinPct(w, l, otl),
       stats: cardStats(role, row),

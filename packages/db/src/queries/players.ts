@@ -233,6 +233,11 @@ function eaRosterSelect() {
       gamesPlayed: eaMemberSeasonStats.gamesPlayed,
       skaterGp: eaMemberSeasonStats.skaterGp,
       goalieGp: eaMemberSeasonStats.goalieGp,
+      /** EA games by position (the depth chart's main/depth split). */
+      lwGp: eaMemberSeasonStats.lwGp,
+      cGp: eaMemberSeasonStats.cGp,
+      rwGp: eaMemberSeasonStats.rwGp,
+      dGp: eaMemberSeasonStats.dGp,
       goals: eaMemberSeasonStats.goals,
       assists: eaMemberSeasonStats.assists,
       points: eaMemberSeasonStats.points,
@@ -285,14 +290,58 @@ export async function getEARoster(gameTitleId: number) {
     .orderBy(desc(eaMemberSeasonStats.points))
 }
 
+type EaRosterRow = Awaited<ReturnType<typeof eaRosterSelect>>[number]
+
+/** A roster row with this title's stats zeroed (position, profile and platform kept). */
+function zeroSeason(r: EaRosterRow): EaRosterRow {
+  return {
+    ...r,
+    gamesPlayed: 0,
+    skaterGp: 0,
+    goalieGp: 0,
+    lwGp: 0,
+    cGp: 0,
+    rwGp: 0,
+    dGp: 0,
+    goals: 0,
+    assists: 0,
+    points: 0,
+    plusMinus: 0,
+    shots: 0,
+    hits: 0,
+    pim: 0,
+    takeaways: 0,
+    giveaways: 0,
+    faceoffPct: null,
+    passPct: null,
+    wins: null,
+    losses: null,
+    otl: null,
+    skaterWins: 0,
+    skaterLosses: 0,
+    skaterOtl: 0,
+    goalieWins: null,
+    goalieLosses: null,
+    goalieOtl: null,
+    savePct: null,
+    gaa: null,
+    shutouts: null,
+    goalieSaves: null,
+    goalieShots: null,
+    goalieGoalsAgainst: null,
+  }
+}
+
 /**
- * Carried-over members: players on the previous title's EA roster (by
- * release_order) who have not played this title yet. Shaped like getEARoster
- * rows with this season's stats zeroed; position, profile and platform come
- * from their previous title, so the depth chart can still place them.
- * Operator, 2026-10-08: the depth chart and card carousel include them.
+ * Roster additions for a title (operator, 2026-10-08), shaped like getEARoster
+ * rows with this season's stats zeroed, for the depth chart and card carousel:
+ *   1. carried-over members: on the previous title's EA roster (by
+ *      release_order) but not this one yet — position, profile and platform
+ *      come from their previous title;
+ *   2. pinned members (`players.pinned_to_roster`, e.g. Jimmy Cap) with no EA
+ *      row this title — position from their profile.
  */
-export async function getRosterCarryOvers(gameTitleId: number) {
+export async function getRosterCarryOvers(gameTitleId: number): Promise<EaRosterRow[]> {
   const [current] = await db
     .select({ releaseOrder: gameTitles.releaseOrder })
     .from(gameTitles)
@@ -304,50 +353,47 @@ export async function getRosterCarryOvers(gameTitleId: number) {
     .where(lt(gameTitles.releaseOrder, current.releaseOrder))
     .orderBy(desc(gameTitles.releaseOrder))
     .limit(1)
-  if (previous === undefined) return []
-  const [prevRows, currentIds] = await Promise.all([
-    eaRosterSelect().where(eq(eaMemberSeasonStats.gameTitleId, previous.id)),
+  const [prevRows, currentIds, pinned] = await Promise.all([
+    previous === undefined
+      ? Promise.resolve([])
+      : eaRosterSelect().where(eq(eaMemberSeasonStats.gameTitleId, previous.id)),
     db
       .select({ playerId: eaMemberSeasonStats.playerId })
       .from(eaMemberSeasonStats)
       .where(eq(eaMemberSeasonStats.gameTitleId, gameTitleId)),
+    db
+      .select({
+        playerId: players.id,
+        gamertag: players.gamertag,
+        position: players.position,
+        jerseyNumber: playerProfiles.jerseyNumber,
+        nationality: playerProfiles.nationality,
+        playerName: playerProfiles.playerName,
+        preferredPosition: playerProfiles.preferredPosition,
+        archetype: playerProfiles.archetype,
+      })
+      .from(players)
+      .leftJoin(playerProfiles, eq(players.id, playerProfiles.playerId))
+      .where(eq(players.pinnedToRoster, true)),
   ])
-  const playing = new Set(currentIds.map((r) => r.playerId))
-  return prevRows
-    .filter((r) => !playing.has(r.playerId))
+  const onRoster = new Set(currentIds.map((r) => r.playerId))
+  const carried = prevRows
+    .filter((r) => !onRoster.has(r.playerId))
     .sort((a, b) => b.gamesPlayed - a.gamesPlayed || a.gamertag.localeCompare(b.gamertag))
-    .map((r) => ({
-      ...r,
-      gamesPlayed: 0,
-      skaterGp: 0,
-      goalieGp: 0,
-      goals: 0,
-      assists: 0,
-      points: 0,
-      plusMinus: 0,
-      shots: 0,
-      hits: 0,
-      pim: 0,
-      takeaways: 0,
-      giveaways: 0,
-      faceoffPct: null,
-      passPct: null,
-      wins: null,
-      losses: null,
-      otl: null,
-      skaterWins: 0,
-      skaterLosses: 0,
-      skaterOtl: 0,
-      goalieWins: null,
-      goalieLosses: null,
-      goalieOtl: null,
-      savePct: null,
-      gaa: null,
-      shutouts: null,
-      goalieSaves: null,
-      goalieShots: null,
-      goalieGoalsAgainst: null,
-    }))
+    .map(zeroSeason)
+  for (const r of carried) onRoster.add(r.playerId)
+  const pinnedRows = pinned
+    .filter((p) => !onRoster.has(p.playerId))
+    .sort((a, b) => a.gamertag.localeCompare(b.gamertag))
+    .map(
+      (p): EaRosterRow =>
+        zeroSeason({
+          ...p,
+          favoritePosition: p.preferredPosition ?? p.position,
+          clientPlatform: null,
+        } as EaRosterRow),
+    )
+  return [...carried, ...pinnedRows]
 }
 
 /**
