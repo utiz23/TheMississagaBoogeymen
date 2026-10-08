@@ -4,6 +4,7 @@ import { BADGE_SHAPES } from './badge-shapes'
 import { BADGE_BASE_SKIN, BADGE_SKINS, type BadgeSkin } from './badge-skins'
 import { computeBadgeLayout } from './badge-layout'
 import { BADGE_GLYPHS } from './badge-glyphs'
+import { BADGE_ICON_FILES } from './badge-icons'
 import type { BadgeFrame } from './badge-board'
 import './badge.css'
 
@@ -30,6 +31,7 @@ interface BadgeProps {
 export function Badge({ familyId, shape, theme, frame, size, title }: BadgeProps) {
   const layout = computeBadgeLayout(BADGE_SHAPES[shape], resolveBadgeSkin(theme), frame, size)
   const Icon = BADGE_GLYPHS[familyId]
+  const iconFile = BADGE_ICON_FILES[familyId]
   const clip: CSSProperties = { clipPath: layout.clip, WebkitClipPath: layout.clip }
   return (
     <span
@@ -55,7 +57,22 @@ export function Badge({ familyId, shape, theme, frame, size, title }: BadgeProps
           paddingTop: px(layout.iconPadTop),
         }}
       >
-        <Icon aria-hidden size={layout.iconSize} color={layout.iconColor} strokeWidth={2} />
+        {iconFile !== undefined ? (
+          // The operator's icon (spec D14), tinted by the skin like the glyph it replaces.
+          <span
+            aria-hidden
+            className="bdg-art"
+            style={{
+              width: px(layout.iconSize),
+              height: px(layout.iconSize),
+              backgroundColor: layout.iconColor,
+              WebkitMask: `url(${iconFile}) center / contain no-repeat`,
+              mask: `url(${iconFile}) center / contain no-repeat`,
+            }}
+          />
+        ) : (
+          <Icon aria-hidden size={layout.iconSize} color={layout.iconColor} strokeWidth={2} />
+        )}
       </span>
     </span>
   )
