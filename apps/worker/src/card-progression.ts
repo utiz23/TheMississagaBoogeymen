@@ -80,7 +80,8 @@ export async function loadSeasonTotals(titleIds: readonly number[]): Promise<Sea
       FROM player_match_stats p
       JOIN matches m ON m.id = p.match_id
       WHERE m.game_mode = '6s' AND m.game_title_id IN (${ids})
-        AND EXISTS (SELECT 1 FROM player_match_stats g WHERE g.match_id = p.match_id AND g.is_goalie)
+        AND EXISTS (SELECT 1 FROM player_match_stats g JOIN players gp ON gp.id = g.player_id
+          WHERE g.match_id = p.match_id AND g.is_goalie AND gp.ai_goalie_side IS NULL)
       GROUP BY p.player_id, m.game_title_id`),
   ])
   return mergeSeasonTotals({ ea, recordedModes, recordedSixesWithGoalie })

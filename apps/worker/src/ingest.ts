@@ -32,6 +32,7 @@ import { eq, isNull, and } from 'drizzle-orm'
 import { fetchMatches, matchesUrl, throttle, EaApiError, type EaMatchType } from '@eanhl/ea-client'
 import { transformMatch, type TransformResult, type PlayerIdentity } from './transform.js'
 import { recomputeAggregates } from './aggregate.js'
+import { syncAiGoalies } from './ai-goalie-sync.js'
 import { recomputeCardProgression } from './card-progression.js'
 import { fetchAndStoreMemberStats, fetchAndStoreSeasonalStats } from './ingest-members.js'
 import { fetchAndStoreOpponentClubs } from './ingest-opponents.js'
@@ -62,6 +63,19 @@ export async function runIngestionCycle(): Promise<void> {
   for (const title of activeGameTitles) {
     console.log(`[ingest] Processing game title: ${title.slug}`)
     await ingestGameTitle(title)
+
+    // AI goalies' lines for games with no human goalie, before the aggregates
+    // so local stats include them. Non-fatal: never blocks match ingestion.
+    try {
+      const ai = await syncAiGoalies(title.id)
+      if (ai.skipped === undefined) {
+        console.log(
+          `[ingest] AI goalies ${title.slug}: ${ai.perGoalie.map((g) => `${g.gamertag} ${String(g.games)}`).join(', ')}`,
+        )
+      }
+    } catch (err) {
+      console.error(`[ingest] AI goalie sync failed for ${title.slug}:`, err)
+    }
 
     try {
       await recomputeAggregates(title.id)

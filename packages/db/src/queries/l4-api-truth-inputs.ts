@@ -19,7 +19,7 @@
  *     save_percentage, values shaped `{"value": X}`); the same player recurs
  *     across frames, so we majority-vote per persona below.
  */
-import { and, eq, gte, sql } from 'drizzle-orm'
+import { and, eq, gte, isNull, sql } from 'drizzle-orm'
 import { db } from '../client.js'
 import { matchPeriodSummaries, playerMatchStats, players } from '../schema/index.js'
 import { getMatchById, getMatchFaceoffTotals } from './matches.js'
@@ -203,7 +203,8 @@ export async function getApiPlayerStats(matchId: number): Promise<ApiPlayerLine[
     })
     .from(playerMatchStats)
     .innerJoin(players, eq(players.id, playerMatchStats.playerId))
-    .where(eq(playerMatchStats.matchId, matchId))
+    // EA-API truth only: the AI goalies' derived lines (migration 0062) are not EA rows.
+    .where(and(eq(playerMatchStats.matchId, matchId), isNull(players.aiGoalieSide)))
 
   return rows.map((r) => {
     const saves = r.saves ?? null

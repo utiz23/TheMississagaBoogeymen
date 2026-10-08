@@ -24,6 +24,12 @@ export const players = pgTable('players', {
   /** Most recent position played. Populated from match data. */
   position: text('position'),
   isActive: boolean('is_active').notNull().default(true),
+  /**
+   * Set only on the two EASHL AI goaltenders (migration 0062): 'home' = Matteo
+   * Lehmann, 'away' = Jonas Wagner. Their stats are derived by the worker's
+   * AI-goalie sync from games with no human BGM goalie.
+   */
+  aiGoalieSide: text('ai_goalie_side').$type<'home' | 'away'>(),
   firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
 })

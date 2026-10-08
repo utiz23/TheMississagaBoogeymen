@@ -56,9 +56,9 @@
  * @module expected-roster
  */
 
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db as defaultDb, type Database } from '../client.js'
-import { playerMatchStats, opponentPlayerMatchStats } from '../schema/index.js'
+import { playerMatchStats, opponentPlayerMatchStats, players } from '../schema/index.js'
 
 export type ExpectedSlot = {
   teamSide: 'for' | 'against'
@@ -128,7 +128,9 @@ export async function getExpectedSlotsForMatch(
     db
       .select({ id: playerMatchStats.id, position: playerMatchStats.position })
       .from(playerMatchStats)
-      .where(eq(playerMatchStats.matchId, matchId)),
+      // EA-API truth only: the AI goalies' derived lines (migration 0062) are not EA rows.
+      .innerJoin(players, eq(players.id, playerMatchStats.playerId))
+      .where(and(eq(playerMatchStats.matchId, matchId), isNull(players.aiGoalieSide))),
     db
       .select({ id: opponentPlayerMatchStats.id, position: opponentPlayerMatchStats.position })
       .from(opponentPlayerMatchStats)
