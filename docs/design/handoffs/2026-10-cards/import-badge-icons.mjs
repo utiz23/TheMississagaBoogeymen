@@ -50,10 +50,11 @@ const FILE_TO_FAMILY = {
   // (fill-outline-interiors.py Fights.svg Fights-filled.svg 0).
   Fights: { skip: 'superseded by Fights-filled.svg' },
   'Fights-filled': { id: 'pfight', invert: true, scale: 1.35 },
-  Gstarts: { id: 'gg' },
-  Gwins: { id: 'gw' },
-  Saves: { id: 'gsv' },
-  Pokechecks: { id: 'gpoke' },
+  // Goalie (octagons): enlarged; Poke Checks most, being wide and flat (2026-10-08).
+  Gstarts: { id: 'gg', scale: 1.2 },
+  Gwins: { id: 'gw', scale: 1.3 },
+  Saves: { id: 'gsv', scale: 1.2 },
+  Pokechecks: { id: 'gpoke', scale: 1.45 },
 }
 
 const src = process.argv[2]

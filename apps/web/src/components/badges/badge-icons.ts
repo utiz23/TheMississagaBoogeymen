@@ -15,10 +15,10 @@ export interface BadgeIcon {
 }
 
 export const BADGE_ICONS: Readonly<Partial<Record<BadgeFamilyId, BadgeIcon>>> = {
-  gg: { src: '/images/badges/icons/gg.svg', scale: 1, offsetX: 0, offsetY: 0 },
-  gpoke: { src: '/images/badges/icons/gpoke.svg', scale: 1, offsetX: 0, offsetY: 0 },
-  gsv: { src: '/images/badges/icons/gsv.svg', scale: 1, offsetX: 0, offsetY: 0 },
-  gw: { src: '/images/badges/icons/gw.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  gg: { src: '/images/badges/icons/gg.svg', scale: 1.2, offsetX: 0, offsetY: 0 },
+  gpoke: { src: '/images/badges/icons/gpoke.svg', scale: 1.45, offsetX: 0, offsetY: 0 },
+  gsv: { src: '/images/badges/icons/gsv.svg', scale: 1.2, offsetX: 0, offsetY: 0 },
+  gw: { src: '/images/badges/icons/gw.svg', scale: 1.3, offsetX: 0, offsetY: 0 },
   p3v3: { src: '/images/badges/icons/p3v3.svg', scale: 1, offsetX: 0, offsetY: 0 },
   p6g: { src: '/images/badges/icons/p6g.svg', scale: 1.15, offsetX: 0, offsetY: 0 },
   p6v6: { src: '/images/badges/icons/p6v6.svg', scale: 1, offsetX: 0, offsetY: 0 },
