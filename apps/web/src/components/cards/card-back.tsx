@@ -11,11 +11,14 @@ export function CardBack({
   back,
   theme: th,
   look,
+  hidden = false,
 }: {
   front: CardFront
   back: CardBackModel
   theme: CardTheme
   look: CardLook
+  /** The front face is showing: hide this face from the flip's midpoint. */
+  hidden?: boolean
 }) {
   const tk = th.tk
   const { ledger } = back
@@ -32,6 +35,8 @@ export function CardBack({
         boxShadow: look.shadow,
         color: tk.ink,
         transform: 'rotateY(180deg)',
+        visibility: hidden ? 'hidden' : 'visible',
+        transition: `visibility 0s linear ${hidden ? '325ms' : '0s'}`,
         backfaceVisibility: 'hidden',
         WebkitBackfaceVisibility: 'hidden',
         display: 'flex',
@@ -231,7 +236,7 @@ export function CardBack({
               display: 'flex',
               justifyContent: 'space-around',
               alignItems: 'flex-end',
-              gap: '6px',
+              gap: '2px',
               paddingBottom: '2px',
             }}
           >
@@ -245,7 +250,7 @@ export function CardBack({
                   size={30}
                   labelSize={7.5}
                   labelColor={tk.badgeLabel}
-                  labelTracking="0.06em"
+                  labelTracking="0"
                 />
               </div>
             ))}

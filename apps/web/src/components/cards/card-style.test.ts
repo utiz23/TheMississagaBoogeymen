@@ -101,3 +101,24 @@ void test('the hover sweep stays mounted on idle list cards so it can animate on
     false,
   )
 })
+
+void test('while the back face shows, front effects stop (nothing runs hidden)', () => {
+  const back = resolveFx(CARD_THEMES.stormLive, 6, {
+    motionOn: true,
+    hot: true,
+    motionAllowed: true,
+    faceFront: false,
+  })
+  assert.deepEqual(
+    [back.themeFx, back.foil, back.pulse, back.sweep, back.scan],
+    [false, false, false, false, false],
+  )
+  assert.equal(back.tilt, true)
+  const front = resolveFx(CARD_THEMES.stormLive, 6, {
+    motionOn: true,
+    hot: true,
+    motionAllowed: true,
+    faceFront: true,
+  })
+  assert.equal(front.themeFx, true)
+})

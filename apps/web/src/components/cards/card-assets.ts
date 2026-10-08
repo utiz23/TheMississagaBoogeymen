@@ -9,6 +9,22 @@ import type { MythicThemeKey } from '@eanhl/db/cards'
 
 export const CARD_ASSET_DIR = '/images/cards'
 export const VIDEO_FORMATS = ['webm', 'mp4'] as const
+type VideoFormat = (typeof VIDEO_FORMATS)[number]
+
+/** Source order per video: the smaller encode first (browsers take the first they can play). */
+const VIDEO_ORDER: Readonly<Record<string, readonly VideoFormat[]>> = {
+  'fx-inferno-embers': ['webm', 'mp4'],
+  'fx-storm-live': ['mp4', 'webm'],
+}
+
+/** <source> list for a video base URL (theme data stores videos by base name). */
+export function videoSources(base: string): { src: string; type: string }[] {
+  const name = base.split('/').pop() ?? base
+  return (VIDEO_ORDER[name] ?? VIDEO_FORMATS).map((ext) => ({
+    src: `${base}.${ext}`,
+    type: `video/${ext}`,
+  }))
+}
 
 export interface MythicAssets {
   stills: readonly string[]

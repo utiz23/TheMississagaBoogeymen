@@ -141,21 +141,24 @@ export interface CardFxInput {
   hot: boolean
   /** Not reduced motion and on screen — idle layers that animate on hover stay mounted. */
   motionAllowed: boolean
+  /** False while the back face shows: front effects stop instead of running hidden. */
+  faceFront?: boolean
 }
 
 /** Which effect layers render — the prototype's `mo()` gates. */
 export function resolveFx(
   th: CardTheme,
   tier: CardTier,
-  { motionOn, hot, motionAllowed }: CardFxInput,
+  { motionOn: motion, hot, motionAllowed: allowed, faceFront = true }: CardFxInput,
 ) {
+  const motionOn = motion && faceFront
+  const motionAllowed = allowed && faceFront
   return {
     foil: motionOn && tier >= 4 && !th.inferno,
     pulse: motionOn && (tier >= 2 || hot),
     /** Mounted while idle (at -130%) so the hover transition can run on list cards. */
     sweep: motionAllowed,
-    tilt: motionOn,
-    flip: motionOn,
+    tilt: motion,
     /** Theme effect layers animate (mythic fx components take this as `on`). */
     themeFx: motionOn,
     /** Hardlight synthwave grid: drawn static when motion is off. */

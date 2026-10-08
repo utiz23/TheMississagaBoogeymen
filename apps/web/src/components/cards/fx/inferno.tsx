@@ -4,7 +4,7 @@
  * fxInfernoBg / fxInfernoPortrait / fxInferno. The embers footage is a muted
  * looping video (was a 3.3 MB GIF), mounted only while motion runs.
  */
-import { VIDEO_FORMATS } from '../card-assets'
+import { videoSources } from '../card-assets'
 
 const fadeUp = (a: string, b: string) => ({
   WebkitMaskImage: `linear-gradient(0deg, #000 ${a}, transparent ${b})`,
@@ -38,8 +38,8 @@ export function InfernoBg({ embers, on }: { embers: string | undefined; on: bool
             ...fadeUp('10%', '80%'),
           }}
         >
-          {VIDEO_FORMATS.map((ext) => (
-            <source key={ext} src={`${embers}.${ext}`} type={`video/${ext}`} />
+          {videoSources(embers).map((s) => (
+            <source key={s.type} src={s.src} type={s.type} />
           ))}
         </video>
       )}

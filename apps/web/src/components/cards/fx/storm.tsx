@@ -7,7 +7,8 @@
  * comes from useStormStrike. The footage and rain mount only while `on`.
  */
 import type { CardTheme } from '../card-theme-types'
-import { VIDEO_FORMATS } from '../card-assets'
+import { useEffect, useRef } from 'react'
+import { videoSources } from '../card-assets'
 import {
   ARC_CRACKS,
   ARC_FOOT_BOLTS,
@@ -46,25 +47,7 @@ export function StormBg({ art, on, strike }: { art: Art; on: boolean; strike: bo
       )}
       {on && art.burst !== undefined && (
         <div style={{ position: 'absolute', inset: 0, ...gate(strike, 1, 0) }}>
-          <video
-            aria-hidden
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="auto"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-          >
-            {VIDEO_FORMATS.map((ext) => (
-              <source key={ext} src={`${art.burst ?? ''}.${ext}`} type={`video/${ext}`} />
-            ))}
-          </video>
+          <StrikeFootage base={art.burst} strike={strike} />
           <div
             className="pcard-layer"
             style={{
@@ -76,6 +59,47 @@ export function StormBg({ art, on, strike }: { art: Art; on: boolean; strike: bo
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * Lightning footage: paused between strikes; on a strike it jumps to a random
+ * moment and plays (the prototype's always-running animated WebP showed a
+ * different moment each strike), then pauses once faded out.
+ */
+function StrikeFootage({ base, strike }: { base: string; strike: boolean }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const video = ref.current
+    if (video === null) return
+    if (strike) {
+      if (Number.isFinite(video.duration) && video.duration > 2.5) {
+        video.currentTime = Math.random() * (video.duration - 2.5)
+      }
+      video.play().catch(() => undefined)
+      return
+    }
+    const t = setTimeout(() => {
+      video.pause()
+    }, 600)
+    return () => {
+      clearTimeout(t)
+    }
+  }, [strike])
+  return (
+    <video
+      ref={ref}
+      aria-hidden
+      muted
+      loop
+      playsInline
+      preload="auto"
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+    >
+      {videoSources(base).map((s) => (
+        <source key={s.type} src={s.src} type={s.type} />
+      ))}
+    </video>
   )
 }
 

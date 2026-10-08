@@ -25,6 +25,7 @@ export function CardFront({
   uid,
   hover,
   strike,
+  hidden = false,
 }: {
   card: CardFrontModel
   theme: CardTheme
@@ -34,6 +35,8 @@ export function CardFront({
   hover: boolean
   /** Storm lightning strike in progress (useStormStrike). */
   strike: boolean
+  /** The back face is showing: hide this face from the flip's midpoint. */
+  hidden?: boolean
 }) {
   const tk = th.tk
   const on = fx.themeFx
@@ -74,7 +77,8 @@ export function CardFront({
         isolation: 'isolate',
         backfaceVisibility: 'hidden',
         WebkitBackfaceVisibility: 'hidden',
-        transition: 'border-color 240ms ease, box-shadow 240ms ease',
+        visibility: hidden ? 'hidden' : 'visible',
+        transition: `border-color 240ms ease, box-shadow 240ms ease, visibility 0s linear ${hidden ? '325ms' : '0s'}`,
       }}
     >
       <div
@@ -403,7 +407,13 @@ export function CardFront({
           <div style={plate}>
             {footSep}
             {card.badge !== null && (
-              <CardBadge badge={card.badge} size={34} labelSize={8.5} labelColor={tk.badgeLabel} />
+              <CardBadge
+                badge={card.badge}
+                size={34}
+                labelSize={8.5}
+                labelColor={tk.badgeLabel}
+                labelTracking="0.08em"
+              />
             )}
           </div>
         </div>

@@ -41,6 +41,13 @@
   height: 22px;
 }
 
+/* iOS Low Power Mode blocks autoplay and paints a play glyph over videos:
+   card footage is decorative, so hide the glyph. */
+.pcard video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none;
+}
+
 @keyframes pcard-foil {
   0% {
     background-position: 160% 0;

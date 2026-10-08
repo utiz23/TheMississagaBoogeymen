@@ -47,12 +47,21 @@ void test('themes only reference shipped assets', () => {
   for (const ref of refs) assert.ok(shipped.has(ref), ref)
 })
 
-void test('regular themes stay asset-free; each mythic lists only its own files', () => {
-  assert.deepEqual(Object.keys(MYTHIC_ASSETS).sort(), [
-    'frozen',
-    'futureC',
-    'inferno',
-    'olympus',
-    'stormLive',
-  ])
+void test('regular themes stay asset-free; each mythic references only its own files', () => {
+  const hardcoded: Partial<Record<string, string[]>> = { frozen: ['ice-cracks.avif'] }
+  for (const [key, theme] of Object.entries(CARD_THEMES)) {
+    const refs = (JSON.stringify(theme).match(/\/images\/cards\/[\w.-]+/g) ?? []).map((r) =>
+      r.replace(`${CARD_ASSET_DIR}/`, ''),
+    )
+    const own = MYTHIC_ASSETS[key as keyof typeof MYTHIC_ASSETS] as
+      | (typeof MYTHIC_ASSETS)[keyof typeof MYTHIC_ASSETS]
+      | undefined
+    if (own === undefined) {
+      assert.deepEqual(refs, [], `${key} must not reference card assets`)
+      continue
+    }
+    const owned = new Set([...own.stills, ...own.videos])
+    for (const ref of [...refs, ...(hardcoded[key] ?? [])])
+      assert.ok(owned.has(ref), `${key}: ${ref}`)
+  }
 })

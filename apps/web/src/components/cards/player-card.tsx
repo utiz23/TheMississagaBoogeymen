@@ -57,7 +57,8 @@ export function PlayerCard({
     role: card.front.role,
     position: card.front.position,
   })
-  const fx = resolveFx(theme, card.front.tier, { motionOn, hot, motionAllowed })
+  const faceFront = face === 'front'
+  const fx = resolveFx(theme, card.front.tier, { motionOn, hot, motionAllowed, faceFront })
   const strike = useStormStrike(fx.themeFx && theme.storm === true)
 
   const resetTilt = () => {
@@ -108,13 +109,15 @@ export function PlayerCard({
       <div ref={tiltRef} className="pcard-tilt">
         <div
           className="pcard-flip"
+          data-face={face}
           style={{
             transform: face === 'back' ? 'rotateY(180deg)' : 'rotateY(0deg)',
-            transition: fx.flip ? 'transform 650ms cubic-bezier(.3,.7,.3,1)' : 'none',
+            transition: reduced ? 'none' : 'transform 650ms cubic-bezier(.3,.7,.3,1)',
           }}
         >
           <CardFront
             card={card.front}
+            hidden={!faceFront}
             theme={theme}
             look={look}
             fx={fx}
@@ -123,7 +126,13 @@ export function PlayerCard({
             strike={strike}
           />
           {flippable && card.back !== null && (
-            <CardBack front={card.front} back={card.back} theme={theme} look={look} />
+            <CardBack
+              front={card.front}
+              hidden={faceFront}
+              back={card.back}
+              theme={theme}
+              look={look}
+            />
           )}
         </div>
       </div>
