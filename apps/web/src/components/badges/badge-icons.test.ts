@@ -9,16 +9,17 @@ import assert from 'node:assert/strict'
 import { existsSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { BADGE_FAMILY_IDS } from '@eanhl/db/cards'
-import { BADGE_ICON_FILES } from './badge-icons.ts'
+import { BADGE_ICONS } from './badge-icons.ts'
 
 const dir = fileURLToPath(new URL('../../../public/images/badges/icons/', import.meta.url))
 
 void test('listed icons are real families and ship; nothing unlisted ships', () => {
-  const listed = Object.entries(BADGE_ICON_FILES)
-  for (const [id, url] of listed) {
+  const listed = Object.entries(BADGE_ICONS)
+  for (const [id, icon] of listed) {
     assert.ok((BADGE_FAMILY_IDS as readonly string[]).includes(id), id)
-    assert.equal(url, `/images/badges/icons/${id}.svg`)
-    assert.ok(existsSync(dir + `${id}.svg`), url)
+    assert.equal(icon.src, `/images/badges/icons/${id}.svg`)
+    assert.ok(existsSync(dir + `${id}.svg`), icon.src)
+    assert.ok(icon.scale >= 0.6 && icon.scale <= 1.6, `${id} scale ${String(icon.scale)}`)
   }
   const shipped = existsSync(dir) ? readdirSync(dir).sort() : []
   assert.deepEqual(shipped, listed.map(([id]) => `${id}.svg`).sort())
@@ -26,6 +27,6 @@ void test('listed icons are real families and ship; nothing unlisted ships', () 
 
 void test('operator 2026-10-08: Dekes, Desperation Saves and Shutouts keep their placeholders', () => {
   for (const id of ['pdekes', 'gdsv', 'gso'] as const) {
-    assert.equal(BADGE_ICON_FILES[id], undefined, id)
+    assert.equal(BADGE_ICONS[id], undefined, id)
   }
 })

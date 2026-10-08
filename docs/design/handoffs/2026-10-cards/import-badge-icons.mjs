@@ -13,26 +13,31 @@ import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'nod
 import { join } from 'node:path'
 import { toMaskSvg } from './badge-icon-mask.mjs'
 
-/** Operator file name (without .svg) → badge family id. */
+/**
+ * Operator file name (without .svg) → [badge family id, size relative to the
+ * badge's standard icon box (1 = the box), optional stroke weight]. Tuned by
+ * eye on /preview/badges so thin or wide art reads as large as the rest.
+ */
 const FILE_TO_FAMILY = {
-  '3v3': 'p3v3',
-  '6sGamescompleted': 'p6v6',
-  Goaliegamescompleted: 'p6g',
-  Wins: 'pwins',
-  Goals: 'pgoals',
-  Assists: 'pasts',
-  Shots: 'pshots',
-  Hattricks: 'pht',
-  Breakaways: 'pbrk',
-  Hits: 'phits',
-  Faceoffs: 'pfo',
-  Takeaways: 'ptka',
-  Blocks: 'pblk',
-  Fights: 'pfight',
-  Gstarts: 'gg',
-  Gwins: 'gw',
-  Saves: 'gsv',
-  Pokechecks: 'gpoke',
+  '3v3': ['p3v3', 1],
+  '6sGamescompleted': ['p6v6', 1],
+  Goaliegamescompleted: ['p6g', 1.15],
+  // Wins: one solid laurel, no cut-outs — thickened so it holds at 28–34 px.
+  Wins: ['pwins', 1.35, 1.2],
+  Goals: ['pgoals', 1],
+  Assists: ['pasts', 1],
+  Shots: ['pshots', 1],
+  Hattricks: ['pht', 1],
+  Breakaways: ['pbrk', 1],
+  Hits: ['phits', 1],
+  Faceoffs: ['pfo', 1],
+  Takeaways: ['ptka', 1],
+  Blocks: ['pblk', 1],
+  Fights: ['pfight', 1],
+  Gstarts: ['gg', 1],
+  Gwins: ['gw', 1],
+  Saves: ['gsv', 1],
+  Pokechecks: ['gpoke', 1],
 }
 
 const src = process.argv[2]
@@ -45,13 +50,14 @@ const problems = []
 const written = {}
 const files = readdirSync(src).filter((f) => f.toLowerCase().endsWith('.svg'))
 for (const file of files) {
-  const family = FILE_TO_FAMILY[file.replace(/\.svg$/i, '')]
-  if (family === undefined) {
+  const entry = FILE_TO_FAMILY[file.replace(/\.svg$/i, '')]
+  if (entry === undefined) {
     problems.push(`${file}: unknown file name (add it to FILE_TO_FAMILY)`)
     continue
   }
+  const [family, scale, weight = 0] = entry
   try {
-    written[family] = toMaskSvg(readFileSync(join(src, file), 'utf8'))
+    written[family] = { svg: toMaskSvg(readFileSync(join(src, file), 'utf8'), { weight }), scale }
   } catch (e) {
     problems.push(`${file}: ${e instanceof Error ? e.message : String(e)}`)
   }
@@ -64,7 +70,7 @@ if (problems.length > 0) {
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
 const ids = Object.keys(written).sort()
-for (const id of ids) writeFileSync(join(OUT, `${id}.svg`), written[id])
+for (const id of ids) writeFileSync(join(OUT, `${id}.svg`), written[id].svg)
 writeFileSync(
   'apps/web/src/components/badges/badge-icons.ts',
   [
@@ -75,8 +81,17 @@ writeFileSync(
     ' */',
     "import type { BadgeFamilyId } from '@eanhl/db/cards'",
     '',
-    'export const BADGE_ICON_FILES: Readonly<Partial<Record<BadgeFamilyId, string>>> = {',
-    ...ids.map((id) => `  ${id}: '/images/badges/icons/${id}.svg',`),
+    'export interface BadgeIcon {',
+    '  src: string',
+    "  /** Size relative to the badge's standard icon box. */",
+    '  scale: number',
+    '}',
+    '',
+    'export const BADGE_ICONS: Readonly<Partial<Record<BadgeFamilyId, BadgeIcon>>> = {',
+    ...ids.map(
+      (id) =>
+        `  ${id}: { src: '/images/badges/icons/${id}.svg', scale: ${String(written[id].scale)} },`,
+    ),
     '}',
     '',
   ].join('\n'),

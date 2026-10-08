@@ -31,3 +31,9 @@ test('unusable files are rejected with a reason', () => {
   assert.throws(() => toMaskSvg('<svg><path d="M0 0"/></svg>'), /viewBox/)
   assert.throws(() => toMaskSvg('<p>not svg</p>'), /root/)
 })
+
+test('weight thickens the solid shapes with a same-colour round stroke', () => {
+  const out = toMaskSvg('<svg viewBox="0 0 10 10"><path d="M0 0"/></svg>', { weight: 2.5 })
+  assert.match(out, /<g fill="#fff" stroke="#fff" stroke-width="2.5" stroke-linejoin="round">/)
+  assert.match(toMaskSvg('<svg viewBox="0 0 10 10"><path d="M0 0"/></svg>'), /<g fill="#fff">/)
+})

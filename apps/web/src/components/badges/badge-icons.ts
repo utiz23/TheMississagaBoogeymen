@@ -5,23 +5,29 @@
  */
 import type { BadgeFamilyId } from '@eanhl/db/cards'
 
-export const BADGE_ICON_FILES: Readonly<Partial<Record<BadgeFamilyId, string>>> = {
-  gg: '/images/badges/icons/gg.svg',
-  gpoke: '/images/badges/icons/gpoke.svg',
-  gsv: '/images/badges/icons/gsv.svg',
-  gw: '/images/badges/icons/gw.svg',
-  p3v3: '/images/badges/icons/p3v3.svg',
-  p6g: '/images/badges/icons/p6g.svg',
-  p6v6: '/images/badges/icons/p6v6.svg',
-  pasts: '/images/badges/icons/pasts.svg',
-  pblk: '/images/badges/icons/pblk.svg',
-  pbrk: '/images/badges/icons/pbrk.svg',
-  pfight: '/images/badges/icons/pfight.svg',
-  pfo: '/images/badges/icons/pfo.svg',
-  pgoals: '/images/badges/icons/pgoals.svg',
-  phits: '/images/badges/icons/phits.svg',
-  pht: '/images/badges/icons/pht.svg',
-  pshots: '/images/badges/icons/pshots.svg',
-  ptka: '/images/badges/icons/ptka.svg',
-  pwins: '/images/badges/icons/pwins.svg',
+export interface BadgeIcon {
+  src: string
+  /** Size relative to the badge's standard icon box. */
+  scale: number
+}
+
+export const BADGE_ICONS: Readonly<Partial<Record<BadgeFamilyId, BadgeIcon>>> = {
+  gg: { src: '/images/badges/icons/gg.svg', scale: 1 },
+  gpoke: { src: '/images/badges/icons/gpoke.svg', scale: 1 },
+  gsv: { src: '/images/badges/icons/gsv.svg', scale: 1 },
+  gw: { src: '/images/badges/icons/gw.svg', scale: 1 },
+  p3v3: { src: '/images/badges/icons/p3v3.svg', scale: 1 },
+  p6g: { src: '/images/badges/icons/p6g.svg', scale: 1.15 },
+  p6v6: { src: '/images/badges/icons/p6v6.svg', scale: 1 },
+  pasts: { src: '/images/badges/icons/pasts.svg', scale: 1 },
+  pblk: { src: '/images/badges/icons/pblk.svg', scale: 1 },
+  pbrk: { src: '/images/badges/icons/pbrk.svg', scale: 1 },
+  pfight: { src: '/images/badges/icons/pfight.svg', scale: 1 },
+  pfo: { src: '/images/badges/icons/pfo.svg', scale: 1 },
+  pgoals: { src: '/images/badges/icons/pgoals.svg', scale: 1 },
+  phits: { src: '/images/badges/icons/phits.svg', scale: 1 },
+  pht: { src: '/images/badges/icons/pht.svg', scale: 1 },
+  pshots: { src: '/images/badges/icons/pshots.svg', scale: 1 },
+  ptka: { src: '/images/badges/icons/ptka.svg', scale: 1 },
+  pwins: { src: '/images/badges/icons/pwins.svg', scale: 1.35 },
 }

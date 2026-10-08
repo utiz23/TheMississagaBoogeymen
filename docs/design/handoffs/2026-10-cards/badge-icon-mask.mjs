@@ -45,8 +45,13 @@ function remapColors(markup) {
     })
 }
 
-/** Rewrite one icon. Throws with a reason when the file can't be used. */
-export function toMaskSvg(svgText) {
+/**
+ * Rewrite one icon. Throws with a reason when the file can't be used.
+ * `weight` (viewBox units) thickens the solid shapes with a round stroke of the
+ * same colour, for thin art that fades at small sizes. Only for icons whose
+ * detail isn't drawn as light cut-outs: the stroke would also fill the holes.
+ */
+export function toMaskSvg(svgText, { weight = 0 } = {}) {
   if (FORBIDDEN.test(svgText)) throw new Error('contains <image>, <script> or <foreignObject>')
   const open = /<svg\b[^>]*>/i.exec(svgText)
   const close = svgText.lastIndexOf('</svg>')
@@ -60,7 +65,9 @@ export function toMaskSvg(svgText) {
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">`,
     `<defs><mask id="icon" maskUnits="userSpaceOnUse" ${box}>`,
-    `<g fill="#fff">${body}</g>`,
+    weight > 0
+      ? `<g fill="#fff" stroke="#fff" stroke-width="${String(weight)}" stroke-linejoin="round">${body}</g>`
+      : `<g fill="#fff">${body}</g>`,
     `</mask></defs>`,
     `<rect ${box} fill="#000" mask="url(#icon)"/>`,
     `</svg>`,
