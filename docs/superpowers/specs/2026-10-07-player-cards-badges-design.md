@@ -1,5 +1,7 @@
 # Player Cards, Badges, Build Locker v2 & Action Map — Design
 
+> **Amended 2026-10-08:** progression is now per NHL title (one season card each, from NHL 27), with new ladders and tier bars. See [season cards](2026-10-08-season-cards-design.md); Part 1's inputs, ladders, tier bars, tier table and storage below are superseded where they differ.
+
 **Status:** approved by the operator 2026-10-07, including the test-run amendment. Step 1 (badges) is next.
 **Supersedes:** for these features only, the open questions in
 [`docs/cards/card-system-brief.md`](../../cards/card-system-brief.md) and the
