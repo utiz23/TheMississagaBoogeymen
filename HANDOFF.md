@@ -28,6 +28,8 @@ tunnel. Launch plan items 2–8 are done; item 1 counts three green nightly
 backups on Hotel-Echo from 2026-10-06. Next: observe for a few days, then
 post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
+**Position filter built, not deployed** (2026-10-08 evening, `6358221`): Position pills (All · C · LW · RW · W · D) on the roster, stats and player-season tables, plus a deeper season table. Deploy needs migration 0063 on live first, then `recompute-aggregates --all` in the worker. Detail: [journal 2026-10-08 evening](docs/journal/2026-10.md).
+
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
 ## Latest Verified Checkpoint
@@ -53,14 +55,9 @@ strip is restored to 365-229-27 / 621 GP. Detail:
 [journal 2026-10-06](docs/journal/2026-10.md).
 
 **2026-10-06 — performance pass deployed** (`351354d`, web only; rollback
-image `eanhl-team-website-web:rollback-he-2026-10-06-pre-perf`). No route
-loading screens, full link preloading, 7-day image cache, 20 KB favicon.
-Live, same benchmark before/after:
-
-- Phone: content 598 → 303 ms, taps 349 → 187 ms.
-- Fast CPU: taps ~312 → 31 ms, with no network request.
-
-Unknown game/player ids now 404. Detail:
+image `eanhl-team-website-web:rollback-he-2026-10-06-pre-perf`): no route
+loading screens, full link preloading, 7-day image cache; phone content
+598 → 303 ms, taps 349 → 187 ms. Unknown ids 404. Detail:
 [journal 2026-10-06](docs/journal/2026-10.md).
 
 **2026-10-05 — launched; security update + polish deployed.** Detail:
@@ -161,6 +158,7 @@ None.
 
 ## Next 1-3 Actions
 
+0. Deploy the position filter when the operator OKs it (`docker-redeploy` skill): dump + rollback tags, apply `0063_player_position_stats.sql` on live, rebuild web + worker, run `pnpm --filter worker recompute-aggregates --all` in the worker container (NHL 26 isn't ingested), spot-check HenryTheBobJr NHL 26 D = 118 of 571.
 1. Cards: watch the first days live (worker log `AI goalies nhl27` + `Card progression recomputed`, teammates' reactions). Re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Open for the operator: Jimmy Cap's position (RW placeholder), the Action Map clock direction, the deferred minors in the switch plan's record, and a pre-existing Contribution Wheel hydration warning. `eanhl_preview` can be dropped on the operator's say. New migrations must also go to `eanhl_test` (verify-ocr seed).
 2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
