@@ -52,7 +52,7 @@ void test('a player with no badge rows: 21 locked badges in 5 groups', () => {
 
 void test('mid-ladder and maxed badges', () => {
   const b = buildBadgeBoard([
-    { familyId: 'phits', value: 1234 },
+    { familyId: 'phits', value: 98 },
     { familyId: 'pgoals', value: 6000 },
   ])
   const hits = b.rows.find((r) => r.family.id === 'phits')
@@ -60,8 +60,8 @@ void test('mid-ladder and maxed badges', () => {
   assert.ok(hits && goals)
   assert.equal(hits.progress.level, 6)
   assert.equal(hits.themeLabel, 'Home III')
-  assert.equal(hits.progressText, '1,234 / 1,300 hits')
-  assert.equal(hits.remainingText, '66 to LVL 7')
+  assert.equal(hits.progressText, '98 / 110 hits')
+  assert.equal(hits.remainingText, '12 to LVL 7')
   assert.equal(goals.progressText, 'Maxed · 6,000 goals')
   assert.equal(goals.remainingText, '')
   assert.equal(b.unlocked, 2)

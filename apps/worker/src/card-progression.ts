@@ -1,22 +1,23 @@
 /**
- * Card progression recompute: loads every player's badge inputs, applies the
+ * Card progression recompute: loads every card title's badge inputs, applies the
  * shared rules from @eanhl/db/cards, and writes badge levels, card standing and
- * card events (migration 0060) in one transaction.
- * Spec: docs/superpowers/specs/2026-10-07-player-cards-badges-design.md, Part 1.
+ * card events (migration 0060) in one transaction. Each title is its own season.
+ * Spec: docs/superpowers/specs/2026-10-07-player-cards-badges-design.md, Part 1,
+ * amended by docs/superpowers/specs/2026-10-08-season-cards-design.md.
  */
 import { sql, type SQL } from 'drizzle-orm'
 import { db, playerBadgeLevels, playerCardEvents, playerCardProgress } from '@eanhl/db'
 import {
   BADGE_FAMILIES,
-  mergeCareerTotals,
+  FIRST_CARD_RELEASE_ORDER,
+  mergeSeasonTotals,
   planCardRecompute,
   type BadgeFamilyId,
   type CardStanding,
-  type CareerTotalsInput,
   type EaTitleTotals,
-  type HistoryTitleTotals,
   type RecordedModeGames,
   type RecordedSixesWithGoalie,
+  type SeasonTotals,
 } from '@eanhl/db/cards'
 
 async function rows<T>(query: SQL): Promise<T[]> {
@@ -28,8 +29,28 @@ export async function currentDatabase(): Promise<string> {
   return row?.name ?? '?'
 }
 
-export async function loadCareerTotalsInput(): Promise<CareerTotalsInput> {
-  const [ea, history, recordedModes, recordedSixesWithGoalie] = await Promise.all([
+export interface CardTitle {
+  id: number
+  slug: string
+  name: string
+}
+
+/** Titles that get a card per player (NHL 27 on), oldest first. */
+export async function loadCardTitles(): Promise<CardTitle[]> {
+  return rows<CardTitle>(sql`
+    SELECT id, slug, name FROM game_titles
+    WHERE release_order >= ${FIRST_CARD_RELEASE_ORDER}
+    ORDER BY release_order, id`)
+}
+
+/** Season totals for the given titles: title id → player id → badge values. */
+export async function loadSeasonTotals(titleIds: readonly number[]): Promise<SeasonTotals> {
+  if (titleIds.length === 0) return new Map()
+  const ids = sql.join(
+    titleIds.map((id) => sql`${id}`),
+    sql`, `,
+  )
+  const [ea, recordedModes, recordedSixesWithGoalie] = await Promise.all([
     rows<EaTitleTotals>(sql`
       SELECT player_id AS "playerId", game_title_id AS "gameTitleId",
         COALESCE(skater_wins, 0) AS "skaterWins", COALESCE(goalie_wins, 0) AS "goalieWins",
@@ -43,33 +64,29 @@ export async function loadCareerTotalsInput(): Promise<CareerTotalsInput> {
         COALESCE(goalie_desperation_saves, 0) AS "goalieDesperationSaves",
         COALESCE(goalie_poke_checks, 0) AS "goaliePokeChecks",
         COALESCE(goalie_shutouts, 0) AS "goalieShutouts"
-      FROM ea_member_season_stats`),
-    rows<HistoryTitleTotals>(sql`
-      SELECT player_id AS "playerId", game_title_id AS "gameTitleId", game_mode AS "gameMode",
-        (COALESCE(skater_gp, 0) + COALESCE(goalie_gp, 0))::int AS "gamesPlayed",
-        COALESCE(wins, 0) AS "wins", COALESCE(goals, 0) AS "goals", COALESCE(assists, 0) AS "assists",
-        COALESCE(shots, 0) AS "shots", COALESCE(hits, 0) AS "hits", COALESCE(takeaways, 0) AS "takeaways",
-        COALESCE(blocked_shots, 0) AS "blockedShots", COALESCE(total_saves, 0) AS "saves",
-        COALESCE(shutouts, 0) AS "shutouts"
-      FROM historical_club_member_season_stats
-      WHERE player_id IS NOT NULL AND review_status = 'reviewed'`),
+      FROM ea_member_season_stats
+      WHERE game_title_id IN (${ids})`),
     rows<RecordedModeGames>(sql`
-      SELECT player_id AS "playerId", game_mode AS "gameMode", SUM(games_played)::int AS "gamesPlayed"
+      SELECT player_id AS "playerId", game_title_id AS "gameTitleId", game_mode AS "gameMode",
+        SUM(games_played)::int AS "gamesPlayed"
       FROM player_game_title_stats
-      WHERE game_mode IN ('3s', '6s')
-      GROUP BY player_id, game_mode`),
+      WHERE game_mode IN ('3s', '6s') AND game_title_id IN (${ids})
+      GROUP BY player_id, game_title_id, game_mode`),
     rows<RecordedSixesWithGoalie>(sql`
-      SELECT p.player_id AS "playerId", COUNT(DISTINCT p.match_id)::int AS "games"
+      SELECT p.player_id AS "playerId", m.game_title_id AS "gameTitleId",
+        COUNT(DISTINCT p.match_id)::int AS "games"
       FROM player_match_stats p
       JOIN matches m ON m.id = p.match_id
-      WHERE m.game_mode = '6s'
+      WHERE m.game_mode = '6s' AND m.game_title_id IN (${ids})
         AND EXISTS (SELECT 1 FROM player_match_stats g WHERE g.match_id = p.match_id AND g.is_goalie)
-      GROUP BY p.player_id`),
+      GROUP BY p.player_id, m.game_title_id`),
   ])
-  return { ea, history, recordedModes, recordedSixesWithGoalie }
+  return mergeSeasonTotals({ ea, recordedModes, recordedSixesWithGoalie })
 }
 
 export interface RecomputeResult {
+  gameTitleId: number
+  titleName: string
   playerId: number
   gamertag: string
   standing: CardStanding
@@ -80,25 +97,13 @@ export interface RecomputeResult {
 export async function recomputeCardProgression(opts: {
   dryRun: boolean
 }): Promise<RecomputeResult[]> {
-  const totals = mergeCareerTotals(await loadCareerTotalsInput())
+  const titles = await loadCardTitles()
+  const totals = await loadSeasonTotals(titles.map((t) => t.id))
   const [storedProgress, storedLevels, names] = await Promise.all([
     db.select().from(playerCardProgress),
     db.select().from(playerBadgeLevels),
     rows<{ id: number; gamertag: string }>(sql`SELECT id, gamertag FROM players`),
   ])
-
-  const prevStanding = new Map<number, CardStanding>(
-    storedProgress.map((r) => [
-      r.playerId,
-      { tier: r.tier, level: r.level, pool: r.tierPool, mythicTheme: r.mythicTheme ?? null },
-    ]),
-  )
-  const prevLevels = new Map<number, Partial<Record<BadgeFamilyId, number>>>()
-  for (const r of storedLevels) {
-    const levels = prevLevels.get(r.playerId) ?? {}
-    levels[r.familyId] = r.level
-    prevLevels.set(r.playerId, levels)
-  }
   const gamertags = new Map(names.map((n) => [n.id, n.gamertag]))
 
   const now = new Date()
@@ -107,43 +112,66 @@ export async function recomputeCardProgression(opts: {
   const progressRows: (typeof playerCardProgress.$inferInsert)[] = []
   const eventRows: (typeof playerCardEvents.$inferInsert)[] = []
 
-  for (const {
-    playerId,
-    values,
-    levels,
-    standing,
-    events,
-    firstRun,
-    writeStanding,
-  } of planCardRecompute(totals, prevStanding, prevLevels)) {
-    for (const f of BADGE_FAMILIES) {
-      levelRows.push({
-        playerId,
-        familyId: f.id,
-        value: values[f.id],
-        level: levels[f.id],
-        computedAt: now,
-      })
+  for (const title of titles) {
+    const gameTitleId = title.id
+    const prevStanding = new Map<number, CardStanding>(
+      storedProgress
+        .filter((r) => r.gameTitleId === gameTitleId)
+        .map((r) => [
+          r.playerId,
+          { tier: r.tier, level: r.level, pool: r.tierPool, mythicTheme: r.mythicTheme ?? null },
+        ]),
+    )
+    const prevLevels = new Map<number, Partial<Record<BadgeFamilyId, number>>>()
+    for (const r of storedLevels) {
+      if (r.gameTitleId !== gameTitleId) continue
+      const levels = prevLevels.get(r.playerId) ?? {}
+      levels[r.familyId] = r.level
+      prevLevels.set(r.playerId, levels)
     }
-    if (writeStanding) {
-      progressRows.push({
-        playerId,
-        tier: standing.tier,
-        level: standing.level,
-        tierPool: standing.pool,
-        mythicTheme: standing.mythicTheme,
-        computedAt: now,
-        updatedAt: now,
-      })
-    }
-    for (const e of events) eventRows.push({ playerId, ...e, occurredAt: now })
-    results.push({
+
+    for (const {
       playerId,
-      gamertag: gamertags.get(playerId) ?? `#${String(playerId)}`,
+      values,
+      levels,
       standing,
-      events: events.length,
+      events,
       firstRun,
-    })
+      writeStanding,
+    } of planCardRecompute(totals.get(gameTitleId) ?? new Map(), prevStanding, prevLevels)) {
+      for (const f of BADGE_FAMILIES) {
+        levelRows.push({
+          playerId,
+          gameTitleId,
+          familyId: f.id,
+          value: values[f.id],
+          level: levels[f.id],
+          computedAt: now,
+        })
+      }
+      if (writeStanding) {
+        progressRows.push({
+          playerId,
+          gameTitleId,
+          tier: standing.tier,
+          level: standing.level,
+          tierPool: standing.pool,
+          mythicTheme: standing.mythicTheme,
+          computedAt: now,
+          updatedAt: now,
+        })
+      }
+      for (const e of events) eventRows.push({ playerId, gameTitleId, ...e, occurredAt: now })
+      results.push({
+        gameTitleId,
+        titleName: title.name,
+        playerId,
+        gamertag: gamertags.get(playerId) ?? `#${String(playerId)}`,
+        standing,
+        events: events.length,
+        firstRun,
+      })
+    }
   }
 
   if (!opts.dryRun) {
@@ -153,7 +181,11 @@ export async function recomputeCardProgression(opts: {
           .insert(playerBadgeLevels)
           .values(levelRows)
           .onConflictDoUpdate({
-            target: [playerBadgeLevels.playerId, playerBadgeLevels.familyId],
+            target: [
+              playerBadgeLevels.playerId,
+              playerBadgeLevels.gameTitleId,
+              playerBadgeLevels.familyId,
+            ],
             set: {
               value: sql`excluded.value`,
               level: sql`excluded.level`,
@@ -166,7 +198,7 @@ export async function recomputeCardProgression(opts: {
           .insert(playerCardProgress)
           .values(progressRows)
           .onConflictDoUpdate({
-            target: playerCardProgress.playerId,
+            target: [playerCardProgress.playerId, playerCardProgress.gameTitleId],
             set: {
               tier: sql`excluded.tier`,
               level: sql`excluded.level`,

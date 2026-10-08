@@ -1,6 +1,11 @@
 import { and, desc, eq, gt, inArray } from 'drizzle-orm'
 import { db } from '../client.js'
-import { playerBadgeLevels, playerCardEvents, playerCardProgress } from '../schema/index.js'
+import {
+  gameTitles,
+  playerBadgeLevels,
+  playerCardEvents,
+  playerCardProgress,
+} from '../schema/index.js'
 import type {
   BadgeFamilyId,
   CardThemeKey,
@@ -12,6 +17,8 @@ import type { CardEventKind } from '../cards/progression.js'
 import { pickBestBadge, resolveCardTheme, type BadgeLevelRef } from '../cards/card-theme.js'
 
 export interface PlayerCardProgress {
+  /** The season (game title) this card belongs to; null when the player has no card yet. */
+  gameTitle: { id: number; name: string } | null
   /** null until the worker's first recompute has seen this player. */
   standing: {
     tier: CardTier
@@ -19,7 +26,7 @@ export interface PlayerCardProgress {
     pool: TierPool | 'manual'
     mythicTheme: MythicThemeKey | null
     computedAt: Date
-    /** When the worker first computed this player: the card history starts here. */
+    /** When the worker first computed this card: its history starts here. */
     trackedSince: Date
   } | null
   badges: { familyId: BadgeFamilyId; value: number; level: number }[]
@@ -32,13 +39,37 @@ export interface PlayerCardProgress {
   }[]
 }
 
-/** Card standing, the 21 badge rows and the newest card events for one player. */
+/** The player's card rows, newest season (highest release_order) first. */
+async function cardRowsNewestFirst(playerIds: readonly number[]) {
+  return db
+    .select({
+      playerId: playerCardProgress.playerId,
+      gameTitleId: playerCardProgress.gameTitleId,
+      gameTitleName: gameTitles.name,
+      tier: playerCardProgress.tier,
+      level: playerCardProgress.level,
+      tierPool: playerCardProgress.tierPool,
+      mythicTheme: playerCardProgress.mythicTheme,
+      computedAt: playerCardProgress.computedAt,
+      createdAt: playerCardProgress.createdAt,
+    })
+    .from(playerCardProgress)
+    .innerJoin(gameTitles, eq(gameTitles.id, playerCardProgress.gameTitleId))
+    .where(inArray(playerCardProgress.playerId, [...playerIds]))
+    .orderBy(desc(gameTitles.releaseOrder), desc(gameTitles.id))
+}
+
+/**
+ * Card standing, the 21 badge rows and the newest card events for one player,
+ * for the player's newest season card (each title is its own season).
+ */
 export async function getPlayerCardProgress(
   playerId: number,
   eventLimit = 20,
 ): Promise<PlayerCardProgress> {
-  const [standingRows, badges, events] = await Promise.all([
-    db.select().from(playerCardProgress).where(eq(playerCardProgress.playerId, playerId)).limit(1),
+  const [s] = await cardRowsNewestFirst([playerId])
+  if (s === undefined) return { gameTitle: null, standing: null, badges: [], events: [] }
+  const [badges, events] = await Promise.all([
     db
       .select({
         familyId: playerBadgeLevels.familyId,
@@ -46,7 +77,12 @@ export async function getPlayerCardProgress(
         level: playerBadgeLevels.level,
       })
       .from(playerBadgeLevels)
-      .where(eq(playerBadgeLevels.playerId, playerId)),
+      .where(
+        and(
+          eq(playerBadgeLevels.playerId, playerId),
+          eq(playerBadgeLevels.gameTitleId, s.gameTitleId),
+        ),
+      ),
     db
       .select({
         kind: playerCardEvents.kind,
@@ -56,23 +92,25 @@ export async function getPlayerCardProgress(
         occurredAt: playerCardEvents.occurredAt,
       })
       .from(playerCardEvents)
-      .where(eq(playerCardEvents.playerId, playerId))
+      .where(
+        and(
+          eq(playerCardEvents.playerId, playerId),
+          eq(playerCardEvents.gameTitleId, s.gameTitleId),
+        ),
+      )
       .orderBy(desc(playerCardEvents.occurredAt), desc(playerCardEvents.id))
       .limit(eventLimit),
   ])
-  const s = standingRows[0]
   return {
-    standing:
-      s === undefined
-        ? null
-        : {
-            tier: s.tier,
-            level: s.level,
-            pool: s.tierPool,
-            mythicTheme: s.mythicTheme ?? null,
-            computedAt: s.computedAt,
-            trackedSince: s.createdAt,
-          },
+    gameTitle: { id: s.gameTitleId, name: s.gameTitleName },
+    standing: {
+      tier: s.tier,
+      level: s.level,
+      pool: s.tierPool,
+      mythicTheme: s.mythicTheme ?? null,
+      computedAt: s.computedAt,
+      trackedSince: s.createdAt,
+    },
     badges,
     events,
   }
@@ -87,50 +125,57 @@ export interface CardSummary {
 }
 
 /**
- * Card tier, level, theme and featured badge for many players in one query
- * (carousel, depth chart). Players the worker has not computed yet are absent
- * from the map; callers show them as tier 1, level 1.
+ * Card tier, level, theme and featured badge for many players (carousel, depth
+ * chart). With `gameTitleId`, that season's cards; without it, each player's
+ * newest season card. Players without a card are absent from the map; callers
+ * show them as tier 1, level 1.
  */
 export async function getCardProgressForPlayers(
   playerIds: readonly number[],
+  gameTitleId?: number,
 ): Promise<Map<number, CardSummary>> {
   const out = new Map<number, CardSummary>()
   if (playerIds.length === 0) return out
-  const rows = await db
+  const cards = new Map<
+    number,
+    { gameTitleId: number; tier: CardTier; level: number; mythicTheme: MythicThemeKey | null }
+  >()
+  for (const r of await cardRowsNewestFirst(playerIds)) {
+    if (gameTitleId !== undefined && r.gameTitleId !== gameTitleId) continue
+    if (!cards.has(r.playerId)) cards.set(r.playerId, { ...r, mythicTheme: r.mythicTheme ?? null })
+  }
+  if (cards.size === 0) return out
+  const badgeRows = await db
     .select({
-      playerId: playerCardProgress.playerId,
-      tier: playerCardProgress.tier,
-      level: playerCardProgress.level,
-      mythicTheme: playerCardProgress.mythicTheme,
+      playerId: playerBadgeLevels.playerId,
+      gameTitleId: playerBadgeLevels.gameTitleId,
       familyId: playerBadgeLevels.familyId,
-      badgeLevel: playerBadgeLevels.level,
+      level: playerBadgeLevels.level,
     })
-    .from(playerCardProgress)
-    .leftJoin(
-      playerBadgeLevels,
+    .from(playerBadgeLevels)
+    .where(
       and(
-        eq(playerBadgeLevels.playerId, playerCardProgress.playerId),
+        inArray(playerBadgeLevels.playerId, [...cards.keys()]),
+        inArray(playerBadgeLevels.gameTitleId, [
+          ...new Set([...cards.values()].map((c) => c.gameTitleId)),
+        ]),
         gt(playerBadgeLevels.level, 0),
       ),
     )
-    .where(inArray(playerCardProgress.playerId, [...playerIds]))
   const badges = new Map<number, BadgeLevelRef[]>()
-  for (const r of rows) {
-    if (!out.has(r.playerId)) {
-      out.set(r.playerId, {
-        tier: r.tier,
-        level: r.level,
-        theme: resolveCardTheme(r.tier, r.mythicTheme ?? null),
-        bestBadge: null,
-      })
-      badges.set(r.playerId, [])
-    }
-    if (r.familyId !== null && r.badgeLevel !== null) {
-      badges.get(r.playerId)?.push({ familyId: r.familyId, level: r.badgeLevel })
-    }
+  for (const r of badgeRows) {
+    if (cards.get(r.playerId)?.gameTitleId !== r.gameTitleId) continue
+    const list = badges.get(r.playerId) ?? []
+    list.push({ familyId: r.familyId, level: r.level })
+    badges.set(r.playerId, list)
   }
-  for (const [playerId, summary] of out) {
-    summary.bestBadge = pickBestBadge(badges.get(playerId) ?? [])
+  for (const [playerId, c] of cards) {
+    out.set(playerId, {
+      tier: c.tier,
+      level: c.level,
+      theme: resolveCardTheme(c.tier, c.mythicTheme),
+      bestBadge: pickBestBadge(badges.get(playerId) ?? []),
+    })
   }
   return out
 }

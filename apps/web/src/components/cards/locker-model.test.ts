@@ -11,7 +11,7 @@ import type { CardViewModel } from './card-model.ts'
 const levels = (l: Partial<Record<BadgeFamilyId, number>>) =>
   Object.entries(l).map(([familyId, level]) => ({ familyId: familyId as BadgeFamilyId, level }))
 
-/** #3 Stick Menace on the preview database: T4 L6, skater pool. */
+/** A T4 L6 skater-pool card (fixture levels). */
 const igor: LockerInput = {
   name: 'Igor Orlov',
   tier: 4,
@@ -19,7 +19,7 @@ const igor: LockerInput = {
   equipped: 'carbon',
   pool: 'skater',
   badges: levels({
-    pbrk: 28,
+    pbrk: 29,
     pfo: 18,
     pfight: 17,
     pdekes: 17,
@@ -63,7 +63,7 @@ void test('skater pool: requirement counts families at the next bar', () => {
     title: 'NEXT · T5 FRANCHISE',
     count: '1 / 4 BADGES',
     pct: 25,
-    note: '4 skater badges at Tier V (LVL 21+).',
+    note: '4 skater badges at Tier V (LVL 29+).',
   })
 })
 
@@ -75,17 +75,17 @@ void test('rows: top 6 of the pool by level, catalog order on ties, DONE at the 
   )
   assert.deepEqual(
     v.rows.map((r) => r.value),
-    ['DONE', 'LVL 18/21', 'LVL 17/21', 'LVL 17/21', 'LVL 17/21', 'LVL 15/21'],
+    ['DONE', 'LVL 18/29', 'LVL 17/29', 'LVL 17/29', 'LVL 17/29', 'LVL 15/29'],
   )
   assert.deepEqual(
     v.rows.map((r) => r.pct),
-    [100, 86, 81, 81, 81, 71],
+    [100, 62, 59, 59, 59, 52],
   )
   const first = v.rows[0]
   assert.ok(first)
   assert.equal(first.done, true)
   assert.equal(first.shape, 'round')
-  assert.equal(first.theme, 'olympus') // level 28 → theme index ceil(28/3)−1 = 9
+  assert.equal(first.theme, 'olympus') // level 29 → theme index ceil(29/3)−1 = 9
 })
 
 void test('goalie pool: requirement and rows use the 6 goalie families only', () => {
@@ -95,13 +95,13 @@ void test('goalie pool: requirement and rows use the 6 goalie families only', ()
     level: 8,
     equipped: 'home',
     pool: 'goalie',
-    badges: levels({ gg: 12, gw: 11, gsv: 15, gdsv: 3, gso: 2, gpoke: 0, pgoals: 30, pbrk: 30 }),
+    badges: levels({ gg: 12, gw: 12, gsv: 15, gdsv: 3, gso: 2, gpoke: 0, pgoals: 30, pbrk: 30 }),
   })
   assert.deepEqual(v.requirement, {
     title: 'NEXT · T3 STUD',
     count: '3 / 4 BADGES',
     pct: 75,
-    note: '4 goalie badges at Tier III (LVL 11+).',
+    note: '4 goalie badges at Tier III (LVL 12+).',
   })
   assert.deepEqual(
     v.rows.map((r) => [r.short, r.value]),
@@ -109,9 +109,9 @@ void test('goalie pool: requirement and rows use the 6 goalie families only', ()
       ['SAVES', 'DONE'],
       ['STARTS', 'DONE'],
       ['G WINS', 'DONE'],
-      ['DESPERATION', 'LVL 3/11'],
-      ['SHUTOUTS', 'LVL 2/11'],
-      ['POKE CHECKS', 'LVL 0/11'],
+      ['DESPERATION', 'LVL 3/12'],
+      ['SHUTOUTS', 'LVL 2/12'],
+      ['POKE CHECKS', 'LVL 0/12'],
     ],
   )
   assert.equal(v.rows[5]?.locked, true)
@@ -154,9 +154,9 @@ void test('no standing yet: T1, nothing earned, no history', () => {
     trackedSince: null,
   })
   assert.equal(v.requirement.count, '0 / 4 BADGES')
-  assert.equal(v.requirement.note, '4 skater badges at Tier II (LVL 6+).')
+  assert.equal(v.requirement.note, '4 skater badges at Tier II (LVL 5+).')
   assert.equal(v.rows.length, 6)
-  assert.ok(v.rows.every((r) => r.locked && r.value === 'LVL 0/6'))
+  assert.ok(v.rows.every((r) => r.locked && r.value === 'LVL 0/5'))
   assert.deepEqual(v.history, [])
   assert.equal(v.historyEmpty, 'No card history yet.')
   assert.equal(v.unlockedCount, 1)
@@ -216,6 +216,10 @@ void test('history: newest-first lines with dates in the operator zone', () => {
 void test('header strings, level note and tier track', () => {
   const v = buildLockerView(igor)
   assert.equal(v.subline, 'IGOR ORLOV · T4 ELITE · LVL 6/10 · 4 / 10 THEMES')
+  assert.equal(
+    buildLockerView({ ...igor, seasonName: 'NHL 27' }).subline,
+    'IGOR ORLOV · NHL 27 · T4 ELITE · LVL 6/10 · 4 / 10 THEMES',
+  )
   assert.equal(v.tierLabel, 'ELITE')
   assert.equal(v.level, 6)
   assert.equal(

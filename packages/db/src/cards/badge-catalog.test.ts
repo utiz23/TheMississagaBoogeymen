@@ -41,14 +41,33 @@ void test('every family sits in a listed group; the goalie group is the goalie p
   )
 })
 
-void test('ladders match the approved spec table (spot checks)', () => {
-  assert.deepEqual(BADGE_LADDERS.pgoals.slice(0, 5), [1, 4, 16, 65, 130])
-  assert.equal(BADGE_LADDERS.pgoals[29], 5200)
-  assert.deepEqual(BADGE_LADDERS.phits.slice(0, 5), [5, 23, 110, 500, 750])
-  assert.equal(BADGE_LADDERS.phits[29], 20000)
-  assert.deepEqual(BADGE_LADDERS.gsv.slice(0, 5), [15, 39, 100, 260, 350])
-  assert.equal(BADGE_LADDERS.gso[29], 63)
-  assert.equal(BADGE_LADDERS.p6g[29], 200)
-  assert.deepEqual(BADGE_LADDERS.pdekes.slice(0, 5), [5, 11, 23, 50, 75])
-  assert.equal(BADGE_LADDERS.pdekes[29], 2000)
+void test('ladders match the season-cards spec (spot checks)', () => {
+  // Level 30 = about the 2nd-best one-season value (2026-10-08 season-cards spec).
+  const tops = Object.fromEntries(BADGE_FAMILY_IDS.map((id) => [id, BADGE_LADDERS[id][29]]))
+  assert.deepEqual(tops, {
+    p3v3: 100,
+    p6v6: 480,
+    p6g: 100,
+    pwins: 320,
+    pgoals: 550,
+    pasts: 680,
+    pshots: 2600,
+    pdekes: 800,
+    pht: 65,
+    pbrk: 110,
+    phits: 2000,
+    pfo: 3500,
+    ptka: 1650,
+    pblk: 420,
+    pfight: 40,
+    gg: 60,
+    gw: 30,
+    gsv: 650,
+    gdsv: 40,
+    gpoke: 30,
+    gso: 30,
+  })
+  assert.deepEqual(BADGE_LADDERS.pgoals.slice(0, 5), [1, 2, 6, 10, 15])
+  assert.deepEqual(BADGE_LADDERS.phits.slice(0, 5), [2, 9, 20, 36, 56])
+  assert.deepEqual(BADGE_LADDERS.gso.slice(0, 5), [1, 2, 3, 4, 5])
 })

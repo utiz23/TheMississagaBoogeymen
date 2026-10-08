@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { GameMode, GameTitle } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
+import { FIRST_CARD_RELEASE_ORDER } from '@eanhl/db/cards'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
@@ -494,13 +495,18 @@ async function ActiveRoster({
 
   const builtChart = sections.depthChart === 'ready' ? buildChart(eaRows, eligibilityRows) : null
   // Card tier/theme/featured badge for every charted player, in one query; a
-  // failure only drops the progression (every card then shows tier 1).
+  // failure only drops the progression (every card then shows tier 1). Each
+  // title is its own season: this title's cards, or each player's newest card
+  // for a title from before season cards began.
+  const cardTitleId =
+    (gameTitle.releaseOrder ?? 0) >= FIRST_CARD_RELEASE_ORDER ? gameTitle.id : undefined
   const cardSummaries =
     builtChart === null
       ? new Map<number, never>()
-      : await getCardProgressForPlayers(eaRows.map((r) => r.playerId)).catch(
-          () => new Map<number, never>(),
-        )
+      : await getCardProgressForPlayers(
+          eaRows.map((r) => r.playerId),
+          cardTitleId,
+        ).catch(() => new Map<number, never>())
   const withCard = (slot: DepthSlot | null): DepthSlot | null =>
     slot === null ? null : { ...slot, card: cardSummaries.get(slot.player.playerId) }
   const chart: DepthChartProps | null =

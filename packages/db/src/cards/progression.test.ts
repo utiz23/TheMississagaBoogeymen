@@ -22,9 +22,9 @@ void test('badgeLevel counts thresholds met', () => {
   const ladder = BADGE_LADDERS.pgoals
   assert.equal(badgeLevel(ladder, 0), 0)
   assert.equal(badgeLevel(ladder, 1), 1)
-  assert.equal(badgeLevel(ladder, 15), 2)
-  assert.equal(badgeLevel(ladder, 16), 3)
-  assert.equal(badgeLevel(ladder, 5200), 30)
+  assert.equal(badgeLevel(ladder, 5), 2)
+  assert.equal(badgeLevel(ladder, 6), 3)
+  assert.equal(badgeLevel(ladder, 550), 30)
   assert.equal(badgeLevel(ladder, 999999), 30)
 })
 
@@ -37,12 +37,12 @@ void test('badgeProgress: locked, mid-level and maxed', () => {
     pct: 0,
     remaining: 1,
   })
-  const mid = badgeProgress(BADGE_LADDERS.pgoals, 40)
-  assert.equal(mid.level, 3)
-  assert.equal(mid.prevThreshold, 16)
-  assert.equal(mid.nextThreshold, 65)
-  assert.equal(mid.remaining, 25)
-  assert.ok(Math.abs(mid.pct - 24 / 49) < 1e-9)
+  const mid = badgeProgress(BADGE_LADDERS.pgoals, 45)
+  assert.equal(mid.level, 8)
+  assert.equal(mid.prevThreshold, 39)
+  assert.equal(mid.nextThreshold, 50)
+  assert.equal(mid.remaining, 5)
+  assert.ok(Math.abs(mid.pct - 6 / 11) < 1e-9)
   const maxed = badgeProgress(BADGE_LADDERS.pgoals, 6000)
   assert.equal(maxed.level, 30)
   assert.equal(maxed.nextThreshold, null)
@@ -50,8 +50,8 @@ void test('badgeProgress: locked, mid-level and maxed', () => {
   assert.equal(maxed.pct, 1)
 })
 
-void test('tierBar is (N-1)*5+1', () => {
-  assert.deepEqual([1, 2, 3, 4, 5, 6].map(tierBar), [1, 6, 11, 16, 21, 26])
+void test('tier bars are 5 / 12 / 20 / 29; T6 reads as T5', () => {
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map(tierBar), [1, 5, 12, 20, 29, 29])
 })
 
 void test('a player with no stats is tier 1, level 1, skater pool', () => {
@@ -63,41 +63,47 @@ void test('a player with no stats is tier 1, level 1, skater pool', () => {
   })
 })
 
-// Career totals from the live database on 2026-10-07 (EA NHL 26+27, reviewed
-// NHL 22-25 history, site-recorded mode games; Dekes = successful dekes).
-// The spec's tier table.
+// NHL 27 season totals from the live database on 2026-10-08, five weeks into
+// the title (EA season totals + site-recorded mode games; Dekes = successful
+// dekes). Season-cards spec: regulars are Rookie by week 2, Stud by week 6-10.
 // prettier-ignore
-const LIVE_2026_10_07: { gamertag: string; values: BadgeValues }[] = [
-  { gamertag: 'HenryTheBobJr', values: {p3v3: 12, p6v6: 1230, p6g: 24, pwins: 348, pgoals: 898, pasts: 2466, pshots: 5087, pdekes: 284, pht: 12, pbrk: 54, phits: 5017, pfo: 0, ptka: 5130, pblk: 1095, pfight: 1, gg: 0, gw: 0, gsv: 16, gdsv: 0, gpoke: 0, gso: 0} },
-  { gamertag: 'silkyjoker85', values: {p3v3: 57, p6v6: 1596, p6g: 30, pwins: 390, pgoals: 2107, pasts: 2969, pshots: 7813, pdekes: 357, pht: 61, pbrk: 106, phits: 5743, pfo: 4559, ptka: 5562, pblk: 1032, pfight: 4, gg: 21, gw: 8, gsv: 1185, gdsv: 21, gpoke: 4, gso: 3} },
-  { gamertag: 'Stick Menace', values: {p3v3: 30, p6v6: 590, p6g: 29, pwins: 359, pgoals: 1438, pasts: 993, pshots: 4792, pdekes: 796, pht: 110, pbrk: 285, phits: 4591, pfo: 2098, ptka: 2294, pblk: 328, pfight: 81, gg: 4, gw: 3, gsv: 484, gdsv: 0, gpoke: 1, gso: 1} },
-  { gamertag: 'JoeyFlopfish', values: {p3v3: 65, p6v6: 1751, p6g: 28, pwins: 339, pgoals: 1961, pasts: 2857, pshots: 7212, pdekes: 217, pht: 29, pbrk: 65, phits: 5501, pfo: 972, ptka: 6313, pblk: 1291, pfight: 0, gg: 19, gw: 11, gsv: 2092, gdsv: 15, gpoke: 0, gso: 5} },
-  { gamertag: 'camrazz', values: {p3v3: 23, p6v6: 476, p6g: 24, pwins: 210, pgoals: 909, pasts: 743, pshots: 3267, pdekes: 727, pht: 69, pbrk: 121, phits: 2479, pfo: 352, ptka: 1763, pblk: 294, pfight: 8, gg: 0, gw: 0, gsv: 0, gdsv: 0, gpoke: 0, gso: 0} },
-  { gamertag: 'Ordinary_Samich', values: {p3v3: 4, p6v6: 112, p6g: 11, pwins: 129, pgoals: 221, pasts: 203, pshots: 850, pdekes: 153, pht: 14, pbrk: 51, phits: 724, pfo: 29, ptka: 554, pblk: 115, pfight: 5, gg: 0, gw: 0, gsv: 0, gdsv: 0, gpoke: 0, gso: 0} },
-  { gamertag: 'SCOOT BOY 42', values: {p3v3: 0, p6v6: 4, p6g: 0, pwins: 62, pgoals: 162, pasts: 104, pshots: 958, pdekes: 199, pht: 21, pbrk: 65, phits: 838, pfo: 388, ptka: 307, pblk: 54, pfight: 2, gg: 10, gw: 7, gsv: 129, gdsv: 7, gpoke: 3, gso: 1} },
-  { gamertag: 'MrHomiecide', values: {p3v3: 0, p6v6: 419, p6g: 12, pwins: 88, pgoals: 336, pasts: 524, pshots: 2325, pdekes: 122, pht: 7, pbrk: 31, phits: 2612, pfo: 918, ptka: 1352, pblk: 295, pfight: 11, gg: 0, gw: 0, gsv: 0, gdsv: 0, gpoke: 0, gso: 0} },
-  { gamertag: 'Pratt2016', values: {p3v3: 3, p6v6: 71, p6g: 15, pwins: 36, pgoals: 9, pasts: 27, pshots: 130, pdekes: 2, pht: 0, pbrk: 1, phits: 68, pfo: 31, ptka: 76, pblk: 32, pfight: 0, gg: 39, gw: 19, gsv: 736, gdsv: 27, gpoke: 1, gso: 4} },
-  { gamertag: 'joseph4577', values: {p3v3: 0, p6v6: 226, p6g: 0, pwins: 15, pgoals: 346, pasts: 217, pshots: 1351, pdekes: 10, pht: 3, pbrk: 2, phits: 1773, pfo: 8, ptka: 622, pblk: 86, pfight: 0, gg: 0, gw: 0, gsv: 0, gdsv: 0, gpoke: 0, gso: 0} },]
+const NHL27_2026_10_08: { gamertag: string; values: BadgeValues }[] = [
+  { gamertag: 'Stick Menace', values: {p3v3: 6, p6v6: 64, p6g: 12, pwins: 35, pgoals: 67, pasts: 66, pshots: 302, pdekes: 94, pht: 7, pbrk: 10, phits: 156, pfo: 564, ptka: 189, pblk: 38, pfight: 6, gg: 0, gw: 0, gsv: 0, gdsv: 0, gpoke: 0, gso: 0} },
+  { gamertag: 'silkyjoker85', values: {p3v3: 6, p6v6: 59, p6g: 12, pwins: 31, pgoals: 19, pasts: 72, pshots: 167, pdekes: 19, pht: 0, pbrk: 8, phits: 212, pfo: 359, ptka: 178, pblk: 70, pfight: 0, gg: 5, gw: 2, gsv: 48, gdsv: 4, gpoke: 0, gso: 0} },
+  { gamertag: 'HenryTheBobJr', values: {p3v3: 1, p6v6: 54, p6g: 10, pwins: 25, pgoals: 46, pasts: 56, pshots: 246, pdekes: 36, pht: 5, pbrk: 6, phits: 58, pfo: 0, ptka: 144, pblk: 21, pfight: 0, gg: 0, gw: 0, gsv: 0, gdsv: 0, gpoke: 0, gso: 0} },
+  { gamertag: 'camrazz', values: {p3v3: 6, p6v6: 47, p6g: 12, pwins: 28, pgoals: 55, pasts: 48, pshots: 350, pdekes: 149, pht: 8, pbrk: 11, phits: 108, pfo: 28, ptka: 104, pblk: 20, pfight: 1, gg: 0, gw: 0, gsv: 0, gdsv: 0, gpoke: 0, gso: 0} },
+  { gamertag: 'JoeyFlopfish', values: {p3v3: 6, p6v6: 42, p6g: 12, pwins: 24, pgoals: 18, pasts: 43, pshots: 136, pdekes: 22, pht: 3, pbrk: 2, phits: 69, pfo: 44, ptka: 121, pblk: 27, pfight: 0, gg: 4, gw: 3, gsv: 54, gdsv: 1, gpoke: 0, gso: 0} },
+  { gamertag: 'MrHomiecide', values: {p3v3: 0, p6v6: 34, p6g: 9, pwins: 15, pgoals: 8, pasts: 28, pshots: 74, pdekes: 7, pht: 0, pbrk: 0, phits: 125, pfo: 15, ptka: 76, pblk: 25, pfight: 3, gg: 0, gw: 0, gsv: 0, gdsv: 0, gpoke: 0, gso: 0} },
+  { gamertag: 'Ordinary_Samich', values: {p3v3: 0, p6v6: 23, p6g: 2, pwins: 9, pgoals: 12, pasts: 17, pshots: 84, pdekes: 16, pht: 0, pbrk: 4, phits: 57, pfo: 0, ptka: 31, pblk: 11, pfight: 0, gg: 0, gw: 0, gsv: 0, gdsv: 0, gpoke: 0, gso: 0} },
+]
 
-void test('reproduces the approved 2026-10-07 tier table', () => {
+void test('reproduces the 2026-10-08 NHL 27 tier table', () => {
   const got = Object.fromEntries(
-    LIVE_2026_10_07.map((p) => {
+    NHL27_2026_10_08.map((p) => {
       const s = computeStanding(p.values)
       return [p.gamertag, `T${String(s.tier)} L${String(s.level)} ${s.pool}`]
     }),
   )
   assert.deepEqual(got, {
-    HenryTheBobJr: 'T3 L9 skater',
-    silkyjoker85: 'T4 L5 skater',
-    'Stick Menace': 'T4 L6 skater',
-    JoeyFlopfish: 'T4 L3 skater',
-    camrazz: 'T3 L7 skater',
-    Ordinary_Samich: 'T1 L10 skater',
-    'SCOOT BOY 42': 'T1 L10 skater',
-    MrHomiecide: 'T2 L8 skater',
-    Pratt2016: 'T2 L8 goalie',
-    joseph4577: 'T2 L2 skater',
+    'Stick Menace': 'T2 L8 skater',
+    silkyjoker85: 'T2 L8 skater',
+    HenryTheBobJr: 'T2 L6 skater',
+    camrazz: 'T2 L8 skater',
+    JoeyFlopfish: 'T2 L5 skater',
+    MrHomiecide: 'T2 L3 skater',
+    Ordinary_Samich: 'T2 L1 skater',
   })
+})
+
+void test('tier N needs 4 families in one pool at the bar; 3 are not enough', () => {
+  // pgoals/pasts/pshots/phits at level 29 (T5 bar): 515 / 635 / 2430 / 1870.
+  const four = values({ pgoals: 515, pasts: 635, pshots: 2430, phits: 1870 })
+  assert.equal(computeStanding(four).tier, 5)
+  const three = values({ pgoals: 515, pasts: 635, pshots: 2430, phits: 1740 })
+  assert.equal(computeStanding(three).tier, 4)
+  // Goalie families don't help the skater pool and vice versa.
+  const mixed = values({ pgoals: 515, pasts: 635, pshots: 2430, gg: 56 })
+  assert.equal(computeStanding(mixed).tier, 1)
 })
 
 void test('stats alone never exceed tier 5', () => {

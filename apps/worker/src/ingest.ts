@@ -108,8 +108,8 @@ export async function runIngestionCycle(): Promise<void> {
     }
   }
 
-  // Card progression (badge levels, tier, level) reads EA totals, history and
-  // recorded matches across all titles, so it runs once per cycle, after them.
+  // Card progression (badge levels, tier, level) reads every card title's EA
+  // totals and recorded matches, so it runs once per cycle, after them.
   // Non-fatal: never blocks match ingestion. Needs migration 0060 applied first.
   try {
     const results = await recomputeCardProgression({ dryRun: false })

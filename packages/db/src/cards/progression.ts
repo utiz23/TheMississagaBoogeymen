@@ -61,9 +61,16 @@ export function badgeProgress(ladder: readonly number[], value: number): BadgePr
   return { level, value, prevThreshold, nextThreshold, pct, remaining: nextThreshold - value }
 }
 
-/** Badge level a family needs to count toward tier N: (N−1)×5+1. */
+/**
+ * Badge level a family needs to count toward tier N (1–5). Sized so a regular
+ * reaches T5 near the end of one title's season
+ * (docs/superpowers/specs/2026-10-08-season-cards-design.md).
+ */
+const TIER_BARS: readonly number[] = [1, 5, 12, 20, 29]
+
+/** Tiers above T5 (mythic) have no stats bar; they read as T5's. */
 export function tierBar(tier: number): number {
-  return (tier - 1) * 5 + 1
+  return TIER_BARS[Math.min(MAX_STATS_TIER, Math.max(1, Math.round(tier))) - 1] ?? 1
 }
 
 /** Families needed at a tier's bar to reach that tier. */

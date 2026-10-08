@@ -207,6 +207,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     badges: cardProgress?.badges ?? [],
     events: cardProgress?.events ?? [],
     trackedSince: cardProgress?.standing?.trackedSince ?? null,
+    seasonName: cardProgress?.gameTitle?.name ?? null,
   })
 
   // Trend: role-filtered, oldest first, max 15
@@ -331,7 +332,11 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
       {/* Toward the bottom of the player page (spec D13). */}
       <LazyMount minHeight={720} label="Badges">
-        <PlayerBadges gamertag={overview.player.gamertag} rows={cardProgress?.badges ?? []} />
+        <PlayerBadges
+          gamertag={overview.player.gamertag}
+          seasonName={cardProgress?.gameTitle?.name ?? null}
+          rows={cardProgress?.badges ?? []}
+        />
       </LazyMount>
     </div>
   )

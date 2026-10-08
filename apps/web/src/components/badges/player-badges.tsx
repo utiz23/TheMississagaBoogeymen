@@ -31,11 +31,13 @@ function BadgeAt({ row, level, size }: { row: BadgeRowView; level: number; size:
 
 interface PlayerBadgesProps {
   gamertag: string
+  /** The season (game title) these badges count, e.g. "NHL 27"; null before the first card. */
+  seasonName: string | null
   rows: readonly BadgeRowInput[]
 }
 
 /** Profile "Badges" section — port of Player Badges.dc.html (marker = frame step, locked = dim). */
-export function PlayerBadges({ gamertag, rows }: PlayerBadgesProps) {
+export function PlayerBadges({ gamertag, seasonName, rows }: PlayerBadgesProps) {
   const board = useMemo(() => buildBadgeBoard(rows), [rows])
   const [selId, setSelId] = useState<BadgeFamilyId>(() => defaultSelection(board))
   const [hover, setHover] = useState<number | null>(null)
@@ -67,7 +69,10 @@ export function PlayerBadges({ gamertag, rows }: PlayerBadgesProps) {
           <h2 className="pb-title">
             <span className="pb-title-mark">▌</span>Badges
           </h2>
-          <span className="pb-sub">Career milestones · player · {gamertag}</span>
+          <span className="pb-sub">
+            {seasonName === null ? 'Season' : `${seasonName} season`} milestones · player ·{' '}
+            {gamertag}
+          </span>
         </div>
         <div className="pb-totals">
           <span>

@@ -70,6 +70,8 @@ export interface LockerInput {
   events: readonly LockerEventInput[]
   /** When the card history began; null before the first recompute. */
   trackedSince: Date | null
+  /** The season (game title) this card belongs to, e.g. "NHL 27"; null before the first card. */
+  seasonName?: string | null
 }
 
 export type ThemeStatus = 'locked' | 'equipped' | 'unlocked'
@@ -122,7 +124,7 @@ export interface LockerHistoryItem {
 }
 
 export interface LockerView {
-  /** 'IGOR ORLOV · T4 ELITE · LVL 6/10 · 4 / 10 THEMES' */
+  /** 'IGOR ORLOV · NHL 27 · T4 ELITE · LVL 6/10 · 4 / 10 THEMES' (season when known) */
   subline: string
   tierLabel: string
   level: number
@@ -275,7 +277,12 @@ export function buildLockerView(input: LockerInput, timeZone = LOCKER_TIME_ZONE)
   })
   const next = clampTier(tier + 1)
   return {
-    subline: `${upper(input.name)} · ${chip} · ${String(unlockedCount)} / 10 THEMES`,
+    subline: [
+      upper(input.name),
+      ...(input.seasonName ? [upper(input.seasonName)] : []),
+      chip,
+      `${String(unlockedCount)} / 10 THEMES`,
+    ].join(' · '),
     tierLabel: upper(TIER_LABELS[tier]),
     level,
     levelNote:
