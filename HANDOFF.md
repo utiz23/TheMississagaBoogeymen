@@ -31,7 +31,7 @@ post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 **In progress (local branch `feat/player-cards`, unpushed, not deployed):**
 
 - Player cards (10 themes) and badges, built on the dev-only `/preview/roster/[id]` against the local `eanhl_preview` database.
-- Steps 1 (badges) and 2 (cards) are done. Steps 3–6 remain: the locker, Build Locker v2, the Action Map, then the switch to live.
+- Steps 1 (badges), 2 (cards) and 3 (EDIT button + read-only card locker) are done. Steps 4–6 remain: Build Locker v2, the Action Map, then the switch to live.
 - Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md).
 - Detail: [journal 2026-10-07](docs/journal/2026-10.md).
 
@@ -158,8 +158,8 @@ None.
 1. Cards/badges test run (`feat/player-cards`):
    - Operator phone pass: card flip, Storm smoothness, Inferno embers.
    - The operator's badge icon set.
-   - Then step 3 (locker), Build Locker v2 and the Action Map.
-   - At the switch, apply migration 0060 on Hotel-Echo before deploying the worker.
+   - Then Build Locker v2 (step 4) and the Action Map (step 5).
+   - At the switch, apply migration 0060 (now includes `player_card_progress.created_at`) on Hotel-Echo before deploying the worker. Also load the locker lazily (`next/dynamic`) and measure player-page size (locker plan record).
 2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
    time deltas). The security review is closed (journal 10-06).
