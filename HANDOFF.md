@@ -32,6 +32,8 @@ post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
 ## Latest Verified Checkpoint
 
+**2026-10-08 (later) — featured badges, roster additions, AI goalies, multi-position depth chart deployed** (`d772784`; migrations 0061 + 0062; rollback images `:rollback-he-2026-10-08-pre-ai-goalies`; dump `~/eanhl-backups/pre-ai-goalies-2026-10-08-1127.dump`). AI goalies Matteo Lehmann / Jonas Wagner and pinned Jimmy Cap are players; the worker syncs AI-goalie lines every cycle. Detail: [journal 2026-10-08](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
+
 **2026-10-08 — player cards deployed** (`3ec9dc0`, web + worker; rollback
 images `eanhl-team-website-{web,worker}:rollback-he-2026-10-08-pre-cards`;
 pre-change dump `~/eanhl-backups/pre-cards-2026-10-08-0957.dump`, sha256
@@ -159,7 +161,7 @@ None.
 
 ## Next 1-3 Actions
 
-1. Cards: watch the first days live (worker log `Card progression recomputed`, teammates' reactions). Re-check the season pace at mid-season and re-tune before NHL 28. Open questions for the operator: the Action Map clock direction (comment says elapsed, data looks like time remaining), the deferred minors in the switch plan's record, and a pre-existing Contribution Wheel hydration warning (SVG float digits differ server vs browser). `eanhl_preview` can be dropped on the operator's say.
+1. Cards: watch the first days live (worker log `AI goalies nhl27` + `Card progression recomputed`, teammates' reactions). Re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Open for the operator: Jimmy Cap's position (RW placeholder), the Action Map clock direction, the deferred minors in the switch plan's record, and a pre-existing Contribution Wheel hydration warning. `eanhl_preview` can be dropped on the operator's say. New migrations must also go to `eanhl_test` (verify-ocr seed).
 2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
    time deltas). The security review is closed (journal 10-06).
