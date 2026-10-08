@@ -296,3 +296,51 @@ Commit: `feat(web): Build Locker v2 on the player preview page`.
 - Query smoke on `eanhl_preview` (Task 2 expectations). Cross-check one build's GP and record against `matches` with a read-only psql query.
 - Playwright checks from Task 4 at 1280 and 390 px.
 - `/roster/3` (live page code) still renders the old strip: no live file changed.
+
+## Execution record (2026-10-07)
+
+Executed inline (Native) on `feat/player-cards`; one fresh reviewer (opus) at the end.
+
+**Commits:** `50f45e7` plan · `6b16ea1` groupBuilds · `19f2ec7` getPlayerBuilds · `12d730f` view model · `ba05f58` UI + preview wiring · `4fb4afe` review fixes.
+
+**Verification:**
+
+- **Tests:** db 121/121 (build-runs 10/10). Web unit 373/373 (build-locker-model 11/11).
+- **Checks:** typecheck for db, worker and web; per-file eslint and prettier all green. No live file changed.
+- **Query smoke on `eanhl_preview`:**
+  - #3: one Power Forward build, GP 2, 220 lb.
+  - #1: two builds. #2: three. #5: three, including Two-Way Defenseman. #12: one.
+  - #28: `null`.
+- **Playwright at 1280 and 390 px:**
+  - **Tiles and detail:** tiles, detail panel, deltas and bars all render. Clicking a tile swaps the detail; clicking it again closes it.
+  - **Edge cases:** the Two-Way Defenseman fallback pill shows; #28 has no section.
+  - **Phone:** the tile row scrolls inside the panel, and the groups stack.
+  - **Keyboard:** Enter and Space toggle tiles.
+
+**Rulings:**
+
+- **Task 1:** test-helper typing and assertion narrowing only.
+- **Task 3:** test assertion narrowing only.
+- **Task 4:**
+  - The view builder is called `toBuildLockerView`, because the card locker already exports `buildLockerView`.
+  - Tiles are capped at a quarter of the row, so 1–3 builds don't stretch across it.
+  - The subtitle says "Last build" when there is only one.
+- **Final:** the reviewer's 10 "declined to judge" items stand as built. Each is an operator decision, a listed deviation, or outside this step.
+
+**Review:** "With fixes": 0 Critical, 2 Important (both fixed with a failing test first), 6 Minor.
+
+- **Fixed:**
+  - Blank OCR text counted as known, which created fake builds and empty X-factor boxes. #29 showed three of them.
+  - A title holding only empty captures could win and show an empty "Last 0 builds" panel. The title is now picked with `pickTitleBuilds`.
+- **Gone with the query rewrite:** the quadratic row matching.
+- **Deferred minors:**
+  - The group Δ can compare averages over different attribute sets.
+  - Tile selection carries over between player pages.
+  - Tile screen-reader names.
+  - Hover lift sticks after a tap on phones.
+  - No automated test for `getPlayerBuilds` itself.
+
+**For the switch:**
+
+- Replace `LoadoutHistoryStrip` on the live page.
+- Fix the live `buildClassToArchetype` hyphen split and add "Two-Way Defenseman".
