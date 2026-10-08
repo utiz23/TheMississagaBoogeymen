@@ -4,8 +4,10 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { MYTHIC_THEMES } from '@eanhl/db/cards'
 import { CARD_THEMES } from './card-themes.ts'
-import { cardLook, resolveFx } from './card-style.ts'
+import { cardLook, resolveFx, swatchStyle } from './card-style.ts'
+import { swatchThumb } from './card-assets.ts'
 
 const base = { tier: 4 as const, level: 6, hot: false, role: 'skater' as const, position: 'LW' }
 
@@ -121,4 +123,22 @@ void test('while the back face shows, front effects stop (nothing runs hidden)',
     faceFront: true,
   })
   assert.equal(front.themeFx, true)
+})
+
+void test('swatches: rims keep their boxes, plain themes their border', () => {
+  const frozen = swatchStyle(CARD_THEMES.frozen, '/images/cards/thumb-frozen.webp')
+  assert.ok(frozen.background.endsWith(`${String(CARD_THEMES.frozen.grad)} border-box`))
+  assert.equal(frozen.border, '1px solid transparent')
+  const home = swatchStyle(CARD_THEMES.home, null)
+  assert.equal(home.background, CARD_THEMES.home.layers.join(', '))
+  assert.equal(home.border, `1px solid ${String(CARD_THEMES.home.border)}`)
+})
+
+void test('mythic swatches load only their thumbnail, never the full still', () => {
+  for (const key of MYTHIC_THEMES) {
+    const s = swatchStyle(CARD_THEMES[key], swatchThumb(key))
+    assert.deepEqual(s.background.match(/\/images\/cards\/[\w.-]+/g), [
+      `/images/cards/thumb-${key}.webp`,
+    ])
+  }
 })

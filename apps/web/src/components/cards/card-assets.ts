@@ -5,7 +5,7 @@
  * base name and ship as .webm + .mp4; the effects mount them only while motion
  * runs, so a card at rest downloads nothing but its stills.
  */
-import type { MythicThemeKey } from '@eanhl/db/cards'
+import type { CardThemeKey, MythicThemeKey } from '@eanhl/db/cards'
 
 export const CARD_ASSET_DIR = '/images/cards'
 export const VIDEO_FORMATS = ['webm', 'mp4'] as const
@@ -29,17 +29,41 @@ export function videoSources(base: string): { src: string; type: string }[] {
 export interface MythicAssets {
   stills: readonly string[]
   videos: readonly string[]
+  /** Locker swatch thumbnail of the main texture (make-card-thumbs.sh). */
+  thumb: string
 }
 
 export const MYTHIC_ASSETS: Readonly<Record<MythicThemeKey, MythicAssets>> = {
-  frozen: { stills: ['tex-ice-glacier.webp', 'ice-cracks.avif'], videos: [] },
-  futureC: { stills: ['tex-future-circuit.webp', 'fx-future-mask.webp'], videos: [] },
-  inferno: { stills: ['tex-inferno-gate.webp'], videos: ['fx-inferno-embers'] },
-  stormLive: { stills: ['tex-storm-clouds.webp', 'fx-storm-rain.webp'], videos: ['fx-storm-live'] },
-  olympus: { stills: ['tex-olympus-temple.webp'], videos: [] },
+  frozen: {
+    stills: ['tex-ice-glacier.webp', 'ice-cracks.avif'],
+    videos: [],
+    thumb: 'thumb-frozen.webp',
+  },
+  futureC: {
+    stills: ['tex-future-circuit.webp', 'fx-future-mask.webp'],
+    videos: [],
+    thumb: 'thumb-futureC.webp',
+  },
+  inferno: {
+    stills: ['tex-inferno-gate.webp'],
+    videos: ['fx-inferno-embers'],
+    thumb: 'thumb-inferno.webp',
+  },
+  stormLive: {
+    stills: ['tex-storm-clouds.webp', 'fx-storm-rain.webp'],
+    videos: ['fx-storm-live'],
+    thumb: 'thumb-stormLive.webp',
+  },
+  olympus: { stills: ['tex-olympus-temple.webp'], videos: [], thumb: 'thumb-olympus.webp' },
 }
 
 /** Public URL of a card asset (still file name, or video base name). */
 export function cardAsset(file: string): string {
   return `${CARD_ASSET_DIR}/${file}`
+}
+
+/** Locker swatch thumbnail URL; null for the CSS-only themes (T1–T5). */
+export function swatchThumb(theme: CardThemeKey): string | null {
+  const assets = (MYTHIC_ASSETS as Partial<Record<CardThemeKey, MythicAssets>>)[theme]
+  return assets === undefined ? null : cardAsset(assets.thumb)
 }

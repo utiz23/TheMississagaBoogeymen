@@ -9,7 +9,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { CARD_ASSET_DIR, MYTHIC_ASSETS, VIDEO_FORMATS } from './card-assets.ts'
+import type { MythicThemeKey } from '@eanhl/db/cards'
+import { CARD_ASSET_DIR, MYTHIC_ASSETS, VIDEO_FORMATS, swatchThumb } from './card-assets.ts'
 import { CARD_THEMES } from './card-themes.ts'
 
 const dir = fileURLToPath(new URL('../../../public/images/cards/', import.meta.url))
@@ -18,7 +19,11 @@ const videoFiles = (base: string) => VIDEO_FORMATS.map((ext) => `${base}.${ext}`
 
 void test('every listed asset exists, and nothing unlisted ships', () => {
   const listed = new Set(
-    Object.values(MYTHIC_ASSETS).flatMap((a) => [...a.stills, ...a.videos.flatMap(videoFiles)]),
+    Object.values(MYTHIC_ASSETS).flatMap((a) => [
+      ...a.stills,
+      a.thumb,
+      ...a.videos.flatMap(videoFiles),
+    ]),
   )
   for (const file of listed) assert.ok(existsSync(dir + file), file)
   assert.deepEqual(readdirSync(dir).sort(), [...listed].sort())
@@ -29,6 +34,7 @@ void test('each mythic stays within 800 KB and all of them within 3 MB', () => {
   for (const [theme, a] of Object.entries(MYTHIC_ASSETS)) {
     const bytes =
       a.stills.reduce((s, f) => s + size(f), 0) +
+      size(a.thumb) +
       a.videos.reduce((s, base) => s + Math.max(...videoFiles(base).map(size)), 0)
     assert.ok(bytes <= 800 * 1024, `${theme}: ${String(bytes)} bytes`)
     total += bytes
@@ -64,4 +70,12 @@ void test('regular themes stay asset-free; each mythic references only its own f
     for (const ref of [...refs, ...(hardcoded[key] ?? [])])
       assert.ok(owned.has(ref), `${key}: ${ref}`)
   }
+})
+
+void test('locker swatch thumbnails are small and resolve to their files', () => {
+  for (const [theme, a] of Object.entries(MYTHIC_ASSETS)) {
+    assert.ok(size(a.thumb) <= 8 * 1024, `${theme}: ${String(size(a.thumb))} bytes`)
+    assert.equal(swatchThumb(theme as MythicThemeKey), `${CARD_ASSET_DIR}/${a.thumb}`)
+  }
+  assert.equal(swatchThumb('home'), null)
 })

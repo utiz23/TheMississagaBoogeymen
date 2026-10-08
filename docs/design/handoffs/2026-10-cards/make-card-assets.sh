@@ -52,4 +52,5 @@ for ext in webm mp4; do
     -g 15 "${codec[@]}" -an "$OUT/fx-storm-live.$ext"
 done
 
+bash "$(dirname "$0")/make-card-thumbs.sh"
 ls -l "$OUT"

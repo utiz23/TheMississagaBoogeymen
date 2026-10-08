@@ -167,3 +167,25 @@ export function resolveFx(
     scan: motionOn && th.future === 'grid',
   }
 }
+
+const CARD_URL = /url\('\/images\/cards\/[^']+'\)/
+
+/**
+ * Locker rail swatch (Card Locker.dc.html rail): the theme's background layers
+ * and rim on a 50×68 tile. A mythic's texture layer swaps to its thumbnail, so
+ * opening the locker never pulls the full-size stills.
+ */
+export function swatchStyle(
+  th: CardTheme,
+  thumb: string | null,
+): { background: string; border: string } {
+  const layers =
+    thumb === null ? th.layers : th.layers.map((l) => l.replace(CARD_URL, `url('${thumb}')`))
+  if (th.grad !== null) {
+    return {
+      background: [...layers.map((l) => `${l} padding-box`), `${th.grad} border-box`].join(', '),
+      border: '1px solid transparent',
+    }
+  }
+  return { background: layers.join(', '), border: `1px solid ${th.border ?? '#3a3839'}` }
+}
