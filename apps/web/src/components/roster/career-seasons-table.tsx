@@ -4,9 +4,22 @@ import Link from 'next/link'
 import { Panel } from '@/components/ui/panel'
 import { GOALIE_METRICS } from '@/components/stats/stats-table/goalie-metrics'
 import { SKATER_METRICS } from '@/components/stats/stats-table/skater-metrics'
-import { StatsTableShell, type RowLabel } from '@/components/stats/stats-table/stats-table-shell'
+import {
+  StatsTableShell,
+  type RowLabel,
+  type ShellSubsets,
+} from '@/components/stats/stats-table/stats-table-shell'
+import {
+  POSITION_OPTIONS,
+  POSITION_UNAVAILABLE_REASON,
+} from '@/components/stats/stats-table/position-adapters'
 import { GOALIE_VIEWS, SKATER_VIEWS } from '@/components/stats/stats-table/views'
-import type { SeasonLabel, SeasonTable } from './career-season-rows'
+import type {
+  SeasonLabel,
+  SeasonPositions,
+  SeasonSkaterRow,
+  SeasonTable,
+} from './career-season-rows'
 
 // ─── Public component ─────────────────────────────────────────────────────────
 
@@ -14,7 +27,8 @@ import type { SeasonLabel, SeasonTable } from './career-season-rows'
  * Career-by-season table for the player profile page: the roster's stats
  * table (category tabs, Per GP, sortable columns, stat key) with one row per
  * game title instead of one row per player. Rows arrive newest title first
- * from `buildSeasonTable`; each carries an EA / Archive source badge.
+ * from `buildSeasonTable`; each carries an EA / Archive / Tracked source
+ * badge. Skater tables add Position pills (per-position season lines).
  */
 export function CareerSeasonsTable({ table }: { table: SeasonTable }) {
   if (table.rows.length === 0) {
@@ -39,6 +53,7 @@ export function CareerSeasonsTable({ table }: { table: SeasonTable }) {
         hasExpanded: table.rows.some((r) => r.expanded !== null),
       }}
       rowLabel={seasonLabel()}
+      {...(table.positions !== undefined ? { subsets: positionSubsets(table.positions) } : {})}
     />
   ) : (
     <StatsTableShell
@@ -54,6 +69,23 @@ export function CareerSeasonsTable({ table }: { table: SeasonTable }) {
       rowLabel={seasonLabel()}
     />
   )
+}
+
+function positionSubsets(positions: SeasonPositions): ShellSubsets<SeasonSkaterRow> {
+  return {
+    label: 'Position',
+    allLabel: 'All',
+    ...(positions === 'error' ? { disabledReason: POSITION_UNAVAILABLE_REASON } : {}),
+    options: POSITION_OPTIONS.map((o) => ({
+      key: o.key,
+      label: o.key,
+      title: o.title,
+      current:
+        positions === 'error'
+          ? { unavailable: POSITION_UNAVAILABLE_REASON }
+          : { ...positions[o.key], hasExpanded: true },
+    })),
+  }
 }
 
 function seasonLabel<R extends { season: SeasonLabel }>(): RowLabel<R> {
@@ -82,7 +114,14 @@ function SeasonCell({ season }: { season: SeasonLabel }) {
 
 // ─── Source badge ─────────────────────────────────────────────────────────────
 
-function SourceBadge({ source }: { source: 'ea' | 'historical' }) {
+function SourceBadge({ source }: { source: SeasonLabel['source'] }) {
+  if (source === 'tracked') {
+    return (
+      <span className="inline-flex items-center border border-zinc-600 bg-zinc-800/80 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-300">
+        Tracked
+      </span>
+    )
+  }
   if (source === 'ea') {
     return (
       <span className="inline-flex items-center border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.18em] text-accent">

@@ -1,5 +1,6 @@
 import type {
   PositionDetail,
+  PositionLine,
   PositionPlayerRow,
   PositionTable,
   SkaterPosition,
@@ -16,6 +17,34 @@ export const POSITION_OPTIONS = [
   { key: 'W', title: 'Wing (LW + RW)' },
   { key: 'D', title: 'Defense' },
 ] as const satisfies readonly { key: SkaterPosition; title: string }[]
+
+/** A detail payload with every count unknown. */
+export const NULL_DETAIL: PositionDetail = {
+  powerPlayGoals: null,
+  shortHandedGoals: null,
+  gameWinningGoals: null,
+  hatTricks: null,
+  passes: null,
+  passAttempts: null,
+  saucerPasses: null,
+  dekes: null,
+  dekesMade: null,
+  deflections: null,
+  faceoffWins: null,
+  faceoffLosses: null,
+  blockedShots: null,
+  interceptions: null,
+  pkClearZone: null,
+  penaltiesDrawn: null,
+  offsides: null,
+  fights: null,
+  fightsWon: null,
+  breakaways: null,
+  breakawayGoals: null,
+  penaltyShotAttempts: null,
+  penaltyShotGoals: null,
+  possessionSeconds: null,
+}
 
 /** Percentage string (2 dp) of num/den, or null when it can't be computed. */
 export function pct(num: number | null, den: number | null): string | null {
@@ -70,12 +99,11 @@ export function faceoffPctOf(d: Pick<PositionDetail, 'faceoffWins' | 'faceoffLos
     : pct(d.faceoffWins, d.faceoffWins + d.faceoffLosses)
 }
 
-export function toPositionDisplayRow(row: PositionPlayerRow): SkaterDisplayRow {
-  const l = row.line
+/** The stat fields of a table row from one position line (identity added by the caller). */
+export function lineToDisplayFields(
+  l: PositionLine,
+): Omit<SkaterDisplayRow, 'playerId' | 'gamertag' | 'position'> {
   return {
-    playerId: row.playerId,
-    gamertag: row.gamertag,
-    position: row.position,
     gamesPlayed: l.gp,
     goals: l.goals,
     assists: l.assists,
@@ -96,7 +124,24 @@ export function toPositionDisplayRow(row: PositionPlayerRow): SkaterDisplayRow {
   }
 }
 
+export function toPositionDisplayRow(row: PositionPlayerRow): SkaterDisplayRow {
+  return {
+    playerId: row.playerId,
+    gamertag: row.gamertag,
+    position: row.position,
+    ...lineToDisplayFields(row.line),
+  }
+}
+
 export type PositionSourceKind = 'local' | 'archive' | 'career'
+
+/** Footnotes for the coverage markers present in `rows`. */
+export function positionNotes(rows: readonly SkaterDisplayRow[]): string[] {
+  const notes: string[] = []
+  if (rows.some((r) => r.gpCoverage?.state === 'partial')) notes.push(POSITION_COVERAGE_NOTE)
+  if (rows.some((r) => r.wingSplit6sOnly === true)) notes.push(WING_SPLIT_NOTE)
+  return notes
+}
 
 /** Source badge + notes for one position's rows. */
 export function positionSource(
@@ -105,9 +150,7 @@ export function positionSource(
   rows: readonly SkaterDisplayRow[],
 ): StatsSource {
   const name = title.toLowerCase()
-  const notes: string[] = []
-  if (rows.some((r) => r.gpCoverage?.state === 'partial')) notes.push(POSITION_COVERAGE_NOTE)
-  if (rows.some((r) => r.wingSplit6sOnly === true)) notes.push(WING_SPLIT_NOTE)
+  const notes = positionNotes(rows)
   const base =
     kind === 'local'
       ? {

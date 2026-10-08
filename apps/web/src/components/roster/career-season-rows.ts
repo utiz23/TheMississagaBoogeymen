@@ -3,8 +3,18 @@ import type {
   ArchiveSeasonDetail,
   ArchiveSkaterDetail,
   PlayerCareerSeasonRow,
+  PlayerPositionSeason,
+  SkaterPosition,
   getPlayerEASeasonStats,
 } from '@eanhl/db/queries'
+import {
+  NULL_DETAIL,
+  POSITION_OPTIONS,
+  detailToExpanded,
+  lineToDisplayFields,
+  pct,
+  positionNotes,
+} from '../stats/stats-table/position-adapters.ts'
 import type {
   GoalieDisplayRow,
   GoalieExpanded,
@@ -39,25 +49,26 @@ export interface SeasonLabel {
   gameTitleId: number
   gameTitleName: string
   gameTitleSlug: string
-  source: 'ea' | 'historical'
+  /** 'tracked' = the site's own per-game rows (position views only). */
+  source: 'ea' | 'historical' | 'tracked'
 }
 
 export type SeasonSkaterRow = SkaterDisplayRow & { season: SeasonLabel }
 export type SeasonGoalieRow = GoalieDisplayRow & { season: SeasonLabel }
 
+/** Per-position season rows for the Position pills ('error' → pills disabled). */
+export type SeasonPositions =
+  | Record<SkaterPosition, { rows: SeasonSkaterRow[]; source: StatsSource }>
+  | 'error'
+
 export type SeasonTable =
-  | { role: 'skater'; rows: SeasonSkaterRow[]; source: StatsSource }
+  | { role: 'skater'; rows: SeasonSkaterRow[]; source: StatsSource; positions?: SeasonPositions }
   | { role: 'goalie'; rows: SeasonGoalieRow[]; source: StatsSource }
 
 const ARCHIVE_SKATER_NOTE =
   'Archive seasons come from reviewed screenshots, which didn’t show possession or time on ice; those cells show —. Their percentages are computed from the screenshot counts.'
 const ARCHIVE_GOALIE_NOTE =
   'Archive seasons come from reviewed screenshots, which didn’t show shutout periods or poke checks; those cells show —. Their shots against (saves + goals against), GAA and save percentages are computed from the screenshot counts.'
-
-/** Percentage string (2 dp) of num/den, or null when it can't be computed. */
-function pct(num: number | null, den: number | null): string | null {
-  return num === null || den === null || den <= 0 ? null : ((num / den) * 100).toFixed(2)
-}
 
 function eaSkaterExpanded(e: EASeasonDetail): SkaterExpanded {
   return {
@@ -102,37 +113,7 @@ function archiveSkaterExpanded(
   row: PlayerCareerSeasonRow,
   a: ArchiveSkaterDetail | null,
 ): PartialExpanded<SkaterExpanded> {
-  const n = <K extends keyof ArchiveSkaterDetail>(k: K) => a?.[k] ?? null
-  return {
-    powerPlayGoals: n('powerPlayGoals'),
-    shortHandedGoals: n('shortHandedGoals'),
-    gameWinningGoals: n('gameWinningGoals'),
-    hatTricks: n('hatTricks'),
-    shotPct: pct(row.goals, row.shots),
-    shotOnNetPct: pct(row.shots, row.shotAttempts),
-    passes: n('passes'),
-    passAttempts: n('passAttempts'),
-    saucerPasses: n('saucerPasses'),
-    possessionSeconds: null,
-    dekes: n('dekes'),
-    dekesMade: n('dekesMade'),
-    deflections: n('deflections'),
-    faceoffWins: n('faceoffWins'),
-    faceoffLosses: n('faceoffLosses'),
-    blockedShots: n('blockedShots'),
-    interceptions: n('interceptions'),
-    pkClearZone: n('pkClearZone'),
-    penaltiesDrawn: n('penaltiesDrawn'),
-    offsides: n('offsides'),
-    fights: n('fights'),
-    fightsWon: n('fightsWon'),
-    breakaways: n('breakaways'),
-    breakawayGoals: n('breakawayGoals'),
-    breakawayPct: pct(n('breakawayGoals'), n('breakaways')),
-    penaltyShotAttempts: n('penaltyShotAttempts'),
-    penaltyShotGoals: n('penaltyShotGoals'),
-    penaltyShotPct: pct(n('penaltyShotGoals'), n('penaltyShotAttempts')),
-  }
+  return detailToExpanded(a === null ? NULL_DETAIL : { ...a, possessionSeconds: null }, row)
 }
 
 function eaGoalieExpanded(e: EASeasonDetail): GoalieExpanded {
@@ -175,7 +156,7 @@ function label(row: PlayerCareerSeasonRow): SeasonLabel {
   }
 }
 
-function seasonSource(sources: readonly ('ea' | 'historical')[], archiveNote: string): StatsSource {
+function seasonSource(sources: readonly SeasonLabel['source'][], archiveNote: string): StatsSource {
   const hasEa = sources.includes('ea')
   const hasArchive = sources.includes('historical')
   return {
@@ -217,6 +198,7 @@ export function buildSeasonTable(
   eaSeasons: readonly EASeasonDetail[],
   archive: readonly ArchiveSeasonDetail[],
   role: 'skater' | 'goalie',
+  positionSeasons?: readonly PlayerPositionSeason[] | 'error',
 ): SeasonTable {
   const eaByTitle = new Map(eaSeasons.map((e) => [e.gameTitleId, e]))
   const archiveByTitle = new Map(archive.map((a) => [a.gameTitleId, a]))
@@ -317,5 +299,54 @@ export function buildSeasonTable(
       rows.map((r) => r.season.source),
       ARCHIVE_SKATER_NOTE,
     ),
+    ...(positionSeasons === undefined
+      ? {}
+      : {
+          positions: positionSeasons === 'error' ? 'error' : buildSeasonPositions(positionSeasons),
+        }),
   }
+}
+
+/**
+ * Per-position season rows (newest first): each season's line at that
+ * position from the season screenshots where they exist, otherwise the
+ * site's tracked games — never both for one season.
+ */
+export function buildSeasonPositions(
+  seasons: readonly PlayerPositionSeason[],
+): Exclude<SeasonPositions, 'error'> {
+  const out = {} as Exclude<SeasonPositions, 'error'>
+  for (const o of POSITION_OPTIONS) {
+    const rows: SeasonSkaterRow[] = []
+    for (const s of seasons) {
+      const line = s.lines[o.key]
+      if (line === null) continue
+      rows.push({
+        playerId: null,
+        gamertag: s.gameTitleName,
+        position: null,
+        ...lineToDisplayFields(line),
+        season: {
+          gameTitleId: s.gameTitleId,
+          gameTitleName: s.gameTitleName,
+          gameTitleSlug: s.gameTitleSlug,
+          source: s.source === 'archive' ? 'historical' : 'tracked',
+        },
+      })
+    }
+    const hasArchive = rows.some((r) => r.season.source === 'historical')
+    const hasTracked = rows.some((r) => r.season.source === 'tracked')
+    const notes = positionNotes(rows)
+    out[o.key] = {
+      rows,
+      source: {
+        kind: 'unspecified',
+        label:
+          hasArchive && hasTracked ? 'Archive + tracked' : hasArchive ? 'Archive' : 'Tracked games',
+        description: `Games at ${o.title.toLowerCase()} each season: the season screenshots where they exist, otherwise the games this site tracked.`,
+        ...(notes.length > 0 ? { notes } : {}),
+      },
+    }
+  }
+  return out
 }

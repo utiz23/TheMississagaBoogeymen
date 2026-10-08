@@ -15,6 +15,7 @@ import {
   getPlayerCareerActions,
   getPlayerCardProgress,
   getPlayerArchiveSeasonDetail,
+  getPlayerPositionSeasons,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -128,6 +129,15 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     archiveDetail = await getPlayerArchiveSeasonDetail(id)
   } catch {
     archiveDetail = []
+  }
+
+  // Per-position season lines for the season table's Position pills. A
+  // failure only disables the pills.
+  let positionSeasons: Awaited<ReturnType<typeof getPlayerPositionSeasons>> | 'error' = 'error'
+  try {
+    positionSeasons = await getPlayerPositionSeasons(id)
+  } catch {
+    positionSeasons = 'error'
   }
 
   // Career Action Map (spec Part 5).
@@ -263,7 +273,13 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       <StatsRecordCard
         seasonTable={
           <CareerSeasonsTable
-            table={buildSeasonTable(careerSeasons, eaStats, archiveDetail, selectedRole)}
+            table={buildSeasonTable(
+              careerSeasons,
+              eaStats,
+              archiveDetail,
+              selectedRole,
+              positionSeasons,
+            )}
           />
         }
         gameLog={

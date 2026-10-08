@@ -1,7 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { PlayerCareerSeasonRow } from '@eanhl/db/queries'
+import type { PlayerPositionSeason, PositionLine } from '@eanhl/db/queries'
+import { NULL_DETAIL } from '../stats/stats-table/position-adapters.ts'
 import {
+  buildSeasonPositions,
   buildSeasonTable,
   type EASeasonDetail,
   type SeasonGoalieRow,
@@ -224,4 +227,70 @@ void test('goalie rows map goalie fields and EA goalie detail', () => {
   assert.equal(r.toiSeconds, 1200)
   assert.equal(expanded(r).shutoutPeriods, 3)
   assert.equal(r.recordUnavailable, false)
+})
+
+function posLine(over: Partial<PositionLine>): PositionLine {
+  return {
+    source: 'local',
+    gp: 10,
+    goals: 4,
+    assists: 6,
+    points: 10,
+    plusMinus: 1,
+    pim: 2,
+    shots: 20,
+    shotAttempts: 30,
+    hits: 5,
+    takeaways: 3,
+    giveaways: 2,
+    toiSeconds: 6000,
+    detail: { ...NULL_DETAIL, powerPlayGoals: 2 },
+    coverage: null,
+    wingSplit6sOnly: false,
+    ...over,
+  }
+}
+
+void test('position seasons: one row per season with a line, tracked vs archive badge, notes', () => {
+  const none = { C: null, LW: null, RW: null, W: null, D: null }
+  const seasons: PlayerPositionSeason[] = [
+    {
+      gameTitleId: 7,
+      gameTitleName: 'NHL 26',
+      gameTitleSlug: 'nhl26',
+      gameTitleReleaseOrder: 26,
+      source: 'local',
+      lines: {
+        ...none,
+        D: posLine({ coverage: { state: 'partial', coveredGp: 118, totalGp: 571 } }),
+      },
+    },
+    {
+      gameTitleId: 2,
+      gameTitleName: 'NHL 25',
+      gameTitleSlug: 'nhl25',
+      gameTitleReleaseOrder: 25,
+      source: 'archive',
+      lines: { ...none, D: posLine({ source: 'archive', toiSeconds: null }), C: posLine({}) },
+    },
+  ]
+  const p = buildSeasonPositions(seasons)
+  assert.deepEqual(
+    p.D.rows.map((r) => [r.season.gameTitleSlug, r.season.source]),
+    [
+      ['nhl26', 'tracked'],
+      ['nhl25', 'historical'],
+    ],
+  )
+  const d26 = first(p.D.rows)
+  assert.equal(d26.gpCoverage?.coveredGp, 118)
+  assert.equal(expanded(d26).powerPlayGoals, 2)
+  assert.equal(p.D.source.label, 'Archive + tracked')
+  assert.equal(p.D.source.notes?.length, 1)
+  assert.equal(p.C.source.label, 'Archive')
+  assert.equal(p.LW.rows.length, 0)
+
+  const t = buildSeasonTable([season({})], [ea], [], 'skater', 'error')
+  assert.equal(t.role === 'skater' ? t.positions : null, 'error')
+  assert.equal(buildSeasonTable([season({})], [ea], [], 'skater').role === 'skater', true)
 })
