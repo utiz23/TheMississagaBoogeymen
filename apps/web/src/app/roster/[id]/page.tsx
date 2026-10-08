@@ -11,8 +11,9 @@ import {
   getAllEASeasonStatsForGameTitle,
   getTeamAverageShotLocations,
   getTeamAverageGoalieShotLocations,
-  getPlayerLoadoutSnapshots,
-  getPlayerCareerShots,
+  getPlayerBuilds,
+  getPlayerCareerActions,
+  getPlayerCardProgress,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -26,8 +27,14 @@ import { StatsRecordCard } from '@/components/roster/stats-record-card'
 import { ChartsVisualsSection } from '@/components/roster/charts-visuals-section'
 import { ComingSoonCard } from '@/components/roster/coming-soon-card'
 import { ShotMap } from '@/components/roster/shot-map'
-import { LoadoutHistoryStrip } from '@/components/roster/loadout-history-strip'
-import { CareerShotMap } from '@/components/roster/career-shot-map'
+import { BuildLocker } from '@/components/roster/build-locker'
+import { toBuildLockerView } from '@/components/roster/build-locker-model'
+import { CareerActionMap } from '@/components/roster/career-action-map'
+import { shouldShowActionMap } from '@/components/roster/action-map-model'
+import { PlayerBadges } from '@/components/badges/player-badges'
+import { HeroCard } from '@/components/cards/hero-card'
+import { buildLockerView } from '@/components/cards/locker-model'
+import { cardFromProfile } from '@/components/cards/card-adapters'
 import { Panel } from '@/components/ui/panel'
 
 export const revalidate = 3600
@@ -103,18 +110,29 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     return <ErrorState message="Unable to load player data right now." />
   }
 
-  let loadoutSnapshots: Awaited<ReturnType<typeof getPlayerLoadoutSnapshots>> = []
+  // Build Locker v2 (spec Part 4): builds from reviewed game sheets.
+  let builds: Awaited<ReturnType<typeof getPlayerBuilds>> = null
   try {
-    loadoutSnapshots = await getPlayerLoadoutSnapshots(id, 4)
+    builds = await getPlayerBuilds(id)
   } catch {
-    loadoutSnapshots = []
+    builds = null
   }
 
-  let careerShots: Awaited<ReturnType<typeof getPlayerCareerShots>> = []
+  // Career Action Map (spec Part 5).
+  let careerActions: Awaited<ReturnType<typeof getPlayerCareerActions>> = []
   try {
-    careerShots = await getPlayerCareerShots(id, 500)
+    careerActions = await getPlayerCareerActions(id)
   } catch {
-    careerShots = []
+    careerActions = []
+  }
+
+  // Player card, locker and badges (spec Parts 1–3). A failure drops only the
+  // progression: the card shows tier 1 and the badges section shows locked.
+  let cardProgress: Awaited<ReturnType<typeof getPlayerCardProgress>> | null = null
+  try {
+    cardProgress = await getPlayerCardProgress(id)
+  } catch {
+    cardProgress = null
   }
 
   // Club Stats and both zone maps describe the player's newest EA title, so
@@ -169,6 +187,27 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   const selectedContribution =
     selectedRole === 'skater' ? overview.skaterContribution : overview.goalieContribution
 
+  const heroCard = cardFromProfile({
+    player: overview.player,
+    season: overview.currentEaSeason,
+    trendGames: overview.trendGames,
+    career: careerSeasons,
+    role: selectedRole,
+    progress: cardProgress,
+  })
+
+  // Card locker (spec Part 3): built here so its dates format once, on the server.
+  const lockerView = buildLockerView({
+    name: heroCard.front.name,
+    tier: heroCard.front.tier,
+    level: heroCard.front.level,
+    equipped: heroCard.front.theme,
+    pool: cardProgress?.standing?.pool ?? null,
+    badges: cardProgress?.badges ?? [],
+    events: cardProgress?.events ?? [],
+    trackedSince: cardProgress?.standing?.trackedSince ?? null,
+  })
+
   // Trend: role-filtered, oldest first, max 15
   const trendGames = [...overview.trendGames]
     .filter((g) => g.isGoalie === (selectedRole === 'goalie'))
@@ -193,6 +232,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         hasSkaterData={hasSkaterData}
         hasGoalieData={hasGoalieData}
         gameMode={gameMode}
+        portrait={<HeroCard card={heroCard} locker={lockerView} />}
       />
 
       {hasNoLocalData && (
@@ -242,9 +282,11 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         updatedAt={eaStats[0]?.lastFetchedAt}
       />
 
-      <LoadoutHistoryStrip snapshots={loadoutSnapshots} />
+      {builds !== null && <BuildLocker view={toBuildLockerView(builds)} />}
 
-      <CareerShotMap events={careerShots} />
+      {shouldShowActionMap(careerActions) && (
+        <CareerActionMap events={careerActions} gamertag={overview.player.gamertag} />
+      )}
 
       {selectedRole === 'skater' && focalEaRow !== undefined && (
         <ShotMap
@@ -283,6 +325,9 @@ export default async function PlayerPage({ params, searchParams }: Props) {
           )
         }
       />
+
+      {/* Toward the bottom of the player page (spec D13). */}
+      <PlayerBadges gamertag={overview.player.gamertag} rows={cardProgress?.badges ?? []} />
     </div>
   )
 }

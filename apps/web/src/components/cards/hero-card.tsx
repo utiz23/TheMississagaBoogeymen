@@ -1,12 +1,21 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useCallback, useRef, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { PlayerCard } from './player-card'
-import { CardLocker } from './card-locker'
 import type { CardViewModel } from './card-model'
 import type { LockerView } from './locker-model'
 import './card-locker.css'
+
+/**
+ * The locker's code (drawer, both tabs) loads on the first EDIT tap, so it
+ * stays out of every player-page load (switch note, step 3). The drawer only
+ * exists once opened, so no loading placeholder is needed.
+ */
+const CardLocker = dynamic(() => import('./card-locker').then((m) => m.CardLocker), {
+  ssr: false,
+})
 
 /**
  * The player-page hero slot (spec D9/D10): the flippable card with an EDIT
