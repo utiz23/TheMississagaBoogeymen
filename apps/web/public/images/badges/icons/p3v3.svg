@@ -1,5 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 51.13 51.13">
-<defs><mask id="icon" maskUnits="userSpaceOnUse" x="0" y="0" width="51.13" height="51.13">
+<defs>
+
+<mask id="icon" maskUnits="userSpaceOnUse" x="0" y="0" width="51.13" height="51.13">
+
 <g fill="#fff">
   <g id="Layer_1-2" data-name="Layer 1">
     <path d="M15.98,51.13v-16.94c-1.92-.96-3.2-3.2-3.2-5.43V15.98c0-2.24,1.28-4.15,3.2-5.43v-.96c0-3.52-2.88-6.39-6.39-6.39S3.2,6.07,3.2,9.59s2.88,6.39,6.39,6.39H3.2c-1.6,0-3.2,1.6-3.2,3.2v12.78c0,1.6,1.6,3.2,3.2,3.2v15.98H15.98Z"/>
@@ -8,6 +11,7 @@
     <path d="M31.96,12.78h-12.78c-1.6,0-3.2,1.6-3.2,3.2v12.78c0,1.6,1.6,3.2,3.2,3.2v19.17h12.78V31.96c1.6,0,3.2-1.6,3.2-3.2V15.98c0-1.6-1.6-3.2-3.2-3.2Z"/>
   </g>
 </g>
+
 </mask></defs>
 <rect x="0" y="0" width="51.13" height="51.13" fill="#000" mask="url(#icon)"/>
 </svg>

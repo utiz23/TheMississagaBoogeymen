@@ -35,13 +35,14 @@ export function maskColor(color) {
 
 const COLOR = /#[0-9a-fA-F]{3,6}\b|\b(?:white|black)\b/
 
-function remapColors(markup) {
+function remapColors(markup, solid) {
+  const to = (val) => (solid && !/^\s*(none|transparent)\s*$/i.test(val) ? '#fff' : maskColor(val))
   return markup
     .replace(/\b(fill|stroke)\s*:\s*([^;}"]+)/g, (_, prop, val) => {
-      return COLOR.test(val) ? `${prop}: ${maskColor(val)}` : `${prop}: ${val}`
+      return COLOR.test(val) ? `${prop}: ${to(val)}` : `${prop}: ${val}`
     })
     .replace(/\b(fill|stroke)="([^"]+)"/g, (_, prop, val) => {
-      return COLOR.test(val) ? `${prop}="${maskColor(val)}"` : `${prop}="${val}"`
+      return COLOR.test(val) ? `${prop}="${to(val)}"` : `${prop}="${val}"`
     })
 }
 
@@ -50,8 +51,13 @@ function remapColors(markup) {
  * `weight` (viewBox units) thickens the solid shapes with a round stroke of the
  * same colour, for thin art that fades at small sizes. Only for icons whose
  * detail isn't drawn as light cut-outs: the stroke would also fill the holes.
+ * `solid` treats light paint as solid too, so art drawn as a light fill inside
+ * a dark outline reads as one filled silhouette instead of an outline.
+ * `closeGaps` (viewBox units) fills gaps narrower than 2×closeGaps between strokes — a
+ * morphological closing (dilate then erode) — so art drawn as an outline (two
+ * parallel edges) reads as a solid shape; wider openings stay open.
  */
-export function toMaskSvg(svgText, { weight = 0 } = {}) {
+export function toMaskSvg(svgText, { weight = 0, solid = false, closeGaps = 0 } = {}) {
   if (FORBIDDEN.test(svgText)) throw new Error('contains <image>, <script> or <foreignObject>')
   const open = /<svg\b[^>]*>/i.exec(svgText)
   const close = svgText.lastIndexOf('</svg>')
@@ -60,14 +66,20 @@ export function toMaskSvg(svgText, { weight = 0 } = {}) {
   if (viewBox === undefined) throw new Error('no viewBox')
   const [x, y, w, h] = viewBox.trim().split(/[\s,]+/).map(Number)
   if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) throw new Error('bad viewBox')
-  const body = remapColors(svgText.slice(open.index + open[0].length, close))
+  const body = remapColors(svgText.slice(open.index + open[0].length, close), solid)
   const box = `x="${String(x)}" y="${String(y)}" width="${String(w)}" height="${String(h)}"`
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">`,
-    `<defs><mask id="icon" maskUnits="userSpaceOnUse" ${box}>`,
+    `<defs>`,
+    closeGaps > 0
+      ? `<filter id="close" x="-10%" y="-10%" width="120%" height="120%"><feMorphology operator="dilate" radius="${String(closeGaps)}"/><feMorphology operator="erode" radius="${String(closeGaps)}"/></filter>`
+      : '',
+    `<mask id="icon" maskUnits="userSpaceOnUse" ${box}>`,
+    closeGaps > 0 ? `<g filter="url(#close)">` : '',
     weight > 0
       ? `<g fill="#fff" stroke="#fff" stroke-width="${String(weight)}" stroke-linejoin="round">${body}</g>`
       : `<g fill="#fff">${body}</g>`,
+    closeGaps > 0 ? `</g>` : '',
     `</mask></defs>`,
     `<rect ${box} fill="#000" mask="url(#icon)"/>`,
     `</svg>`,

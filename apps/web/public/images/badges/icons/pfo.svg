@@ -1,5 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60.52 60.52">
-<defs><mask id="icon" maskUnits="userSpaceOnUse" x="0" y="0" width="60.52" height="60.52">
+<defs>
+
+<mask id="icon" maskUnits="userSpaceOnUse" x="0" y="0" width="60.52" height="60.52">
+
 <g fill="#fff">
   <defs>
     <style>
@@ -30,6 +33,7 @@
     </g>
   </g>
 </g>
+
 </mask></defs>
 <rect x="0" y="0" width="60.52" height="60.52" fill="#000" mask="url(#icon)"/>
 </svg>

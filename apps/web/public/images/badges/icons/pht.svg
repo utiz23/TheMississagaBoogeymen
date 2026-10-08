@@ -1,5 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70.15 74.01">
-<defs><mask id="icon" maskUnits="userSpaceOnUse" x="0" y="0" width="70.15" height="74.01">
+<defs>
+
+<mask id="icon" maskUnits="userSpaceOnUse" x="0" y="0" width="70.15" height="74.01">
+
 <g fill="#fff">
   <defs>
     <style>
@@ -16,6 +19,7 @@
     <polygon class="cls-1" points="52.9 6.34 54.96 10.51 59.57 11.18 56.23 14.43 57.02 19.02 52.9 16.85 48.78 19.02 49.57 14.43 46.23 11.18 50.84 10.51 52.9 6.34"/>
   </g>
 </g>
+
 </mask></defs>
 <rect x="0" y="0" width="70.15" height="74.01" fill="#000" mask="url(#icon)"/>
 </svg>

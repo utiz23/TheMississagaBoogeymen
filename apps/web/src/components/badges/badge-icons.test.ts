@@ -19,7 +19,8 @@ void test('listed icons are real families and ship; nothing unlisted ships', () 
     assert.ok((BADGE_FAMILY_IDS as readonly string[]).includes(id), id)
     assert.equal(icon.src, `/images/badges/icons/${id}.svg`)
     assert.ok(existsSync(dir + `${id}.svg`), icon.src)
-    assert.ok(icon.scale >= 0.6 && icon.scale <= 1.6, `${id} scale ${String(icon.scale)}`)
+    assert.ok(icon.scale >= 0.6 && icon.scale <= 2, `${id} scale ${String(icon.scale)}`)
+    assert.ok(icon.offsetY >= 0 && icon.offsetY <= 0.5, `${id} offsetY ${String(icon.offsetY)}`)
   }
   const shipped = existsSync(dir) ? readdirSync(dir).sort() : []
   assert.deepEqual(shipped, listed.map(([id]) => `${id}.svg`).sort())

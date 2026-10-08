@@ -37,3 +37,12 @@ test('weight thickens the solid shapes with a same-colour round stroke', () => {
   assert.match(out, /<g fill="#fff" stroke="#fff" stroke-width="2.5" stroke-linejoin="round">/)
   assert.match(toMaskSvg('<svg viewBox="0 0 10 10"><path d="M0 0"/></svg>'), /<g fill="#fff">/)
 })
+
+test('solid fills the light detail too: every painted part becomes the silhouette', () => {
+  const svg = '<svg viewBox="0 0 10 10"><style>.a{fill:#fff}</style><path class="a" fill="#ffffff" d="M0 0"/><path stroke="none" d="M1 1"/></svg>'
+  const out = toMaskSvg(svg, { solid: true })
+  assert.match(out, /\.a\{fill: #fff\}/)
+  assert.match(out, /<path class="a" fill="#fff" d="M0 0"\/>/)
+  assert.match(out, /stroke="none"/)
+  assert.match(toMaskSvg(svg), /\.a\{fill: #000\}/)
+})

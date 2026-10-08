@@ -14,30 +14,38 @@ import { join } from 'node:path'
 import { toMaskSvg } from './badge-icon-mask.mjs'
 
 /**
- * Operator file name (without .svg) → [badge family id, size relative to the
- * badge's standard icon box (1 = the box), optional stroke weight]. Tuned by
- * eye on /preview/badges so thin or wide art reads as large as the rest.
+ * Operator file name (without .svg) → badge family and how the icon sits in it,
+ * tuned by eye on /preview/badges:
+ *   scale   size relative to the badge's standard icon box (default 1)
+ *   weight  round same-colour stroke (viewBox units) for thin solid art
+ *   solid   light paint is solid too (no cut-outs): a filled silhouette
+ *   offsetY shift down, as a share of the icon box; the badge face clips the
+ *           overflow, so the icon runs off its bottom edge
  */
 const FILE_TO_FAMILY = {
-  '3v3': ['p3v3', 1],
-  '6sGamescompleted': ['p6v6', 1],
-  Goaliegamescompleted: ['p6g', 1.15],
+  '3v3': { id: 'p3v3' },
+  '6sGamescompleted': { id: 'p6v6' },
+  Goaliegamescompleted: { id: 'p6g', scale: 1.15 },
   // Wins: one solid laurel, no cut-outs — thickened so it holds at 28–34 px.
-  Wins: ['pwins', 1.35, 1.2],
-  Goals: ['pgoals', 1],
-  Assists: ['pasts', 1],
-  Shots: ['pshots', 1],
-  Hattricks: ['pht', 1],
-  Breakaways: ['pbrk', 1],
-  Hits: ['phits', 1],
-  Faceoffs: ['pfo', 1],
-  Takeaways: ['ptka', 1],
-  Blocks: ['pblk', 1],
-  Fights: ['pfight', 1],
-  Gstarts: ['gg', 1],
-  Gwins: ['gw', 1],
-  Saves: ['gsv', 1],
-  Pokechecks: ['gpoke', 1],
+  Wins: { id: 'pwins', scale: 1.35, weight: 1.2 },
+  // Goals: large, its base runs off the bottom of the badge face (operator, 2026-10-08).
+  Goals: { id: 'pgoals', scale: 1.85, offsetY: 0.36 },
+  Assists: { id: 'pasts' },
+  Shots: { id: 'pshots' },
+  Hattricks: { id: 'pht' },
+  // Breakaways is an outline drawing; Breakaways-solid.svg is derived from it with the
+  // links filled (outer contours solid, slots kept, tracing specks dropped).
+  Breakaways: { skip: 'superseded by Breakaways-solid.svg' },
+  'Breakaways-solid': { id: 'pbrk' },
+  Hits: { id: 'phits' },
+  Faceoffs: { id: 'pfo' },
+  Takeaways: { id: 'ptka' },
+  Blocks: { id: 'pblk' },
+  Fights: { id: 'pfight' },
+  Gstarts: { id: 'gg' },
+  Gwins: { id: 'gw' },
+  Saves: { id: 'gsv' },
+  Pokechecks: { id: 'gpoke' },
 }
 
 const src = process.argv[2]
@@ -51,13 +59,18 @@ const written = {}
 const files = readdirSync(src).filter((f) => f.toLowerCase().endsWith('.svg'))
 for (const file of files) {
   const entry = FILE_TO_FAMILY[file.replace(/\.svg$/i, '')]
+  if (entry !== undefined && 'skip' in entry) continue
   if (entry === undefined) {
     problems.push(`${file}: unknown file name (add it to FILE_TO_FAMILY)`)
     continue
   }
-  const [family, scale, weight = 0] = entry
+  const { id: family, scale = 1, weight = 0, solid = false, offsetY = 0 } = entry
   try {
-    written[family] = { svg: toMaskSvg(readFileSync(join(src, file), 'utf8'), { weight }), scale }
+    written[family] = {
+      svg: toMaskSvg(readFileSync(join(src, file), 'utf8'), { weight, solid }),
+      scale,
+      offsetY,
+    }
   } catch (e) {
     problems.push(`${file}: ${e instanceof Error ? e.message : String(e)}`)
   }
@@ -85,12 +98,14 @@ writeFileSync(
     '  src: string',
     "  /** Size relative to the badge's standard icon box. */",
     '  scale: number',
+    '  /** Shift down as a share of the icon box; the badge face clips the overflow. */',
+    '  offsetY: number',
     '}',
     '',
     'export const BADGE_ICONS: Readonly<Partial<Record<BadgeFamilyId, BadgeIcon>>> = {',
     ...ids.map(
       (id) =>
-        `  ${id}: { src: '/images/badges/icons/${id}.svg', scale: ${String(written[id].scale)} },`,
+        `  ${id}: { src: '/images/badges/icons/${id}.svg', scale: ${String(written[id].scale)}, offsetY: ${String(written[id].offsetY)} },`,
     ),
     '}',
     '',
