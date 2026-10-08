@@ -30,33 +30,37 @@ Same families and columns as Part 1, but every total is for one title:
 
 ## Ladders
 
-- Level 30 is set at about the **second-best one-season value** among the regulars. The reference is the higher of NHL 26's full-season EA totals and NHL 27's pace so far, projected to 48 weeks.
-- Level L = `round(top × (L/30)²)`, rounded to 5 above 100 and to 10 above 1,000. Each step is at least +1, so a top under 30 becomes a one-per-level ladder.
-- Rare stats keep a floor top of 30 (Shutouts, Poke-Checks, Goalie Wins), so some badges stay out of reach in one season. That's accepted, as Part 1 accepted it for poke-checks.
+- **Level 30 = the operator's ceiling per badge** (2026-10-08, replacing the first draft's "about the second-best one-season value"). Wins and Shutouts kept the draft values; the operator listed no ceiling for them.
+- Each level aims at `top × (L/30)²` and takes the closest **nice number**, strictly increasing:
+  - multiples of 5 under 100, of 10 under 1,000, and of 50 from 1,000;
+  - rare stats (ceiling under 450) count 1, 2, 3 … up to 12 first, then step in 5s;
+  - a 50 ceiling (Goalie Wins, Poke-Checks) counts 1–25 then steps in 5s; Shutouts (30) is 1–30. Thirty levels don't fit in fewer steps.
+- The fit is a small least-squares search on a log scale, so crowded stretches bend the curve a little (e.g. Goals 30 → 45).
+- Rare goalie stats (Shutouts, Poke-Checks, Goalie Wins) stay mostly out of reach in one season. That's accepted, as Part 1 accepted it for poke-checks.
 
-| Badge             | Level 30 | Basis                                   |
-| ----------------- | -------: | --------------------------------------- |
-| 3v3 Games         |      100 | ~10–30% of a regular's games are 3s     |
-| 6v6 Games         |      480 | ~88% of a ~550-game regular season      |
-| 6's with Goalie   |      100 | NHL 27 pace: ~12 of 72 games            |
-| Wins              |      320 | NHL 26: 359 / 324 / 323 / 315           |
-| Goals             |      550 | NHL 26 2nd 551, NHL 27 pace 2nd 539     |
-| Assists           |      680 | NHL 26 2nd 695, NHL 27 pace 2nd 647     |
-| Shots             |    2,600 | NHL 26 2nd 2,339, NHL 27 pace 2nd 2,958 |
-| Dekes             |      800 | NHL 26 2nd 578, NHL 27 pace 2nd 921     |
-| Hat-Tricks        |       65 | NHL 26 2nd 61, NHL 27 pace 2nd 69       |
-| Breakaways        |      110 | NHL 26 2nd 110 (best 275 is an outlier) |
-| Hits              |    2,000 | NHL 26 2nd 2,480, NHL 27 pace 2nd 1,528 |
-| Faceoffs Won      |    3,500 | NHL 27 pace 2nd 3,517 (centres only)    |
-| Takeaways         |    1,650 | NHL 26 2nd 1,574, NHL 27 pace 2nd 1,744 |
-| Blocked Shots     |      420 | NHL 26 2nd 418, NHL 27 pace 2nd 372     |
-| Fights Won        |       40 | NHL 27 pace 2nd 29 (best is an outlier) |
-| Goalie Games      |       60 | a committed part-time goalie            |
-| Goalie Wins       |       30 | floor                                   |
-| Saves             |      650 | ~11 saves per start × 60                |
-| Desperation Saves |       40 | NHL 27 pace best 39                     |
-| Poke-Checks       |       30 | floor (NHL 26 best 4)                   |
-| Shutouts          |       30 | floor (NHL 26 best 3)                   |
+| Badge             | Level 30 | Levels 1–10                        | Level 20 |
+| ----------------- | -------: | ---------------------------------- | -------: |
+| 3v3 Games         |      100 | 1 2 3 4 5 6 7 8 9 10               |       50 |
+| 6v6 Games         |      500 | 5 10 15 20 25 30 35 40 45 55       |      220 |
+| 6's with Goalie   |      100 | 1 2 3 4 5 6 7 8 9 10               |       50 |
+| Wins              |      320 | 1 2 3 6 9 12 20 25 30 35           |      140 |
+| Goals             |      800 | 5 10 15 20 25 30 45 55 70 90       |      360 |
+| Assists           |      800 | 5 10 15 20 25 30 45 55 70 90       |      360 |
+| Shots             |    2,500 | 5 10 25 45 70 100 140 180 230 280  |    1,100 |
+| Dekes             |      800 | 5 10 15 20 25 30 45 55 70 90       |      360 |
+| Hat-Tricks        |      100 | 1 2 3 4 5 6 7 8 9 10               |       50 |
+| Breakaways        |      200 | 1 2 3 4 6 8 11 15 20 25            |       90 |
+| Hits              |    2,000 | 5 10 20 35 55 80 110 140 180 220   |      890 |
+| Faceoffs Won      |    4,000 | 5 20 40 70 110 160 220 280 360 440 |    1,800 |
+| Takeaways         |    1,500 | 5 10 15 25 40 60 80 110 140 170    |      670 |
+| Blocked Shots     |      400 | 1 2 4 7 11 15 20 30 35 45          |      180 |
+| Fights Won        |      100 | 1 2 3 4 5 6 7 8 9 10               |       50 |
+| Goalie Games      |      100 | 1 2 3 4 5 6 7 8 9 10               |       50 |
+| Goalie Wins       |       50 | 1 2 3 4 5 6 7 8 9 10               |       20 |
+| Saves             |      650 | 5 10 15 20 25 30 35 45 60 70       |      290 |
+| Desperation Saves |      100 | 1 2 3 4 5 6 7 8 9 10               |       50 |
+| Poke-Checks       |       50 | 1 2 3 4 5 6 7 8 9 10               |       20 |
+| Shutouts          |       30 | 1 2 3 4 5 6 7 8 9 10               |       20 |
 
 The 30-step ladders live only in `BADGE_LADDERS` (`packages/db/src/cards/badge-catalog.ts`).
 
@@ -79,22 +83,22 @@ Week each tier is reached, for NHL 26's real season totals and NHL 27's pace pro
 
 | Player                      | Games |  T2 |  T3 |  T4 |  T5 |
 | --------------------------- | ----: | --: | --: | --: | --: |
-| NHL 26 silkyjoker85         |   665 |   2 |   7 |  18 |  38 |
-| NHL 26 HenryTheBobJr        |   581 |   2 |   8 |  22 |  45 |
-| NHL 26 Stick Menace         |   577 |   2 |   6 |  14 |  29 |
-| NHL 26 JoeyFlopfish         |   553 |   2 |   8 |  22 |  46 |
-| NHL 26 camrazz              |   320 |   3 |  11 |  30 |   – |
+| NHL 26 silkyjoker85         |   665 |   2 |   7 |  21 |  43 |
+| NHL 26 HenryTheBobJr        |   581 |   2 |   8 |  21 |  45 |
+| NHL 26 Stick Menace         |   577 |   2 |   7 |  21 |  45 |
+| NHL 26 JoeyFlopfish         |   553 |   2 |   8 |  22 |  47 |
+| NHL 26 camrazz              |   320 |   3 |  12 |  37 |   – |
 | NHL 26 Ordinary_Samich      |   228 |   5 |  22 |   – |   – |
-| NHL 26 SCOOT BOY 42         |   165 |   5 |  26 |   – |   – |
-| NHL 26 MrHomiecide          |   165 |   6 |  28 |   – |   – |
+| NHL 26 SCOOT BOY 42         |   165 |   7 |  26 |   – |   – |
+| NHL 26 MrHomiecide          |   165 |   6 |  27 |   – |   – |
 | NHL 26 Pratt2016 (goalie)   |   105 |  13 |  31 |   – |   – |
-| NHL 27 pace Stick Menace    |   705 |   2 |   7 |  18 |  38 |
-| NHL 27 pace silkyjoker85    |   637 |   2 |   8 |  21 |  44 |
-| NHL 27 pace camrazz         |   519 |   2 |   8 |  22 |  46 |
-| NHL 27 pace HenryTheBobJr   |   539 |   2 |  10 |  26 |   – |
-| NHL 27 pace JoeyFlopfish    |   470 |   3 |  11 |  30 |   – |
-| NHL 27 pace MrHomiecide     |   333 |   3 |  15 |  37 |   – |
-| NHL 27 pace Ordinary_Samich |   225 |   5 |  25 |   – |   – |
+| NHL 27 pace Stick Menace    |   705 |   2 |   7 |  18 |  39 |
+| NHL 27 pace silkyjoker85    |   637 |   2 |   7 |  21 |  43 |
+| NHL 27 pace camrazz         |   519 |   2 |   8 |  25 |   – |
+| NHL 27 pace HenryTheBobJr   |   539 |   3 |   9 |  28 |   – |
+| NHL 27 pace JoeyFlopfish    |   470 |   3 |  11 |  32 |   – |
+| NHL 27 pace MrHomiecide     |   333 |   3 |  14 |  44 |   – |
+| NHL 27 pace Ordinary_Samich |   225 |   5 |  24 |   – |   – |
 
 The mode splits for 3v3, 6v6 and 6's-with-goalie are estimated (12% / 88% / 16% of games played). A real season is lumpier than this. Re-check the pace at mid-season, and re-tune before NHL 28 if it drifts.
 

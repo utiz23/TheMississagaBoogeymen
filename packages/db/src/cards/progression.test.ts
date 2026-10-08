@@ -21,10 +21,11 @@ const values = (partial: Partial<BadgeValues>): BadgeValues => ({
 void test('badgeLevel counts thresholds met', () => {
   const ladder = BADGE_LADDERS.pgoals
   assert.equal(badgeLevel(ladder, 0), 0)
-  assert.equal(badgeLevel(ladder, 1), 1)
-  assert.equal(badgeLevel(ladder, 5), 2)
-  assert.equal(badgeLevel(ladder, 6), 3)
-  assert.equal(badgeLevel(ladder, 550), 30)
+  assert.equal(badgeLevel(ladder, 4), 0)
+  assert.equal(badgeLevel(ladder, 5), 1)
+  assert.equal(badgeLevel(ladder, 14), 2)
+  assert.equal(badgeLevel(ladder, 15), 3)
+  assert.equal(badgeLevel(ladder, 800), 30)
   assert.equal(badgeLevel(ladder, 999999), 30)
 })
 
@@ -33,16 +34,16 @@ void test('badgeProgress: locked, mid-level and maxed', () => {
     level: 0,
     value: 0,
     prevThreshold: 0,
-    nextThreshold: 1,
+    nextThreshold: 5,
     pct: 0,
-    remaining: 1,
+    remaining: 5,
   })
-  const mid = badgeProgress(BADGE_LADDERS.pgoals, 45)
-  assert.equal(mid.level, 8)
-  assert.equal(mid.prevThreshold, 39)
-  assert.equal(mid.nextThreshold, 50)
+  const mid = badgeProgress(BADGE_LADDERS.pgoals, 50)
+  assert.equal(mid.level, 7)
+  assert.equal(mid.prevThreshold, 45)
+  assert.equal(mid.nextThreshold, 55)
   assert.equal(mid.remaining, 5)
-  assert.ok(Math.abs(mid.pct - 6 / 11) < 1e-9)
+  assert.ok(Math.abs(mid.pct - 5 / 10) < 1e-9)
   const maxed = badgeProgress(BADGE_LADDERS.pgoals, 6000)
   assert.equal(maxed.level, 30)
   assert.equal(maxed.nextThreshold, null)
@@ -85,24 +86,24 @@ void test('reproduces the 2026-10-08 NHL 27 tier table', () => {
     }),
   )
   assert.deepEqual(got, {
-    'Stick Menace': 'T2 L8 skater',
-    silkyjoker85: 'T2 L8 skater',
+    'Stick Menace': 'T2 L9 skater',
+    silkyjoker85: 'T2 L9 skater',
     HenryTheBobJr: 'T2 L6 skater',
-    camrazz: 'T2 L8 skater',
-    JoeyFlopfish: 'T2 L5 skater',
-    MrHomiecide: 'T2 L3 skater',
+    camrazz: 'T2 L9 skater',
+    JoeyFlopfish: 'T2 L6 skater',
+    MrHomiecide: 'T2 L4 skater',
     Ordinary_Samich: 'T2 L1 skater',
   })
 })
 
 void test('tier N needs 4 families in one pool at the bar; 3 are not enough', () => {
-  // pgoals/pasts/pshots/phits at level 29 (T5 bar): 515 / 635 / 2430 / 1870.
-  const four = values({ pgoals: 515, pasts: 635, pshots: 2430, phits: 1870 })
+  // pgoals/pasts/pshots/phits at level 29 (T5 bar): 750 / 750 / 2350 / 1850.
+  const four = values({ pgoals: 750, pasts: 750, pshots: 2350, phits: 1850 })
   assert.equal(computeStanding(four).tier, 5)
-  const three = values({ pgoals: 515, pasts: 635, pshots: 2430, phits: 1740 })
+  const three = values({ pgoals: 750, pasts: 750, pshots: 2350, phits: 1750 })
   assert.equal(computeStanding(three).tier, 4)
   // Goalie families don't help the skater pool and vice versa.
-  const mixed = values({ pgoals: 515, pasts: 635, pshots: 2430, gg: 56 })
+  const mixed = values({ pgoals: 750, pasts: 750, pshots: 2350, gg: 95 })
   assert.equal(computeStanding(mixed).tier, 1)
 })
 

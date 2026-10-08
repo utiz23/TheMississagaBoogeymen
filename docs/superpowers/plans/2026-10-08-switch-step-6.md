@@ -279,7 +279,7 @@ Run over `ssh hotel-echo`, in `~/eanhl-team-website`. Each command's output is c
    - `docker compose up -d --no-deps worker web`.
 7. **Verify:**
    - worker logs show a normal cycle and the card recompute (`[card-recompute]` or the recompute log line);
-   - `docker compose exec worker node dist/card-recompute-cli.js --dry-run` prints one table, **NHL 27** only ([season cards](../specs/2026-10-08-season-cards-design.md)). Expected from live data on 2026-10-08: T2 L8 Stick Menace, silkyjoker85, camrazz; T2 L6 HenryTheBobJr; T2 L5 JoeyFlopfish; T2 L3 MrHomiecide; T2 L1 Ordinary_Samich; everyone else T1 L1. Levels creep up with newer games, and a regular may reach T3 Stud. Anything at T4+, or an NHL 26 table, is investigated first;
+   - `docker compose exec worker node dist/card-recompute-cli.js --dry-run` prints one table, **NHL 27** only ([season cards](../specs/2026-10-08-season-cards-design.md)). Expected from live data on 2026-10-08 (operator ceilings): T2 L9 Stick Menace, silkyjoker85, camrazz; T2 L6 HenryTheBobJr, JoeyFlopfish; T2 L4 MrHomiecide; T2 L1 Ordinary_Samich; everyone else T1 L1. Levels creep up with newer games, and a regular may reach T3 Stud. Anything at T4+, or an NHL 26 table, is investigated first;
    - `SELECT count(*) FROM player_card_progress` > 0.
 8. **Site checks** (Playwright against https://boogeymen.app, read-only):
    - `/`, `/roster`, `/roster/3`, `/roster/12` and `/roster/28` return 200, cards render, EDIT opens the locker, the Build Locker, Action Map and Badges show, and the console is clean;

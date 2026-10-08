@@ -45,8 +45,8 @@ void test('a player with no badge rows: 21 locked badges in 5 groups', () => {
   assert.ok(goals)
   assert.equal(goals.locked, true)
   assert.equal(goals.themeLabel, 'Locked')
-  assert.equal(goals.progressText, '0 / 1 goals')
-  assert.equal(goals.remainingText, '1 to LVL 1')
+  assert.equal(goals.progressText, '0 / 5 goals')
+  assert.equal(goals.remainingText, '5 to LVL 1')
   assert.equal(goals.shape, 'round')
 })
 
