@@ -154,7 +154,7 @@ None.
 
 ## Next 1-3 Actions
 
-1. Cards/badges: on the operator's go, run Phase B (merge `feat/player-cards` to `main`, then the Hotel-Echo runbook in the switch plan). Open questions for the operator: the Action Map clock direction (comment says elapsed, data looks like time remaining), and the deferred minors in the plan's execution record.
+1. Cards/badges: **first redo the progression thresholds (operator, 2026-10-08: before launch).** Ladders are `BADGE_LADDERS` in `packages/db/src/cards/badge-catalog.ts`; tier rules (`FAMILIES_PER_TIER`, `tierBar`, `computeStanding`) are in `packages/db/src/cards/progression.ts`. Update their tests and the switch plan's B3 expected tier table (it's written for the current ladders). Then, on the operator's go, run Phase B (merge `feat/player-cards` to `main`, then the Hotel-Echo runbook in the switch plan). Open questions for the operator: the Action Map clock direction (comment says elapsed, data looks like time remaining), and the deferred minors in the plan's execution record.
 2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
    time deltas). The security review is closed (journal 10-06).
