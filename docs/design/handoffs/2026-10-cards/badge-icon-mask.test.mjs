@@ -46,3 +46,10 @@ test('solid fills the light detail too: every painted part becomes the silhouett
   assert.match(out, /stroke="none"/)
   assert.match(toMaskSvg(svg), /\.a\{fill: #000\}/)
 })
+
+test('invert swaps the roles: light paint is the shape, dark lines become cut-out gaps', () => {
+  const svg = '<svg viewBox="0 0 10 10"><style>.a{fill:#fff}</style><path class="a" d="M0 0"/><path d="M1 1"/></svg>'
+  const out = toMaskSvg(svg, { invert: true })
+  assert.match(out, /\.a\{fill: #fff\}/)
+  assert.match(out, /<g fill="#000">/)
+})

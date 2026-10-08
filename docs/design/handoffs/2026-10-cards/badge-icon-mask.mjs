@@ -35,8 +35,13 @@ export function maskColor(color) {
 
 const COLOR = /#[0-9a-fA-F]{3,6}\b|\b(?:white|black)\b/
 
-function remapColors(markup, solid) {
-  const to = (val) => (solid && !/^\s*(none|transparent)\s*$/i.test(val) ? '#fff' : maskColor(val))
+function remapColors(markup, solid, invert) {
+  const to = (val) => {
+    if (/^\s*(none|transparent)\s*$/i.test(val)) return val.trim()
+    if (solid) return '#fff'
+    const c = maskColor(val)
+    return invert ? (c === '#fff' ? '#000' : '#fff') : c
+  }
   return markup
     .replace(/\b(fill|stroke)\s*:\s*([^;}"]+)/g, (_, prop, val) => {
       return COLOR.test(val) ? `${prop}: ${to(val)}` : `${prop}: ${val}`
@@ -53,11 +58,13 @@ function remapColors(markup, solid) {
  * detail isn't drawn as light cut-outs: the stroke would also fill the holes.
  * `solid` treats light paint as solid too, so art drawn as a light fill inside
  * a dark outline reads as one filled silhouette instead of an outline.
+ * `invert` swaps the roles: light paint is the shape and dark lines are cut-out
+ * gaps, so a light-filled outline drawing reads as filled with its lines kept.
  * `closeGaps` (viewBox units) fills gaps narrower than 2×closeGaps between strokes — a
  * morphological closing (dilate then erode) — so art drawn as an outline (two
  * parallel edges) reads as a solid shape; wider openings stay open.
  */
-export function toMaskSvg(svgText, { weight = 0, solid = false, closeGaps = 0 } = {}) {
+export function toMaskSvg(svgText, { weight = 0, solid = false, invert = false, closeGaps = 0 } = {}) {
   if (FORBIDDEN.test(svgText)) throw new Error('contains <image>, <script> or <foreignObject>')
   const open = /<svg\b[^>]*>/i.exec(svgText)
   const close = svgText.lastIndexOf('</svg>')
@@ -66,7 +73,9 @@ export function toMaskSvg(svgText, { weight = 0, solid = false, closeGaps = 0 } 
   if (viewBox === undefined) throw new Error('no viewBox')
   const [x, y, w, h] = viewBox.trim().split(/[\s,]+/).map(Number)
   if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) throw new Error('bad viewBox')
-  const body = remapColors(svgText.slice(open.index + open[0].length, close), solid)
+  const body = remapColors(svgText.slice(open.index + open[0].length, close), solid, invert)
+  // Unpainted shapes default to black paint: solid normally, a gap when inverted.
+  const base = invert ? '#000' : '#fff'
   const box = `x="${String(x)}" y="${String(y)}" width="${String(w)}" height="${String(h)}"`
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">`,
@@ -77,8 +86,8 @@ export function toMaskSvg(svgText, { weight = 0, solid = false, closeGaps = 0 } 
     `<mask id="icon" maskUnits="userSpaceOnUse" ${box}>`,
     closeGaps > 0 ? `<g filter="url(#close)">` : '',
     weight > 0
-      ? `<g fill="#fff" stroke="#fff" stroke-width="${String(weight)}" stroke-linejoin="round">${body}</g>`
-      : `<g fill="#fff">${body}</g>`,
+      ? `<g fill="${base}" stroke="${base}" stroke-width="${String(weight)}" stroke-linejoin="round">${body}</g>`
+      : `<g fill="${base}">${body}</g>`,
     closeGaps > 0 ? `</g>` : '',
     `</mask></defs>`,
     `<rect ${box} fill="#000" mask="url(#icon)"/>`,

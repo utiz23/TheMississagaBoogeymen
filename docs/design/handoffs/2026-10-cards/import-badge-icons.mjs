@@ -19,8 +19,9 @@ import { toMaskSvg } from './badge-icon-mask.mjs'
  *   scale   size relative to the badge's standard icon box (default 1)
  *   weight  round same-colour stroke (viewBox units) for thin solid art
  *   solid   light paint is solid too (no cut-outs): a filled silhouette
- *   offsetY shift down, as a share of the icon box; the badge face clips the
- *           overflow, so the icon runs off its bottom edge
+ *   invert  light paint is the shape, dark lines are cut-out gaps
+ *   offsetX / offsetY  shift right / down, as a share of the icon box; the badge
+ *           face clips the overflow, so the icon can run off an edge
  */
 const FILE_TO_FAMILY = {
   '3v3': { id: 'p3v3' },
@@ -38,11 +39,16 @@ const FILE_TO_FAMILY = {
   // links filled (outer contours solid, slots kept, tracing specks dropped).
   Breakaways: { skip: 'superseded by Breakaways-solid.svg' },
   'Breakaways-solid': { id: 'pbrk' },
-  Hits: { id: 'phits' },
+  // Hits: centred on the hammer head; the handle runs off the badge (operator, 2026-10-08).
+  Hits: { id: 'phits', scale: 1.5, offsetX: -0.17, offsetY: 0.24 },
   Faceoffs: { id: 'pfo' },
   Takeaways: { id: 'ptka' },
   Blocks: { id: 'pblk' },
-  Fights: { id: 'pfight' },
+  // Fights: inverted so the gloves read filled, their outlines kept as gaps (operator,
+  // 2026-10-08). Fights-filled.svg adds the back glove's missing interior fills
+  // (fill-outline-interiors.py Fights.svg Fights-filled.svg 0).
+  Fights: { skip: 'superseded by Fights-filled.svg' },
+  'Fights-filled': { id: 'pfight', invert: true, scale: 1.35 },
   Gstarts: { id: 'gg' },
   Gwins: { id: 'gw' },
   Saves: { id: 'gsv' },
@@ -65,11 +71,20 @@ for (const file of files) {
     problems.push(`${file}: unknown file name (add it to FILE_TO_FAMILY)`)
     continue
   }
-  const { id: family, scale = 1, weight = 0, solid = false, offsetY = 0 } = entry
+  const {
+    id: family,
+    scale = 1,
+    weight = 0,
+    solid = false,
+    invert = false,
+    offsetX = 0,
+    offsetY = 0,
+  } = entry
   try {
     written[family] = {
-      svg: toMaskSvg(readFileSync(join(src, file), 'utf8'), { weight, solid }),
+      svg: toMaskSvg(readFileSync(join(src, file), 'utf8'), { weight, solid, invert }),
       scale,
+      offsetX,
       offsetY,
     }
   } catch (e) {
@@ -99,14 +114,15 @@ writeFileSync(
     '  src: string',
     "  /** Size relative to the badge's standard icon box. */",
     '  scale: number',
-    '  /** Shift down as a share of the icon box; the badge face clips the overflow. */',
+    '  /** Shift right / down as a share of the icon box; the badge face clips the overflow. */',
+    '  offsetX: number',
     '  offsetY: number',
     '}',
     '',
     'export const BADGE_ICONS: Readonly<Partial<Record<BadgeFamilyId, BadgeIcon>>> = {',
     ...ids.map(
       (id) =>
-        `  ${id}: { src: '/images/badges/icons/${id}.svg', scale: ${String(written[id].scale)}, offsetY: ${String(written[id].offsetY)} },`,
+        `  ${id}: { src: '/images/badges/icons/${id}.svg', scale: ${String(written[id].scale)}, offsetX: ${String(written[id].offsetX)}, offsetY: ${String(written[id].offsetY)} },`,
     ),
     '}',
     '',

@@ -52,7 +52,7 @@ export function Badge({ familyId, shape, theme, frame, size, title }: BadgeProps
       <span
         className="bdg-icon"
         style={{
-          ...(art !== undefined && art.offsetY > 0 ? clip : {}),
+          ...(art !== undefined && (art.offsetX !== 0 || art.offsetY !== 0) ? clip : {}),
           inset: px(layout.iconInset),
           paddingBottom: px(layout.iconPadBottom),
           paddingTop: px(layout.iconPadTop),
@@ -68,8 +68,8 @@ export function Badge({ familyId, shape, theme, frame, size, title }: BadgeProps
               height: px(layout.iconSize * art.scale),
               flex: 'none',
               transform:
-                art.offsetY > 0
-                  ? `translateY(${px(layout.iconSize * art.scale * art.offsetY)})`
+                art.offsetX !== 0 || art.offsetY !== 0
+                  ? `translate(${px(layout.iconSize * art.scale * art.offsetX)}, ${px(layout.iconSize * art.scale * art.offsetY)})`
                   : undefined,
               backgroundColor: layout.iconColor,
               WebkitMask: `url(${art.src}) center / contain no-repeat`,

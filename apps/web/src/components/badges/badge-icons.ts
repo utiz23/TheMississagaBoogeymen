@@ -9,27 +9,28 @@ export interface BadgeIcon {
   src: string
   /** Size relative to the badge's standard icon box. */
   scale: number
-  /** Shift down as a share of the icon box; the badge face clips the overflow. */
+  /** Shift right / down as a share of the icon box; the badge face clips the overflow. */
+  offsetX: number
   offsetY: number
 }
 
 export const BADGE_ICONS: Readonly<Partial<Record<BadgeFamilyId, BadgeIcon>>> = {
-  gg: { src: '/images/badges/icons/gg.svg', scale: 1, offsetY: 0 },
-  gpoke: { src: '/images/badges/icons/gpoke.svg', scale: 1, offsetY: 0 },
-  gsv: { src: '/images/badges/icons/gsv.svg', scale: 1, offsetY: 0 },
-  gw: { src: '/images/badges/icons/gw.svg', scale: 1, offsetY: 0 },
-  p3v3: { src: '/images/badges/icons/p3v3.svg', scale: 1, offsetY: 0 },
-  p6g: { src: '/images/badges/icons/p6g.svg', scale: 1.15, offsetY: 0 },
-  p6v6: { src: '/images/badges/icons/p6v6.svg', scale: 1, offsetY: 0 },
-  pasts: { src: '/images/badges/icons/pasts.svg', scale: 1, offsetY: 0 },
-  pblk: { src: '/images/badges/icons/pblk.svg', scale: 1, offsetY: 0 },
-  pbrk: { src: '/images/badges/icons/pbrk.svg', scale: 1, offsetY: 0 },
-  pfight: { src: '/images/badges/icons/pfight.svg', scale: 1, offsetY: 0 },
-  pfo: { src: '/images/badges/icons/pfo.svg', scale: 1, offsetY: 0 },
-  pgoals: { src: '/images/badges/icons/pgoals.svg', scale: 1.6, offsetY: 0.2 },
-  phits: { src: '/images/badges/icons/phits.svg', scale: 1, offsetY: 0 },
-  pht: { src: '/images/badges/icons/pht.svg', scale: 1, offsetY: 0 },
-  pshots: { src: '/images/badges/icons/pshots.svg', scale: 1, offsetY: 0 },
-  ptka: { src: '/images/badges/icons/ptka.svg', scale: 1, offsetY: 0 },
-  pwins: { src: '/images/badges/icons/pwins.svg', scale: 1.35, offsetY: 0 },
+  gg: { src: '/images/badges/icons/gg.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  gpoke: { src: '/images/badges/icons/gpoke.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  gsv: { src: '/images/badges/icons/gsv.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  gw: { src: '/images/badges/icons/gw.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  p3v3: { src: '/images/badges/icons/p3v3.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  p6g: { src: '/images/badges/icons/p6g.svg', scale: 1.15, offsetX: 0, offsetY: 0 },
+  p6v6: { src: '/images/badges/icons/p6v6.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  pasts: { src: '/images/badges/icons/pasts.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  pblk: { src: '/images/badges/icons/pblk.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  pbrk: { src: '/images/badges/icons/pbrk.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  pfight: { src: '/images/badges/icons/pfight.svg', scale: 1.35, offsetX: 0, offsetY: 0 },
+  pfo: { src: '/images/badges/icons/pfo.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  pgoals: { src: '/images/badges/icons/pgoals.svg', scale: 1.6, offsetX: 0, offsetY: 0.2 },
+  phits: { src: '/images/badges/icons/phits.svg', scale: 1.5, offsetX: -0.17, offsetY: 0.24 },
+  pht: { src: '/images/badges/icons/pht.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  pshots: { src: '/images/badges/icons/pshots.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  ptka: { src: '/images/badges/icons/ptka.svg', scale: 1, offsetX: 0, offsetY: 0 },
+  pwins: { src: '/images/badges/icons/pwins.svg', scale: 1.35, offsetX: 0, offsetY: 0 },
 }
