@@ -61,6 +61,16 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Player-card textures/videos and badge icons (spec Part 2: cache headers at
+      // the switch). Their names are not content-hashed, so a day plus a week of
+      // background revalidation rather than immutable: a re-exported file still
+      // reaches browsers within a day.
+      ...['/images/cards/:path*', '/images/badges/:path*'].map((source) => ({
+        source,
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
+        ],
+      })),
     ]
   },
 

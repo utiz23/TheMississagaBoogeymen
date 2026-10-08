@@ -12,7 +12,7 @@ import type {
   getOpponentPlayerMatchStats,
   getPlayerMatchStats,
 } from '@eanhl/db/queries'
-import { eaPositionToSlot, type LineupPositionKey } from './lineup-shape'
+import { eaPositionToSlot, type LineupPositionKey } from './lineup-shape.ts'
 
 type PlayerStatBase = Awaited<ReturnType<typeof getPlayerMatchStats>>[number]
 type OpponentPlayerStatBase = Awaited<ReturnType<typeof getOpponentPlayerMatchStats>>[number]
@@ -260,7 +260,7 @@ const OCR_POSITION_TO_EA: Record<string, string> = {
 }
 
 /**
- * Map EA's canonical 8-build-class names (with optional "[Reference Player - ]"
+ * Map EA's canonical 9-build-class names (with optional "[Reference Player - ]"
  * prefix from the loadout view) to the project's 11-archetype taxonomy.
  * Returns null when the OCR string isn't a known build.
  */
@@ -273,12 +273,14 @@ const BUILD_TO_ARCHETYPE: Record<string, PlayerArchetype> = {
   'Puck Moving Defenseman': 'puckmover',
   'Defensive Defenseman': 'defensive-d',
   'Offensive Defenseman': 'offensive-d',
+  'Two-Way Defenseman': 'two-way-d',
 }
 
 export function buildClassToArchetype(canonical: string | null): PlayerArchetype | null {
   if (canonical === null) return null
   // Strip optional "Reference Player - " prefix: "Cole Caufield - Sniper" → "Sniper".
-  const parts = canonical.split(/\s*-\s*/)
+  // Only a spaced dash separates it — "Two-Way Forward" keeps its hyphen.
+  const parts = canonical.split(/\s+-\s+/)
   const build = (parts.length > 1 ? (parts[parts.length - 1] ?? canonical) : canonical).trim()
   return BUILD_TO_ARCHETYPE[build] ?? null
 }
@@ -344,6 +346,7 @@ const ARCHETYPE_TO_BUILD_LABEL: Partial<Record<PlayerArchetype, string>> = {
   puckmover: 'Puck Moving Defenseman',
   'defensive-d': 'Defensive Defenseman',
   'offensive-d': 'Offensive Defenseman',
+  'two-way-d': 'Two-Way Defenseman',
 }
 
 /** EA long-form skater/goalie positions → ladder slot (defense handled separately). */
