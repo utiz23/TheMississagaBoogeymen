@@ -10,6 +10,8 @@ import {
   buildGroups,
   buildMarkers,
   buildPin,
+  limitGroups,
+  rowIndexOf,
   filterCounts,
   notPlotted,
   periodName,
@@ -235,4 +237,52 @@ void test('opponents read as the site abbreviation of the club name (never the O
   assert.equal(buildGroups([e], 'game')[0]?.label, 'vs JCA')
   assert.equal(buildPin([e], e.eventId)?.opp, 'JCA')
   assert.match(buildMarkers([e], null)[0]?.tip ?? '', / · vs JCA · /)
+})
+
+void test('limitGroups keeps whole groups up to the row limit and counts what it hid', () => {
+  const g = (key: string, n: number) => ({
+    key,
+    label: key,
+    sub: '',
+    result: null,
+    tone: null,
+    count: n,
+    matchId: null,
+    rows: Array.from({ length: n }, (_, i) => ({
+      id: i,
+      type: 'shot' as const,
+      role: 'by' as const,
+      actor: '',
+      target: '',
+      label: '',
+      clock: '',
+      meta: '',
+      plotted: true,
+    })),
+  })
+  const groups = [g('a', 3), g('b', 4), g('c', 5)]
+  const cut = limitGroups(groups, 5)
+  assert.deepEqual(
+    cut.groups.map((x) => [x.key, x.rows.length, x.count]),
+    [
+      ['a', 3, 3],
+      ['b', 2, 4],
+    ],
+  )
+  assert.equal(cut.hidden, 7)
+  const all = limitGroups(groups, 100)
+  assert.equal(all.hidden, 0)
+  assert.equal(all.groups.length, 3)
+  assert.deepEqual(limitGroups([], 10), { groups: [], hidden: 0 })
+})
+
+void test('rowIndexOf finds a row across groups, -1 when absent', () => {
+  const groups = buildGroups(
+    [ev({ matchId: 1 }), ev({ matchId: 2, playedAt: new Date('2026-09-01T00:00:00Z') })],
+    'game',
+  )
+  const second = groups[1]?.rows[0]?.id
+  assert.ok(second !== undefined)
+  assert.equal(rowIndexOf(groups, second), 1)
+  assert.equal(rowIndexOf(groups, -5), -1)
 })

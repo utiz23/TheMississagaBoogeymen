@@ -371,3 +371,37 @@ export function buildPin(
     tone: tone(e.result),
   }
 }
+
+/**
+ * The event list shows its rows in batches (page weight: a player can have
+ * hundreds of events). Keeps groups in order up to `limit` rows; a group cut
+ * short keeps its full `count` in its header.
+ */
+export function limitGroups(
+  groups: readonly ActionGroup[],
+  limit: number,
+): { groups: ActionGroup[]; hidden: number } {
+  const out: ActionGroup[] = []
+  let left = limit
+  let total = 0
+  for (const g of groups) {
+    total += g.rows.length
+    if (left <= 0) continue
+    out.push(g.rows.length <= left ? g : { ...g, rows: g.rows.slice(0, left) })
+    left -= Math.min(left, g.rows.length)
+  }
+  const shown = out.reduce((s, g) => s + g.rows.length, 0)
+  return { groups: out, hidden: total - shown }
+}
+
+/** Position of an event's row across all groups (list order), or -1. */
+export function rowIndexOf(groups: readonly ActionGroup[], eventId: number): number {
+  let i = 0
+  for (const g of groups) {
+    for (const r of g.rows) {
+      if (r.id === eventId) return i
+      i++
+    }
+  }
+  return -1
+}

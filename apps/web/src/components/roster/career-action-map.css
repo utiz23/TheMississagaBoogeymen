@@ -11,6 +11,11 @@
 }
 .am-head,
 .am-panel-head,
+.am-more {
+  display: flex;
+  justify-content: center;
+  padding: 14px;
+}
 .am-foot {
   display: flex;
   flex-wrap: wrap;

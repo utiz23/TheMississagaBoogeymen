@@ -3,6 +3,7 @@
 import {
   memo,
   useCallback,
+  useEffect,
   useId,
   useMemo,
   useRef,
@@ -25,6 +26,8 @@ import {
   buildGroups,
   buildMarkers,
   buildPin,
+  limitGroups,
+  rowIndexOf,
   filterCounts,
   notPlotted,
   visibleEvents,
@@ -37,6 +40,9 @@ import {
   type SortMode,
 } from './action-map-model'
 import './career-action-map.css'
+
+/** Rows the event list renders per batch (page weight; more load as you scroll). */
+const LIST_BATCH = 60
 
 const BY_FILL = 'var(--color-accent)'
 const ON_FILL = '#81878D'
@@ -87,6 +93,8 @@ export function CareerActionMap({
   const [pin, setPin] = useState<number | null>(null)
   const [iso, setIso] = useState<number | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const moreRef = useRef<HTMLDivElement>(null)
+  const [limit, setLimit] = useState(LIST_BATCH)
 
   const uid = useId().replace(/[^\w-]/g, '')
   // Each stage recomputes only when its inputs change: a pin tap rebuilds the
@@ -99,6 +107,29 @@ export function CareerActionMap({
   const visible = useMemo(() => visibleEvents(events, filters), [events, filters])
   const markers = useMemo(() => buildMarkers(visible, pin), [visible, pin])
   const groups = useMemo(() => buildGroups(visible, sort), [visible, sort])
+  const shown = useMemo(() => limitGroups(groups, limit), [groups, limit])
+  const groupsRef = useRef(groups)
+  groupsRef.current = groups
+  // A new filter or sort starts the list over at the first batch.
+  useEffect(() => {
+    setLimit(LIST_BATCH)
+  }, [groups])
+  // Next batch when the end of the list scrolls into view.
+  useEffect(() => {
+    const box = listRef.current
+    const sentinel = moreRef.current
+    if (!box || !sentinel || shown.hidden === 0) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setLimit((l) => l + LIST_BATCH)
+      },
+      { root: box, rootMargin: '200px' },
+    )
+    io.observe(sentinel)
+    return () => {
+      io.disconnect()
+    }
+  }, [shown.hidden])
   const pinView = useMemo(() => buildPin(visible, pin), [visible, pin])
   const unplottedCount = useMemo(() => notPlotted(visible), [visible])
   const gameCount = useMemo(() => new Set(events.map((e) => e.matchId)).size, [events])
@@ -116,6 +147,9 @@ export function CareerActionMap({
   const pinEvent = useCallback((id: number, scroll: boolean) => {
     setPin((p) => (p === id ? null : id))
     if (!scroll) return
+    // A marker's row may sit beyond the rendered batch: render up to it first.
+    const at = rowIndexOf(groupsRef.current, id)
+    if (at >= 0) setLimit((l) => Math.max(l, at + 1 + LIST_BATCH / 2))
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         const box = listRef.current
@@ -380,7 +414,7 @@ export function CareerActionMap({
                   {visible.length === 0 && (
                     <p className="am-empty">No events match these filters.</p>
                   )}
-                  {groups.map((g) => {
+                  {shown.groups.map((g) => {
                     const head = (
                       <>
                         <span className="am-group-label">{g.label}</span>
@@ -421,6 +455,19 @@ export function CareerActionMap({
                       </div>
                     )
                   })}
+                  {shown.hidden > 0 && (
+                    <div ref={moreRef} className="am-more">
+                      <button
+                        type="button"
+                        className="am-clear"
+                        onClick={() => {
+                          setLimit((l) => l + LIST_BATCH)
+                        }}
+                      >
+                        Show more ({shown.hidden})
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

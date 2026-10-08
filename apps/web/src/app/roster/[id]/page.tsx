@@ -32,6 +32,7 @@ import { toBuildLockerView } from '@/components/roster/build-locker-model'
 import { CareerActionMap } from '@/components/roster/career-action-map'
 import { shouldShowActionMap } from '@/components/roster/action-map-model'
 import { PlayerBadges } from '@/components/badges/player-badges'
+import { LazyMount } from '@/components/ui/lazy-mount'
 import { HeroCard } from '@/components/cards/hero-card'
 import { buildLockerView } from '@/components/cards/locker-model'
 import { cardFromProfile } from '@/components/cards/card-adapters'
@@ -285,7 +286,9 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       {builds !== null && <BuildLocker view={toBuildLockerView(builds)} />}
 
       {shouldShowActionMap(careerActions) && (
-        <CareerActionMap events={careerActions} gamertag={overview.player.gamertag} />
+        <LazyMount minHeight={760} label="Career Action Map">
+          <CareerActionMap events={careerActions} gamertag={overview.player.gamertag} />
+        </LazyMount>
       )}
 
       {selectedRole === 'skater' && focalEaRow !== undefined && (
@@ -327,7 +330,9 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       />
 
       {/* Toward the bottom of the player page (spec D13). */}
-      <PlayerBadges gamertag={overview.player.gamertag} rows={cardProgress?.badges ?? []} />
+      <LazyMount minHeight={720} label="Badges">
+        <PlayerBadges gamertag={overview.player.gamertag} rows={cardProgress?.badges ?? []} />
+      </LazyMount>
     </div>
   )
 }
