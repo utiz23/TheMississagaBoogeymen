@@ -11,7 +11,7 @@ import {
   getAllEASeasonStatsForGameTitle,
   getTeamAverageShotLocations,
   getTeamAverageGoalieShotLocations,
-  getPlayerLoadoutSnapshots,
+  getPlayerBuilds,
   getPlayerCareerShots,
   getPlayerCardProgress,
   getEARoster,
@@ -29,7 +29,8 @@ import { StatsRecordCard } from '@/components/roster/stats-record-card'
 import { ChartsVisualsSection } from '@/components/roster/charts-visuals-section'
 import { ComingSoonCard } from '@/components/roster/coming-soon-card'
 import { ShotMap } from '@/components/roster/shot-map'
-import { LoadoutHistoryStrip } from '@/components/roster/loadout-history-strip'
+import { BuildLocker } from '@/components/roster/build-locker'
+import { toBuildLockerView } from '@/components/roster/build-locker-model'
 import { CareerShotMap } from '@/components/roster/career-shot-map'
 import { Panel } from '@/components/ui/panel'
 import { PlayerBadges } from '@/components/badges/player-badges'
@@ -117,11 +118,12 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
     return <ErrorState message="Unable to load player data right now." />
   }
 
-  let loadoutSnapshots: Awaited<ReturnType<typeof getPlayerLoadoutSnapshots>> = []
+  // Build Locker v2 (spec Part 4): replaces the old loadout strip on this page.
+  let builds: Awaited<ReturnType<typeof getPlayerBuilds>> = null
   try {
-    loadoutSnapshots = await getPlayerLoadoutSnapshots(id, 4)
+    builds = await getPlayerBuilds(id)
   } catch {
-    loadoutSnapshots = []
+    builds = null
   }
 
   let careerShots: Awaited<ReturnType<typeof getPlayerCareerShots>> = []
@@ -322,7 +324,7 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
         updatedAt={eaStats[0]?.lastFetchedAt}
       />
 
-      <LoadoutHistoryStrip snapshots={loadoutSnapshots} />
+      {builds !== null && <BuildLocker view={toBuildLockerView(builds)} />}
 
       <CareerShotMap events={careerShots} />
 

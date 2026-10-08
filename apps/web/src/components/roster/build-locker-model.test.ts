@@ -5,7 +5,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { PlayerBuild, PlayerBuilds } from '@eanhl/db/queries'
-import { BUILD_ATTRIBUTE_GROUPS, buildLockerView } from './build-locker-model.ts'
+import { BUILD_ATTRIBUTE_GROUPS, toBuildLockerView } from './build-locker-model.ts'
 
 const ALL_KEYS = BUILD_ATTRIBUTE_GROUPS.flatMap((g) => g.attrs.map((a) => a.key))
 
@@ -47,7 +47,7 @@ void test('the 5 groups hold the 23 attributes of the game sheet', () => {
 })
 
 void test('single build (Stick Menace): Current tile, no delta, empty note', () => {
-  const v = buildLockerView(
+  const v = toBuildLockerView(
     data([
       build({
         weightLbs: 220,
@@ -91,7 +91,7 @@ void test('deltas against the next-older build: signs, text and bar segments', (
     lastPlayed: new Date('2026-05-12T20:00:00Z'),
     attributes: { ...build().attributes, faceoffs: 92, passing: 88 },
   })
-  const v = buildLockerView(data([newer, olderShown]))
+  const v = toBuildLockerView(data([newer, olderShown]))
   const tactics = v.details[0]?.groups.find((g) => g.name === 'Tactics')
   const faceoffs = tactics?.attrs.find((a) => a.label === 'Faceoffs')
   assert.deepEqual(faceoffs, {
@@ -124,7 +124,7 @@ void test('deltas against the next-older build: signs, text and bar segments', (
 })
 
 void test('the older build supplies the delta for the last shown tile', () => {
-  const v = buildLockerView(
+  const v = toBuildLockerView(
     data([build()], build({ attributes: { ...build().attributes, speed: 70 } })),
   )
   const speed = v.details[0]?.groups[0]?.attrs.find((a) => a.label === 'Speed')
@@ -133,7 +133,7 @@ void test('the older build supplies the delta for the last shown tile', () => {
 })
 
 void test('null attribute (deking): dash, no bar, out of the group average, no delta', () => {
-  const v = buildLockerView(data([build()], build({ attributes: { ...build().attributes } })))
+  const v = toBuildLockerView(data([build()], build({ attributes: { ...build().attributes } })))
   const tactics = v.details[0]?.groups.find((g) => g.name === 'Tactics')
   const deking = tactics?.attrs.find((a) => a.label === 'Deking')
   assert.deepEqual(deking, {
@@ -149,12 +149,12 @@ void test('null attribute (deking): dash, no bar, out of the group average, no d
 })
 
 void test('a group with no known values shows a dash average', () => {
-  const v = buildLockerView(data([build({ attributes: {} })]))
+  const v = toBuildLockerView(data([build({ attributes: {} })]))
   assert.ok(v.details[0]?.groups.every((g) => g.avg === '—'))
 })
 
 void test('blanks render as dashes: height, weight, hand, unknown tier', () => {
-  const v = buildLockerView(data([build({ xFactors: [{ name: 'Quick_Release', tier: null }] })]))
+  const v = toBuildLockerView(data([build({ xFactors: [{ name: 'Quick_Release', tier: null }] })]))
   const tile = v.tiles[0]
   assert.ok(tile)
   assert.equal(tile.htwt, '—')
@@ -167,23 +167,23 @@ void test('blanks render as dashes: height, weight, hand, unknown tier', () => {
 })
 
 void test('height, weight and hand formats', () => {
-  const tile = buildLockerView(
+  const tile = toBuildLockerView(
     data([build({ heightText: `6'0"`, weightLbs: 160, handedness: 'SHOOTS RIGHT' })]),
   ).tiles[0]
   assert.ok(tile)
   assert.equal(tile.htwt, `6'0" · 160 lb`)
   assert.equal(tile.hand, 'Right')
-  assert.equal(buildLockerView(data([build({ handedness: 'L' })])).tiles[0]?.hand, 'Left')
-  assert.equal(buildLockerView(data([build({ heightText: `5'9"` })])).tiles[0]?.htwt, `5'9"`)
+  assert.equal(toBuildLockerView(data([build({ handedness: 'L' })])).tiles[0]?.hand, 'Left')
+  assert.equal(toBuildLockerView(data([build({ heightText: `5'9"` })])).tiles[0]?.htwt, `5'9"`)
 })
 
 void test('record with DNF already folded into losses, OTL last', () => {
-  const tile = buildLockerView(data([build({ gp: 9, wins: 5, losses: 3, otl: 1 })])).tiles[0]
+  const tile = toBuildLockerView(data([build({ gp: 9, wins: 5, losses: 3, otl: 1 })])).tiles[0]
   assert.equal(tile?.record, '5–3–1')
 })
 
 void test('X-factor abbreviations follow the design (initials, at most 2)', () => {
-  const tile = buildLockerView(
+  const tile = toBuildLockerView(
     data([
       build({
         xFactors: [
@@ -201,7 +201,7 @@ void test('X-factor abbreviations follow the design (initials, at most 2)', () =
 })
 
 void test('archetype names: reference-player prefix dropped; initials for the fallback pill', () => {
-  const v = buildLockerView(
+  const v = toBuildLockerView(
     data([
       build({ archetype: 'Two-Way Defenseman' }),
       build({ archetype: 'Connor Mcdavid - Playmaker' }),

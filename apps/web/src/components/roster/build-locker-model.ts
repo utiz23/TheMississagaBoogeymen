@@ -195,7 +195,7 @@ function detail(b: PlayerBuild, prev: PlayerBuild | null, when: string): BuildDe
   }
 }
 
-export function buildLockerView(
+export function toBuildLockerView(
   data: PlayerBuilds,
   timeZone = BUILD_LOCKER_TIME_ZONE,
 ): BuildLockerView {
