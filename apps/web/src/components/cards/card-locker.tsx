@@ -135,7 +135,8 @@ export function CardLocker({
             </button>
           ))}
         </div>
-        <div className="clk-body">
+        {/* Keyed by tab: each tab opens scrolled to its top (one shared scroller otherwise keeps the old offset). */}
+        <div className="clk-body" key={tab}>
           {tab === 'theme' && (
             <LockerThemeTab
               card={card}
