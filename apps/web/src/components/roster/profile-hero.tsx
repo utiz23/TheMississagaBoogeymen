@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import type { CSSProperties, ReactNode } from 'react'
 import type {
   PlayerProfileOverview,
@@ -9,9 +8,8 @@ import type {
 import type { GameMode, PlayerArchetype } from '@eanhl/db'
 import { PLAYER_ARCHETYPES } from '@eanhl/db'
 import { NationalityFlag, PlatformIcon } from '@/components/player-meta-icons'
-import { PortraitCard } from '@/components/roster/portrait-card'
 import { ArchetypePillFlagship } from '@/components/ui/archetype-pill'
-import { formatPosition, formatPositionFull } from '@/lib/format'
+import { formatPositionFull } from '@/lib/format'
 import { formatCareerTitleRange } from '@/lib/title-resolver'
 import './profile-hero.css'
 
@@ -93,11 +91,8 @@ interface Props {
   hasSkaterData: boolean
   hasGoalieData: boolean
   gameMode: GameMode | null
-  /**
-   * Replaces the portrait card in the left column. Unset on the live page, which
-   * keeps the built-in portrait; the player-card preview passes the new card.
-   */
-  portrait?: ReactNode
+  /** The left column: the player card with its EDIT button (spec D9). */
+  portrait: ReactNode
 }
 
 export function ProfileHero({
@@ -118,7 +113,6 @@ export function ProfileHero({
 
   const displayPosition =
     player.preferredPosition ?? currentEaSeason?.favoritePosition ?? player.position
-  const positionTag = displayPosition ? formatPosition(displayPosition) : null
   const positionFull = displayPosition ? formatPositionFull(displayPosition) : null
   const positionColor = colorForPosition(displayPosition)
 
@@ -158,10 +152,6 @@ export function ProfileHero({
   const jerseyForId =
     player.jerseyNumber !== null ? player.jerseyNumber.toString().padStart(4, '0') : null
 
-  // Portrait card mini-stats (skater shows G/A/PTS/.PG; goalie shows GP/W/SV%/GAA)
-  const portraitStats = buildPortraitStats(currentEaSeason, selectedRole)
-  const portraitRecord = buildPortraitRecord(currentEaSeason, selectedRole)
-
   // Last 10 games — filtered by role, aggregated from trendGames
   const last10 = aggregateLast10(overview.trendGames, selectedRole)
 
@@ -174,90 +164,7 @@ export function ProfileHero({
 
         <div className="ph-body">
           {/* ── Col 1 — Portrait Monolith ────────────────────────────── */}
-          <div className="ph-col-portrait">
-            {portrait ?? (
-              <PortraitCard>
-                <div className="ph-pc-jersey">
-                  <span className="num">
-                    {player.jerseyNumber !== null ? player.jerseyNumber.toString() : '—'}
-                  </span>
-                  {positionTag !== null && (
-                    <span
-                      className="pos-pill"
-                      style={
-                        {
-                          borderColor: `color-mix(in srgb, ${positionColor} 40%, transparent)`,
-                          background: `color-mix(in srgb, ${positionColor} 10%, transparent)`,
-                          color: positionColor,
-                        } as CSSProperties
-                      }
-                    >
-                      {positionTag}
-                    </span>
-                  )}
-                  {portraitRecord && (
-                    <>
-                      <span className="rec">{portraitRecord.rec}</span>
-                      <span className="pct">{portraitRecord.pct}</span>
-                    </>
-                  )}
-                </div>
-
-                <div className="ph-pc-portrait">
-                  <svg
-                    className="silh"
-                    viewBox="0 0 100 110"
-                    fill="currentColor"
-                    preserveAspectRatio="xMidYMax meet"
-                    aria-hidden
-                  >
-                    <circle cx="50" cy="32" r="21" />
-                    <path d="M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z" />
-                  </svg>
-                  <div className="scan" />
-                </div>
-
-                <div className="ph-pc-name">
-                  <span className="ph-pc-platform" aria-hidden>
-                    <PlatformIcon platform={currentEaSeason?.clientPlatform ?? null} />
-                  </span>
-                  <span className="gamertag" title={displayName}>
-                    {displayName}
-                  </span>
-                </div>
-
-                <div className="ph-pc-stats">
-                  {portraitStats.map((s) => (
-                    <div key={s.label} className={`s ${s.lead === true ? 'lead' : ''}`.trim()}>
-                      <span className="l">{s.label}</span>
-                      <span className="v">{s.value}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="ph-pc-identity">
-                  <div className="cell">
-                    {player.nationality !== null ? (
-                      <span className="ph-flag-2x">
-                        <NationalityFlag code={player.nationality} />
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="cell">
-                    <Image
-                      src="/images/bgm-logo.png"
-                      alt="BGM"
-                      width={56}
-                      height={56}
-                      className="opacity-90"
-                      style={{ width: 56, height: 56, objectFit: 'contain' }}
-                    />
-                  </div>
-                  <div className="cell" aria-hidden />
-                </div>
-              </PortraitCard>
-            )}
-          </div>
+          <div className="ph-col-portrait">{portrait}</div>
 
           {/* ── Col 2 — Identity ─────────────────────────────────────── */}
           <div className="ph-col-id">
@@ -658,69 +565,6 @@ function Stat({
       <span className={`v ${valueClass}`.trim()}>{value}</span>
     </div>
   )
-}
-
-// ─── Portrait card data builders ────────────────────────────────────────────
-
-interface PortraitStat {
-  label: string
-  value: string
-  lead?: boolean
-}
-
-function buildPortraitStats(
-  season: PlayerProfileOverview['currentEaSeason'],
-  role: 'skater' | 'goalie',
-): PortraitStat[] {
-  if (season === null) {
-    if (role === 'goalie') {
-      return [
-        { label: 'GP', value: '—' },
-        { label: 'W', value: '—' },
-        { label: 'SO', value: '—' },
-        { label: 'SV%', value: '—' },
-      ]
-    }
-    return [
-      { label: 'GP', value: '—' },
-      { label: 'G', value: '—' },
-      { label: 'A', value: '—' },
-      { label: 'PTS', value: '—', lead: true },
-    ]
-  }
-  if (role === 'skater') {
-    return [
-      { label: 'GP', value: season.skaterGp.toString() },
-      { label: 'G', value: season.goals.toString() },
-      { label: 'A', value: season.assists.toString() },
-      { label: 'PTS', value: season.points.toString(), lead: true },
-    ]
-  }
-  // goalie — no `lead` (keeps SV% at default 22px so "92.30" fits the cell)
-  return [
-    { label: 'GP', value: season.goalieGp.toString() },
-    { label: 'W', value: (season.goalieWins ?? 0).toString() },
-    { label: 'SO', value: (season.goalieShutouts ?? 0).toString() },
-    {
-      label: 'SV%',
-      value: season.goalieSavePct ?? '—',
-    },
-  ]
-}
-
-function buildPortraitRecord(
-  season: PlayerProfileOverview['currentEaSeason'],
-  role: 'skater' | 'goalie',
-): { rec: string; pct: string } | null {
-  if (season === null) return null
-  if (role === 'skater') {
-    if (season.skaterGp === 0) return null
-    const rec = `${season.skaterWins.toString()}-${season.skaterLosses.toString()}-${season.skaterOtl.toString()}`
-    return { rec, pct: `${season.skaterWinPct.toString()}% Win` }
-  }
-  if (season.goalieGp === 0) return null
-  const rec = `${(season.goalieWins ?? 0).toString()}-${(season.goalieLosses ?? 0).toString()}-${(season.goalieOtl ?? 0).toString()}`
-  return { rec, pct: season.goalieSavePct !== null ? `${season.goalieSavePct}% SV` : '— SV' }
 }
 
 // ─── Last-10-games aggregate ────────────────────────────────────────────────
