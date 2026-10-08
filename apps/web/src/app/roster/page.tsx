@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
   getEARoster,
+  getRosterCarryOvers,
   getSkaterStats,
   getGoalieStats,
   getEASkaterStats,
@@ -114,7 +115,8 @@ function buildMemberStats(eaRows: RosterRow[], eligRows: EligRow[]): MemberData[
       totalFwdGames,
       isForwardCapable: totalFwdGames > 0,
       isDefenseCapable: defGames > 0,
-      isGoalieCapable: ea.goalieGp > 0,
+      // A carried-over goalie has 0 goalie GP this title; their position still counts.
+      isGoalieCapable: ea.goalieGp > 0 || ea.favoritePosition === 'goalie',
       isDefensePrimary: defGames > totalFwdGames,
       isGoaliePrimary: ea.favoritePosition === 'goalie' || ea.goalieGp > ea.skaterGp,
     }
@@ -198,19 +200,24 @@ function laneFitScore(m: MemberData, lane: ForwardPos): number {
   return score
 }
 
+// Members with no games this title (carried over from the last one) fill the
+// slots left after everyone who is playing.
+const NO_GAMES_PENALTY = -3000
+const noGames = (m: MemberData) => (m.eaRow.gamesPlayed === 0 ? NO_GAMES_PENALTY : 0)
+
 function fwdPhase1Score(m: MemberData, lane: ForwardPos): number {
-  return laneFitScore(m, lane) + FWD_ROLE_PENALTY[classifyRole(m)]
+  return laneFitScore(m, lane) + FWD_ROLE_PENALTY[classifyRole(m)] + noGames(m)
 }
 
 function fwdEffectiveScore(m: MemberData, lane: ForwardPos): number {
-  let score = laneFitScore(m, lane)
+  let score = laneFitScore(m, lane) + noGames(m)
   if (m.isGoaliePrimary) score -= 2000
   else if (m.isDefensePrimary) score -= 1000
   return score
 }
 
 function defEffectiveScore(m: MemberData): number {
-  let score = m.defGames * 100 + 10
+  let score = m.defGames * 100 + 10 + noGames(m)
   if (m.isGoaliePrimary) score -= 2000
   return score
 }
@@ -272,6 +279,11 @@ function pickBest(
 function buildChart(eaRows: RosterRow[], eligRows: EligRow[]): DepthChartProps {
   const members = buildMemberStats(eaRows, eligRows)
   const memberById = new Map(members.map((m) => [m.eaRow.playerId, m]))
+  // A goalie with no skater games this title (e.g. carried over from the last
+  // title) only appears in the goalie column, never in a skater slot.
+  const skaters = members.filter(
+    (m) => !(m.isGoaliePrimary && m.eaRow.skaterGp === 0 && m.totalFwdGames + m.defGames === 0),
+  )
 
   // Goalies — independent of skater chart. No empty padding — render only real goalies.
   const goalieSlots: (RosterRow | null)[] = members
@@ -295,7 +307,7 @@ function buildChart(eaRows: RosterRow[], eligRows: EligRow[]): DepthChartProps {
   for (let line = 0; line < 4; line++) {
     for (const lane of FORWARD_POSITIONS) {
       if (fwdSlots[lane].length >= 4) continue
-      const best = pickBest(members, fwdPlaced, (m) => fwdPhase1Score(m, lane))
+      const best = pickBest(skaters, fwdPlaced, (m) => fwdPhase1Score(m, lane))
       if (best !== null) {
         fwdSlots[lane].push(best.eaRow)
         fwdPlaced.add(best.eaRow.playerId)
@@ -309,7 +321,7 @@ function buildChart(eaRows: RosterRow[], eligRows: EligRow[]): DepthChartProps {
   const fwdReused = new Set<number>()
   for (const lane of FORWARD_POSITIONS) {
     while (fwdSlots[lane].length < 4) {
-      const best = pickBest(members, fwdReused, (m) => fwdEffectiveScore(m, lane))
+      const best = pickBest(skaters, fwdReused, (m) => fwdEffectiveScore(m, lane))
       if (best === null) {
         fwdSlots[lane].push(null)
         break
@@ -356,7 +368,7 @@ function buildChart(eaRows: RosterRow[], eligRows: EligRow[]): DepthChartProps {
   }
 
   if (defSlots.length < 6) {
-    const defReuse = members
+    const defReuse = skaters
       .filter((m) => !defPlaced.has(m.eaRow.playerId))
       .sort((a, b) => defEffectiveScore(b) - defEffectiveScore(a))
     for (const m of defReuse) {
@@ -493,7 +505,11 @@ async function ActiveRoster({
 
   // ─── Ledger + depth chart (need the roster rows) ───────────────────────────
 
-  const builtChart = sections.depthChart === 'ready' ? buildChart(eaRows, eligibilityRows) : null
+  // Last title's members who haven't played this title yet join the chart
+  // (zero games, previous position). A failure only leaves them out.
+  const carryOvers = await settle('getRosterCarryOvers', () => getRosterCarryOvers(gameTitle.id))
+  const chartRows: RosterRow[] = [...eaRows, ...(carryOvers.status === 'ok' ? carryOvers.data : [])]
+  const builtChart = sections.depthChart === 'ready' ? buildChart(chartRows, eligibilityRows) : null
   // Card tier/theme/featured badge for every charted player, in one query; a
   // failure only drops the progression (every card then shows tier 1). Each
   // title is its own season: this title's cards, or each player's newest card
@@ -504,7 +520,7 @@ async function ActiveRoster({
     builtChart === null
       ? new Map<number, never>()
       : await getCardProgressForPlayers(
-          eaRows.map((r) => r.playerId),
+          chartRows.map((r) => r.playerId),
           cardTitleId,
         ).catch(() => new Map<number, never>())
   const withCard = (slot: DepthSlot | null): DepthSlot | null =>

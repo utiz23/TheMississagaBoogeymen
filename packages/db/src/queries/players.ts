@@ -223,7 +223,7 @@ export async function getRoster(gameTitleId: number, gameMode: GameMode | null =
  *
  * Ordered by points desc (most scoring first).
  */
-export async function getEARoster(gameTitleId: number) {
+function eaRosterSelect() {
   return db
     .select({
       playerId: eaMemberSeasonStats.playerId,
@@ -277,8 +277,77 @@ export async function getEARoster(gameTitleId: number) {
       ),
     )
     .leftJoin(playerProfiles, eq(players.id, playerProfiles.playerId))
+}
+
+export async function getEARoster(gameTitleId: number) {
+  return eaRosterSelect()
     .where(eq(eaMemberSeasonStats.gameTitleId, gameTitleId))
     .orderBy(desc(eaMemberSeasonStats.points))
+}
+
+/**
+ * Carried-over members: players on the previous title's EA roster (by
+ * release_order) who have not played this title yet. Shaped like getEARoster
+ * rows with this season's stats zeroed; position, profile and platform come
+ * from their previous title, so the depth chart can still place them.
+ * Operator, 2026-10-08: the depth chart and card carousel include them.
+ */
+export async function getRosterCarryOvers(gameTitleId: number) {
+  const [current] = await db
+    .select({ releaseOrder: gameTitles.releaseOrder })
+    .from(gameTitles)
+    .where(eq(gameTitles.id, gameTitleId))
+  if (current?.releaseOrder === null || current?.releaseOrder === undefined) return []
+  const [previous] = await db
+    .select({ id: gameTitles.id })
+    .from(gameTitles)
+    .where(lt(gameTitles.releaseOrder, current.releaseOrder))
+    .orderBy(desc(gameTitles.releaseOrder))
+    .limit(1)
+  if (previous === undefined) return []
+  const [prevRows, currentIds] = await Promise.all([
+    eaRosterSelect().where(eq(eaMemberSeasonStats.gameTitleId, previous.id)),
+    db
+      .select({ playerId: eaMemberSeasonStats.playerId })
+      .from(eaMemberSeasonStats)
+      .where(eq(eaMemberSeasonStats.gameTitleId, gameTitleId)),
+  ])
+  const playing = new Set(currentIds.map((r) => r.playerId))
+  return prevRows
+    .filter((r) => !playing.has(r.playerId))
+    .sort((a, b) => b.gamesPlayed - a.gamesPlayed || a.gamertag.localeCompare(b.gamertag))
+    .map((r) => ({
+      ...r,
+      gamesPlayed: 0,
+      skaterGp: 0,
+      goalieGp: 0,
+      goals: 0,
+      assists: 0,
+      points: 0,
+      plusMinus: 0,
+      shots: 0,
+      hits: 0,
+      pim: 0,
+      takeaways: 0,
+      giveaways: 0,
+      faceoffPct: null,
+      passPct: null,
+      wins: null,
+      losses: null,
+      otl: null,
+      skaterWins: 0,
+      skaterLosses: 0,
+      skaterOtl: 0,
+      goalieWins: null,
+      goalieLosses: null,
+      goalieOtl: null,
+      savePct: null,
+      gaa: null,
+      shutouts: null,
+      goalieSaves: null,
+      goalieShots: null,
+      goalieGoalsAgainst: null,
+    }))
 }
 
 /**

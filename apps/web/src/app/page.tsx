@@ -10,6 +10,7 @@ import {
   getMatchFaceoffTotals,
   getRoster,
   getEARoster,
+  getRosterCarryOvers,
   getCardProgressForPlayers,
   getHistoricalClubTeamStatsBatch,
 } from '@eanhl/db/queries'
@@ -144,7 +145,10 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     lastMatchFaceoffs = await getMatchFaceoffTotals(lastMatch.id)
   }
 
-  const featuredPlayers = selectFeaturedPlayers(roster)
+  // The carousel also carries last title's members who haven't played this
+  // title yet (zero games, sorted last). A failure only leaves them out.
+  const carryOvers = await getRosterCarryOvers(gameTitle.id).catch(() => [])
+  const featuredPlayers = selectFeaturedPlayers([...roster, ...carryOvers])
   // Player cards (tier, theme, featured badge). A failure only drops the
   // progression: every card then shows tier 1, as for a player not yet computed.
   const cardSummaries = await getCardProgressForPlayers(
