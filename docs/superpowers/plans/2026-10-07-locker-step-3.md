@@ -2341,3 +2341,29 @@ Append an "Execution record (date)" section to this plan (commits, test counts, 
 - [ ] **Step 5: Report to the operator**
 
 Links (`/preview/roster/3`, `/preview/roster/12?role=goalie`), the 10 prototype/spec deviations from Context for approval, and the next choice: Build Locker v2 (step 4) or the Action Map (step 5).
+
+## Execution record (2026-10-07)
+
+Executed inline (Native) on `feat/player-cards`; one fresh reviewer (opus) at the end.
+
+**Commits:** `1fb54d7` plan · `4e4b45c` created_at (db) · `c09ed7e` locker view model · `5bdf68a` swatch thumbnails · `c832917` EDIT + Theme tab · `8045971` Progress tab · `47aed42` review fix.
+
+**Verification:** db tests 111/111; web unit 362/362 (locker-model 10/10, card-assets 5/5, card-style green); typecheck db/worker/web, isolated eslint and prettier green; no live file changed (`git diff --stat d62d856..HEAD` over roster/home is empty). Migration 0060 (with `created_at`) re-applied to `eanhl_preview`; a recompute kept `created_at` on 89/89 rows. Playwright at 1280 and 390 px: every Review Focus item passed (focus on ×, Tab trap 0/30 escapes, Esc returns focus to EDIT and restores scroll, scrim closes, only `thumb-*.webp` load on open, mythic files load only when browsed, reduced motion → no video/animations, goalie #12 uses goalie families, T5 "AWARDED", T6 "MAX TIER", empty history "History starts Oct 7, 2026."). Sample history events were inserted into `eanhl_preview` for the check and deleted afterwards (0 left).
+
+**Rulings:**
+
+- Task 2: dropped the plan's `as StatsTier` casts and two optional chains in the test (eslint: TS already narrows) — behaviour identical.
+- Task 3: `make-card-thumbs.sh` runs ffmpeg with `-nostdin`; inside the `while read` loop ffmpeg ate the here-doc and truncated names. Misnamed files deleted and rebuilt.
+- Task 4: focus follows the selected swatch when ←/→ are pressed while a swatch has focus (the ring was stranded on the old swatch).
+- Task 5: the phone CSS block (de-indented by prettier inside the plan) was re-indented into the media query.
+- Final: ten reviewer "declined to judge" items stand as built (year-less history dates, README grey tokens, two-tier jump names one theme, "Never goes down" wording, `100dvh`, nav-drawer scroll lock quirks, sticky hover on iOS, Edmonton zone, landscape phones, pool that set the tier).
+
+**Review:** "With fixes" — 0 Critical, 1 Important (fixed: switching tabs kept the scroll offset, so Progress opened mid-way on phones; reproduced at 390×664, fixed with `key={tab}` on the scroller), 5 Minor deferred:
+
+- the hero card keeps animating behind the scrim (doubles mythic effects for T6 players; decide with the Storm phone pass);
+- the keyboard focus ring is clipped on the first/last swatch;
+- on short phones (≈664 px tall) the theme name and requirement start below the fold;
+- ←/→ also swallow Alt/Cmd+← (browser back) while the locker is open;
+- tabs use `aria-pressed` instead of `role="tab"`; EDIT's accessible name is just "EDIT".
+
+**For the switch:** load `CardLocker` with `next/dynamic` on first open and measure player-page transfer size; check once on live a member with no standing yet and the first awarded mythic (the preview data has neither).
