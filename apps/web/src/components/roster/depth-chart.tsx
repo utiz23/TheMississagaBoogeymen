@@ -1,5 +1,6 @@
 import type { getEARoster } from '@eanhl/db/queries'
-import { PlayerCard } from '@/components/home/player-card'
+import { PlayerCard } from '@/components/cards/player-card'
+import { cardFromRosterRow, type CardSummaryInput } from '@/components/cards/card-adapters'
 import './depth-chart.css'
 
 type RosterRow = Awaited<ReturnType<typeof getEARoster>>[number]
@@ -12,6 +13,8 @@ type RosterRow = Awaited<ReturnType<typeof getEARoster>>[number]
 export interface DepthSlot {
   player: RosterRow
   isDepth: boolean
+  /** Card tier/theme/featured badge; absent = tier 1 (not computed yet). */
+  card?: CardSummaryInput | undefined
 }
 
 export interface DepthChartProps {
@@ -213,7 +216,16 @@ function RowRail({ label, num }: { label: string; num: string }) {
 
 function SlotCell({ slot, positionLabel }: { slot: DepthSlot | null; positionLabel: string }) {
   if (slot === null) return <OpenSlot positionLabel={positionLabel} />
-  return <PlayerCard player={slot.player} depth={slot.isDepth} />
+  return (
+    <div className="dc-card">
+      <PlayerCard
+        card={cardFromRosterRow(slot.player, slot.card)}
+        context="list"
+        href={`/roster/${String(slot.player.playerId)}`}
+      />
+      {slot.isDepth ? <span className="dc-depth-pill">DEPTH</span> : null}
+    </div>
+  )
 }
 
 function OpenSlot({ positionLabel }: { positionLabel: string }) {

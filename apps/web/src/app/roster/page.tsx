@@ -24,6 +24,7 @@ import {
   getRecentMatches,
   getPlayerGameLog,
   getPlayersStatsMeta,
+  getCardProgressForPlayers,
 } from '@eanhl/db/queries'
 import type { GoalieStatsRow, SkaterStatsRow } from '@eanhl/db/queries'
 import { DepthChart } from '@/components/roster/depth-chart'
@@ -491,7 +492,30 @@ async function ActiveRoster({
 
   // ─── Ledger + depth chart (need the roster rows) ───────────────────────────
 
-  const chart = sections.depthChart === 'ready' ? buildChart(eaRows, eligibilityRows) : null
+  const builtChart = sections.depthChart === 'ready' ? buildChart(eaRows, eligibilityRows) : null
+  // Card tier/theme/featured badge for every charted player, in one query; a
+  // failure only drops the progression (every card then shows tier 1).
+  const cardSummaries =
+    builtChart === null
+      ? new Map<number, never>()
+      : await getCardProgressForPlayers(eaRows.map((r) => r.playerId)).catch(
+          () => new Map<number, never>(),
+        )
+  const withCard = (slot: DepthSlot | null): DepthSlot | null =>
+    slot === null ? null : { ...slot, card: cardSummaries.get(slot.player.playerId) }
+  const chart: DepthChartProps | null =
+    builtChart === null
+      ? null
+      : {
+          ...builtChart,
+          forwards: builtChart.forwards.map((l) => ({
+            lw: withCard(l.lw),
+            c: withCard(l.c),
+            rw: withCard(l.rw),
+          })),
+          defense: builtChart.defense.map((p) => ({ ld: withCard(p.ld), rd: withCard(p.rd) })),
+          goalies: builtChart.goalies.map(withCard),
+        }
 
   let ledger: React.ReactNode = null
   let allTimeRecord: Awaited<ReturnType<typeof getAllTimeTeamRecord>> | null = null
