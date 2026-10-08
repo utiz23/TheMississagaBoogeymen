@@ -34,6 +34,8 @@ import { CareerShotMap } from '@/components/roster/career-shot-map'
 import { Panel } from '@/components/ui/panel'
 import { PlayerBadges } from '@/components/badges/player-badges'
 import { PlayerCard } from '@/components/cards/player-card'
+import { HeroCard } from '@/components/cards/hero-card'
+import { buildLockerView } from '@/components/cards/locker-model'
 import { cardFromProfile, cardFromRosterRow } from '@/components/cards/card-adapters'
 import type { CardViewModel } from '@/components/cards/card-model'
 import { CardGallery } from '../../_cards/card-gallery'
@@ -216,6 +218,18 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
     cardParams,
   )
 
+  // Locker (spec Part 3): built here so its dates format once, on the server.
+  const lockerView = buildLockerView({
+    name: heroCard.front.name,
+    tier: heroCard.front.tier,
+    level: heroCard.front.level,
+    equipped: heroCard.front.theme,
+    pool: cardProgress?.standing?.pool ?? null,
+    badges: cardProgress?.badges ?? [],
+    events: cardProgress?.events ?? [],
+    trackedSince: cardProgress?.standing?.trackedSince ?? null,
+  })
+
   // Trend: role-filtered, oldest first, max 15
   const trendGames = [...overview.trendGames]
     .filter((g) => g.isGoalie === (selectedRole === 'goalie'))
@@ -240,11 +254,7 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
         hasSkaterData={hasSkaterData}
         hasGoalieData={hasGoalieData}
         gameMode={gameMode}
-        portrait={
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <PlayerCard card={heroCard} context="hero" initialFace={cardParams.face} />
-          </div>
-        }
+        portrait={<HeroCard card={heroCard} locker={lockerView} initialFace={cardParams.face} />}
       />
 
       {cardParams.gallery && (
