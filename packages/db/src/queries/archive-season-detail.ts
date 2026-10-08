@@ -50,8 +50,8 @@ export const ARCHIVE_GOALIE_KEYS = {
   minutesPlayed: 'minutes_played',
 } as const
 
-export type ArchiveSkaterDetail = { [K in keyof typeof ARCHIVE_SKATER_KEYS]: number | null }
-export type ArchiveGoalieDetail = { [K in keyof typeof ARCHIVE_GOALIE_KEYS]: number | null }
+export type ArchiveSkaterDetail = { -readonly [K in keyof typeof ARCHIVE_SKATER_KEYS]: number | null }
+export type ArchiveGoalieDetail = { -readonly [K in keyof typeof ARCHIVE_GOALIE_KEYS]: number | null }
 
 export interface ArchiveSeasonDetail {
   gameTitleId: number
@@ -124,4 +124,14 @@ export function summarizeArchiveDetail(
       goalie: goalieRows.length > 0 ? sumRows(goalieRows, ARCHIVE_GOALIE_KEYS) : null,
     }
   })
+}
+
+/** Skater detail summed over any set of archive rows (complete-or-null per field). */
+export function sumArchiveSkaterDetail(
+  rows: readonly Pick<ArchiveDetailSourceRow, 'statsJson'>[],
+): ArchiveSkaterDetail {
+  return sumRows(
+    rows.map((r) => ({ gameTitleId: 0, roleGroup: 'skater', statsJson: r.statsJson })),
+    ARCHIVE_SKATER_KEYS,
+  )
 }
