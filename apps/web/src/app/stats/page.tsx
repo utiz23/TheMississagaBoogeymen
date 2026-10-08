@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
   getClubStats,
+  getPositionSkaterStats,
+  getAllTimePositionSkaterStats,
   getRecentMatches,
   getSkaterStats,
   getGoalieStats,
@@ -44,6 +46,7 @@ import { ChemistrySection } from '@/components/stats/chemistry-section'
 import { PairWinMatrix } from '@/components/stats/pair-win-matrix'
 import { TeamHistoryTable, TeamHistoryUnavailable } from '@/components/stats/team-history-table'
 import { CareerStatsSection } from '@/components/stats/career-stats-section'
+import type { PositionData } from '@/components/stats/stats-table/position-adapters'
 import { TitleSelector, ModeFilter, EmptyState } from '@/components/title-selector'
 import { resolveTitleFromSlug } from '@/lib/title-resolver'
 import { archiveRowToTeamHistoryInput, loadTeamHistory } from '@/lib/team-history'
@@ -155,16 +158,24 @@ async function ActiveStats({
   // failing query never blanks the whole page or the other table. A failure
   // renders that table's own "unavailable" state (via `state`/
   // `allTimeUnavailable`), never a false empty/zero result.
-  const [skaters, goalies, allTimeSkaters, allTimeGoalies] = await Promise.all([
-    settle('current skater stats', () =>
-      gameMode === null ? getEASkaterStats(gameTitle.id) : getSkaterStats(gameTitle.id, gameMode),
-    ),
-    settle('current goalie stats', () =>
-      gameMode === null ? getEAGoalieStats(gameTitle.id) : getGoalieStats(gameTitle.id, gameMode),
-    ),
-    settle('all-time skater stats', () => getAllTimeSkaterStats()),
-    settle('all-time goalie stats', () => getAllTimeGoalieStats()),
-  ])
+  const [skaters, goalies, allTimeSkaters, allTimeGoalies, positionSkaters, allTimePositions] =
+    await Promise.all([
+      settle('current skater stats', () =>
+        gameMode === null ? getEASkaterStats(gameTitle.id) : getSkaterStats(gameTitle.id, gameMode),
+      ),
+      settle('current goalie stats', () =>
+        gameMode === null ? getEAGoalieStats(gameTitle.id) : getGoalieStats(gameTitle.id, gameMode),
+      ),
+      settle('all-time skater stats', () => getAllTimeSkaterStats()),
+      settle('all-time goalie stats', () => getAllTimeGoalieStats()),
+      // Position pills: a failure only disables them, never the base table.
+      settle('position skater stats', () => getPositionSkaterStats(gameTitle.id, gameMode)),
+      settle('all-time position skater stats', () => getAllTimePositionSkaterStats()),
+    ])
+  const positions: PositionData = {
+    current: positionSkaters.status === 'ok' ? positionSkaters.data : 'error',
+    allTime: allTimePositions.status === 'ok' ? allTimePositions.data : 'error',
+  }
   const skaterRows = rowsOrEmpty(skaters)
   const goalieRows = rowsOrEmpty(goalies)
   const allTimeSkaterRows = rowsOrEmpty(allTimeSkaters)
@@ -316,6 +327,7 @@ async function ActiveStats({
             playerMeta={playerMeta}
             state={skaters.status}
             emptyMessage={`No ${emptyModeLabel}skater stats recorded yet.`}
+            positions={positions}
           />
           <GoalieStatsTable
             rows={goalieRows}
@@ -388,29 +400,38 @@ async function ArchiveStats({
   // Five archive queries settle independently: a failed one shows its own
   // table's unavailable state (or, for club/team, an explicit "unavailable"
   // message) while every other successfully loaded section stays visible.
-  const [clubSkaters, clubGoalies, cardSkaters, cardGoalies, teamRowsResult] = await Promise.all([
-    settle('archive club-member skaters', () =>
-      gameMode === null
-        ? getClubMemberSkaterStatsAllModes(gameTitle.id)
-        : getClubMemberSkaterStats(gameTitle.id, gameMode),
-    ),
-    settle('archive club-member goalies', () =>
-      gameMode === null
-        ? getClubMemberGoalieStatsAllModes(gameTitle.id)
-        : getClubMemberGoalieStats(gameTitle.id, gameMode),
-    ),
-    settle('archive player-card skaters', () =>
-      gameMode === null
-        ? getHistoricalSkaterStatsAllModes(gameTitle.id)
-        : getHistoricalSkaterStats(gameTitle.id, gameMode),
-    ),
-    settle('archive player-card goalies', () =>
-      gameMode === null
-        ? getHistoricalGoalieStatsAllModes(gameTitle.id)
-        : getHistoricalGoalieStats(gameTitle.id, gameMode),
-    ),
-    settle('archive club/team rows', () => getHistoricalClubTeamStats(gameTitle.id, gameMode)),
-  ])
+  const [clubSkaters, clubGoalies, cardSkaters, cardGoalies, teamRowsResult, positionSkaters] =
+    await Promise.all([
+      settle('archive club-member skaters', () =>
+        gameMode === null
+          ? getClubMemberSkaterStatsAllModes(gameTitle.id)
+          : getClubMemberSkaterStats(gameTitle.id, gameMode),
+      ),
+      settle('archive club-member goalies', () =>
+        gameMode === null
+          ? getClubMemberGoalieStatsAllModes(gameTitle.id)
+          : getClubMemberGoalieStats(gameTitle.id, gameMode),
+      ),
+      settle('archive player-card skaters', () =>
+        gameMode === null
+          ? getHistoricalSkaterStatsAllModes(gameTitle.id)
+          : getHistoricalSkaterStats(gameTitle.id, gameMode),
+      ),
+      settle('archive player-card goalies', () =>
+        gameMode === null
+          ? getHistoricalGoalieStatsAllModes(gameTitle.id)
+          : getHistoricalGoalieStats(gameTitle.id, gameMode),
+      ),
+      settle('archive club/team rows', () => getHistoricalClubTeamStats(gameTitle.id, gameMode)),
+      // Position pills (player-card screenshots, also offered on the club tab).
+      settle('archive position skaters', () => getPositionSkaterStats(gameTitle.id, gameMode)),
+    ])
+  const positions: PositionData = {
+    current: positionSkaters.status === 'ok' ? positionSkaters.data : 'error',
+  }
+  const hasPositionRows =
+    positionSkaters.status === 'ok' &&
+    Object.values(positionSkaters.data.positions).some((p) => 'rows' in p && p.rows.length > 0)
 
   const clubSkatersP = resolveTablePresentation(clubSkaters)
   const clubGoaliesP = resolveTablePresentation(clubGoalies)
@@ -463,11 +484,13 @@ async function ArchiveStats({
         titleName={gameTitle.name}
         clubScoped={
           <>
-            {clubSkatersP.kind === 'rows' ? (
+            {clubSkatersP.kind === 'rows' || (clubSkatersP.kind !== 'error' && hasPositionRows) ? (
               <SkaterStatsTable
-                rows={clubSkatersP.rows}
+                rows={clubSkatersP.kind === 'rows' ? clubSkatersP.rows : []}
                 title="Skaters"
                 source={ARCHIVE_CLUB_MEMBER_SOURCE}
+                positions={positions}
+                emptyMessage={`No club-scoped ${modeLabel} skater totals captured for ${gameTitle.name}. Pick a position for player-card totals.`}
               />
             ) : clubSkatersP.kind === 'error' ? (
               <SkaterStatsTable
@@ -503,11 +526,13 @@ async function ArchiveStats({
         }
         playerCard={
           <>
-            {cardSkatersP.kind === 'rows' ? (
+            {cardSkatersP.kind === 'rows' || (cardSkatersP.kind !== 'error' && hasPositionRows) ? (
               <SkaterStatsTable
-                rows={cardSkatersP.rows}
+                rows={cardSkatersP.kind === 'rows' ? cardSkatersP.rows : []}
                 title="Skaters"
                 source={ARCHIVE_PLAYER_CARD_SOURCE}
+                positions={positions}
+                emptyMessage={`No all-skater ${modeLabel} player-card totals for ${gameTitle.name}. Pick a position.`}
               />
             ) : cardSkatersP.kind === 'error' ? (
               <SkaterStatsTable

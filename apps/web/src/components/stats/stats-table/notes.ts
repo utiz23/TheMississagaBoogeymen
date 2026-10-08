@@ -169,7 +169,7 @@ export function gpCoverageAnnotation(
   if (coverage?.state === 'partial') {
     marker += '*'
     parts.push(
-      `Tracked ${String(coverage.coveredGp)} of ${String(coverage.totalGp)} games at this position.`,
+      `Tracked ${coverage.coveredGp.toLocaleString('en-US')} of ${coverage.totalGp.toLocaleString('en-US')} games at this position.`,
     )
   }
   if (wingSplit6sOnly === true) {

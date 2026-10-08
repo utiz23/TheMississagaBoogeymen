@@ -27,6 +27,8 @@ import {
   getPlayerGameLog,
   getPlayersStatsMeta,
   getCardProgressForPlayers,
+  getPositionSkaterStats,
+  getAllTimePositionSkaterStats,
 } from '@eanhl/db/queries'
 import type { GoalieStatsRow, SkaterStatsRow } from '@eanhl/db/queries'
 import { DepthChart } from '@/components/roster/depth-chart'
@@ -35,6 +37,7 @@ import { RosterLedger } from '@/components/roster/roster-ledger'
 import { Panel } from '@/components/ui/panel'
 import type { DepthChartProps, DepthSlot } from '@/components/roster/depth-chart'
 import { SkaterStatsTable } from '@/components/stats/skater-stats-table'
+import type { PositionData } from '@/components/stats/stats-table/position-adapters'
 import { GoalieStatsTable } from '@/components/stats/goalie-stats-table'
 import { TitleSelector, ModeFilter, EmptyState } from '@/components/title-selector'
 import { deriveRosterSections, loadRosterData, settle } from '@/lib/roster-load'
@@ -184,6 +187,17 @@ async function ActiveRoster({
   ])
   const allTimeSkaterRows = allTimeSkaters.status === 'ok' ? allTimeSkaters.data : []
   const allTimeGoalieRows = allTimeGoalies.status === 'ok' ? allTimeGoalies.data : []
+
+  // Per-position rows for the skater table's Position pills. A failure only
+  // disables the pills with a reason; the base table is unaffected.
+  const [positionSkaters, allTimePositionSkaters] = await Promise.all([
+    settle('getPositionSkaterStats', () => getPositionSkaterStats(gameTitle.id, gameMode)),
+    settle('getAllTimePositionSkaterStats', () => getAllTimePositionSkaterStats()),
+  ])
+  const positions: PositionData = {
+    current: positionSkaters.status === 'ok' ? positionSkaters.data : 'error',
+    allTime: allTimePositionSkaters.status === 'ok' ? allTimePositionSkaters.data : 'error',
+  }
 
   // ─── Ledger + depth chart (need the roster rows) ───────────────────────────
 
@@ -397,6 +411,7 @@ async function ActiveRoster({
             ? { expanded: byPlayerId(expandedSkaters.data) }
             : {})}
           expandedFailed={expandedSkaters?.status === 'error'}
+          positions={positions}
         />
       </section>
       <section>
@@ -436,7 +451,9 @@ async function ArchiveRoster({
   // misleading on a roster page; surface them on /stats only.
   // Skater and goalie fetches settle separately: one failing is an error state
   // for that table only, never an empty table.
-  const [skaters, goalies] = await Promise.all([
+  // Position pills switch to player-card screenshots (the club-member import
+  // has no position split); their source badge says so.
+  const [skaters, goalies, positionSkaters] = await Promise.all([
     settle('club-member skater stats', () =>
       gameMode === null
         ? getClubMemberSkaterStatsAllModes(gameTitle.id)
@@ -447,7 +464,14 @@ async function ArchiveRoster({
         ? getClubMemberGoalieStatsAllModes(gameTitle.id)
         : getClubMemberGoalieStats(gameTitle.id, gameMode),
     ),
+    settle('getPositionSkaterStats', () => getPositionSkaterStats(gameTitle.id, gameMode)),
   ])
+  const positions: PositionData = {
+    current: positionSkaters.status === 'ok' ? positionSkaters.data : 'error',
+  }
+  const hasPositionRows =
+    positionSkaters.status === 'ok' &&
+    Object.values(positionSkaters.data.positions).some((p) => 'rows' in p && p.rows.length > 0)
 
   const skaterRows = skaters.status === 'ok' ? skaters.data : []
   const goalieRows = goalies.status === 'ok' ? goalies.data : []
@@ -492,9 +516,15 @@ async function ArchiveRoster({
         <section>
           <SkaterStatsTable rows={[]} title="Skaters" source={ARCHIVE_SOURCE} state="error" />
         </section>
-      ) : skaterRows.length > 0 ? (
+      ) : skaterRows.length > 0 || hasPositionRows ? (
         <section>
-          <SkaterStatsTable rows={skaterRows} title="Skaters" source={ARCHIVE_SOURCE} />
+          <SkaterStatsTable
+            rows={skaterRows}
+            title="Skaters"
+            source={ARCHIVE_SOURCE}
+            positions={positions}
+            emptyMessage={`No club-scoped ${gameMode ?? 'combined'} skater totals captured for ${gameTitle.name}. Pick a position for player-card totals.`}
+          />
         </section>
       ) : (
         <EmptyState
