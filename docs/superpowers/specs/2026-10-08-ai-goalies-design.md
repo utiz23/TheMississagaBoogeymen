@@ -6,12 +6,12 @@ Status: approved by the operator 2026-10-08 ("treat them as you would any other 
 
 When no human BGM goalie plays, EASHL puts its default AI goaltender in net:
 
-| Side | Name           | `players.ai_goalie_side` |
-| ---- | -------------- | ------------------------ |
-| Home | Matteo Lehmann | `home`                   |
-| Away | Jonas Wagner   | `away`                   |
+| Side | Name           | Jersey | `players.ai_goalie_side` |
+| ---- | -------------- | -----: | ------------------------ |
+| Home | Matteo Lehmann |     31 | `home`                   |
+| Away | Jonas Wagner   |      1 | `away`                   |
 
-Migration 0062 adds the column and the two player rows, with profiles (name, preferred position G).
+Migration 0062 adds the column and the two player rows, with profiles (name, jersey number, preferred position G).
 
 ## Which games
 

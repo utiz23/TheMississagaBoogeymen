@@ -50,8 +50,15 @@ INSERT INTO "player_profiles" ("player_id", "player_name", "preferred_position")
 SELECT "id", "gamertag", 'goalie' FROM "players" WHERE "ai_goalie_side" IS NOT NULL
 ON CONFLICT ("player_id") DO NOTHING;
 
+-- Jersey numbers (operator, 2026-10-08): Lehmann #31, Wagner #1. Filled only
+-- while unset, so a later hand edit survives a re-run.
+UPDATE "player_profiles" pp
+SET "jersey_number" = CASE p."ai_goalie_side" WHEN 'home' THEN 31 ELSE 1 END
+FROM "players" p
+WHERE pp."player_id" = p."id" AND p."ai_goalie_side" IS NOT NULL AND pp."jersey_number" IS NULL;
+
 COMMIT;
 
-SELECT p."id", p."gamertag", p."ai_goalie_side", pp."player_name"
+SELECT p."id", p."gamertag", p."ai_goalie_side", pp."player_name", pp."jersey_number"
 FROM "players" p LEFT JOIN "player_profiles" pp ON pp."player_id" = p."id"
 WHERE p."ai_goalie_side" IS NOT NULL ORDER BY p."ai_goalie_side" DESC;
