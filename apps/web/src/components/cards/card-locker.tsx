@@ -6,11 +6,15 @@ import { X } from 'lucide-react'
 import type { CardViewModel } from './card-model'
 import type { LockerView } from './locker-model'
 import { LockerThemeFooter, LockerThemeTab } from './locker-theme-tab'
+import { LockerProgressTab } from './locker-progress-tab'
 import './card-locker.css'
 
 type LockerTab = 'theme' | 'progress'
 
-const TABS: readonly { id: LockerTab; label: string }[] = [{ id: 'theme', label: 'THEME' }]
+const TABS: readonly { id: LockerTab; label: string }[] = [
+  { id: 'theme', label: 'THEME' },
+  { id: 'progress', label: 'PROGRESS' },
+]
 
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -143,6 +147,7 @@ export function CardLocker({
               }}
             />
           )}
+          {tab === 'progress' && <LockerProgressTab card={card} view={view} />}
         </div>
         {tab === 'theme' && <LockerThemeFooter theme={browse} onClose={onClose} />}
       </div>

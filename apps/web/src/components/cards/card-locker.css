@@ -391,6 +391,193 @@
   cursor: not-allowed;
 }
 
+/* ── Progress tab ────────────────────────────────────────────────────── */
+.clk-progress {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 28px;
+  padding: 22px;
+}
+.clk-progress-card {
+  zoom: 0.72;
+}
+.clk-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+.clk-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.clk-spread {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.clk-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  color: #71717a;
+}
+.clk-level {
+  font-size: 22px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #fafafa;
+}
+.clk-level small {
+  font-size: 13px;
+  color: #6e6b6c;
+}
+.clk-count {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #ef6a5e;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.clk-pips {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+}
+.clk-pip {
+  height: 8px;
+  background: #2a2829;
+}
+.clk-pip[data-on='true'] {
+  background: #e84131;
+  box-shadow: 0 0 6px rgba(232, 65, 49, 0.45);
+}
+.clk-row {
+  display: grid;
+  grid-template-columns: 30px 110px minmax(0, 1fr) 54px;
+  gap: 12px;
+  align-items: center;
+}
+.clk-row-badge {
+  display: flex;
+  justify-content: center;
+}
+.clk-row[data-locked='true'] .clk-row-badge {
+  opacity: 0.35;
+  filter: grayscale(1) brightness(0.55);
+}
+.clk-row-name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #d4d4d8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.clk-row-val {
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  color: #a1a1aa;
+  font-variant-numeric: tabular-nums;
+}
+.clk-row[data-done='true'] .clk-row-name {
+  color: #fafafa;
+}
+.clk-row[data-done='true'] .clk-row-val {
+  color: #10b981;
+}
+.clk-row[data-done='true'] .clk-bar > span {
+  background: #10b981;
+}
+.clk-track {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 3px;
+}
+.clk-step {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 8px 7px;
+  border-top: 2px solid #2a2829;
+}
+.clk-step-n {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  color: #52525b;
+}
+.clk-step-label,
+.clk-step-theme {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: #52525b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.clk-step-label {
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+.clk-step-theme {
+  font-weight: 600;
+}
+.clk-step[data-state='done'] {
+  background: #262425;
+  border-top-color: #71717a;
+}
+.clk-step[data-state='done'] .clk-step-n {
+  color: #fafafa;
+}
+.clk-step[data-state='done'] .clk-step-label {
+  color: #a1a1aa;
+}
+.clk-step[data-state='now'] {
+  background: rgba(232, 65, 49, 0.1);
+  border-top-color: #e84131;
+}
+.clk-step[data-state='now'] .clk-step-n {
+  color: #e84131;
+}
+.clk-step[data-state='now'] .clk-step-label {
+  color: #ef6a5e;
+}
+.clk-hist-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.clk-hist {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #2a2829;
+  font-size: 12px;
+}
+.clk-hist-date {
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #52525b;
+  font-variant-numeric: tabular-nums;
+}
+.clk-hist-text {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #d4d4d8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Phones ──────────────────────────────────────────────────────────── */
 @media (max-width: 639px) {
   .clk-overlay {
@@ -423,5 +610,19 @@
     min-width: 0;
     max-width: none;
     flex-basis: 100%;
+  }
+  .clk-progress {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
+  }
+  .clk-progress-card {
+    display: none;
+  }
+  .clk-row {
+    grid-template-columns: 30px 96px minmax(0, 1fr) 54px;
+    gap: 10px;
+  }
+  .clk-track {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
