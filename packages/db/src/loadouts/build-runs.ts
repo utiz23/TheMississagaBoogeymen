@@ -49,12 +49,30 @@ export interface PlayerBuild {
   lastPlayed: Date
 }
 
+/** A full X-factor set: anything shorter is a partly read sheet, so its set is unknown. */
+const XF_SLOTS = 3
+
+const blankToNull = (v: string | null) => (v === null || v.trim() === '' ? null : v)
+
+/** OCR leaves blank strings for unread fields: treat them as unknown. */
+function clean(s: LoadoutSheet): LoadoutSheet {
+  return {
+    ...s,
+    archetype: blankToNull(s.archetype),
+    heightText: blankToNull(s.heightText),
+    handedness: blankToNull(s.handedness),
+    xFactors: s.xFactors.filter((x) => x.name.trim() !== ''),
+  }
+}
+
 const isEmpty = (s: LoadoutSheet) => s.archetype === null && s.xFactors.length === 0
 const xfKey = (s: LoadoutSheet) =>
-  s.xFactors
-    .map((x) => x.name)
-    .sort()
-    .join('|')
+  s.xFactors.length >= XF_SLOTS
+    ? s.xFactors
+        .map((x) => x.name)
+        .sort()
+        .join('|')
+    : null
 
 /** Equal, or either side unknown. */
 const compatible = <T>(a: T | null, b: T | null) => a === null || b === null || a === b
@@ -70,7 +88,8 @@ function newest<T>(sheets: readonly LoadoutSheet[], pick: (s: LoadoutSheet) => T
 
 function toBuild(run: readonly LoadoutSheet[]): PlayerBuild {
   const desc = [...run].reverse()
-  const withXf = desc.find((s) => s.xFactors.length > 0)
+  const withXf =
+    desc.find((s) => s.xFactors.length >= XF_SLOTS) ?? desc.find((s) => s.xFactors.length > 0)
   const xFactors = (withXf?.xFactors ?? []).map((x) => ({
     name: x.name,
     tier: x.tier ?? newest(desc, (s) => s.xFactors.find((o) => o.name === x.name)?.tier ?? null),
@@ -101,7 +120,8 @@ function toBuild(run: readonly LoadoutSheet[]): PlayerBuild {
 export function groupBuilds(sheets: readonly LoadoutSheet[]): PlayerBuild[] {
   // One sheet per match: the latest captured non-empty one.
   const perMatch = new Map<number, LoadoutSheet>()
-  for (const s of sheets) {
+  for (const raw of sheets) {
+    const s = clean(raw)
     if (isEmpty(s)) continue
     const held = perMatch.get(s.matchId)
     const later =
@@ -120,7 +140,7 @@ export function groupBuilds(sheets: readonly LoadoutSheet[]): PlayerBuild[] {
   let xf: string | null = null
   for (const s of ordered) {
     const sArch = s.archetype
-    const sXf = s.xFactors.length > 0 ? xfKey(s) : null
+    const sXf = xfKey(s)
     if (run.length > 0 && compatible(arch, sArch) && compatible(xf, sXf)) {
       run.push(s)
       arch ??= sArch
@@ -134,4 +154,32 @@ export function groupBuilds(sheets: readonly LoadoutSheet[]): PlayerBuild[] {
   }
   if (run.length > 0) runs.push(run)
   return runs.map(toBuild).reverse()
+}
+
+/**
+ * The newest game title that yields builds (operator, 2026-10-07), with its
+ * builds. A title whose sheets are all empty captures never wins.
+ */
+export function pickTitleBuilds(
+  sheets: readonly (LoadoutSheet & { gameTitleId: number })[],
+): { gameTitleId: number; builds: PlayerBuild[] } | null {
+  const byTitle = new Map<number, LoadoutSheet[]>()
+  for (const s of sheets) {
+    const list = byTitle.get(s.gameTitleId) ?? []
+    list.push(s)
+    byTitle.set(s.gameTitleId, list)
+  }
+  let best: { gameTitleId: number; builds: PlayerBuild[] } | null = null
+  for (const [gameTitleId, list] of byTitle) {
+    const builds = groupBuilds(list)
+    const newest = builds[0]
+    if (newest === undefined) continue
+    if (
+      best === null ||
+      newest.lastPlayed.getTime() > (best.builds[0]?.lastPlayed.getTime() ?? 0)
+    ) {
+      best = { gameTitleId, builds }
+    }
+  }
+  return best
 }

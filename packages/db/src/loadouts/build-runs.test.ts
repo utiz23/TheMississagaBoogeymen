@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { groupBuilds, type LoadoutSheet } from './build-runs.js'
+import { groupBuilds, pickTitleBuilds, type LoadoutSheet } from './build-runs.js'
 
 let nextId = 1
 const sheet = (
@@ -213,4 +213,65 @@ void test('record: DNF counts as a loss', () => {
 
 void test('no sheets, no builds', () => {
   assert.deepEqual(groupBuilds([]), [])
+})
+
+void test('blank OCR strings are unknown: no fake builds, no empty X-factor boxes', () => {
+  const full = xf('Big_Rig', 'Rocket', 'Wheels')
+  const builds = groupBuilds([
+    sheet({ matchId: 1, playedAt: '2026-05-01T20:00:00Z', archetype: 'Sniper', xFactors: full }),
+    // Partly read set (one blank name) and a blank archetype: same build.
+    sheet({
+      matchId: 2,
+      playedAt: '2026-05-02T20:00:00Z',
+      archetype: ' ',
+      heightText: '',
+      xFactors: [
+        { name: '', tier: null },
+        { name: 'Rocket', tier: 'Elite' },
+        { name: 'Wheels', tier: 'Elite' },
+      ],
+    }),
+    // Garbage capture of match 2, captured later: must not beat the real one.
+    sheet({
+      matchId: 2,
+      playedAt: '2026-05-02T20:00:00Z',
+      capturedAt: new Date('2026-05-03T00:00:00Z'),
+      archetype: '',
+      xFactors: [
+        { name: '', tier: null },
+        { name: '', tier: null },
+      ],
+    }),
+  ])
+  assert.equal(builds.length, 1)
+  const b = builds[0]
+  assert.ok(b)
+  assert.deepEqual([b.archetype, b.gp, b.heightText], ['Sniper', 2, null])
+  assert.deepEqual(
+    b.xFactors.map((x) => x.name),
+    ['Big_Rig', 'Rocket', 'Wheels'],
+  )
+})
+
+void test('pickTitleBuilds: newest title that has real builds; empty-only titles never win', () => {
+  const pf = { archetype: 'Power Forward', xFactors: xf('A', 'B', 'C') }
+  const picked = pickTitleBuilds([
+    { ...sheet({ matchId: 1, playedAt: '2026-05-09T20:00:00Z', ...pf }), gameTitleId: 1 },
+    // A newer title whose only sheet is an empty capture.
+    { ...sheet({ matchId: 2, playedAt: '2026-10-01T20:00:00Z' }), gameTitleId: 7 },
+  ])
+  assert.ok(picked)
+  assert.equal(picked.gameTitleId, 1)
+  assert.equal(picked.builds.length, 1)
+  assert.equal(
+    pickTitleBuilds([
+      { ...sheet({ matchId: 3, playedAt: '2026-10-01T20:00:00Z' }), gameTitleId: 7 },
+    ]),
+    null,
+  )
+  const both = pickTitleBuilds([
+    { ...sheet({ matchId: 1, playedAt: '2026-05-09T20:00:00Z', ...pf }), gameTitleId: 1 },
+    { ...sheet({ matchId: 4, playedAt: '2026-10-02T20:00:00Z', ...pf }), gameTitleId: 7 },
+  ])
+  assert.equal(both?.gameTitleId, 7)
 })

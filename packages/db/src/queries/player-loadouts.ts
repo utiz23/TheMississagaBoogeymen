@@ -7,7 +7,7 @@ import {
   playerLoadoutXFactors,
   playerLoadoutAttributes,
 } from '../schema/index.js'
-import { groupBuilds, type LoadoutSheet, type PlayerBuild } from '../loadouts/build-runs.js'
+import { pickTitleBuilds, type LoadoutXFactor, type PlayerBuild } from '../loadouts/build-runs.js'
 
 export type { LoadoutXFactor, PlayerBuild } from '../loadouts/build-runs.js'
 
@@ -105,30 +105,24 @@ const gatedSheets = (playerId: number) =>
   )
 
 /**
- * The player's builds (spec Part 4) in the newest game title they have
- * reviewed game sheets for (operator, 2026-10-07: NHL 26 until NHL 27 sheets
- * are reviewed). Null when the player has none.
+ * The player's builds (spec Part 4) in the newest game title whose reviewed
+ * game sheets yield builds (operator, 2026-10-07: NHL 26 until NHL 27 sheets
+ * are reviewed; an empty capture never picks the title). Null when the player
+ * has none.
  */
 export async function getPlayerBuilds(playerId: number, limit = 4): Promise<PlayerBuilds | null> {
-  const [latest] = await db
-    .select({ gameTitleId: playerLoadoutSnapshots.gameTitleId, name: gameTitles.name })
-    .from(playerLoadoutSnapshots)
-    .innerJoin(matches, eq(matches.id, playerLoadoutSnapshots.matchId))
-    .innerJoin(gameTitles, eq(gameTitles.id, playerLoadoutSnapshots.gameTitleId))
-    .where(gatedSheets(playerId))
-    .orderBy(desc(matches.playedAt))
-    .limit(1)
-  if (latest === undefined) return null
-
   const rows = await db
     .select({
       snapshot: playerLoadoutSnapshots,
       playedAt: matches.playedAt,
       result: matches.result,
+      titleName: gameTitles.name,
     })
     .from(playerLoadoutSnapshots)
     .innerJoin(matches, eq(matches.id, playerLoadoutSnapshots.matchId))
-    .where(and(gatedSheets(playerId), eq(playerLoadoutSnapshots.gameTitleId, latest.gameTitleId)))
+    .innerJoin(gameTitles, eq(gameTitles.id, playerLoadoutSnapshots.gameTitleId))
+    .where(gatedSheets(playerId))
+  if (rows.length === 0) return null
   const ids = rows.map((r) => r.snapshot.id)
   const [xRows, aRows] = await Promise.all([
     db
@@ -141,11 +135,24 @@ export async function getPlayerBuilds(playerId: number, limit = 4): Promise<Play
       .from(playerLoadoutAttributes)
       .where(inArray(playerLoadoutAttributes.loadoutSnapshotId, ids)),
   ])
+  const xBySheet = new Map<number, LoadoutXFactor[]>()
+  for (const x of xRows) {
+    const list = xBySheet.get(x.loadoutSnapshotId) ?? []
+    list.push({ name: x.xFactorNameCanonical ?? x.xFactorName, tier: x.tier ?? null })
+    xBySheet.set(x.loadoutSnapshotId, list)
+  }
+  const aBySheet = new Map<number, Record<string, number | null>>()
+  for (const a of aRows) {
+    const attrs = aBySheet.get(a.loadoutSnapshotId) ?? {}
+    attrs[a.attributeKey] = a.value
+    aBySheet.set(a.loadoutSnapshotId, attrs)
+  }
 
-  const sheets: LoadoutSheet[] = rows.map(({ snapshot: s, playedAt, result }) => {
-    const attributes: Record<string, number | null> = {}
-    for (const a of aRows) if (a.loadoutSnapshotId === s.id) attributes[a.attributeKey] = a.value
+  const titleNames = new Map<number, string>()
+  const sheets = rows.map(({ snapshot: s, playedAt, result, titleName }) => {
+    titleNames.set(s.gameTitleId, titleName)
     return {
+      gameTitleId: s.gameTitleId,
       snapshotId: s.id,
       matchId: s.matchId ?? 0,
       playedAt,
@@ -155,17 +162,16 @@ export async function getPlayerBuilds(playerId: number, limit = 4): Promise<Play
       heightText: s.heightText,
       weightLbs: s.weightLbs,
       handedness: s.handedness,
-      xFactors: xRows
-        .filter((x) => x.loadoutSnapshotId === s.id)
-        .map((x) => ({ name: x.xFactorNameCanonical ?? x.xFactorName, tier: x.tier ?? null })),
-      attributes,
+      xFactors: xBySheet.get(s.id) ?? [],
+      attributes: aBySheet.get(s.id) ?? {},
     }
   })
-  const all = groupBuilds(sheets)
+  const picked = pickTitleBuilds(sheets)
+  if (picked === null) return null
   return {
-    gameTitleId: latest.gameTitleId,
-    gameTitleName: latest.name,
-    builds: all.slice(0, limit),
-    older: all[limit] ?? null,
+    gameTitleId: picked.gameTitleId,
+    gameTitleName: titleNames.get(picked.gameTitleId) ?? '',
+    builds: picked.builds.slice(0, limit),
+    older: picked.builds[limit] ?? null,
   }
 }
