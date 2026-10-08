@@ -28,8 +28,9 @@ const FILE_TO_FAMILY = {
   Goaliegamescompleted: { id: 'p6g', scale: 1.15 },
   // Wins: one solid laurel, no cut-outs — thickened so it holds at 28–34 px.
   Wins: { id: 'pwins', scale: 1.35, weight: 1.2 },
-  // Goals: large, its base runs off the bottom of the badge face (operator, 2026-10-08).
-  Goals: { id: 'pgoals', scale: 1.85, offsetY: 0.36 },
+  // Goals: large, its base strip runs off the bottom of the badge face while both rows of
+  // square panes stay inside the round face (operator, 2026-10-08).
+  Goals: { id: 'pgoals', scale: 1.6, offsetY: 0.2 },
   Assists: { id: 'pasts' },
   Shots: { id: 'pshots' },
   Hattricks: { id: 'pht' },

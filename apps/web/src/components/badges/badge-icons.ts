@@ -26,7 +26,7 @@ export const BADGE_ICONS: Readonly<Partial<Record<BadgeFamilyId, BadgeIcon>>> = 
   pbrk: { src: '/images/badges/icons/pbrk.svg', scale: 1, offsetY: 0 },
   pfight: { src: '/images/badges/icons/pfight.svg', scale: 1, offsetY: 0 },
   pfo: { src: '/images/badges/icons/pfo.svg', scale: 1, offsetY: 0 },
-  pgoals: { src: '/images/badges/icons/pgoals.svg', scale: 1.85, offsetY: 0.36 },
+  pgoals: { src: '/images/badges/icons/pgoals.svg', scale: 1.6, offsetY: 0.2 },
   phits: { src: '/images/badges/icons/phits.svg', scale: 1, offsetY: 0 },
   pht: { src: '/images/badges/icons/pht.svg', scale: 1, offsetY: 0 },
   pshots: { src: '/images/badges/icons/pshots.svg', scale: 1, offsetY: 0 },
