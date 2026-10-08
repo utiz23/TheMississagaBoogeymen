@@ -43,11 +43,24 @@ void test('main = most games; every other position with 3+ games is depth', () =
   assert.deepEqual(ids(chart.goalies), ['230', '5d', '2d', '12'])
 })
 
-void test('lines grow past 4 when a position has more players', () => {
+void test('top 4 lines and 3 pairs: main cards always stay, depth fills the rest by games', () => {
   const wings = Array.from({ length: 6 }, (_, i) => m(100 + i, { lwGp: 10 - i }))
-  const chart = buildDepthChart(wings)
-  assert.equal(chart.forwards.length, 6)
+  // Two players whose main is LW but who have no games yet (carried over / pinned).
+  const newcomers = [
+    m(200, {}, { preferredPosition: 'leftWing' }),
+    m(201, {}, { preferredPosition: 'leftWing' }),
+  ]
+  // Players with a main elsewhere who also play LW (depth).
+  const depthLw = [m(300, { cGp: 30, lwGp: 9 }), m(301, { dGp: 30, lwGp: 7 })]
+  const chart = buildDepthChart([...wings, ...newcomers, ...depthLw])
+  assert.equal(chart.forwards.length, 4)
   assert.equal(chart.defense.length, 3)
+  // Six LW mains + two newcomers: top 4 by games, depth never displaces a main.
+  assert.deepEqual(ids(chart.forwards.map((l) => l.lw)), ['100', '101', '102', '103'])
+
+  const few = buildDepthChart([wings[0] ?? m(1, {}), ...newcomers, ...depthLw])
+  // One playing LW main, two newcomer mains, one slot left for the best LW depth (9 games).
+  assert.deepEqual(ids(few.forwards.map((l) => l.lw)), ['100', '300d', '200', '201'])
 })
 
 void test('no games this title: shown once, at the profile position, else EA favorite', () => {

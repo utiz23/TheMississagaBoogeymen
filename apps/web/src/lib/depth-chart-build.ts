@@ -5,7 +5,9 @@
  * (most games this title) plus every other position with at least
  * DEPTH_MIN_GAMES games, shown as **depth**. Each position lists its players by
  * games at that position (main before depth on a tie), so the line order is
- * the usage order. Forward lines, defense pairs and goalie slots grow to fit.
+ * the usage order. The chart shows the top 4 forward lines and 3 defense pairs
+ * (operator, 2026-10-08): every player keeps their main-position card, and
+ * depth cards fill the slots left, most games first. Goalie slots grow to fit.
  *
  * Games per position come from EA's season split (lw/c/rw/d/goalie GP). A
  * player with games but no EA split falls back to locally recorded positions;
@@ -41,8 +43,8 @@ export interface BuiltDepthChart<R> {
 }
 
 export const DEPTH_MIN_GAMES = 3
-const MIN_LINES = 4
-const MIN_PAIRS = 3
+export const FORWARD_LINES = 4
+export const DEFENSE_PAIRS = 3
 const POSITION_ORDER: readonly ChartPos[] = ['C', 'LW', 'RW', 'D', 'G']
 
 const FROM_EA: Readonly<Record<string, ChartPos>> = {
@@ -94,18 +96,22 @@ export function buildDepthChart<R extends ChartMember>(
       byPos[pos].push({ player, isDepth: pos !== main, games: counts[pos] })
     }
   }
-  for (const pos of POSITION_ORDER) {
-    byPos[pos].sort(
-      (a, b) =>
-        b.games - a.games ||
-        Number(a.isDepth) - Number(b.isDepth) ||
-        b.player.gamesPlayed - a.player.gamesPlayed ||
-        a.player.playerId - b.player.playerId,
-    )
-  }
+  const usage = (a: ChartSlot<R>, b: ChartSlot<R>) =>
+    b.games - a.games ||
+    Number(a.isDepth) - Number(b.isDepth) ||
+    b.player.gamesPlayed - a.player.gamesPlayed ||
+    a.player.playerId - b.player.playerId
+  // Main cards first, then depth by games, cut to the position's slots; shown in usage order.
+  const keep = (slots: ChartSlot<R>[], max: number) =>
+    [...slots.filter((s) => !s.isDepth).sort(usage), ...slots.filter((s) => s.isDepth).sort(usage)]
+      .slice(0, max)
+      .sort(usage)
+  for (const pos of ['LW', 'C', 'RW'] as const) byPos[pos] = keep(byPos[pos], FORWARD_LINES)
+  byPos.D = keep(byPos.D, DEFENSE_PAIRS * 2)
+  byPos.G.sort(usage)
 
-  const lines = Math.max(MIN_LINES, byPos.LW.length, byPos.C.length, byPos.RW.length)
-  const pairs = Math.max(MIN_PAIRS, Math.ceil(byPos.D.length / 2))
+  const lines = FORWARD_LINES
+  const pairs = DEFENSE_PAIRS
   return {
     forwards: Array.from({ length: lines }, (_, i) => ({
       lw: byPos.LW[i] ?? null,
