@@ -5,6 +5,7 @@
  */
 import type { CareerActionRow } from '@eanhl/db/queries'
 import { computeMarkerOffsets } from '../../lib/marker-layout.ts'
+import { abbreviateTeamName } from '../../lib/format.ts'
 
 export type ActionType = 'goal' | 'shot' | 'hit' | 'penalty' | 'faceoff'
 export type MarkerType = Exclude<ActionType, 'faceoff'>
@@ -202,7 +203,7 @@ function formatDay(d: Date, timeZone: string): string {
 
 function markerTip(e: CareerActionRow, timeZone: string): string {
   const approx = e.positionConfidence === 'extrapolated' ? ' · approx. position' : ''
-  return `${actionLabel(e).toUpperCase()} · vs ${e.opponent} · ${formatDay(e.playedAt, timeZone)} · ${periodName(e.periodNumber).toUpperCase()} ${clockText(e.clock)}${approx}`
+  return `${actionLabel(e).toUpperCase()} · vs ${abbreviateTeamName(e.opponent)} · ${formatDay(e.playedAt, timeZone)} · ${periodName(e.periodNumber).toUpperCase()} ${clockText(e.clock)}${approx}`
 }
 
 export function buildMarkers(
@@ -270,7 +271,7 @@ export function buildGroups(
     meta:
       sort === 'game'
         ? periodName(e.periodNumber)
-        : `${periodName(e.periodNumber)} · vs ${e.opponent} · ${formatDay(e.playedAt, timeZone)}`,
+        : `${periodName(e.periodNumber)} · vs ${abbreviateTeamName(e.opponent)} · ${formatDay(e.playedAt, timeZone)}`,
     plotted: isPlotted(e),
   })
 
@@ -288,7 +289,7 @@ export function buildGroups(
       return [
         {
           key: `game-${String(matchId)}`,
-          label: `vs ${first.opponent}`,
+          label: `vs ${abbreviateTeamName(first.opponent)}`,
           sub: first.gameMode === null ? day : `${day} · ${first.gameMode}`,
           result: resultText(first),
           tone: tone(first.result),
@@ -355,7 +356,7 @@ export function buildPin(
     target: e.targetName ?? DASH,
     clock: clockText(e.clock),
     period: periodName(e.periodNumber),
-    opp: e.opponent,
+    opp: abbreviateTeamName(e.opponent),
     date: formatDay(e.playedAt, timeZone),
     mode: e.gameMode ?? DASH,
     result: resultText(e),

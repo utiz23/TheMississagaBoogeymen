@@ -229,3 +229,10 @@ void test('the section shows from 5 positioned events', () => {
   assert.equal(shouldShowActionMap([...four, ev({ hasPosition: false, x: null, y: null })]), false)
   assert.equal(shouldShowActionMap([...four, ev({ hasPosition: true, x: null, y: null })]), true)
 })
+
+void test('opponents read as the site abbreviation of the club name (never the OCR team code)', () => {
+  const e = ev({ opponent: 'Junior C Allstars' })
+  assert.equal(buildGroups([e], 'game')[0]?.label, 'vs JCA')
+  assert.equal(buildPin([e], e.eventId)?.opp, 'JCA')
+  assert.match(buildMarkers([e], null)[0]?.tip ?? '', / · vs JCA · /)
+})

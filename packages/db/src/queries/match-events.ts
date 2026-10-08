@@ -250,6 +250,7 @@ export interface CareerActionRow {
   /** The event had a raw rink position (the < 5 hide rule counts these). */
   hasPosition: boolean
   positionConfidence: string | null
+  /** The club's name (the UI abbreviates it the site's way; OCR team codes are unreliable). */
   opponent: string
   gameMode: GameMode | null
   result: MatchResult
@@ -286,7 +287,6 @@ export async function getPlayerCareerActions(
       x: matchEvents.x,
       y: matchEvents.y,
       positionConfidence: matchEvents.positionConfidence,
-      oppTeamAbbr: matches.oppTeamAbbr,
       opponentName: matches.opponentName,
       gameMode: matches.gameMode,
       result: matches.result,
@@ -369,7 +369,7 @@ export async function getPlayerCareerActions(
       y: pos?.y ?? null,
       hasPosition,
       positionConfidence: r.positionConfidence,
-      opponent: r.oppTeamAbbr ?? r.opponentName,
+      opponent: r.opponentName,
       gameMode: r.gameMode,
       result: r.result,
       scoreFor: r.scoreFor,
