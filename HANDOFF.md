@@ -28,6 +28,13 @@ tunnel. Launch plan items 2–8 are done; item 1 counts three green nightly
 backups on Hotel-Echo from 2026-10-06. Next: observe for a few days, then
 post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
+**In progress (local branch `feat/player-cards`, unpushed, not deployed):**
+
+- Player cards (10 themes) and badges, built on the dev-only `/preview/roster/[id]` against the local `eanhl_preview` database.
+- Steps 1 (badges) and 2 (cards) are done. Steps 3–6 remain: the locker, Build Locker v2, the Action Map, then the switch to live.
+- Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md).
+- Detail: [journal 2026-10-07](docs/journal/2026-10.md).
+
 ## Latest Verified Checkpoint
 
 **2026-10-06 — NHL 26 contamination cleaned up** (worker `3f35733`; rollback
@@ -148,12 +155,17 @@ None.
 
 ## Next 1-3 Actions
 
-1. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
+1. Cards/badges test run (`feat/player-cards`):
+   - Operator phone pass: card flip, Storm smoothness, Inferno embers.
+   - The operator's badge icon set.
+   - Then step 3 (locker), Build Locker v2 and the Action Map.
+   - At the switch, apply migration 0060 on Hotel-Echo before deploying the worker.
+2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
    time deltas). The security review is closed (journal 10-06).
-2. Observe the launch for a few days: Healthchecks (backup + collector)
+3. Observe the launch for a few days: Healthchecks (backup + collector)
    emails, nightly backups on Hotel-Echo (item 1 closes after three green
    nights), teammates' feedback (including on speed). Run the owed Codex
    review of the nightly backup when Codex is available.
-3. Decide how video-stats OCR (main PC) writes to Hotel-Echo's database —
-   over Tailscale, which means opening the database to the tailnet.
+   Also decide how video-stats OCR (main PC) writes to Hotel-Echo's
+   database (over Tailscale, opening the database to the tailnet).
