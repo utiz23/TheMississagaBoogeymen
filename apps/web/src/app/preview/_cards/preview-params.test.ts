@@ -22,7 +22,7 @@ void test('defaults: no overrides, front face, gallery shown', () => {
   })
 })
 
-void test('reads valid overrides; ignores junk and round-2 themes', () => {
+void test('reads valid overrides (any of the 10 themes); ignores junk', () => {
   assert.deepEqual(
     parseCardPreviewParams({
       cardTheme: 'alternate',
@@ -33,8 +33,9 @@ void test('reads valid overrides; ignores junk and round-2 themes', () => {
     }),
     { theme: 'alternate', tier: 2, level: 9, face: 'back', gallery: false },
   )
+  assert.equal(parseCardPreviewParams({ cardTheme: 'inferno' }).theme, 'inferno')
   const junk = parseCardPreviewParams({
-    cardTheme: 'inferno',
+    cardTheme: 'lava',
     cardTier: '9',
     cardLevel: 'x',
     face: 'side',

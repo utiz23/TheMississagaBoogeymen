@@ -1,20 +1,14 @@
 /**
  * Dev-only URL params for the card preview (deleted at the switch):
- *   ?cardTheme=away|home|alternate|carbon|futureB  ?cardTier=1–6  ?cardLevel=1–10
+ *   ?cardTheme=<any of the 10 theme keys>  ?cardTier=1–6  ?cardLevel=1–10
  *   ?face=back  ?gallery=0
  */
-import { resolveCardTheme, themeTier } from '@eanhl/db/cards'
+import { CARD_THEME_ORDER, resolveCardTheme, themeTier } from '@eanhl/db/cards'
 import type { CardThemeKey, CardTier } from '@eanhl/db/cards'
 import type { CardViewModel } from '../../../components/cards/card-model'
 
-/** Round 1 ships the regular themes; the mythics arrive with their assets in round 2. */
-export const PREVIEW_THEMES: readonly CardThemeKey[] = [
-  'away',
-  'home',
-  'alternate',
-  'carbon',
-  'futureB',
-]
+/** All 10 themes (the mythics arrived in round 2). */
+export const PREVIEW_THEMES: readonly CardThemeKey[] = CARD_THEME_ORDER
 
 export interface CardPreviewParams {
   theme: CardThemeKey | null
