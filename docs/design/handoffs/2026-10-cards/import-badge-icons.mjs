@@ -41,9 +41,10 @@ const FILE_TO_FAMILY = {
   'Breakaways-solid': { id: 'pbrk' },
   // Hits: centred on the hammer head; the handle runs off the badge (operator, 2026-10-08).
   Hits: { id: 'phits', scale: 1.7, offsetX: -0.17, offsetY: 0.24 },
-  Faceoffs: { id: 'pfo' },
-  Takeaways: { id: 'ptka' },
-  Blocks: { id: 'pblk' },
+  // Defense (square badges, the roomiest face): enlarged to fill it (2026-10-08).
+  Faceoffs: { id: 'pfo', scale: 1.25 },
+  Takeaways: { id: 'ptka', scale: 1.3 },
+  Blocks: { id: 'pblk', scale: 1.3 },
   // Fights: inverted so the gloves read filled, their outlines kept as gaps (operator,
   // 2026-10-08). Fights-filled.svg adds the back glove's missing interior fills
   // (fill-outline-interiors.py Fights.svg Fights-filled.svg 0).
