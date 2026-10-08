@@ -523,16 +523,36 @@ button.am-group-head {
   background: #81878d;
 }
 .am-avatar {
+  position: relative;
   width: 32px;
   height: 32px;
   border-radius: 50%;
   border: 1px solid rgba(232, 65, 49, 0.65);
   background: linear-gradient(180deg, rgba(50, 48, 49, 0.9), rgba(26, 24, 25, 1));
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
   overflow: hidden;
-  color: var(--color-fg-5);
+}
+/* Silhouette drawn once in CSS instead of an inline SVG per row (page weight). */
+.am-avatar::after {
+  content: '';
+  position: absolute;
+  left: 1px;
+  bottom: -1px;
+  width: 28px;
+  height: 28px;
+  background: var(--color-fg-5);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 110'%3E%3Ccircle cx='50' cy='32' r='21'/%3E%3Cpath d='M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 110'%3E%3Ccircle cx='50' cy='32' r='21'/%3E%3Cpath d='M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.am-noplot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.75px dashed var(--color-accent);
+}
+.am-row[data-role='on'] .am-noplot {
+  border-color: #81878d;
 }
 .am-row[data-role='on'] .am-avatar {
   border-color: rgba(129, 135, 141, 0.65);
@@ -541,6 +561,7 @@ button.am-group-head {
   min-width: 0;
 }
 .am-row-names {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

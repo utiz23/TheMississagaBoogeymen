@@ -1,6 +1,15 @@
 'use client'
 
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import {
+  memo,
+  useCallback,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
 import type { CareerActionRow } from '@eanhl/db/queries'
 import { RinkSvg } from '@/components/branding/rink'
 import {
@@ -20,6 +29,7 @@ import {
   notPlotted,
   visibleEvents,
   type ActionMarker,
+  type ActionRow,
   type ActionType,
   type MarkerType,
   type PeriodFilter,
@@ -78,22 +88,32 @@ export function CareerActionMap({
   const [iso, setIso] = useState<number | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const filters = { period, role, types, isoMatchId: iso }
-  const counts = filterCounts(events, filters)
-  const visible = visibleEvents(events, filters)
-  const markers = buildMarkers(visible, pin)
-  const groups = buildGroups(visible, sort)
-  const pinView = buildPin(visible, pin)
+  const uid = useId().replace(/[^\w-]/g, '')
+  // Each stage recomputes only when its inputs change: a pin tap rebuilds the
+  // markers and two list rows, not the counts, groups or the whole list.
+  const filters = useMemo(
+    () => ({ period, role, types, isoMatchId: iso }),
+    [period, role, types, iso],
+  )
+  const counts = useMemo(() => filterCounts(events, filters), [events, filters])
+  const visible = useMemo(() => visibleEvents(events, filters), [events, filters])
+  const markers = useMemo(() => buildMarkers(visible, pin), [visible, pin])
+  const groups = useMemo(() => buildGroups(visible, sort), [visible, sort])
+  const pinView = useMemo(() => buildPin(visible, pin), [visible, pin])
+  const unplottedCount = useMemo(() => notPlotted(visible), [visible])
   const gameCount = useMemo(() => new Set(events.map((e) => e.matchId)).size, [events])
-  const isoGroup =
-    iso === null
-      ? null
-      : buildGroups(
-          events.filter((e) => e.matchId === iso),
-          'game',
-        )[0]
+  const isoGroup = useMemo(
+    () =>
+      iso === null
+        ? null
+        : buildGroups(
+            events.filter((e) => e.matchId === iso),
+            'game',
+          )[0],
+    [events, iso],
+  )
 
-  const pinEvent = (id: number, scroll: boolean) => {
+  const pinEvent = useCallback((id: number, scroll: boolean) => {
     setPin((p) => (p === id ? null : id))
     if (!scroll) return
     requestAnimationFrame(() => {
@@ -104,7 +124,13 @@ export function CareerActionMap({
         box.scrollTop = el.offsetTop - 44
       })
     })
-  }
+  }, [])
+  const pinFromList = useCallback(
+    (id: number) => {
+      pinEvent(id, false)
+    },
+    [pinEvent],
+  )
   const markerKey = (m: ActionMarker) => (e: KeyboardEvent<SVGGElement>) => {
     if (e.key !== 'Enter' && e.key !== ' ') return
     e.preventDefault()
@@ -241,6 +267,18 @@ export function CareerActionMap({
                   role="group"
                   aria-label="Event markers"
                 >
+                  <defs>
+                    {GLYPH_VARIANTS.map(([type, r]) => (
+                      <symbol
+                        key={`${type}-${r}`}
+                        id={`${uid}-${type}-${r}`}
+                        viewBox="0 0 56 56"
+                        overflow="visible"
+                      >
+                        <Glyph type={type} role={r} size={56} />
+                      </symbol>
+                    ))}
+                  </defs>
                   {markers.map((m) => (
                     <g
                       key={m.id}
@@ -265,9 +303,13 @@ export function CareerActionMap({
                         strokeWidth={5}
                         strokeDasharray="14 10"
                       />
-                      <g transform={`translate(${String(-m.size / 2)},${String(-m.size / 2)})`}>
-                        <Glyph type={m.type} role={m.role} size={m.size} />
-                      </g>
+                      <use
+                        href={`#${uid}-${m.type}-${m.role}`}
+                        x={-m.size / 2}
+                        y={-m.size / 2}
+                        width={m.size}
+                        height={m.size}
+                      />
                     </g>
                   ))}
                 </svg>
@@ -309,7 +351,7 @@ export function CareerActionMap({
                 <LegendKey color={ON_FILL}>On {gamertag}</LegendKey>
                 <span>Hex goal · circle shot · square hit · diamond penalty</span>
                 <span>
-                  <b>{notPlotted(visible)}</b> not plotted
+                  <b>{unplottedCount}</b> not plotted
                 </span>
               </div>
             </div>
@@ -354,7 +396,7 @@ export function CareerActionMap({
                     )
                     const matchId = g.matchId
                     return (
-                      <div key={g.key}>
+                      <div key={g.key} className="am-group">
                         {matchId !== null ? (
                           <button
                             type="button"
@@ -374,59 +416,7 @@ export function CareerActionMap({
                           <div className="am-group-head">{head}</div>
                         )}
                         {g.rows.map((r) => (
-                          <button
-                            key={r.id}
-                            type="button"
-                            className="am-row"
-                            data-ev={r.id}
-                            data-role={r.role}
-                            aria-pressed={pin === r.id}
-                            onClick={() => {
-                              pinEvent(r.id, false)
-                            }}
-                          >
-                            <span className="am-rail" aria-hidden />
-                            <span className="am-avatar" aria-hidden>
-                              <svg viewBox="0 0 100 110" fill="currentColor" width="28" height="28">
-                                <circle cx="50" cy="32" r="21" />
-                                <path d="M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z" />
-                              </svg>
-                            </span>
-                            <span className="am-row-main">
-                              <span className="am-row-names" style={{ display: 'block' }}>
-                                {r.actor}
-                                <span className="am-arrow">›</span>
-                                <span className="am-target">{r.target}</span>
-                              </span>
-                              <span className="am-row-sub">
-                                <span className="am-pill" data-role={r.role}>
-                                  {r.label}
-                                </span>
-                                <span className="am-clock">{r.clock}</span>
-                                <span className="am-meta">{r.meta}</span>
-                              </span>
-                            </span>
-                            {r.plotted ? (
-                              <span className="am-dot" data-type={r.type} aria-hidden />
-                            ) : (
-                              <svg
-                                viewBox="0 0 24 24"
-                                width="20"
-                                height="20"
-                                aria-label="No rink position"
-                              >
-                                <circle
-                                  cx="12"
-                                  cy="12"
-                                  r="9"
-                                  fill="none"
-                                  stroke={r.role === 'by' ? BY_FILL : ON_FILL}
-                                  strokeDasharray="2 2"
-                                  strokeWidth="1.75"
-                                />
-                              </svg>
-                            )}
-                          </button>
+                          <EventRow key={r.id} row={r} pinned={pin === r.id} onPin={pinFromList} />
                         ))}
                       </div>
                     )
@@ -447,6 +437,56 @@ export function CareerActionMap({
     </section>
   )
 }
+
+const GLYPH_VARIANTS = (['goal', 'shot', 'hit', 'penalty'] as const).flatMap((t) =>
+  (['by', 'on'] as const).map((r) => [t, r] as const),
+)
+
+/** One list row. Memoised: a pin change re-renders only the old and new pinned rows. */
+const EventRow = memo(function EventRow({
+  row: r,
+  pinned,
+  onPin,
+}: {
+  row: ActionRow
+  pinned: boolean
+  onPin: (id: number) => void
+}) {
+  return (
+    <button
+      type="button"
+      className="am-row"
+      data-ev={r.id}
+      data-role={r.role}
+      aria-pressed={pinned}
+      onClick={() => {
+        onPin(r.id)
+      }}
+    >
+      <span className="am-rail" aria-hidden />
+      <span className="am-avatar" aria-hidden />
+      <span className="am-row-main">
+        <span className="am-row-names">
+          {r.actor}
+          <span className="am-arrow">›</span>
+          <span className="am-target">{r.target}</span>
+        </span>
+        <span className="am-row-sub">
+          <span className="am-pill" data-role={r.role}>
+            {r.label}
+          </span>
+          <span className="am-clock">{r.clock}</span>
+          <span className="am-meta">{r.meta}</span>
+        </span>
+      </span>
+      {r.plotted ? (
+        <span className="am-dot" data-type={r.type} aria-hidden />
+      ) : (
+        <span className="am-noplot" title="Not plotted" aria-label="Not plotted" />
+      )}
+    </button>
+  )
+})
 
 function LegendKey({ color, children }: { color: string; children: ReactNode }) {
   return (

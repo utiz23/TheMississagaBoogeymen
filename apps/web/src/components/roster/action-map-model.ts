@@ -197,8 +197,16 @@ export function shouldShowActionMap(events: readonly CareerActionRow[]): boolean
   return events.filter((e) => e.hasPosition).length >= 5
 }
 
+/** One formatter per zone: building Intl.DateTimeFormat per event cost ~0.1 ms each. */
+const DAY_FORMATS = new Map<string, Intl.DateTimeFormat>()
+
 function formatDay(d: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone }).format(d)
+  let fmt = DAY_FORMATS.get(timeZone)
+  if (fmt === undefined) {
+    fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone })
+    DAY_FORMATS.set(timeZone, fmt)
+  }
+  return fmt.format(d)
 }
 
 function markerTip(e: CareerActionRow, timeZone: string): string {
