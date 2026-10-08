@@ -28,13 +28,18 @@ tunnel. Launch plan items 2–8 are done; item 1 counts three green nightly
 backups on Hotel-Echo from 2026-10-06. Next: observe for a few days, then
 post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
-**In progress (branch `feat/player-cards`, pushed to GitHub, not merged or deployed):**
-
-- Player cards (10 themes), badges with the operator's icons, the EDIT locker, Build Locker v2 and Career Action Map are wired into the live home, roster and player pages. The code side of the switch (Phase A) is done, reviewed and slimmed to live's page weight.
-- **Phase B (the deploy on Hotel-Echo) waits for the operator's explicit go.** Runbook: B2–B4 in the [switch plan](docs/superpowers/plans/2026-10-08-switch-step-6.md). It covers the backup and sha256, rollback tags, migration 0060 before the new worker, rebuild with `--no-deps`, the recompute dry-run and site checks.
-- Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md) (one card per NHL title from NHL 27). Detail: [journal 2026-10-07/08](docs/journal/2026-10.md).
+**Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
 ## Latest Verified Checkpoint
+
+**2026-10-08 — player cards deployed** (`3ec9dc0`, web + worker; rollback
+images `eanhl-team-website-{web,worker}:rollback-he-2026-10-08-pre-cards`;
+pre-change dump `~/eanhl-backups/pre-cards-2026-10-08-0957.dump`, sha256
+`1ac7f102…dbe2`). Migration 0060 is on live (3 card tables). The worker
+recomputes cards each cycle: NHL 27, 29 players, everyone at most T2 Rookie.
+Pages return 200; `/roster/3` is 44 KB gzipped. Rollback: retag
+`:rollback-he-2026-10-08-pre-cards` as `:latest` and run `up -d --no-deps web worker`
+(the old code ignores the new tables). Detail: [journal 2026-10-08](docs/journal/2026-10.md).
 
 **2026-10-06 — NHL 26 contamination cleaned up** (worker `3f35733`; rollback
 image `eanhl-team-website-worker:rollback-2026-10-05-quarantine`; pre-change
@@ -154,7 +159,7 @@ None.
 
 ## Next 1-3 Actions
 
-1. Cards/badges: progression is now **per NHL title** (season cards from NHL 27, new ladders and tier bars; [spec](docs/superpowers/specs/2026-10-08-season-cards-design.md), journal 10-08). On the operator's go, run Phase B (merge `feat/player-cards` to `main`, then the Hotel-Echo runbook in the switch plan; B3's tier table is updated). Re-check the pace at mid-season and re-tune before NHL 28. Open questions for the operator: the Action Map clock direction (comment says elapsed, data looks like time remaining), and the deferred minors in the plan's execution record.
+1. Cards: watch the first days live (worker log `Card progression recomputed`, teammates' reactions). Re-check the season pace at mid-season and re-tune before NHL 28. Open questions for the operator: the Action Map clock direction (comment says elapsed, data looks like time remaining), the deferred minors in the switch plan's record, and a pre-existing Contribution Wheel hydration warning (SVG float digits differ server vs browser). `eanhl_preview` can be dropped on the operator's say.
 2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
    time deltas). The security review is closed (journal 10-06).
