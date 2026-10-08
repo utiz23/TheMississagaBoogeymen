@@ -41,7 +41,7 @@ import { buildLockerView } from '@/components/cards/locker-model'
 import { cardFromProfile, cardFromRosterRow } from '@/components/cards/card-adapters'
 import type { CardViewModel } from '@/components/cards/card-model'
 import { CardGallery } from '../../_cards/card-gallery'
-import { PreviewCardRow } from '../../_cards/preview-card-row'
+import { PlayerCarousel } from '@/components/home/player-carousel'
 import { applyCardOverrides, parseCardPreviewParams } from '../../_cards/preview-params'
 
 export const revalidate = 3600
@@ -268,7 +268,7 @@ export default async function PreviewPlayerPage({ params, searchParams }: Props)
             ?gallery=0 hides this panel
           </p>
           <CardGallery card={heroCard} />
-          {rowCards.length > 0 && <PreviewCardRow cards={rowCards} />}
+          {rowCards.length > 0 && <PlayerCarousel cards={rowCards} />}
           {rowCards.length > 0 && (
             <div className="hidden justify-center gap-10 sm:flex" style={{ zoom: 0.66 }}>
               {rowCards.slice(0, 3).map((c) => (

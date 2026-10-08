@@ -10,6 +10,7 @@ import {
   getMatchFaceoffTotals,
   getRoster,
   getEARoster,
+  getCardProgressForPlayers,
   getHistoricalClubTeamStatsBatch,
 } from '@eanhl/db/queries'
 import { redirect } from 'next/navigation'
@@ -19,7 +20,7 @@ import { ScoringLeadersPanel } from '@/components/home/leaders-section'
 import { RecordStrip } from '@/components/home/record-strip'
 import { RecentGamesStrip } from '@/components/home/recent-games-strip'
 import { TitleRecordsTable } from '@/components/home/title-records-table'
-import type { RosterRow } from '@/components/home/player-card'
+import { cardFromRosterRow } from '@/components/cards/card-adapters'
 import { SectionHeader } from '@/components/ui/section-header'
 import { Panel } from '@/components/ui/panel'
 import { resolveTitleFromSlug } from '@/lib/title-resolver'
@@ -35,6 +36,8 @@ export const metadata: Metadata = { title: 'Club Stats' }
 export const revalidate = 300
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
+type RosterRow = Awaited<ReturnType<typeof getRoster>>[number]
 
 /**
  * Roster ordered by points descending for the featured carousel.
@@ -142,6 +145,14 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   }
 
   const featuredPlayers = selectFeaturedPlayers(roster)
+  // Player cards (tier, theme, featured badge). A failure only drops the
+  // progression: every card then shows tier 1, as for a player not yet computed.
+  const cardSummaries = await getCardProgressForPlayers(
+    featuredPlayers.map((p) => p.playerId),
+  ).catch(() => new Map<number, never>())
+  const featuredCards = featuredPlayers.map((p) =>
+    cardFromRosterRow(p, cardSummaries.get(p.playerId)),
+  )
   // Filter skaters by position, not by wins === null.
   // The aggregate worker writes wins = 0 (not null) for all skaters, so wins === null
   // is always false and would produce an empty array. Position-based detection matches
@@ -189,7 +200,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
               {rosterSource}
             </span>
           </div>
-          <PlayerCarousel players={featuredPlayers} />
+          <PlayerCarousel cards={featuredCards} />
         </section>
       )}
 

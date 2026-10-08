@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { PlayerCard } from './player-card'
-import type { RosterRow } from './player-card'
+import { PlayerCard } from '@/components/cards/player-card'
+import type { CardViewModel } from '@/components/cards/card-model'
 import './player-carousel.css'
 
 interface PlayerCarouselProps {
-  players: RosterRow[]
+  cards: CardViewModel[]
 }
 
 /**
@@ -22,10 +22,10 @@ interface PlayerCarouselProps {
  * All player data is fetched server-side; this component is Client-only
  * for interactivity (activeIndex state + transitions).
  */
-export function PlayerCarousel({ players }: PlayerCarouselProps) {
+export function PlayerCarousel({ cards }: PlayerCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [swipeStart, setSwipeStart] = useState<number | null>(null)
-  const total = players.length
+  const total = cards.length
 
   if (total === 0) return null
 
@@ -67,7 +67,7 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
               active player so the chrome reads as a broadcast lower-third. */}
           <div className="hpcr-now-tag">
             <span className="live">Live</span>
-            <span className="type">{players[activeIndex]?.gamertag ?? 'Player Spotlight'}</span>
+            <span className="type">{cards[activeIndex]?.front.name ?? 'Player Spotlight'}</span>
           </div>
           {/* Side vignette masks — create the "cards fade into darkness" effect */}
           <div
@@ -84,7 +84,7 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
           />
 
           {/* Cards — all rendered so CSS opacity transitions fire on enter/exit */}
-          {players.map((player, index) => {
+          {cards.map((card, index) => {
             const rel = getRelPos(index, activeIndex, total)
             // Visible slots use full opacity. Off-stage cards park at the nearest
             // outer position with opacity 0 so entering/leaving fades animate there.
@@ -94,7 +94,7 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
 
             return (
               <div
-                key={player.playerId}
+                key={card.front.playerId}
                 className="absolute"
                 style={{
                   top: '50%',
@@ -118,7 +118,12 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
                 {/* Prevents the Link from navigating when the intent is to rotate.
                     The outer div owns the click; this inner div only blocks card-link events. */}
                 <div style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
-                  <PlayerCard player={player} isActive={isActive} />
+                  <PlayerCard
+                    card={card}
+                    context="list"
+                    active={isActive}
+                    href={`/roster/${String(card.front.playerId)}`}
+                  />
                 </div>
               </div>
             )
@@ -132,13 +137,13 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
           </button>
 
           <div className="hpcr-progress" role="tablist">
-            {players.map((p, i) => (
+            {cards.map((c, i) => (
               <button
-                key={p.playerId}
+                key={c.front.playerId}
                 type="button"
                 role="tab"
                 aria-selected={i === activeIndex}
-                aria-label={`Show ${p.gamertag}`}
+                aria-label={`Show ${c.front.name}`}
                 onClick={() => {
                   setActiveIndex(i)
                 }}
@@ -180,7 +185,14 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
             onTouchStart={onTouchStart}
             onTouchEnd={onTouchEnd}
           >
-            {players[activeIndex] && <PlayerCard player={players[activeIndex]} isActive />}
+            {cards[activeIndex] && (
+              <PlayerCard
+                card={cards[activeIndex]}
+                context="list"
+                active
+                href={`/roster/${String(cards[activeIndex].front.playerId)}`}
+              />
+            )}
           </div>
 
           <button
@@ -196,11 +208,11 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
         {/* Thin-bar indicators + player label */}
         <div className="mt-3 flex flex-col items-center gap-2">
           <div className="flex items-center gap-1.5">
-            {players.map((p, i) => (
+            {cards.map((c, i) => (
               <button
-                key={p.playerId}
+                key={c.front.playerId}
                 type="button"
-                aria-label={`Show ${p.gamertag}`}
+                aria-label={`Show ${c.front.name}`}
                 onClick={() => {
                   setActiveIndex(i)
                 }}
@@ -214,7 +226,7 @@ export function PlayerCarousel({ players }: PlayerCarouselProps) {
             ))}
           </div>
           <span className="font-condensed text-sm font-black uppercase tracking-wider text-zinc-400">
-            {players[activeIndex]?.gamertag ?? ''}
+            {cards[activeIndex]?.front.name ?? ''}
           </span>
         </div>
       </div>
