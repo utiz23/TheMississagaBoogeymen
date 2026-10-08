@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { Panel } from '@/components/ui/panel'
+import { Toggle, ToggleGroup } from '@/components/ui/pill-toggle'
 import { DASH } from './format.ts'
 import { metricLabel, resolveCell, type Metric, type MetricMap } from './metrics.ts'
 import {
@@ -25,6 +26,34 @@ export interface ShellDataset<R> {
   source: StatsSource
   /** True when EA expanded stats were fetched for these rows (Active title + All mode only). */
   hasExpanded: boolean
+}
+
+/** A subset's rows for one scope, or why that scope can't show it. */
+export type SubsetData<R> = ShellDataset<R> | { unavailable: string }
+
+export interface ShellSubset<R> {
+  key: string
+  /** Pill text, e.g. "LW". */
+  label: string
+  /** Full name for hover text and messages, e.g. "Left wing". */
+  title: string
+  current: SubsetData<R>
+  /** Omitted → unavailable in the All Time scope. */
+  allTime?: SubsetData<R>
+}
+
+/**
+ * Sub-category pills (e.g. Position: All · C · LW …). "All" shows the
+ * table's own datasets; another pill swaps in that subset's datasets, with
+ * their own source badge and notes.
+ */
+export interface ShellSubsets<R> {
+  /** Row label, e.g. "Position". */
+  label: string
+  allLabel: string
+  options: ShellSubset<R>[]
+  /** Set when the subset data failed to load: every non-All pill is disabled with this reason. */
+  disabledReason?: string
 }
 
 /**
@@ -58,6 +87,7 @@ export interface StatsTableShellProps<R extends BaseDisplayRow> {
   emptyMessage?: string
   playerMeta?: Record<number, PlayerMeta>
   rowLabel?: RowLabel<R>
+  subsets?: ShellSubsets<R>
 }
 
 /** Sort key for "the rows' input order" — only valid with a `rowLabel`. */
@@ -94,6 +124,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
     allTimeUnavailable,
     playerMeta,
     rowLabel,
+    subsets,
   } = props
   const currentState = props.state ?? 'ok'
 
@@ -102,13 +133,35 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
   const [sort, setSort] = useState<SortState>({ key: null, asc: null })
   const [perGameMode, setPerGameMode] = useState(false)
   const [keyOpen, setKeyOpen] = useState(false)
+  const [subsetKey, setSubsetKey] = useState<string | null>(null)
 
   const { canAllTime, activeScope } = resolveScopeAvailability(scope, allTime?.rows.length ?? 0)
-  const active: ShellDataset<R> = activeScope === 'allTime' && allTime ? allTime : current
+  const baseActive: ShellDataset<R> = activeScope === 'allTime' && allTime ? allTime : current
+  const subsetFor = (o: ShellSubset<R>): SubsetData<R> =>
+    subsets?.disabledReason !== undefined
+      ? { unavailable: subsets.disabledReason }
+      : ((activeScope === 'allTime' ? o.allTime : o.current) ?? {
+          unavailable: `${o.title} isn’t available for All Time.`,
+        })
+  const subset = subsetKey !== null ? subsets?.options.find((o) => o.key === subsetKey) : undefined
+  const subsetData = subset ? subsetFor(subset) : undefined
+  const subsetUnavailable =
+    subsetData !== undefined && 'unavailable' in subsetData ? subsetData.unavailable : null
+  const active: ShellDataset<R> =
+    subsetData === undefined
+      ? baseActive
+      : 'unavailable' in subsetData
+        ? { rows: [], source: baseActive.source, hasExpanded: baseActive.hasExpanded }
+        : subsetData
   // The Current dataset's `state` never leaks into the All Time scope — see
   // `resolveScopeState`. A failed Current query stays visible as an error
-  // only while Current is the active scope.
-  const state = resolveScopeState(activeScope, currentState)
+  // only while Current is the active scope. A subset carries its own data.
+  const state = subset ? 'ok' : resolveScopeState(activeScope, currentState)
+  const emptyMessage =
+    subsetUnavailable ??
+    (subset
+      ? `No ${title.toLowerCase()} with games at ${subset.title.toLowerCase()} here yet.`
+      : props.emptyMessage)
 
   const resolved = useMemo(
     () => resolveViews(views, metrics, active.hasExpanded),
@@ -250,6 +303,43 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
           </div>
         </div>
       </div>
+
+      {subsets && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-zinc-800/60 px-4 py-2">
+          <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+            {subsets.label}
+          </span>
+          <ToggleGroup label={`${title} by ${subsets.label.toLowerCase()}`} pill>
+            <Toggle
+              pill
+              pressed={subset === undefined}
+              onClick={() => {
+                setSubsetKey(null)
+              }}
+            >
+              {subsets.allLabel}
+            </Toggle>
+            {subsets.options.map((o) => {
+              const d = subsetFor(o)
+              const reason = 'unavailable' in d ? d.unavailable : undefined
+              return (
+                <Toggle
+                  pill
+                  key={o.key}
+                  pressed={subset?.key === o.key}
+                  disabled={reason !== undefined && subset?.key !== o.key}
+                  title={reason ?? o.title}
+                  onClick={() => {
+                    setSubsetKey(o.key)
+                  }}
+                >
+                  {o.label}
+                </Toggle>
+              )
+            })}
+          </ToggleGroup>
+        </div>
+      )}
 
       {state === 'ok' && (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-zinc-800/60 px-4 py-2">
@@ -450,8 +540,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                       colSpan={colCount}
                       className="py-10 text-center font-condensed text-sm uppercase tracking-wider text-zinc-500"
                     >
-                      {props.emptyMessage ??
-                        `No ${role === 'skaters' ? 'skater' : 'goalie'} data yet.`}
+                      {emptyMessage ?? `No ${role === 'skaters' ? 'skater' : 'goalie'} data yet.`}
                     </td>
                   </tr>
                 ) : (

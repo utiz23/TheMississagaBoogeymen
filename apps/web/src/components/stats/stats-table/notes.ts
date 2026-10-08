@@ -152,3 +152,29 @@ export function expandedKeyNoteVisible(args: {
   if (expandedFailedNoteVisible(args.scope, args.expandedFailed)) return false
   return true
 }
+
+export const POSITION_COVERAGE_NOTE =
+  '* Tracked games only: a marked GP shows how many of the player’s games at this position the site tracked, out of EA’s season count. NHL 26 was only partly tracked.'
+
+export const WING_SPLIT_NOTE =
+  '† LW / RW come from 6s screenshots only, because 3s screenshots don’t split wings. W covers both playlists.'
+
+/** GP cell note for position views: partial tracking (*) and/or 6s-only wings (†). */
+export function gpCoverageAnnotation(
+  coverage: CareerCoverage | undefined,
+  wingSplit6sOnly: boolean | undefined,
+): CellAnnotation | undefined {
+  let marker = ''
+  const parts: string[] = []
+  if (coverage?.state === 'partial') {
+    marker += '*'
+    parts.push(
+      `Tracked ${String(coverage.coveredGp)} of ${String(coverage.totalGp)} games at this position.`,
+    )
+  }
+  if (wingSplit6sOnly === true) {
+    marker += '†'
+    parts.push('6s games only; 3s screenshots don’t split LW / RW.')
+  }
+  return parts.length > 0 ? { marker, srText: parts.join(' ') } : undefined
+}

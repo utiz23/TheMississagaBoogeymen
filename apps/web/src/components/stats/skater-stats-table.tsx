@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import type { EASkaterExpandedRow } from '@eanhl/db/queries'
 import { SKATER_METRICS } from './stats-table/skater-metrics.ts'
 import { toSkaterDisplayRow, type SkaterInputRow } from './stats-table/row-adapters.ts'
+import { positionSubsets, type PositionData } from './stats-table/position-adapters.ts'
 import { StatsTableShell } from './stats-table/stats-table-shell.tsx'
 import type { PlayerMeta } from './stats-table/player-label.ts'
 import type { StatsSource } from './stats-table/types.ts'
@@ -31,10 +32,12 @@ interface SkaterStatsTableProps {
   /** The All Time query failed: toggle shown disabled. */
   allTimeUnavailable?: boolean
   emptyMessage?: string
+  /** Per-position rows: adds the Position pills (All · C · LW · RW · W · D). */
+  positions?: PositionData
 }
 
 export function SkaterStatsTable(props: SkaterStatsTableProps) {
-  const { rows, allTimeRows, expanded } = props
+  const { rows, allTimeRows, expanded, positions } = props
 
   const expandedById = useMemo(
     () =>
@@ -55,6 +58,11 @@ export function SkaterStatsTable(props: SkaterStatsTableProps) {
         ? allTimeRows.map((r) => toSkaterDisplayRow(r))
         : undefined,
     [allTimeRows],
+  )
+
+  const subsets = useMemo(
+    () => (positions === undefined ? undefined : positionSubsets(positions)),
+    [positions],
   )
 
   return (
@@ -85,6 +93,7 @@ export function SkaterStatsTable(props: SkaterStatsTableProps) {
       {...(props.expandedFailed === true ? { expandedFailed: true } : {})}
       {...(props.emptyMessage !== undefined ? { emptyMessage: props.emptyMessage } : {})}
       {...(props.playerMeta !== undefined ? { playerMeta: props.playerMeta } : {})}
+      {...(subsets !== undefined ? { subsets } : {})}
     />
   )
 }

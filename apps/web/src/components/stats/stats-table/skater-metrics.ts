@@ -1,6 +1,6 @@
 import { parseSupplied, fmtSuppliedPct, ratio } from './format.ts'
 import type { Metric, MetricMap } from './metrics.ts'
-import { toiCoverageAnnotation } from './notes.ts'
+import { gpCoverageAnnotation, toiCoverageAnnotation } from './notes.ts'
 import type { SkaterDisplayRow as R, SkaterExpanded } from './types.ts'
 
 const D2 = { format: 'd2' } as const
@@ -42,6 +42,7 @@ export const SKATER_METRICS: MetricMap<R> = {
     full: 'Games played as a skater',
     value: (r) => r.gamesPlayed,
     format: 'int',
+    annotate: (r) => gpCoverageAnnotation(r.gpCoverage, r.wingSplit6sOnly),
   },
   g: count('g', 'G', 'Goals', (r) => r.goals),
   a: count('a', 'A', 'Assists', (r) => r.assists),

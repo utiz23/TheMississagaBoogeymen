@@ -57,6 +57,10 @@ export interface SkaterDisplayRow extends BaseDisplayRow {
    * source (EA, local, archive), which use `gamesPlayed` directly. */
   toiCoverageGp?: number
   toiCoverage?: CareerCoverage
+  /** Position views: games seen at the position vs the season's (tracked games). */
+  gpCoverage?: CareerCoverage
+  /** Position views: LW / RW from 6s screenshots only (3s has no wing split). */
+  wingSplit6sOnly?: boolean
 }
 
 export interface GoalieDisplayRow extends BaseDisplayRow {

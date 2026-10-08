@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, type ReactNode } from 'react'
+import { Toggle, ToggleGroup } from '@/components/ui/pill-toggle'
 import { BroadcastPanel } from '@/components/ui/broadcast-panel'
 import { SectionHeader } from '@/components/ui/section-header'
 import {
@@ -670,61 +671,5 @@ function Footnote({
         6P, EASHL 3v3 = Clubs 3v3). Threes and Quickplay 3v3 are kept separate.
       </p>
     </div>
-  )
-}
-
-function ToggleGroup({
-  label,
-  pill = false,
-  children,
-}: {
-  label: string
-  pill?: boolean
-  children: ReactNode
-}) {
-  return (
-    <div
-      role="group"
-      aria-label={label}
-      className={
-        pill
-          ? 'flex flex-wrap items-center gap-1.5'
-          : 'inline-flex border border-zinc-800 bg-surface'
-      }
-    >
-      {children}
-    </div>
-  )
-}
-
-function Toggle({
-  pressed,
-  pill = false,
-  onClick,
-  children,
-}: {
-  pressed: boolean
-  pill?: boolean
-  onClick: () => void
-  children: ReactNode
-}) {
-  const base =
-    'font-condensed font-bold uppercase transition-colors motion-reduce:transition-none ' +
-    FOCUS_RING
-  const cls = pill
-    ? `${base} min-h-8 rounded-full border px-3 py-1 text-[11px] tracking-[0.18em] ${
-        pressed
-          ? 'border-[rgba(232,65,49,0.85)] bg-accent-soft text-accent'
-          : 'border-zinc-800 bg-surface text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-      }`
-    : `${base} min-h-9 px-3 py-1.5 text-[11px] tracking-[0.18em] ${
-        pressed
-          ? 'bg-surface-raised text-zinc-50 shadow-[inset_0_-2px_0_var(--color-accent)]'
-          : 'bg-transparent text-fg-4 hover:text-zinc-200'
-      }`
-  return (
-    <button type="button" aria-pressed={pressed} onClick={onClick} className={cls}>
-      {children}
-    </button>
   )
 }
