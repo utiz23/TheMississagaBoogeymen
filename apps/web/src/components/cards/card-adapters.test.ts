@@ -195,6 +195,41 @@ void test('profile → card with a back: ledger, role-pool badges, career source
   assert.equal(card.back.source, 'CAREER · NHL 22–27')
 })
 
+void test("the worker's featured badge wins over the highest level", () => {
+  const base = {
+    player: {
+      id: 3,
+      gamertag: 'Stick Menace',
+      playerName: null,
+      jerseyNumber: null,
+      nationality: null,
+      position: 'leftWing',
+      preferredPosition: null,
+    },
+    season: null,
+    trendGames: [],
+    career: [],
+    role: 'skater' as const,
+  }
+  const badges = [
+    { familyId: 'p6g' as const, value: 12, level: 12 },
+    { familyId: 'pgoals' as const, value: 67, level: 8, featured: true },
+  ]
+  const card = cardFromProfile({
+    ...base,
+    progress: { standing: { tier: 2, level: 9, mythicTheme: null }, badges },
+  })
+  assert.deepEqual(card.front.badge, { familyId: 'pgoals', level: 8 })
+  const unflagged = cardFromProfile({
+    ...base,
+    progress: {
+      standing: { tier: 2, level: 9, mythicTheme: null },
+      badges: badges.map((b) => ({ ...b, featured: false })),
+    },
+  })
+  assert.deepEqual(unflagged.front.badge, { familyId: 'p6g', level: 12 })
+})
+
 void test('profile viewed as goalie uses the goalie side; missing progress falls back to tier 1', () => {
   const card = cardFromProfile({
     player: {

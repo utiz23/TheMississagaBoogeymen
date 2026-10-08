@@ -209,6 +209,31 @@ export const BADGE_GROUPS: readonly BadgeGroup[] = [
   { id: 'goalie', name: 'Goalie', shape: 'octagon' },
 ]
 
+/**
+ * Prestige of a badge when picking a card's featured badge (1 = marquee).
+ * Families left out are participation badges (games played, wins): featured
+ * only when a player has nothing else unlocked. Insertion order breaks ties,
+ * so the most prestigious come first.
+ */
+export const BADGE_PRESTIGE: Readonly<Partial<Record<BadgeFamilyId, number>>> = {
+  pgoals: 1,
+  pasts: 1,
+  pht: 1,
+  gso: 1,
+  gsv: 1,
+  gw: 1,
+  pbrk: 0.8,
+  pdekes: 0.8,
+  pshots: 0.8,
+  pfo: 0.8,
+  ptka: 0.8,
+  pblk: 0.8,
+  gdsv: 0.8,
+  gpoke: 0.8,
+  phits: 0.6,
+  pfight: 0.6,
+}
+
 /** Goalie-group families form the goalie tier pool; every other family is skater. */
 export function poolOf(family: BadgeFamily): TierPool {
   return family.group === 'goalie' ? 'goalie' : 'skater'

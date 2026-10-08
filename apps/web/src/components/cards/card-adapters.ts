@@ -121,7 +121,7 @@ export interface CardProfileInput {
   /** getPlayerCardProgress result, or null when it failed to load. */
   progress: {
     standing: { tier: CardTier; level: number; mythicTheme: MythicThemeKey | null } | null
-    badges: readonly { familyId: BadgeFamilyId; value: number; level: number }[]
+    badges: readonly { familyId: BadgeFamilyId; value: number; level: number; featured?: boolean }[]
   } | null
 }
 
@@ -157,6 +157,7 @@ export function cardFromProfile(input: CardProfileInput): CardViewModel {
   const standing = progress?.standing ?? null
   const tier: CardTier = standing?.tier ?? 1
   const badges = (progress?.badges ?? []).map((b) => ({ familyId: b.familyId, level: b.level }))
+  const featured = progress?.badges.find((b) => b.featured === true && b.level > 0)
   return {
     front: {
       playerId: player.id,
@@ -175,7 +176,10 @@ export function cardFromProfile(input: CardProfileInput): CardViewModel {
       tier,
       level: standing?.level ?? 1,
       theme: resolveCardTheme(tier, standing?.mythicTheme ?? null),
-      badge: pickBestBadge(badges),
+      badge:
+        featured === undefined
+          ? pickBestBadge(badges)
+          : { familyId: featured.familyId, level: featured.level },
     },
     back: {
       ledger: buildLedger(

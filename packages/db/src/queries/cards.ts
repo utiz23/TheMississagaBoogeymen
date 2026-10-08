@@ -29,7 +29,8 @@ export interface PlayerCardProgress {
     /** When the worker first computed this card: its history starts here. */
     trackedSince: Date
   } | null
-  badges: { familyId: BadgeFamilyId; value: number; level: number }[]
+  /** `featured`: the badge the card shows on its front (set by the worker's recompute). */
+  badges: { familyId: BadgeFamilyId; value: number; level: number; featured: boolean }[]
   events: {
     kind: CardEventKind
     familyId: BadgeFamilyId | null
@@ -75,6 +76,7 @@ export async function getPlayerCardProgress(
         familyId: playerBadgeLevels.familyId,
         value: playerBadgeLevels.value,
         level: playerBadgeLevels.level,
+        featured: playerBadgeLevels.featured,
       })
       .from(playerBadgeLevels)
       .where(
@@ -120,7 +122,7 @@ export interface CardSummary {
   tier: CardTier
   level: number
   theme: CardThemeKey
-  /** The card's featured badge (highest level, catalog order on ties), or null. */
+  /** The card's featured badge (the worker's pick; highest level until it has run), or null. */
   bestBadge: BadgeLevelRef | null
 }
 
@@ -151,6 +153,7 @@ export async function getCardProgressForPlayers(
       gameTitleId: playerBadgeLevels.gameTitleId,
       familyId: playerBadgeLevels.familyId,
       level: playerBadgeLevels.level,
+      featured: playerBadgeLevels.featured,
     })
     .from(playerBadgeLevels)
     .where(
@@ -163,18 +166,20 @@ export async function getCardProgressForPlayers(
       ),
     )
   const badges = new Map<number, BadgeLevelRef[]>()
+  const featured = new Map<number, BadgeLevelRef>()
   for (const r of badgeRows) {
     if (cards.get(r.playerId)?.gameTitleId !== r.gameTitleId) continue
     const list = badges.get(r.playerId) ?? []
     list.push({ familyId: r.familyId, level: r.level })
     badges.set(r.playerId, list)
+    if (r.featured) featured.set(r.playerId, { familyId: r.familyId, level: r.level })
   }
   for (const [playerId, c] of cards) {
     out.set(playerId, {
       tier: c.tier,
       level: c.level,
       theme: resolveCardTheme(c.tier, c.mythicTheme),
-      bestBadge: pickBestBadge(badges.get(playerId) ?? []),
+      bestBadge: featured.get(playerId) ?? pickBestBadge(badges.get(playerId) ?? []),
     })
   }
   return out

@@ -1,5 +1,6 @@
 import {
   bigserial,
+  boolean,
   index,
   integer,
   pgTable,
@@ -32,6 +33,8 @@ export const playerBadgeLevels = pgTable(
     familyId: text('family_id').notNull().$type<BadgeFamilyId>(),
     value: integer('value').notNull(),
     level: smallint('level').notNull(),
+    /** The badge this card shows on its front (migration 0061; one per player and title). */
+    featured: boolean('featured').notNull().default(false),
     computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

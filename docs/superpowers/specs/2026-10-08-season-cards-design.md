@@ -109,6 +109,28 @@ The mode splits for 3v3, 6v6 and 6's-with-goalie are estimated (12% / 88% / 16% 
 - `player_card_events`: add `game_title_id`; index `(player_id, game_title_id, occurred_at DESC)`.
 - `eanhl_preview` (the local test database) drops and re-creates the three tables. They hold only derived data.
 
+## Featured badge (operator, 2026-10-08)
+
+The badge on a card's front used to be the highest level. That made every regular show 6's with Goalie, because games-played badges climb fastest. It's now picked by the worker for the whole club, once per title, and stored as `player_badge_levels.featured` (migration 0061):
+
+1. **Club leaders first.** In prestige order, a badge's sole season leader features it, unless they already lead a more prestigious one. The leading scorer shows Goals, the assists leader Assists.
+2. **Everyone else, strongest first:** the badge with the best value relative to the club leader × prestige, preferring one nobody features yet.
+3. **Games played and wins** (3v3, 6v6, 6's with Goalie, Wins, Goalie Games) are featured only when nothing else is unlocked.
+
+Only badges in the card's own pool count: a skater card shows a skater badge. Prestige (`BADGE_PRESTIGE`): **1.0** Goals, Assists, Hat-Tricks, Shutouts, Saves, Goalie Wins; **0.8** Breakaways, Dekes, Shots, Faceoffs, Takeaways, Blocks, Desperation Saves, Poke-Checks; **0.6** Hits, Fights.
+
+On NHL 27 data from 2026-10-08:
+
+| Player          | Featured           |
+| --------------- | ------------------ |
+| Stick Menace    | Goals (leads)      |
+| silkyjoker85    | Assists (leads)    |
+| camrazz         | Hat-Tricks (leads) |
+| HenryTheBobJr   | Shots              |
+| JoeyFlopfish    | Takeaways          |
+| MrHomiecide     | Hits               |
+| Ordinary_Samich | Breakaways         |
+
 ## Behaviour
 
 - `card-recompute` computes every card title (S3), each with its own stored standing, so never-downgrade and events are per title.
