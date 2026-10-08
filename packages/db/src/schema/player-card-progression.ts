@@ -43,6 +43,8 @@ export const playerCardProgress = pgTable('player_card_progress', {
   mythicTheme: text('mythic_theme').$type<MythicThemeKey>(),
   computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  /** When this player's card history began; never updated after the first insert. */
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 export const playerCardEvents = pgTable(

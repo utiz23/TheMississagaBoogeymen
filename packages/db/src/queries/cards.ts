@@ -19,6 +19,8 @@ export interface PlayerCardProgress {
     pool: TierPool | 'manual'
     mythicTheme: MythicThemeKey | null
     computedAt: Date
+    /** When the worker first computed this player: the card history starts here. */
+    trackedSince: Date
   } | null
   badges: { familyId: BadgeFamilyId; value: number; level: number }[]
   events: {
@@ -69,6 +71,7 @@ export async function getPlayerCardProgress(
             pool: s.tierPool,
             mythicTheme: s.mythicTheme ?? null,
             computedAt: s.computedAt,
+            trackedSince: s.createdAt,
           },
     badges,
     events,

@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS "player_card_progress" (
   "mythic_theme" text,
   "computed_at"  timestamp with time zone NOT NULL DEFAULT now(),
   "updated_at"   timestamp with time zone NOT NULL DEFAULT now(),
+  "created_at"   timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT "player_card_progress_tier_check" CHECK ("tier" BETWEEN 1 AND 6),
   CONSTRAINT "player_card_progress_level_check" CHECK ("level" BETWEEN 1 AND 10),
   CONSTRAINT "player_card_progress_pool_check" CHECK ("tier_pool" IN ('skater', 'goalie', 'manual')),
@@ -48,6 +49,12 @@ CREATE TABLE IF NOT EXISTS "player_card_progress" (
   CONSTRAINT "player_card_progress_manual_check" CHECK (
     ("tier" = 6) = ("tier_pool" = 'manual') AND ("tier_pool" = 'manual') = ("mythic_theme" IS NOT NULL))
 );
+
+-- created_at: when this player's card history began (the locker's "History starts …").
+-- Set once by the DEFAULT; the worker and card-mythic upserts never update it.
+-- Added during the test run (step 3): a no-op where the CREATE above already made it.
+ALTER TABLE "player_card_progress"
+  ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone NOT NULL DEFAULT now();
 
 CREATE TABLE IF NOT EXISTS "player_card_events" (
   "id"          bigserial PRIMARY KEY,
