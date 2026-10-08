@@ -182,3 +182,16 @@ export function opponentCrestUrls(
 
   return [customUrl, baseUrl]
 }
+
+/**
+ * A heading-length name: a multi-word name longer than 12 characters becomes
+ * first initial + last word ("Matteo Lehmann" → "M. Lehmann"). Single-word
+ * names (gamertags) and short names are unchanged.
+ */
+export function headingName(name: string): string {
+  const words = name.trim().split(/\s+/)
+  if (name.length <= 12 || words.length < 2) return name
+  const first = words[0] ?? ''
+  const last = words[words.length - 1] ?? ''
+  return /^[A-Za-z]/.test(first) ? `${first.charAt(0).toUpperCase()}. ${last}` : last
+}

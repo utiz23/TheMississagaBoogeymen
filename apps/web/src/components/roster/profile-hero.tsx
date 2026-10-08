@@ -9,7 +9,7 @@ import type { GameMode, PlayerArchetype } from '@eanhl/db'
 import { PLAYER_ARCHETYPES } from '@eanhl/db'
 import { NationalityFlag, PlatformIcon } from '@/components/player-meta-icons'
 import { ArchetypePillFlagship } from '@/components/ui/archetype-pill'
-import { formatPositionFull } from '@/lib/format'
+import { formatPositionFull, headingName } from '@/lib/format'
 import { formatCareerTitleRange } from '@/lib/title-resolver'
 import './profile-hero.css'
 
@@ -181,7 +181,9 @@ export function ProfileHero({
             </div>
 
             <div className="ph-nameplate">
-              <h1 className="gamertag">{displayName}</h1>
+              <h1 className="gamertag" title={displayName}>
+                {headingName(displayName)}
+              </h1>
               {aka.length > 0 && (
                 <div className="ph-aka">
                   <span className="also">

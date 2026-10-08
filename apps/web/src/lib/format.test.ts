@@ -6,7 +6,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { formatDuration } from './format.ts'
+import { formatDuration, headingName } from './format.ts'
 
 const MIN = 60
 const HOUR = 60 * MIN
@@ -37,4 +37,12 @@ void test('formatDuration renders a dash for no time or bad input', () => {
   assert.equal(formatDuration(-30), '—')
   assert.equal(formatDuration(null), '—')
   assert.equal(formatDuration(Number.NaN), '—')
+})
+
+void test('headingName shortens long multi-word names to initial + last name', () => {
+  assert.equal(headingName('Matteo Lehmann'), 'M. Lehmann')
+  assert.equal(headingName('DaQuarius McBum'), 'D. McBum')
+  assert.equal(headingName('Jonas Wagner'), 'Jonas Wagner') // 12 characters: fits
+  assert.equal(headingName('Igor Orlov'), 'Igor Orlov')
+  assert.equal(headingName('HenryTheBobJr'), 'HenryTheBobJr') // one word: a gamertag
 })
