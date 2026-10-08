@@ -353,3 +353,49 @@ Commit `feat(web): Career Action Map on the player preview page`.
 - `pnpm --filter @eanhl/db test` (directions), `pnpm --filter web test:unit` (model), typecheck for db, worker and web.
 - The query smoke check (Task 2); a read-only psql cross-check of #2's distinct matches and By/On counts.
 - The Playwright checks from Task 4 at 1280 and 390 px; no live file changed.
+
+## Execution record (2026-10-07)
+
+Executed inline (Native) on `feat/player-cards`; one fresh reviewer (opus) at the end.
+
+**Commits:** `561ac0a` plan · `e2898c9` directions · `bb6803b` query · `4d0c90a` view model · `c5d971e` opponent abbreviation fix · `5282e20` UI · `31df1d8` review fixes.
+
+**Verification:**
+
+- **Tests:** db 126/126 (directions 5/5); web unit 386/386 (action-map-model 13/13). Typecheck for db, worker and web, per-file eslint and prettier all green. No live file changed.
+- **Preview smoke, #2:** 738 events in 26 games, By/On 464/274. All 103 plotted BGM shots and goals sit on the right half. Match 250 P1 is listed but not plotted.
+- **Playwright:**
+  - Filters: counts ignore their own selection. Turning every type off gives the empty state.
+  - Pin: the pin bar shows, other markers fade, and the list scrolls to the row.
+  - Isolate and sorts work. Goalie #12 is mostly On, labelled "Shot against" / "Goal against". #28 shows no section.
+  - Phone: 390 px stacks. Keyboard: Enter pins a marker.
+
+**Rulings:**
+
+- **Task 3:** `buildPin` takes `(visible, pinId)`, and the game groups use a guard instead of a type assertion.
+- **Task 4:**
+  - **Opponent abbreviation:** opponents show `abbreviateTeamName(opponent_name)`, the site's convention, because the OCR `opp_team_abbr` is often one character on real data. A test pins this.
+- **Final:**
+  - **No content-visibility:** list groups don't use `content-visibility`, which would break pin-to-row scrolling.
+  - **Declined items:** the reviewer's 12 "declined to judge" items stand.
+
+**Review:** "With fixes": 0 Critical, 2 Important (both fixed, measured before and after), 8 Minor.
+
+- **Fixed — tap speed:** pin taps went from 186–896 ms to 41–140 ms; sort from 495–762 ms to 204–237 ms (dev build).
+- **Fixed — section weight:** 906 KB / 14.3k elements went to 579 KB / 10.5k.
+- **Gone with the row rewrite:** the positioned-faceoff "No rink position" label.
+- **Deferred minors:**
+  - A non-numeric clock would hide the section.
+  - A recorded-direction conflict blocks the shot fallback.
+  - The < 5 hide rule counts positions, not markers.
+  - Every marker is in the Tab order.
+  - Goal glyphs sit about 3.75 units high.
+  - Hitting the 1,000-row cap truncates the oldest game.
+  - Duplicate clock parser.
+
+**For the switch:**
+
+- Replace `CareerShotMap` at `apps/web/src/app/roster/[id]/page.tsx:247`.
+- Delete `career-shot-map.tsx`.
+- Fix the stale "elapsed" `clock` comment in `schema/match-events.ts`; the data is time remaining.
+- Measure the page on a real phone.
