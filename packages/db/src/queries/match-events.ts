@@ -1,13 +1,16 @@
-import { and, asc, desc, eq, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   matchEvents,
   matchGoalEvents,
   matchPenaltyEvents,
+  matchPeriodSummaries,
   matches,
   ocrExtractions,
   players,
 } from '../schema/index.js'
+import type { GameMode, MatchResult } from '../schema/index.js'
+import { normalizePosition, periodKey, resolvePeriodDirections } from '../action-map/directions.js'
 
 /**
  * Goal/penalty/shot/hit/faceoff event log for a match, with extension-table
@@ -227,4 +230,151 @@ export async function getMatchActionTrackerProvenance(
       .map(([screenType, eventCount]) => ({ screenType, eventCount }))
       .sort((a, b) => b.eventCount - a.eventCount),
   }
+}
+
+/** One event on the Career Action Map (spec Part 5). */
+export interface CareerActionRow {
+  eventId: number
+  matchId: number
+  periodNumber: number
+  clock: string | null
+  eventType: string
+  /** 'by' = the player is the actor; 'on' = the player is the target. */
+  role: 'by' | 'on'
+  actorName: string | null
+  targetName: string | null
+  infraction: string | null
+  /** Normalised so BGM attacks right (hockey units); null = not plotted. */
+  x: number | null
+  y: number | null
+  /** The event had a raw rink position (the < 5 hide rule counts these). */
+  hasPosition: boolean
+  positionConfidence: string | null
+  opponent: string
+  gameMode: GameMode | null
+  result: MatchResult
+  scoreFor: number
+  scoreAgainst: number
+  playedAt: Date
+}
+
+/**
+ * Reviewed events where the player is the actor (By) or the target (On), newest
+ * game first, with positions turned so BGM attacks right (see
+ * action-map/directions.ts). Events in periods whose direction is unknown keep
+ * x/y = null and are listed but not plotted.
+ */
+export async function getPlayerCareerActions(
+  playerId: number,
+  limit = 1000,
+): Promise<CareerActionRow[]> {
+  const rows = await db
+    .select({
+      eventId: matchEvents.id,
+      matchId: matchEvents.matchId,
+      periodNumber: matchEvents.periodNumber,
+      clock: matchEvents.clock,
+      eventType: matchEvents.eventType,
+      actorPlayerId: matchEvents.actorPlayerId,
+      actorName: sql<
+        string | null
+      >`coalesce(actor_p.gamertag, ${matchEvents.actorGamertagSnapshot})`,
+      targetName: sql<
+        string | null
+      >`coalesce(target_p.gamertag, ${matchEvents.targetGamertagSnapshot})`,
+      infraction: matchPenaltyEvents.infraction,
+      x: matchEvents.x,
+      y: matchEvents.y,
+      positionConfidence: matchEvents.positionConfidence,
+      oppTeamAbbr: matches.oppTeamAbbr,
+      opponentName: matches.opponentName,
+      gameMode: matches.gameMode,
+      result: matches.result,
+      scoreFor: matches.scoreFor,
+      scoreAgainst: matches.scoreAgainst,
+      playedAt: matches.playedAt,
+    })
+    .from(matchEvents)
+    .innerJoin(matches, eq(matches.id, matchEvents.matchId))
+    .leftJoin(matchPenaltyEvents, eq(matchPenaltyEvents.eventId, matchEvents.id))
+    .leftJoin(sql`${players} AS actor_p`, sql`actor_p.id = ${matchEvents.actorPlayerId}`)
+    .leftJoin(sql`${players} AS target_p`, sql`target_p.id = ${matchEvents.targetPlayerId}`)
+    .where(
+      and(
+        eq(matchEvents.reviewStatus, 'reviewed'),
+        or(eq(matchEvents.actorPlayerId, playerId), eq(matchEvents.targetPlayerId, playerId)),
+      ),
+    )
+    .orderBy(
+      desc(matches.playedAt),
+      asc(matchEvents.periodNumber),
+      sql`(split_part(${matchEvents.clock}, ':', 1)::int * 60
+           + split_part(${matchEvents.clock}, ':', 2)::int) DESC NULLS LAST`,
+    )
+    .limit(limit)
+  if (rows.length === 0) return []
+
+  const matchIds = [...new Set(rows.map((r) => r.matchId))]
+  const [recorded, shotSides] = await Promise.all([
+    db
+      .select({
+        matchId: matchPeriodSummaries.matchId,
+        periodNumber: matchPeriodSummaries.periodNumber,
+        direction: matchPeriodSummaries.bgmAttackDirection,
+      })
+      .from(matchPeriodSummaries)
+      .where(
+        and(
+          inArray(matchPeriodSummaries.matchId, matchIds),
+          isNotNull(matchPeriodSummaries.bgmAttackDirection),
+        ),
+      ),
+    db
+      .select({
+        matchId: matchEvents.matchId,
+        periodNumber: matchEvents.periodNumber,
+        total: sql<number>`count(*)::int`,
+        right: sql<number>`(count(*) FILTER (WHERE ${matchEvents.x} > 0))::int`,
+      })
+      .from(matchEvents)
+      .where(
+        and(
+          inArray(matchEvents.matchId, matchIds),
+          eq(matchEvents.reviewStatus, 'reviewed'),
+          eq(matchEvents.teamSide, 'for'),
+          inArray(matchEvents.eventType, ['shot', 'goal']),
+          isNotNull(matchEvents.x),
+        ),
+      )
+      .groupBy(matchEvents.matchId, matchEvents.periodNumber),
+  ])
+  const directions = resolvePeriodDirections(recorded, shotSides)
+
+  return rows.map((r) => {
+    const hasPosition = r.x !== null && r.y !== null
+    const dir = directions.get(periodKey(r.matchId, r.periodNumber))
+    const pos =
+      hasPosition && dir !== undefined ? normalizePosition(Number(r.x), Number(r.y), dir) : null
+    return {
+      eventId: r.eventId,
+      matchId: r.matchId,
+      periodNumber: r.periodNumber,
+      clock: r.clock,
+      eventType: r.eventType,
+      role: r.actorPlayerId === playerId ? 'by' : 'on',
+      actorName: r.actorName,
+      targetName: r.targetName,
+      infraction: r.infraction,
+      x: pos?.x ?? null,
+      y: pos?.y ?? null,
+      hasPosition,
+      positionConfidence: r.positionConfidence,
+      opponent: r.oppTeamAbbr ?? r.opponentName,
+      gameMode: r.gameMode,
+      result: r.result,
+      scoreFor: r.scoreFor,
+      scoreAgainst: r.scoreAgainst,
+      playedAt: r.playedAt,
+    }
+  })
 }
