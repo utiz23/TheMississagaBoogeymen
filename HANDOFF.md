@@ -28,11 +28,11 @@ tunnel. Launch plan items 2–8 are done; item 1 counts three green nightly
 backups on Hotel-Echo from 2026-10-06. Next: observe for a few days, then
 post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
-**Position filter built, not deployed** (2026-10-08 evening, `6358221`): Position pills (All · C · LW · RW · W · D) on the roster, stats and player-season tables, plus a deeper season table. Deploy needs migration 0063 on live first, then `recompute-aggregates --all` in the worker. Detail: [journal 2026-10-08 evening](docs/journal/2026-10.md).
-
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
 ## Latest Verified Checkpoint
+
+**2026-10-08 (night) — position filter + deeper season table deployed** (`29ee6a2`, also ships `c7b2eab` depth chart top 4 lines / 3 D pairs; migration 0063 `player_position_stats`; rollback images `:rollback-he-2026-10-08-pre-positions`; dump `~/eanhl-backups/pre-positions-2026-10-08-2155.dump`, sha256 `421bc764…4a47`). Position pills (All · C · LW · RW · W · D) on roster, stats and player-season tables; `recompute-aggregates --all` backfilled NHL 26 (no longer ingested). Live: position GP = skater GP for 60/60 + 28/28 players; HenryTheBobJr NHL 26 D 118 of 571. Detail: [journal 2026-10-08 evening](docs/journal/2026-10.md).
 
 **2026-10-08 (later) — featured badges, roster additions, AI goalies, multi-position depth chart deployed** (`d772784`; migrations 0061 + 0062; rollback images `:rollback-he-2026-10-08-pre-ai-goalies`; dump `~/eanhl-backups/pre-ai-goalies-2026-10-08-1127.dump`). AI goalies Matteo Lehmann / Jonas Wagner and pinned Jimmy Cap are players; the worker syncs AI-goalie lines every cycle. Detail: [journal 2026-10-08](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
 
@@ -91,7 +91,7 @@ nofollow` and robots meta; no `X-Powered-By`, no cookies, no Cloudflare
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web at `351354d`, worker at `3f35733`), web and worker as the non-root
+  and nightly backup (web + worker at `29ee6a2`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
@@ -158,7 +158,6 @@ None.
 
 ## Next 1-3 Actions
 
-0. Deploy the position filter when the operator OKs it (`docker-redeploy` skill): dump + rollback tags, apply `0063_player_position_stats.sql` on live, rebuild web + worker, run `pnpm --filter worker recompute-aggregates --all` in the worker container (NHL 26 isn't ingested), spot-check HenryTheBobJr NHL 26 D = 118 of 571.
 1. Cards: watch the first days live (worker log `AI goalies nhl27` + `Card progression recomputed`, teammates' reactions). Re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Open for the operator: Jimmy Cap's position (RW placeholder), the Action Map clock direction, the deferred minors in the switch plan's record, and a pre-existing Contribution Wheel hydration warning. `eanhl_preview` can be dropped on the operator's say. New migrations must also go to `eanhl_test` (verify-ocr seed).
 2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
