@@ -248,14 +248,9 @@ Commit `chore: switch notes — archetype split, clock comment, image cache head
 
 ## Phase B — live switch (after the icons, on the operator's explicit go)
 
-### B1: Icons
+### B1: Icons — done in Phase A
 
-1. Unzip the operator's icons into a scratch directory.
-2. Run `node docs/design/handoffs/2026-10-cards/import-badge-icons.mjs <dir>`. It must exit 0 with 21 icons.
-3. Gates: `badge-icons.test.ts` green.
-4. Browser: `/roster/3` badges show the new art in several themes (frames Away → Maximus).
-5. Commit `feat(web): the operator's badge icons`.
-6. Push the branch.
+Done ahead of time during the operator's icon polish (Task 1, commits 5385ed7..a3ae552): 18 icons ship; Dekes, Desperation Saves and Shutouts keep their lucide placeholders (operator, 2026-10-08). Nothing to run here. Re-running the import is only needed if the operator sends new art: `node docs/design/handoffs/2026-10-cards/import-badge-icons.mjs <dir>` writes 18 icons, then `badge-icons.test.ts` must be green.
 
 ### B2: Merge
 
@@ -306,3 +301,41 @@ Run over `ssh hotel-echo`, in `~/eanhl-team-website`. Each command's output is c
 
 - **Phase A:** gates green; Playwright checks for Tasks 2–4; production-build size comparison against live; `/preview/*` 404.
 - **Phase B:** backup succeeded with sha256 recorded; migration output as expected; tier table reproduced; live pages pass; rollback tags exist.
+
+## Execution record (Phase A, 2026-10-08)
+
+Executed inline; ledger `.superpowers/sdd/2026-10-08-switch-step-6/progress.md`. Range `5385ed7..2038264` on `feat/player-cards`, pushed as a branch backup. Nothing deployed.
+
+- **Task 1, icons:** done ahead of Phase A during the operator's polish (`5385ed7..a3ae552`). Ruling: icons become one-colour luminance masks with per-icon scale/offset/weight/solid/invert, rather than rejecting multi-colour art. 18 icons ship; Dekes, Desperation Saves and Shutouts keep lucide.
+- **Tasks 2–4:**
+  - Home carousel (`fee37be`), roster depth chart (`84f2370`; Ruling: the DEPTH flag is a top-centre tab) and player page (`11c7c12`, `88c0ab1`) show the new card, locker, Build Locker, Action Map and Badges.
+  - `11c7c12` doesn't build on its own (staged deletions); `88c0ab1` completes it. Not rewritten.
+- **Task 5** (`df7daea`):
+  - Two-Way archetypes map; image Cache-Control.
+  - Ruling: the clock comment is **not** changed. The comment says elapsed, but the preview data looks like time remaining (19:59 faceoffs). This is an open data question for the operator.
+- **Size stop and slimming** (`8dcbb16`): the first production build had `/roster/3` at 2× live's HTML. LazyMount on the Action Map and Badges plus a 60-row batched event list fixed it:
+
+  | `/roster/3`      | New build         | Live   |
+  | ---------------- | ----------------- | ------ |
+  | Elements at load | 1,521             | 1,880  |
+  | HTML, gzipped    | 46 KB (was 76 KB) | 42 KB  |
+  | Warm transfer    | 239 KB            | 262 KB |
+
+  Ruling: `/` and `/roster` stay about +8 KB gzipped (the cards' inline theme styles), accepted.
+
+- **Final review** (fresh opus):
+  - Critical 0, Important 1 (fixed in `2038264`: the Action Map headers lost their layout to a misplaced CSS rule). Live safety confirmed: no new 500 path with empty or missing 0060 tables; rollback works with 0060 applied.
+  - Re-graded the "21 icons" runbook text to Important; B1 rewritten.
+  - Deferred minors:
+    - EDIT chunk preload and redeploy error;
+    - LazyMount a11y and find-in-page;
+    - placeholder heights on phones;
+    - stale `/preview/badges` comment;
+    - SVG filter breadth;
+    - raw-OCR archetype pill initials;
+    - `groupsRef` set during render.
+- **Gates:**
+  - web unit 388/388; db test 126/126;
+  - typecheck db/worker/web clean; prettier clean;
+  - read-only `action-tracker-provenance` 2/2 on `eanhl_preview`. The two writing integration suites were not run: they belong to the verification DB and test code this branch doesn't touch.
+- **Next:** Phase B only on the operator's explicit go.

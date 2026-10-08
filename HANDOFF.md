@@ -28,12 +28,11 @@ tunnel. Launch plan items 2–8 are done; item 1 counts three green nightly
 backups on Hotel-Echo from 2026-10-06. Next: observe for a few days, then
 post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
-**In progress (branch `feat/player-cards`, backed up to GitHub, not merged or deployed):**
+**In progress (branch `feat/player-cards`, pushed to GitHub, not merged or deployed):**
 
-- Player cards (10 themes) and badges, built on the dev-only `/preview/roster/[id]` against the local `eanhl_preview` database.
-- Steps 1–5 are done (badges, cards, EDIT + read-only locker, Build Locker v2, Career Action Map). Step 6 remains: the switch to live (see each step's plan record for its switch notes).
-- Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md).
-- Detail: [journal 2026-10-07](docs/journal/2026-10.md).
+- Player cards (10 themes), badges with the operator's icons, the EDIT locker, Build Locker v2 and Career Action Map are wired into the live home, roster and player pages. The code side of the switch (Phase A) is done, reviewed and slimmed to live's page weight.
+- **Phase B (the deploy on Hotel-Echo) waits for the operator's explicit go.** Runbook: B2–B4 in the [switch plan](docs/superpowers/plans/2026-10-08-switch-step-6.md). It covers the backup and sha256, rollback tags, migration 0060 before the new worker, rebuild with `--no-deps`, the recompute dry-run and site checks.
+- Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md). Detail: [journal 2026-10-07/08](docs/journal/2026-10.md).
 
 ## Latest Verified Checkpoint
 
@@ -155,11 +154,7 @@ None.
 
 ## Next 1-3 Actions
 
-1. Cards/badges test run (`feat/player-cards`):
-   - Operator phone pass: card flip, Storm smoothness, Inferno embers.
-   - The operator's badge icon set.
-   - Then the switch (step 6). Switch notes live in each step's plan record (e.g. live `buildClassToArchetype` hyphen split, delete `career-shot-map.tsx`, measure the player page on a phone).
-   - At the switch, apply migration 0060 (now includes `player_card_progress.created_at`) on Hotel-Echo before deploying the worker. Also load the locker lazily (`next/dynamic`) and measure player-page size (locker plan record).
+1. Cards/badges: on the operator's go, run Phase B (merge `feat/player-cards` to `main`, then the Hotel-Echo runbook in the switch plan). Open questions for the operator: the Action Map clock direction (comment says elapsed, data looks like time remaining), and the deferred minors in the plan's execution record.
 2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
    time deltas). The security review is closed (journal 10-06).
