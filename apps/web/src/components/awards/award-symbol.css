@@ -1,0 +1,202 @@
+/* Award Symbol.dc.html — 84×72 box, scaled by the caller. */
+.as {
+  width: 84px;
+  height: 72px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  font-family: var(--font-condensed);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Career milestone: octagonal metal plate, tier = bronze / silver / gold. */
+.as-ms {
+  position: relative;
+  width: 62px;
+  height: 64px;
+  background: var(--as-edge);
+  clip-path: polygon(
+    7px 0,
+    calc(100% - 7px) 0,
+    100% 7px,
+    100% calc(100% - 7px),
+    calc(100% - 7px) 100%,
+    7px 100%,
+    0 calc(100% - 7px),
+    0 7px
+  );
+}
+.as-ms-face {
+  position: absolute;
+  inset: 1px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: linear-gradient(180deg, #2f2d2e, #1f1d1e);
+  clip-path: polygon(
+    6px 0,
+    calc(100% - 6px) 0,
+    100% 6px,
+    100% calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    6px 100%,
+    0 calc(100% - 6px),
+    0 6px
+  );
+}
+.as-ms-rivet {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--as-rivet);
+}
+.as-ms-glyph {
+  font-size: 17px;
+  font-weight: 900;
+  color: #fafafa;
+  letter-spacing: 0.01em;
+}
+.as-ms-bar {
+  width: 14px;
+  height: 2px;
+  background: var(--as-rivet);
+}
+.as-ms-plate {
+  padding: 2px 6px;
+  background: var(--as-plate);
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: #1a1819;
+}
+
+/* Single-season record: red plaque. */
+.as-rec {
+  width: 60px;
+  height: 66px;
+  box-sizing: border-box;
+  border: 1px solid #ef6a5e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(180deg, #e84131, #c2321f);
+  box-shadow:
+    inset 0 0 0 2px #c2321f,
+    inset 0 0 0 3px rgba(255, 255, 255, 0.25),
+    0 0 14px rgba(232, 65, 49, 0.25);
+  color: #fff;
+}
+.as-rec-head {
+  align-self: stretch;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  background: #1a1819;
+  margin: 3px 3px 0;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+.as-rec-glyph {
+  margin-top: 7px;
+  font-size: 16px;
+  font-weight: 900;
+}
+.as-rec-word {
+  margin-top: 4px;
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+.as-rec-stat {
+  margin-top: 5px;
+  padding: 2px 5px;
+  background: #1a1819;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+
+/* All-time record: gold arched crest on a two-step plinth. */
+.as-at {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.as-at-rim {
+  width: 56px;
+  height: 58px;
+  padding: 1px;
+  box-sizing: border-box;
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(90deg, #8a6a1c, #f2d27a 45%, #c9a23e 65%, #8a6a1c);
+  filter: drop-shadow(0 0 7px rgba(226, 190, 92, 0.25));
+}
+.as-at-face {
+  width: 100%;
+  height: 100%;
+  border-radius: 27px 27px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(135deg, #f2d27a, #c9a23e 50%, #a8842c);
+  box-shadow:
+    inset 0 0 0 2px #a8842c,
+    inset 0 0 0 3px #f2d27a;
+  color: #1a1819;
+}
+.as-at-star {
+  margin-top: 8px;
+  width: 9px;
+  height: 9px;
+  background: #1a1819;
+  clip-path: polygon(
+    50% 0,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2% 35%,
+    39% 35%
+  );
+}
+.as-at-word {
+  margin-top: 3px;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+.as-at-glyph {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 900;
+}
+.as-at-stat {
+  margin-top: 5px;
+  padding: 2px 5px;
+  background: #1a1819;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #f2d27a;
+  white-space: nowrap;
+}
+.as-at-step1 {
+  width: 64px;
+  height: 4px;
+  background: #3a3839;
+  border-top: 1px solid #c9a23e;
+}
+.as-at-step2 {
+  width: 70px;
+  height: 4px;
+  background: #2a2829;
+}

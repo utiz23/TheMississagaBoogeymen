@@ -16,6 +16,7 @@ import {
   getPlayerCardProgress,
   getPlayerArchiveSeasonDetail,
   getPlayerPositionSeasons,
+  getClubSeasonLines,
 } from '@eanhl/db/queries'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
@@ -35,6 +36,8 @@ import { toBuildLockerView } from '@/components/roster/build-locker-model'
 import { CareerActionMap } from '@/components/roster/career-action-map'
 import { shouldShowActionMap } from '@/components/roster/action-map-model'
 import { PlayerBadges } from '@/components/badges/player-badges'
+import { PlayerAwards } from '@/components/awards/player-awards'
+import { buildPlayerAwards } from '@/components/awards/awards-model'
 import { LazyMount } from '@/components/ui/lazy-mount'
 import { HeroCard } from '@/components/cards/hero-card'
 import { buildLockerView } from '@/components/cards/locker-model'
@@ -157,6 +160,15 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     cardProgress = null
   }
 
+  // Awards trophy case: club records and career milestones, ranked against
+  // every player's season lines. A failure only hides the section.
+  let clubLines: Awaited<ReturnType<typeof getClubSeasonLines>> = []
+  try {
+    clubLines = await getClubSeasonLines()
+  } catch {
+    clubLines = []
+  }
+
   // Club Stats and both zone maps describe the player's newest EA title, so
   // the teammate pool and team baselines come from that same title.
   const focalEaRow = eaStats[0]
@@ -230,6 +242,8 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     trackedSince: cardProgress?.standing?.trackedSince ?? null,
     seasonName: cardProgress?.gameTitle?.name ?? null,
   })
+
+  const awards = buildPlayerAwards(clubLines, id)
 
   // Trend: role-filtered, oldest first, max 15
   const trendGames = [...overview.trendGames]
@@ -360,6 +374,10 @@ export default async function PlayerPage({ params, searchParams }: Props) {
           )
         }
       />
+
+      {awards.items.length > 0 && (
+        <PlayerAwards gamertag={overview.player.gamertag} span={awards.span} items={awards.items} />
+      )}
 
       {/* Toward the bottom of the player page (spec D13). */}
       <LazyMount minHeight={720} label="Badges">

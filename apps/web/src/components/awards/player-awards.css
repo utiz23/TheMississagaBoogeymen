@@ -1,0 +1,286 @@
+/* Awards Trophy Case.dc.html — chrome mirrors player-badges.css. */
+.pa {
+  border: 1px solid #2a2829;
+  background: #1f1d1e;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-condensed);
+}
+.pa-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 18px 22px 14px;
+}
+.pa-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fafafa;
+  line-height: 1;
+}
+.pa-title-mark {
+  color: #e84131;
+  margin-right: 6px;
+}
+.pa-sub,
+.pa-totals {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #71717a;
+}
+.pa-totals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  letter-spacing: 0.16em;
+}
+.pa-totals b {
+  color: #fafafa;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.pa-rule {
+  height: 1px;
+  background: linear-gradient(90deg, #7a1a10, #e84131, #7a1a10);
+}
+
+/* The case: one shelf of tiles. Tiles overlap by 1px so borders don't double. */
+.pa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  border-top: 1px solid #2a2829;
+  background: radial-gradient(60% 40% at 50% 0%, rgba(232, 65, 49, 0.06), transparent 70%);
+  overflow: hidden;
+}
+.pa-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 12px 24px;
+  margin: 0 -1px -1px 0;
+  border: none;
+  border-right: 1px solid #2a2829;
+  border-bottom: 1px solid #2a2829;
+  cursor: pointer;
+  background: transparent;
+  font-family: inherit;
+  transition: background-color 150ms;
+}
+.pa-tile:hover {
+  background: #262425;
+}
+.pa-tile[aria-pressed='true'] {
+  background: #2a2829;
+  box-shadow: inset 0 -2px 0 #e84131;
+}
+.pa-tile:focus-visible {
+  outline: 2px solid #e84131;
+  outline-offset: -2px;
+}
+.pa-tile-symbol {
+  width: 168px;
+  height: 144px;
+  display: grid;
+  place-items: center;
+}
+.pa-tile-symbol > div {
+  transform: scale(2);
+}
+.pa-tile-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
+}
+.pa-tile-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d4d4d8;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+.pa-tile-season {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #71717a;
+  font-variant-numeric: tabular-nums;
+}
+.pa-tile[aria-pressed='true'] .pa-tile-name {
+  color: #fafafa;
+}
+.pa-tile[aria-pressed='true'] .pa-tile-season {
+  color: #e84131;
+}
+
+.pa-more {
+  padding: 12px 22px;
+  border: none;
+  border-top: 1px solid #2a2829;
+  background: transparent;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #a1a1aa;
+  cursor: pointer;
+  transition:
+    color 150ms,
+    background-color 150ms;
+}
+.pa-more:hover {
+  color: #fafafa;
+  background: #262425;
+}
+.pa-more:focus-visible {
+  outline: 2px solid #e84131;
+  outline-offset: -2px;
+}
+
+/* Detail strip for the selected award. */
+.pa-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 32px;
+  padding: 18px 22px;
+  border-top: 1px solid rgba(232, 65, 49, 0.4);
+  background: #232122;
+}
+.pa-detail-symbol {
+  flex: none;
+  width: 126px;
+  height: 108px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #2a2829;
+  background: radial-gradient(70% 70% at 50% 30%, rgba(232, 65, 49, 0.1), transparent 70%), #1f1d1e;
+}
+.pa-detail-symbol > div {
+  transform: scale(1.5);
+}
+.pa-detail-info {
+  flex: 1 1 380px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pa-detail-kind {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #e84131;
+}
+.pa-detail-name {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fafafa;
+  line-height: 1;
+}
+.pa-detail-basis {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: #a1a1aa;
+  line-height: 1.45;
+  text-wrap: pretty;
+  max-width: 720px;
+}
+.pa-detail-meta {
+  flex: 0 1 auto;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #71717a;
+}
+
+.pa-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px 24px;
+  padding: 10px 22px;
+  border-top: 1px solid #2a2829;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #52525b;
+}
+.pa-legend,
+.pa-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+.pa-legend > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pa-key {
+  width: 10px;
+  height: 12px;
+}
+.pa-key-record {
+  background: #e84131;
+}
+.pa-key-alltime {
+  border-radius: 5px 5px 0 0;
+  background: linear-gradient(135deg, #f2d27a, #a8842c);
+}
+.pa-key-milestone {
+  width: 12px;
+  background: #71717a;
+  clip-path: polygon(3px 0, 9px 0, 12px 3px, 12px 9px, 9px 12px, 3px 12px, 0 9px, 0 3px);
+}
+
+/* Phones: two smaller tiles a row, and the detail strip stacks. */
+@media (max-width: 639px) {
+  .pa-head,
+  .pa-detail,
+  .pa-foot {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .pa-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+  .pa-tile {
+    gap: 10px;
+    padding: 20px 8px 16px;
+  }
+  .pa-tile-symbol {
+    width: 126px;
+    height: 108px;
+  }
+  .pa-tile-symbol > div {
+    transform: scale(1.5);
+  }
+  .pa-tile-name {
+    font-size: 13px;
+  }
+  .pa-detail-info {
+    flex-basis: 100%;
+  }
+}
