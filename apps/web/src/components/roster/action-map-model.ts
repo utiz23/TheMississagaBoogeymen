@@ -6,6 +6,7 @@
 import type { CareerActionRow } from '@eanhl/db/queries'
 import { computeMarkerOffsets } from '../../lib/marker-layout.ts'
 import { abbreviateTeamName } from '../../lib/format.ts'
+import { toElapsedClock } from '../../lib/event-timeline.ts'
 
 export type ActionType = 'goal' | 'shot' | 'hit' | 'penalty' | 'faceoff'
 export type MarkerType = Exclude<ActionType, 'faceoff'>
@@ -137,7 +138,9 @@ function clockSeconds(clock: string | null): number {
   return m === null ? -1 : Number(m[1]) * 60 + Number(m[2])
 }
 
-const clockText = (clock: string | null) => (clock === null || clock.trim() === '' ? DASH : clock)
+/** Stored clocks count down; show time elapsed, as the game page does. */
+const clockText = (clock: string | null) =>
+  clock === null || clock.trim() === '' ? DASH : (toElapsedClock(clock.trim()) ?? DASH)
 
 function tone(result: CareerActionRow['result']): ResultTone {
   return result === 'WIN' ? 'W' : result === 'OTL' ? 'OTL' : 'L'

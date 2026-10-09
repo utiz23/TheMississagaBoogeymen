@@ -286,3 +286,9 @@ void test('rowIndexOf finds a row across groups, -1 when absent', () => {
   assert.equal(rowIndexOf(groups, second), 1)
   assert.equal(rowIndexOf(groups, -5), -1)
 })
+
+void test('clocks read as time elapsed in the period, matching the game page', () => {
+  const e = ev({ clock: '13:41' })
+  assert.equal(buildPin([e], e.eventId)?.clock, '06:19')
+  assert.equal(buildGroups([e], 'game')[0]?.rows[0]?.clock, '06:19')
+})
