@@ -57,6 +57,8 @@ services:
       POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-300000}
       EA_REQUEST_DELAY_MS: ${EA_REQUEST_DELAY_MS:-1000}
       INGEST_CYCLE_TIMEOUT_MS: ${INGEST_CYCLE_TIMEOUT_MS:-120000}
+      # Site origin for the links init-admin prints (dist/init-admin-cli.js).
+      APP_BASE_URL: ${APP_BASE_URL:-}
       HEALTH_PORT: ${HEALTH_PORT:-3001}
       HEALTH_STALE_MS: ${HEALTH_STALE_MS:-1800000}
       # Optional Healthchecks.io check for the collector (launch plan item 6).

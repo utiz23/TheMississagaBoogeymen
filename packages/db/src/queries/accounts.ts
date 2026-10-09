@@ -3,7 +3,6 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../client.js'
 import { evaluateInvite, type InviteStatus } from '../lib/invite-status.js'
 import {
-  accounts,
   accountInvites,
   players,
   sessions,
@@ -98,139 +97,6 @@ export async function getAccountInviteByToken(token: string) {
   return rows[0] ?? null
 }
 
-export function isInviteUsable(invite: {
-  expiresAt: Date
-  acceptedAt: Date | null
-  revokedAt: Date | null
-}): boolean {
-  return invite.acceptedAt === null && invite.revokedAt === null && invite.expiresAt > new Date()
-}
-
-export async function markInviteAcceptedAndAssignPlayer(args: {
-  inviteId: string
-  userId: string
-  playerId: number
-  assignedByUserId: string
-}) {
-  await db.transaction(async (tx) => {
-    await tx
-      .insert(userPlayerClaims)
-      .values({
-        userId: args.userId,
-        playerId: args.playerId,
-        assignedByUserId: args.assignedByUserId,
-      })
-      .onConflictDoUpdate({
-        target: userPlayerClaims.userId,
-        set: {
-          playerId: args.playerId,
-          assignedByUserId: args.assignedByUserId,
-          assignedAt: new Date(),
-        },
-      })
-
-    await tx
-      .update(accountInvites)
-      .set({ acceptedAt: new Date(), acceptedByUserId: args.userId })
-      .where(and(eq(accountInvites.id, args.inviteId), isNull(accountInvites.acceptedAt)))
-  })
-}
-
-export async function createInvitedAccount(args: {
-  userId: string
-  accountId: string
-  email: string
-  name: string
-  role: UserRole
-  passwordHash: string
-  inviteId: string
-  playerId: number
-  assignedByUserId: string
-}) {
-  await db.transaction(async (tx) => {
-    await tx.insert(users).values({
-      id: args.userId,
-      email: normalizeEmail(args.email),
-      name: args.name,
-      role: args.role,
-      emailVerified: true,
-    })
-
-    await tx.insert(accounts).values({
-      id: args.accountId,
-      accountId: args.userId,
-      providerId: 'credential',
-      userId: args.userId,
-      password: args.passwordHash,
-    })
-
-    await tx.insert(userPlayerClaims).values({
-      userId: args.userId,
-      playerId: args.playerId,
-      assignedByUserId: args.assignedByUserId,
-    })
-
-    await tx
-      .update(accountInvites)
-      .set({ acceptedAt: new Date(), acceptedByUserId: args.userId })
-      .where(and(eq(accountInvites.id, args.inviteId), isNull(accountInvites.acceptedAt)))
-  })
-}
-
-/**
- * Create the single initial admin account (user + credential + role + player
- * claim) in ONE transaction.
- *
- * OPERATOR-ONLY. There is deliberately no web-facing caller: an empty `users`
- * table is not authorization, so nothing reachable over HTTP may invoke this.
- * The only supported caller is the local CLI
- * `pnpm --filter worker init-admin` (apps/worker/src/init-admin-cli.ts),
- * which runs on the host with direct database access.
- *
- * Refuses (throws) if ANY user row already exists. The `lock table ... in
- * exclusive mode` makes that check race-free against a concurrent caller, and
- * the surrounding transaction makes the four writes all-or-nothing.
- */
-export async function createInitialAdmin(args: {
-  userId: string
-  accountId: string
-  email: string
-  name: string
-  passwordHash: string
-  playerId: number
-}) {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`lock table ${users} in exclusive mode`)
-
-    const existing = await tx.select({ n: sql<number>`count(*)::int` }).from(users)
-    if ((existing[0]?.n ?? 0) > 0) {
-      throw new Error('Refusing to create an initial admin: a user already exists.')
-    }
-
-    await tx.insert(users).values({
-      id: args.userId,
-      email: normalizeEmail(args.email),
-      name: args.name,
-      role: 'admin',
-      emailVerified: true,
-    })
-
-    await tx.insert(accounts).values({
-      id: args.accountId,
-      accountId: args.userId,
-      providerId: 'credential',
-      userId: args.userId,
-      password: args.passwordHash,
-    })
-
-    await tx.insert(userPlayerClaims).values({
-      userId: args.userId,
-      playerId: args.playerId,
-      assignedByUserId: args.userId,
-    })
-  })
-}
-
 /**
  * Accept an invite for a user Better Auth has just created (the Discord
  * sign-up hook). One transaction: lock the invite row, re-check it, link the
@@ -299,22 +165,8 @@ export async function hasAdminUser(): Promise<boolean> {
   return (rows[0]?.n ?? 0) > 0
 }
 
-export async function hasAccountUsers(): Promise<boolean> {
-  const rows = await db.select({ n: sql<number>`count(*)::int` }).from(users)
-  return (rows[0]?.n ?? 0) > 0
-}
-
 export async function setUserRole(userId: string, role: UserRole) {
   await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, userId))
-}
-
-export async function getUserByEmail(email: string) {
-  const rows = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, normalizeEmail(email)))
-    .limit(1)
-  return rows[0] ?? null
 }
 
 export async function getAccountUserById(userId: string) {

@@ -137,60 +137,57 @@ docker compose exec worker node dist/ingest-now.js
 
 ---
 
-## 7. There is no admin account to create — authentication is disabled
+## 7. Member logins: settings and the first admin
 
-**Do not look for a sign-in page or an initialization command on a fresh host.
-Neither exists.** Authentication is deliberately disabled before launch and
-deferred to a post-launch review. The pre-launch site is public and read-only:
-no login, account, invitation, session, administration, or initial-admin
-functionality.
+Members sign in with **Discord only**, and only through an invite link. Plan:
+`docs/superpowers/plans/2026-10-09-member-logins-step-1.md`.
 
-This replaces the "create the initial admin account" step that used to live
-here. `docker compose exec worker node dist/init-admin-cli.js` still resolves,
-but it imports nothing, connects to nothing, prompts for nothing, and exits
-non-zero on every invocation:
+### Settings (server `.env`)
 
 ```bash
-docker compose exec worker node dist/init-admin-cli.js ; echo "exit=$?"
-# [init-admin] refusing: the account system is disabled before launch. ...
-# exit=1
+BETTER_AUTH_SECRET=<openssl rand -base64 32>   # 32+ characters, no default
+BETTER_AUTH_URL=https://boogeymen.app
+APP_BASE_URL=https://boogeymen.app
+DISCORD_CLIENT_ID=<Discord app "Boogeymen" → OAuth2>
+DISCORD_CLIENT_SECRET=<same page, "Reset Secret">
 ```
 
-### Verifying the disabled surface after a deploy
+The Discord application's redirect must be exactly
+`https://boogeymen.app/api/auth/callback/discord`. With a missing or weak
+setting the auth routes refuse to start (500) while the rest of the site keeps
+working — check the web container log for "Member logins are misconfigured".
 
-Read the **status codes**, not the page bodies — this app can serve a 200
-carrying 404 content (see `HANDOFF.md`, Repo State durable traps), so grepping
-the HTML proves nothing.
+### The first admin (once)
+
+Invites are normally made by an admin on `/admin/accounts`. The very first
+admin comes from a one-time command, which refuses once any admin exists:
 
 ```bash
-for p in /login "/login?token=test" /account /me /admin /admin/accounts \
-         /api/auth/session; do
-  printf '%-28s %s\n' "$p" "$(curl -s -o /dev/null -w '%{http_code}' "localhost:3000$p")"
-done                                                        # every one: 404
+docker compose exec worker node dist/init-admin-cli.js --player-id 2
+# [init-admin] admin invite for silkyjoker85 — works once, until …:
+#   https://boogeymen.app/invite/<token>
+```
 
-curl -s -o /dev/null -w 'POST sign-in %{http_code}\n' -X POST \
+Open the link, sign in with Discord, and that account is the admin, linked to
+the player. Only the token's hash is stored; if the link is lost or expires,
+run the command again (it replaces the old link). `--dry-run` checks without
+writing; `--hours` sets the lifetime (default 24).
+
+### Checking the auth surface after a deploy
+
+```bash
+curl -s -o /dev/null -w 'get-session %{http_code}\n' https://boogeymen.app/api/auth/get-session  # 200
+curl -s -o /dev/null -w 'login %{http_code}\n' https://boogeymen.app/login                       # 200
+curl -s -o /dev/null -w 'password sign-in %{http_code}\n' -X POST \
   -H 'content-type: application/json' -d '{"email":"a@b.test","password":"password123"}' \
-  localhost:3000/api/auth/sign-in/email                     # 404
-
-curl -s -o /dev/null -w '/ %{http_code}\n' localhost:3000/  # 200 — a site that
-                                                            # 404s everything
-                                                            # also passes above
+  https://boogeymen.app/api/auth/sign-in/email                                                  # 404
 ```
 
-If any page path answers 200, the running image predates the disable. Rebuild
-from a current `main`; do not patch it on the host.
+### Emergency: sign everyone out
 
-### Re-enabling, after launch
-
-There is deliberately **no environment variable** for this. An env var set by
-accident on a deployment host would republish the whole account surface with no
-review, which is precisely the failure this is written to prevent. Re-enabling
-is a reviewed source change; the procedure is in
-`apps/web/src/deferred/auth/README.md`.
-
-Account tables, migrations, and any existing account data are untouched — the
-main PC's instance still has its accounts. Nothing here deletes or migrates
-them.
+```bash
+docker exec eanhl-team-website-db-1 psql -U eanhl -d eanhl -c 'DELETE FROM sessions;'
+```
 
 ---
 
