@@ -37,10 +37,13 @@ void test('themes: equipped, unlocked and locked tags and actions', () => {
   const byKey = Object.fromEntries(v.themes.map((t) => [t.key, t]))
   assert.equal(v.themes.length, 10)
   assert.deepEqual([byKey.away?.tag, byKey.away?.action], ['T1 · UNLOCKED', 'EQUIP AWAY'])
+  // Under AUTO the shown theme can be equipped: that pins it.
   assert.deepEqual(
-    [byKey.carbon?.tag, byKey.carbon?.action, byKey.carbon?.status],
-    ['T4 · EQUIPPED (AUTO)', 'EQUIPPED', 'equipped'],
+    [byKey.carbon?.tag, byKey.carbon?.action, byKey.carbon?.status, byKey.carbon?.equippable],
+    ['T4 · EQUIPPED (AUTO)', 'EQUIP CARBON-FIBER', 'equipped', true],
   )
+  assert.equal(v.auto, true)
+  assert.equal(v.canEdit, false)
   assert.deepEqual(
     [byKey.futureB?.tag, byKey.futureB?.action, byKey.futureB?.unlockNote],
     ['T5 · LOCKED · PREVIEW', 'LOCKED', null],
@@ -129,16 +132,31 @@ void test('T5 and T6: no stat requirement, no rows, no repeated awarded note', (
   assert.equal(t5.themes.find((t) => t.key === 'inferno')?.unlockNote, null)
   assert.equal(t5.levelNote, 'Top tier from stats. Level stays full.')
 
-  const t6 = buildLockerView({ ...igor, tier: 6, level: 10, equipped: 'stormLive', pool: 'manual' })
+  const t6 = buildLockerView({
+    ...igor,
+    tier: 6,
+    level: 10,
+    equipped: 'stormLive',
+    mythicTheme: 'stormLive',
+    pool: 'manual',
+  })
   assert.deepEqual(t6.requirement, {
     title: 'T6 LEGEND · MAX TIER',
     count: 'COMPLETE',
     pct: 100,
-    note: 'All themes unlocked.',
+    note: 'Every regular theme, plus the mythic the club awarded.',
   })
   assert.deepEqual(t6.rows, [])
-  assert.equal(t6.unlockedCount, 10)
-  assert.equal(t6.themes.filter((t) => t.status === 'locked').length, 0)
+  // Only the awarded mythic: the other four stay locked previews.
+  assert.equal(t6.unlockedCount, 6)
+  assert.deepEqual(
+    t6.themes.filter((t) => t.status === 'locked').map((t) => t.key),
+    ['frozen', 'futureC', 'inferno', 'olympus'],
+  )
+  assert.equal(
+    t6.themes.find((t) => t.key === 'inferno')?.unlockNote,
+    "Inferno is not this card's awarded mythic.",
+  )
   assert.equal(t6.themes.find((t) => t.key === 'stormLive')?.status, 'equipped')
 })
 
@@ -253,4 +271,17 @@ void test('preview card: locked themes at their own tier and level 1, front only
   assert.equal(locked.back, null)
   const open = lockerPreviewCard(card, away)
   assert.deepEqual([open.front.theme, open.front.tier, open.front.level], ['away', 4, 6])
+})
+
+void test('a pinned theme reads EQUIPPED without AUTO, and others stay equippable', () => {
+  const v = buildLockerView({ ...igor, equipped: 'away', auto: false, canEdit: true })
+  const byKey = Object.fromEntries(v.themes.map((t) => [t.key, t]))
+  assert.deepEqual(
+    [byKey.away?.tag, byKey.away?.action, byKey.away?.equippable],
+    ['T1 · EQUIPPED', 'EQUIPPED', false],
+  )
+  assert.deepEqual([byKey.carbon?.action, byKey.carbon?.equippable], ['EQUIP CARBON-FIBER', true])
+  assert.equal(byKey.futureB?.equippable, false)
+  assert.equal(v.auto, false)
+  assert.equal(v.canEdit, true)
 })

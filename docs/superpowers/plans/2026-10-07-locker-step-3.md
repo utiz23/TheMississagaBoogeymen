@@ -1,5 +1,7 @@
 # Step 3: Card Locker (EDIT button + read-only drawer) Implementation Plan
 
+> **Update 2026-10-09:** the locker is no longer read-only — member logins step 1 ([plan](2026-10-09-member-logins-step-1.md)) made EQUIP and AUTO live. Deviation #9 is resolved: under AUTO the shown theme reads EQUIP (it pins it). #5 (NEW tag / new-dot) and #6 (CLOSE, no CANCEL) stand.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** On the dev preview page `/preview/roster/[id]`, put an **EDIT** button under the hero card that opens a read-only **Card Locker** drawer with a Theme tab (browse all 10 themes) and a Progress tab (level, next-tier requirement, tier track, history).

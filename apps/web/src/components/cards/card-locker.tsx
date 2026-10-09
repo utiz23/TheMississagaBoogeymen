@@ -1,8 +1,11 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
+import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
+import type { CardThemeKey } from '@eanhl/db/cards'
+import { equipCardTheme } from '@/app/roster/[id]/card-actions'
 import type { CardViewModel } from './card-model'
 import type { LockerView } from './locker-model'
 import { LockerThemeFooter, LockerThemeTab } from './locker-theme-tab'
@@ -19,8 +22,9 @@ const TABS: readonly { id: LockerTab; label: string }[] = [
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 /**
- * The Card Locker drawer (Card Locker.dc.html; spec Part 3). Read-only until
- * member logins exist (D1/D10): browsing works, equipping is disabled.
+ * The Card Locker drawer (Card Locker.dc.html; spec Part 3). Anyone can
+ * browse; the card's own member (or an admin) can equip a theme or switch
+ * back to AUTO (member logins step 1, closing D1/D10).
  * Portalled to <body> (see nav-drawer.tsx: an ancestor filter or transform
  * would otherwise trap `position: fixed`). Esc or the scrim closes it, Tab
  * stays inside, and ←/→ browse themes on the Theme tab.
@@ -45,6 +49,21 @@ export function CardLocker({
   const closeRef = useRef<HTMLButtonElement>(null)
   const titleId = useId()
   const count = view.themes.length
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  // Saves, then re-renders the page so the hero card, the locker and the
+  // compact cards all show the new theme. The drawer stays open on the
+  // same theme (its state lives here, above the refresh).
+  const equip = (theme: CardThemeKey | null) => {
+    setError(null)
+    startTransition(async () => {
+      const result = await equipCardTheme(card.front.playerId, theme)
+      if (result.ok) router.refresh()
+      else setError(result.message)
+    })
+  }
 
   // Focus the close button and lock page scroll while open.
   useEffect(() => {
@@ -150,7 +169,16 @@ export function CardLocker({
           )}
           {tab === 'progress' && <LockerProgressTab card={card} view={view} />}
         </div>
-        {tab === 'theme' && <LockerThemeFooter theme={browse} onClose={onClose} />}
+        {tab === 'theme' && (
+          <LockerThemeFooter
+            theme={browse}
+            view={view}
+            pending={pending}
+            error={error}
+            onEquip={equip}
+            onClose={onClose}
+          />
+        )}
       </div>
     </div>,
     document.body,

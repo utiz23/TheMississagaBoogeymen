@@ -12,6 +12,7 @@ import {
   FAMILIES_PER_TIER,
   TIER_LABELS,
   TIER_THEME,
+  isThemeEquippable,
   poolOf,
   themeTier,
   tierBar,
@@ -22,6 +23,7 @@ import type {
   CardEventKind,
   CardThemeKey,
   CardTier,
+  MythicThemeKey,
   TierPool,
 } from '@eanhl/db/cards'
 import { badgeVisual } from '../badges/badge-board.ts'
@@ -63,6 +65,12 @@ export interface LockerInput {
   tier: CardTier
   level: number
   equipped: CardThemeKey
+  /** The club-awarded mythic on this card (the only mythic it can wear). */
+  mythicTheme?: MythicThemeKey | null
+  /** True when the card follows its tier (no pick, or the pick is locked here). Default true. */
+  auto?: boolean
+  /** The viewer may equip on this card (it's theirs, or they're an admin). Default false. */
+  canEdit?: boolean
   /** Pool that set the tier; null before the worker's first recompute. */
   pool: TierPool | 'manual' | null
   badges: readonly { familyId: BadgeFamilyId; level: number }[]
@@ -84,8 +92,10 @@ export interface LockerTheme {
   status: ThemeStatus
   /** 'T6 · LOCKED · PREVIEW' | 'T4 · EQUIPPED (AUTO)' | 'T2 · UNLOCKED' */
   tag: string
-  /** Primary button label; the button stays disabled until logins. */
+  /** Primary button label. */
   action: string
+  /** The primary button can equip this theme (given `canEdit`). */
+  equippable: boolean
   /** Extra sentence for a locked theme's requirement block, or null. */
   unlockNote: string | null
 }
@@ -130,6 +140,10 @@ export interface LockerView {
   level: number
   levelNote: string
   unlockedCount: number
+  /** The card follows its tier (AUTO); false once the member equipped a theme. */
+  auto: boolean
+  /** The viewer may equip on this card. */
+  canEdit: boolean
   themes: LockerTheme[]
   requirement: LockerRequirement
   rows: LockerBadgeRow[]
@@ -157,7 +171,7 @@ function buildRequirement(
       title: `T6 ${upper(TIER_LABELS[6])} · MAX TIER`,
       count: 'COMPLETE',
       pct: 100,
-      note: 'All themes unlocked.',
+      note: 'Every regular theme, plus the mythic the club awarded.',
     }
   }
   if (tier === 5) {
@@ -208,21 +222,37 @@ function buildRows(
 }
 
 function unlockNote(name: string, themeT: CardTier, tier: CardTier): string | null {
+  if (themeT === 6 && tier === 6) return `${name} is not this card's awarded mythic.`
   if (themeT === 6) return tier === 5 ? null : `${name} is a T6 mythic, awarded by the club.`
   return themeT > tier + 1 ? `${name} unlocks at ${tierName(themeT)}.` : null
 }
 
-function buildThemes(tier: CardTier, equipped: CardThemeKey): LockerTheme[] {
+function buildThemes(
+  tier: CardTier,
+  equipped: CardThemeKey,
+  mythicTheme: MythicThemeKey | null,
+  auto: boolean,
+): LockerTheme[] {
   return CARD_THEME_ORDER.map((key) => {
     const t = themeTier(key)
     const name = CARD_THEME_NAMES[key]
-    const status: ThemeStatus = key === equipped ? 'equipped' : t > tier ? 'locked' : 'unlocked'
+    const status: ThemeStatus =
+      key === equipped
+        ? 'equipped'
+        : isThemeEquippable(key, tier, mythicTheme)
+          ? 'unlocked'
+          : 'locked'
     const state =
       status === 'locked'
         ? 'LOCKED · PREVIEW'
         : status === 'equipped'
-          ? 'EQUIPPED (AUTO)'
+          ? auto
+            ? 'EQUIPPED (AUTO)'
+            : 'EQUIPPED'
           : 'UNLOCKED'
+    // Under AUTO the shown theme can still be equipped: that pins it, so a
+    // later tier-up no longer changes the card.
+    const equippable = status === 'unlocked' || (status === 'equipped' && auto)
     return {
       key,
       name,
@@ -230,12 +260,8 @@ function buildThemes(tier: CardTier, equipped: CardThemeKey): LockerTheme[] {
       tier: t,
       status,
       tag: `T${String(t)} · ${state}`,
-      action:
-        status === 'locked'
-          ? 'LOCKED'
-          : status === 'equipped'
-            ? 'EQUIPPED'
-            : `EQUIP ${upper(name)}`,
+      action: status === 'locked' ? 'LOCKED' : equippable ? `EQUIP ${upper(name)}` : 'EQUIPPED',
+      equippable,
       unlockNote: status === 'locked' ? unlockNote(name, t, tier) : null,
     }
   })
@@ -265,8 +291,12 @@ export function buildLockerView(input: LockerInput, timeZone = LOCKER_TIME_ZONE)
   const { tier, level } = input
   const pool: TierPool = input.pool === 'goalie' ? 'goalie' : 'skater'
   const levels = new Map(input.badges.map((b) => [b.familyId, b.level]))
-  const themes = buildThemes(tier, input.equipped)
-  const unlockedCount = CARD_THEME_ORDER.filter((k) => themeTier(k) <= tier).length
+  const mythicTheme = input.mythicTheme ?? null
+  const auto = input.auto ?? true
+  const themes = buildThemes(tier, input.equipped, mythicTheme, auto)
+  const unlockedCount = CARD_THEME_ORDER.filter((k) =>
+    isThemeEquippable(k, tier, mythicTheme),
+  ).length
   const chip = `${upper(tierName(tier))} · LVL ${String(level)}/10`
   const dayFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', timeZone })
   const longFmt = new Intl.DateTimeFormat('en-US', {
@@ -292,6 +322,8 @@ export function buildLockerView(input: LockerInput, timeZone = LOCKER_TIME_ZONE)
           ? 'Top tier from stats. Level stays full.'
           : `Average progress of the best ${String(FAMILIES_PER_TIER)} ${pool} badges toward ${tierName(next)}. Never goes down.`,
     unlockedCount,
+    auto,
+    canEdit: input.canEdit ?? false,
     themes,
     requirement: buildRequirement(tier, pool, levels),
     rows: buildRows(tier, pool, levels),

@@ -55,7 +55,8 @@ const preload = () => {
 
 /**
  * The player-page hero slot (spec D9/D10): the flippable card with an EDIT
- * button under it, shown to everyone, opening the read-only Card Locker.
+ * button under it, shown to everyone, opening the Card Locker (equipping is
+ * live for the card's own member or an admin).
  */
 export function HeroCard({
   card,

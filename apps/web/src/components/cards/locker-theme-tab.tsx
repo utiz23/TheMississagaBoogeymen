@@ -6,6 +6,7 @@ import { PlayerCard } from './player-card'
 import { CARD_THEMES } from './card-themes'
 import { swatchStyle } from './card-style'
 import { swatchThumb } from './card-assets'
+import type { CardThemeKey } from '@eanhl/db/cards'
 import type { CardViewModel } from './card-model'
 import {
   lockerPreviewCard,
@@ -14,7 +15,7 @@ import {
   type LockerView,
 } from './locker-model'
 
-/** Theme tab: browse all 10 themes on this player's card (read-only). */
+/** Theme tab: browse all 10 themes on this player's card. */
 export function LockerThemeTab({
   card,
   view,
@@ -83,8 +84,8 @@ export function LockerThemeTab({
             </span>
           </div>
           {locked && <RequirementBlock req={view.requirement} extra={browse.unlockNote} />}
-          {browse.status === 'unlocked' && (
-            <p className="clk-note">Equipping arrives with member logins.</p>
+          {browse.equippable && !view.canEdit && (
+            <p className="clk-note">Only this player can equip it, once signed in.</p>
           )}
         </div>
       </div>
@@ -148,20 +149,49 @@ function RequirementBlock({ req, extra }: { req: LockerRequirement; extra: strin
   )
 }
 
-/** Footer: everything shown, nothing enabled until member logins (D1/D10). */
-export function LockerThemeFooter({ theme, onClose }: { theme: LockerTheme; onClose: () => void }) {
+/**
+ * Footer: AUTO and the primary EQUIP button, live for the card's own member
+ * (or an admin). AUTO on: the card follows its tier. Turning AUTO off pins
+ * the theme it shows now; EQUIP pins the browsed one.
+ */
+export function LockerThemeFooter({
+  theme,
+  view,
+  pending,
+  error,
+  onEquip,
+  onClose,
+}: {
+  theme: LockerTheme
+  view: LockerView
+  pending: boolean
+  error: string | null
+  onEquip: (theme: CardThemeKey | null) => void
+  onClose: () => void
+}) {
+  const current = view.themes.find((t) => t.status === 'equipped')
+  const signInHint = view.canEdit ? undefined : 'Only this player can equip, once signed in'
   return (
     <div className="clk-foot">
       <button
         type="button"
         className="clk-auto"
-        aria-pressed="true"
-        disabled
-        title="Equipping arrives with member logins"
+        aria-pressed={view.auto}
+        disabled={!view.canEdit || pending}
+        title={signInHint}
+        onClick={() => {
+          if (!view.auto) onEquip(null)
+          else if (current !== undefined) onEquip(current.key)
+        }}
       >
         <span className="clk-auto-box" aria-hidden />
         AUTO · FOLLOW TIER
       </button>
+      {error !== null && (
+        <p role="alert" className="clk-note">
+          {error}
+        </p>
+      )}
       <div className="clk-actions">
         <button type="button" className="clk-btn" onClick={onClose}>
           CLOSE
@@ -169,10 +199,13 @@ export function LockerThemeFooter({ theme, onClose }: { theme: LockerTheme; onCl
         <button
           type="button"
           className="clk-primary"
-          disabled
-          title={theme.status === 'unlocked' ? 'Equipping arrives with member logins' : undefined}
+          disabled={!view.canEdit || !theme.equippable || pending}
+          title={theme.equippable ? signInHint : undefined}
+          onClick={() => {
+            onEquip(theme.key)
+          }}
         >
-          {theme.action}
+          {pending ? 'SAVING…' : theme.action}
         </button>
       </div>
     </div>

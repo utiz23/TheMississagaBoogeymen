@@ -44,6 +44,8 @@ import { cardFromProfile } from '@/components/cards/card-adapters'
 import { Panel } from '@/components/ui/panel'
 import { PlayerRail, type RailSheet } from '@/components/roster/player-rail'
 import { formatDataDay } from '@/lib/format'
+import { getViewer } from '@/lib/auth'
+import { canEditPlayerCard } from '@/lib/card-permissions'
 
 export const revalidate = 3600
 
@@ -170,6 +172,15 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     cardProgress = null
   }
 
+  // Who is looking: the card's own member (or an admin) may equip a theme.
+  // Auth trouble must never take the player page down, so it reads as signed out.
+  let canEditCard = false
+  try {
+    canEditCard = canEditPlayerCard(await getViewer(), id)
+  } catch {
+    canEditCard = false
+  }
+
   // Awards trophy case: club records and career milestones, ranked against
   // every player's season lines. A failure only hides the section.
   let clubLines: Awaited<ReturnType<typeof getClubSeasonLines>> = []
@@ -243,6 +254,10 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     tier: heroCard.front.tier,
     level: heroCard.front.level,
     equipped: heroCard.front.theme,
+    mythicTheme: cardProgress?.standing?.mythicTheme ?? null,
+    // AUTO unless the member's pick is what this card actually shows.
+    auto: (cardProgress?.standing?.themePref ?? null) !== heroCard.front.theme,
+    canEdit: canEditCard,
     pool: cardProgress?.standing?.pool ?? null,
     badges: cardProgress?.badges ?? [],
     events: cardProgress?.events ?? [],
