@@ -34,7 +34,7 @@ video-stats OCR).
 
 **Responsive sizes are live** (2026-10-09): Medium/Small/Micro layouts below desktop, compact cards on phones, side rail on wide screens. Content the mockups hide on small screens stays hidden (operator, 10-09).
 
-**Committed, NOT deployed** (2026-10-09, `9aae4ce`…`098c1e4`, web only, no migration): stats-table size tiers, Build Locker v3 desktop (persona name from OCR), "Last 10" includes the newest game, Action Map clocks show time elapsed, short-code build names ("Connor McDavid-PLY") map to archetypes, and the switch plan's deferred minors. Detail: [journal 2026-10-09](docs/journal/2026-10.md). Deploy is the next step.
+**Deployed 2026-10-09** (`3d62b8a`, web only, no migration; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-locker-v3` = `4095e49`): stats-table size tiers, Build Locker v3 desktop (persona name from OCR), "Last 10" includes the newest game, Action Map clocks show time elapsed, short-code build names ("Connor McDavid-PLY") map to archetypes, and the switch plan's deferred minors. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
@@ -72,7 +72,7 @@ strip is restored to 365-229-27 / 621 GP. Detail:
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web at `4095e49`, worker at `29ee6a2`), web and worker as the non-root
+  and nightly backup (web at `3d62b8a`, worker at `29ee6a2`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
@@ -137,7 +137,7 @@ None.
 
 ## Next 1-3 Actions
 
-1. Deploy the 10-09 batch above to Hotel-Echo (web only; `docker-redeploy` skill). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
+1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
 2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
    time deltas). The security review is closed (journal 10-06).
