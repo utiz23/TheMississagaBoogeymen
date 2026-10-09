@@ -6,6 +6,7 @@ import {
   countMatches,
   getOpponentClubs,
   getOcrCoverageForMatches,
+  getOcrShotTotalsForMatches,
   type MatchOcrCoverage,
 } from '@eanhl/db/queries'
 import type { GameMode, MatchResult } from '@eanhl/db'
@@ -173,9 +174,15 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
 
   // OCR coverage drives a decorative pill only, so it fails soft — an empty
   // map renders no pills rather than taking the whole list down with it.
-  const ocrCoverage = await getOcrCoverageForMatches(pageMatches.map((match) => match.id)).catch(
-    () => new Map<number, MatchOcrCoverage>(),
-  )
+  const pageIds = pageMatches.map((match) => match.id)
+  // Reviewed OCR shots keep each card's DtW equal to its game sheet's. Fails
+  // soft too: EA shot counts are the fallback.
+  const [ocrCoverage, ocrShots] = await Promise.all([
+    getOcrCoverageForMatches(pageIds).catch(() => new Map<number, MatchOcrCoverage>()),
+    getOcrShotTotalsForMatches(pageIds).catch(
+      () => new Map<number, { for: number; against: number }>(),
+    ),
+  ])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   // Clamp page to valid range — handles stale bookmarks
@@ -261,6 +268,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
                         opponentCrestAssetId={opponent?.crestAssetId ?? null}
                         opponentCrestUseBaseAsset={opponent?.useBaseAsset ?? null}
                         ocrCoverage={ocrCoverage.get(match.id)}
+                        ocrShots={ocrShots.get(match.id)}
                       />
                     )
                   })}
@@ -389,9 +397,8 @@ function GamesToolbar({
 
         <div className="font-condensed text-xs font-semibold uppercase tracking-widest tabular-nums text-zinc-500">
           {total > 0
-            ? `Showing ${showingStart.toString()}-${showingEnd.toString()} of ${total.toString()}`
+            ? `Showing ${showingStart.toString()}–${showingEnd.toString()} of ${total.toString()}`
             : 'No matches'}
-          {totalPages > 1 ? ` · Page ${page.toString()} of ${totalPages.toString()}` : ''}
         </div>
       </div>
 
@@ -451,8 +458,11 @@ function SegmentedLinks({
   items: { key: string; label: string; href: string; active: boolean }[]
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
+    <div className="flex items-center gap-2" role="group" aria-label={label}>
+      <span
+        aria-hidden
+        className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-5"
+      >
         {label}
       </span>
       <div className="flex overflow-hidden border border-zinc-700">
@@ -461,6 +471,7 @@ function SegmentedLinks({
             prefetch
             key={item.key}
             href={item.href}
+            aria-current={item.active ? 'true' : undefined}
             className={[
               'border-r border-zinc-700 px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-widest transition-colors last:border-r-0',
               item.active
@@ -535,7 +546,8 @@ function PaginationNav({
         </span>
       )}
 
-      <span className="font-condensed text-xs font-semibold uppercase tracking-widest tabular-nums text-zinc-600">
+      {/* Phones only: wider screens show the numbered page links instead. */}
+      <span className="font-condensed text-xs font-semibold uppercase tracking-widest tabular-nums text-fg-5 sm:hidden">
         Page {page} of {totalPages}
       </span>
 

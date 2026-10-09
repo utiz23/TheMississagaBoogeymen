@@ -3,7 +3,12 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildClassName, buildClassToArchetype } from './match-recap.ts'
+import {
+  buildClassName,
+  buildClassToArchetype,
+  buildPossessionEdge,
+  possessionEdgeWithShots,
+} from './match-recap.ts'
 
 void test('hyphenated build names stay whole; only a spaced " - " marks a reference player', () => {
   assert.equal(buildClassToArchetype('Two-Way Forward'), 'two-way-fwd')
@@ -41,4 +46,33 @@ void test('buildClassName gives the plain build name for any recognised form', (
   assert.equal(buildClassName('Cole Caufield - Sniper'), 'Sniper')
   assert.equal(buildClassName('Wheels-DNG'), null)
   assert.equal(buildClassName(null), null)
+})
+
+const edgeMatch = {
+  shotsFor: 10,
+  shotsAgainst: 10,
+  hitsFor: 5,
+  hitsAgainst: 5,
+  faceoffPct: null,
+  timeOnAttack: null,
+  timeOnAttackAgainst: null,
+} as unknown as Parameters<typeof buildPossessionEdge>[0]
+
+void test('possession edge: reviewed OCR shots count by the shots family, not the legacy row status', () => {
+  const summary = {
+    source: 'ocr',
+    periodNumber: 1,
+    reviewStatus: 'pending_review',
+    shotsReviewStatus: 'reviewed',
+    shotsFor: 15,
+    shotsAgainst: 5,
+  } as unknown as NonNullable<Parameters<typeof buildPossessionEdge>[1]>[number]
+  const edge = buildPossessionEdge(edgeMatch, [summary])
+  assert.deepEqual(edge?.inputs.shots, { us: 15, them: 5, source: 'ocr' })
+})
+
+void test('possession edge from pre-summed OCR shots matches the period-summary path', () => {
+  const a = possessionEdgeWithShots(edgeMatch, { for: 15, against: 5 })
+  assert.equal(a?.bgmRaw, 67.5)
+  assert.deepEqual(possessionEdgeWithShots(edgeMatch, null)?.inputs.shots.source, 'ea')
 })

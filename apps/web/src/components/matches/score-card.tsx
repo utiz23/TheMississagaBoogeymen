@@ -5,8 +5,10 @@ import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { OcrPill } from '@/components/ui/ocr-pill'
 import { ResultPill } from '@/components/ui/result-pill'
 import type { OcrCoverageStreams } from '@/lib/ocr-coverage'
-import { abbreviateTeamName, formatMatchTime, formatTOA } from '@/lib/format'
-import { buildPossessionEdge } from '@/lib/match-recap'
+import { dtwBandColor } from '@/lib/dtw'
+import { abbreviateTeamName, formatMatchDate, formatMatchTime, formatTOA } from '@/lib/format'
+import { possessionEdgeWithShots } from '@/lib/match-recap'
+import { getResultStyle } from '@/lib/result-colors'
 
 const OUR_ABBREV = 'BGM'
 
@@ -65,36 +67,35 @@ interface ScoreCardProps {
    * callers without the batched coverage lookup simply don't show one.
    */
   ocrCoverage?: OcrCoverageStreams | undefined
+  /** Reviewed OCR shot totals (getOcrShotTotalsForMatches), so DtW matches the game sheet. */
+  ocrShots?: { for: number; against: number } | undefined
 }
+
+/** Stat labels read at fg-5 (~4.6:1), the site's floor for small text. */
+const STAT_LABEL = 'text-[10px] font-semibold uppercase tracking-[0.16em] text-fg-5'
 
 function SnapStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
-        {label}
-      </span>
+      <span className={STAT_LABEL}>{label}</span>
       <span className="font-condensed text-sm font-bold tabular-nums text-zinc-300">{value}</span>
     </div>
   )
 }
 
 function DtWStat({ bgmRaw }: { bgmRaw: number | null }) {
-  const color =
-    bgmRaw === null
-      ? 'text-zinc-600'
-      : bgmRaw >= 60
-        ? 'text-teal-400'
-        : bgmRaw >= 52
-          ? 'text-emerald-400'
-          : bgmRaw >= 45
-            ? 'text-amber-400'
-            : 'text-rose-400'
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
+      <abbr
+        title="Deserve to Win: BGM's share of the play (shots, time on attack, faceoffs, hits). 50 is even."
+        className={`${STAT_LABEL} no-underline`}
+      >
         DtW
-      </span>
-      <span className={`font-condensed text-sm font-bold tabular-nums ${color}`}>
+      </abbr>
+      <span
+        className="font-condensed text-sm font-bold tabular-nums text-fg-5"
+        style={bgmRaw !== null ? { color: dtwBandColor(bgmRaw) } : undefined}
+      >
         {bgmRaw !== null ? bgmRaw.toFixed(1) : '—'}
       </span>
     </div>
@@ -105,12 +106,10 @@ function DtWStat({ bgmRaw }: { bgmRaw: number | null }) {
 function SplitStat({ label, us, them }: { label: string; us: string; them: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
-        {label}
-      </span>
+      <span className={STAT_LABEL}>{label}</span>
       <span className="font-condensed text-sm tabular-nums">
         <span className="font-black text-zinc-100">{us}</span>
-        <span className="font-medium text-zinc-600">–{them}</span>
+        <span className="font-medium text-fg-5">–{them}</span>
       </span>
     </div>
   )
@@ -122,6 +121,7 @@ export function ScoreCard({
   opponentCrestUseBaseAsset,
   href,
   ocrCoverage,
+  ocrShots,
 }: ScoreCardProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
 
@@ -140,12 +140,14 @@ export function ScoreCard({
 
   const toa = match.timeOnAttack !== null ? formatTOA(match.timeOnAttack) : null
 
-  const possEdge = buildPossessionEdge(match)
+  const possEdge = possessionEdgeWithShots(match, ocrShots)
   const dtw = possEdge !== null ? possEdge.bgmRaw : null
 
   const isPrivate = match.matchType === 'club_private'
-  const totalShots = match.shotsFor + match.shotsAgainst
-  const shotShare = totalShots > 0 ? match.shotsFor / totalShots : null
+  // Same shot source as DtW (reviewed OCR when present, else EA).
+  const shots = possEdge?.inputs.shots ?? { us: match.shotsFor, them: match.shotsAgainst }
+  const totalShots = shots.us + shots.them
+  const shotShare = totalShots > 0 ? shots.us / totalShots : null
   // Quality pill is suppressed on DNF — stats are incomplete/misleading
   const qualityLabel =
     match.result !== 'DNF' && shotShare !== null && shotShare >= 0.65
@@ -165,6 +167,7 @@ export function ScoreCard({
     <Link
       prefetch
       href={href ?? `/games/${match.id.toString()}`}
+      aria-label={`${getResultStyle(match.result).label} ${match.scoreFor.toString()}–${match.scoreAgainst.toString()} vs ${match.opponentName}, ${formatMatchDate(match.playedAt)}`}
       className={`group block overflow-hidden border transition-[border-color,transform] hover:-translate-y-0.5 ${cardStyles.border} ${cardStyles.bg} ${cardStyles.hoverBorder}`}
     >
       <div className={`h-1 w-full ${TOP_BAR[match.result]}`} />
@@ -187,6 +190,11 @@ export function ScoreCard({
           )}
           {qualityLabel !== null && (
             <span
+              title={
+                qualityLabel === 'Dominated'
+                  ? 'BGM took 65% or more of the shots'
+                  : 'The opponent took 65% or more of the shots'
+              }
               className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${
                 qualityLabel === 'Dominated'
                   ? 'border-[rgba(16,185,129,0.40)] bg-[rgba(16,185,129,0.10)] text-[#10b981]'
@@ -198,7 +206,7 @@ export function ScoreCard({
           )}
           {ocrCoverage !== undefined && <OcrPill streams={ocrCoverage} />}
         </div>
-        <span className="text-xs text-zinc-600">{formatMatchTime(match.playedAt)}</span>
+        <span className="text-xs text-fg-5">{formatMatchTime(match.playedAt)}</span>
       </div>
 
       <div className="px-4 pb-5">
@@ -225,7 +233,9 @@ export function ScoreCard({
           <div className="flex min-w-0 flex-col items-center gap-3 text-center">
             <div className="flex items-end justify-center gap-2 font-condensed font-black tabular-nums leading-none">
               <span className={`text-5xl ${ourScoreColor}`}>{match.scoreFor.toString()}</span>
-              <span className="pb-1 text-2xl text-zinc-700">-</span>
+              <span className="pb-1 text-2xl text-zinc-700" aria-hidden>
+                –
+              </span>
               <span className={`text-5xl ${opponentScoreColor}`}>
                 {match.scoreAgainst.toString()}
               </span>

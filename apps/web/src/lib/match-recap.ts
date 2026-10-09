@@ -741,7 +741,18 @@ export function buildPossessionEdge(
   match: Match,
   periodSummaries: MatchPeriodSummaryRow[] = [],
 ): PossessionEdge | null {
-  const ocrShots = aggregateOcrShots(periodSummaries)
+  return possessionEdgeWithShots(match, aggregateOcrShots(periodSummaries))
+}
+
+/**
+ * The same model from pre-summed reviewed OCR shots (getOcrShotTotalsForMatches),
+ * so list cards agree with the game sheet. `null` → EA's shot counts.
+ */
+export function possessionEdgeWithShots(
+  match: Match,
+  ocr: { for: number | null; against: number | null } | null | undefined,
+): PossessionEdge | null {
+  const ocrShots = ocr ?? { for: null, against: null }
   const shotsFor = ocrShots.for ?? match.shotsFor
   const shotsAgainst = ocrShots.against ?? match.shotsAgainst
   const shotsSource: 'ea' | 'ocr' = ocrShots.for !== null ? 'ocr' : 'ea'
@@ -937,7 +948,9 @@ function aggregateOcrShots(rows: MatchPeriodSummaryRow[]): {
   let totalAgainst: number | null = null
   for (const r of rows) {
     if (r.source !== 'ocr') continue
-    if (r.reviewStatus !== 'reviewed') continue
+    // Gate on the shots family, not the legacy row-level status: a row can
+    // carry reviewed shots while review_status is still pending.
+    if (r.shotsReviewStatus !== 'reviewed') continue
     if (r.periodNumber === -1) continue // ignore aggregate "TOT" sentinels if any
     if (r.shotsFor !== null) totalFor = (totalFor ?? 0) + r.shotsFor
     if (r.shotsAgainst !== null) totalAgainst = (totalAgainst ?? 0) + r.shotsAgainst

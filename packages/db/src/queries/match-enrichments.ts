@@ -907,6 +907,41 @@ export async function countPendingOcrPeriodFamilies(
 }
 
 export type MatchPeriodSummaryRow = Awaited<ReturnType<typeof getMatchPeriodSummaries>>[number]
+
+/**
+ * Reviewed OCR shot totals per match, for lists (game cards, latest result)
+ * whose Deserve-to-Win must agree with the game sheet's. Same gate as
+ * getMatchPeriodSummaries' shots family: OCR rows whose `shots_review_status`
+ * is 'reviewed', real periods only. A match without any is absent.
+ */
+export async function getOcrShotTotalsForMatches(
+  matchIds: readonly number[],
+): Promise<Map<number, { for: number; against: number }>> {
+  const out = new Map<number, { for: number; against: number }>()
+  if (matchIds.length === 0) return out
+  const rows = await db
+    .select({
+      matchId: matchPeriodSummaries.matchId,
+      shotsFor: sql<number | null>`sum(${matchPeriodSummaries.shotsFor})`.mapWith(Number),
+      shotsAgainst: sql<number | null>`sum(${matchPeriodSummaries.shotsAgainst})`.mapWith(Number),
+    })
+    .from(matchPeriodSummaries)
+    .where(
+      and(
+        inArray(matchPeriodSummaries.matchId, [...matchIds]),
+        eq(matchPeriodSummaries.source, 'ocr'),
+        eq(matchPeriodSummaries.shotsReviewStatus, 'reviewed'),
+        gte(matchPeriodSummaries.periodNumber, 1),
+      ),
+    )
+    .groupBy(matchPeriodSummaries.matchId)
+  for (const r of rows) {
+    if (r.shotsFor === null || r.shotsAgainst === null) continue
+    if (!Number.isFinite(r.shotsFor) || !Number.isFinite(r.shotsAgainst)) continue
+    out.set(r.matchId, { for: r.shotsFor, against: r.shotsAgainst })
+  }
+  return out
+}
 export type MatchShotTypeSummaryRow = Awaited<ReturnType<typeof getMatchShotTypeSummaries>>[number]
 export type MatchFaceoffDotRow = Awaited<ReturnType<typeof getMatchFaceoffDots>>[number]
 export type MatchFaceoffZoneSummaryRow = Awaited<
