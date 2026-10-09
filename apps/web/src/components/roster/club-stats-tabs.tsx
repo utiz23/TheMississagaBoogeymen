@@ -234,6 +234,12 @@ export function ClubStatsTabs({
   // Micro tier (≤480px) swaps in a shorter scope line — game title first, no
   // gamertag (the page hero already names the player).
   const subtitleShort = `${season.gameTitleName} · Full Season · EA-Reported`
+  // Season TOI as a skater / goalie split, whatever role tab is open (polish
+  // backlog seed #5). Only roles with time on ice show.
+  const toiSplit = [
+    (season.toiSeconds ?? 0) > 0 ? { role: 'Skater', s: season.toiSeconds } : null,
+    (season.goalieToiSeconds ?? 0) > 0 ? { role: 'Goalie', s: season.goalieToiSeconds } : null,
+  ].filter((t) => t !== null)
 
   return (
     <section className="cs-module">
@@ -249,6 +255,20 @@ export function ClubStatsTabs({
           <span>
             <b>{String(season.gamesPlayed)}</b> Games Played
           </span>
+          {toiSplit.length > 0 && (
+            <>
+              <span className="dot">·</span>
+              <span className="cs-toi">
+                TOI{' '}
+                {toiSplit.map((t, i) => (
+                  <span key={t.role}>
+                    {i > 0 ? ' · ' : ''}
+                    {t.role} <b>{formatDuration(t.s)}</b>
+                  </span>
+                ))}
+              </span>
+            </>
+          )}
           <span className="dot sheet">·</span>
           <span className="sheet">
             Sheet <b>{sheetCode}</b>
