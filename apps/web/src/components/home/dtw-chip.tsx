@@ -16,6 +16,18 @@ import { useState } from 'react'
  * Gauge geometry (BGM red arc / OPP grey arc / white needle) is unchanged
  * from the existing match-detail component — same visual vocabulary, smaller.
  */
+/** The legend's four bands; the number takes its band's colour. */
+const BANDS = [
+  { min: 75, color: '#38bdf8', label: '75+ Dominated' },
+  { min: 55, color: '#10b981', label: '55–74 Good' },
+  { min: 35, color: '#f59e0b', label: '35–54 Even' },
+  { min: -Infinity, color: '#e84131', label: '0–34 Bad' },
+] as const
+
+export function dtwBandColor(raw: number): string {
+  return BANDS.find((b) => raw >= b.min)?.color ?? '#e84131'
+}
+
 export function DtwChip({ bgmShare, bgmRaw }: { bgmShare: number; bgmRaw: number }) {
   const [open, setOpen] = useState(false)
 
@@ -84,6 +96,7 @@ export function DtwChip({ bgmShare, bgmRaw }: { bgmShare: number; bgmRaw: number
               type="button"
               aria-expanded={open}
               aria-controls="dtw-legend"
+              aria-label="What Deserve to Win (DtW) means"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -98,7 +111,10 @@ export function DtwChip({ bgmShare, bgmRaw }: { bgmShare: number; bgmRaw: number
               ?
             </button>
           </span>
-          <span className="mt-0.5 font-condensed text-sm font-black tabular-nums text-accent">
+          <span
+            className="mt-0.5 font-condensed text-sm font-black tabular-nums"
+            style={{ color: dtwBandColor(bgmRaw) }}
+          >
             {bgmRaw.toFixed(1)}
           </span>
         </span>
@@ -109,10 +125,9 @@ export function DtwChip({ bgmShare, bgmRaw }: { bgmShare: number; bgmRaw: number
           id="dtw-legend"
           className="flex flex-wrap items-center justify-center gap-2.5 px-1 pt-0.5 font-condensed text-[8.5px] font-bold uppercase tracking-[0.18em]"
         >
-          <Swatch color="#e84131" label="0–34 Bad" />
-          <Swatch color="#f59e0b" label="35–54 Even" />
-          <Swatch color="#10b981" label="55–74 Good" />
-          <Swatch color="#38bdf8" label="75+ Dominated" />
+          {[...BANDS].reverse().map((b) => (
+            <Swatch key={b.label} color={b.color} label={b.label} />
+          ))}
         </div>
       )}
     </div>

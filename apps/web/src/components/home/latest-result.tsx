@@ -56,9 +56,16 @@ export function LatestResult({
   // OT detection — regulation is 60 minutes total ice time. If any player on
   // either side logged > 3600 seconds, the game went to overtime.
   const wentToOvertime = faceoffs !== null && faceoffs.maxToiSeconds > 3600
-  const metaParts: string[] = []
-  if (match.gameMode !== null) metaParts.push(match.gameMode.toUpperCase())
-  metaParts.push(matchTypeLabel)
+  // A game can end early (match 972 ended after one period): count the periods
+  // actually played rather than always claiming three. Unknown → no line.
+  const periodsLine =
+    faceoffs === null || faceoffs.maxToiSeconds <= 0
+      ? null
+      : wentToOvertime
+        ? '3 Periods · OT'
+        : faceoffs.maxToiSeconds < 3300
+          ? `${String(Math.max(1, Math.ceil(faceoffs.maxToiSeconds / 1200)))} of 3 Periods`
+          : '3 Periods · No OT'
 
   return (
     <Link
@@ -98,7 +105,11 @@ export function LatestResult({
               Final
             </span>
             <span className="font-condensed text-[10.5px] font-bold uppercase tracking-[0.22em] text-fg-3">
-              {metaParts.join(' · ')}
+              {match.gameMode !== null && (
+                // Modes read lowercase site-wide ("6s"), even in caps lines.
+                <span className="normal-case">{match.gameMode} · </span>
+              )}
+              {matchTypeLabel}
             </span>
           </div>
           <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-4">
@@ -134,11 +145,12 @@ export function LatestResult({
               </span>
             </div>
             <ResultPill result={match.result} size="md" />
-            <PeriodScores />
             {edge !== null && <DtwChip bgmShare={edge.bgmShare} bgmRaw={edge.bgmRaw} />}
-            <span className="font-condensed text-[10.5px] font-semibold uppercase tracking-[0.32em] text-fg-4">
-              3 Periods · {wentToOvertime ? 'OT' : 'No OT'}
-            </span>
+            {periodsLine !== null && (
+              <span className="font-condensed text-[10.5px] font-semibold uppercase tracking-[0.32em] text-fg-4">
+                {periodsLine}
+              </span>
+            )}
           </div>
 
           {/* Opponent side */}
@@ -257,33 +269,6 @@ function StatStrip({
         <StatCell label="FO%" a="—" b="—" muted />
       )}
       <StatCell label="TOA" a={toa ?? '—'} solo />
-    </div>
-  )
-}
-
-/**
- * Per-period score grid (P1 / P2 / P3). Currently renders blank placeholders —
- * the EA raw payload includes period scores but our pipeline doesn't yet
- * extract them onto the matches table. Shape is in place so wiring is a
- * one-prop change once the schema lands.
- */
-function PeriodScores() {
-  return (
-    <div className="flex items-center gap-2">
-      {(['P1', 'P2', 'P3'] as const).map((label) => (
-        <div
-          key={label}
-          className="flex min-w-[36px] flex-col items-center rounded-sm border border-border/50 bg-background/40 px-2.5 py-1"
-        >
-          <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.18em] text-fg-4">
-            {label}
-          </span>
-          <span className="flex gap-1.5 font-condensed text-[13px] font-extrabold tabular-nums leading-tight">
-            <span className="text-fg-1">—</span>
-            <span className="text-fg-4">—</span>
-          </span>
-        </div>
-      ))}
     </div>
   )
 }

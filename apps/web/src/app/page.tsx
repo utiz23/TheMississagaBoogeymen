@@ -176,7 +176,12 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     .sort((a, b) => b.goals - a.goals || b.points - a.points)
     .slice(0, 10)
   const goalieLeaders = roster.filter((r) => r.goalieGp > 0 && r.savePct !== null)
-  const teamGp = officialRecord ? officialRecord.gamesPlayed : (clubStats?.gamesPlayed ?? null)
+  // Leaders' GP follows the mode filter: EA's all-modes record in "All", the
+  // locally tracked games of that mode otherwise.
+  const teamGp =
+    gameMode === null && officialRecord
+      ? officialRecord.gamesPlayed
+      : (clubStats?.gamesPlayed ?? null)
 
   return (
     <MemberLinks>
@@ -249,7 +254,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           </section>
         )}
 
-        {/* 7. TITLE RECORDS — cross-title comparison */}
+        {/* 6. TITLE RECORDS — cross-title comparison */}
         <section className="space-y-3">
           <SectionHeader label="Title Records" />
           {titleRecords.status === 'ok' ? (

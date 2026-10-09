@@ -82,7 +82,7 @@
   border-right: 1px solid rgba(73, 71, 72, 0.6);
 }
 .sl-group button:last-child { border-right: none; }
-.sl-group button[aria-selected='true'] {
+.sl-group button[aria-pressed='true'] {
   color: var(--color-accent);
   background: rgba(232, 65, 49, 0.1);
 }

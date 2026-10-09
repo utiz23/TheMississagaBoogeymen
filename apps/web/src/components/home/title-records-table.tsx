@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Panel } from '@/components/ui/panel'
+import { formatWinPct } from '@/lib/format'
 
 export interface RecordModeStats {
   gamesPlayed: number
@@ -34,12 +35,6 @@ const MODE_LABELS: { mode: RecordMode; label: string }[] = [
   { mode: '3s', label: '3s' },
 ]
 
-function winPct(wins: number, losses: number, otl: number): string {
-  const total = wins + losses + otl
-  if (total === 0) return '—'
-  return ((wins / total) * 100).toFixed(1) + '%'
-}
-
 function fmt(val: string | null): string {
   return val ?? '—'
 }
@@ -63,6 +58,10 @@ function getModeStats(title: TitleRecordData, mode: RecordMode): RecordModeStats
 
 export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
   const [mode, setMode] = useState<RecordMode>('all')
+  // PP% / PK% can't be combined across playlists (no opportunity counts), so
+  // "All" leaves those columns out instead of a column of dashes.
+  const showSpecialTeams = mode !== 'all'
+  const statCols = showSpecialTeams ? 10 : 8
 
   return (
     <div className="space-y-3">
@@ -71,6 +70,8 @@ export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
         {MODE_LABELS.map(({ mode: m, label }) => (
           <button
             key={m}
+            type="button"
+            aria-pressed={mode === m}
             onClick={() => {
               setMode(m)
             }}
@@ -91,7 +92,9 @@ export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
         <table className="w-full min-w-[620px] text-sm">
           <thead>
             <tr className="border-b border-zinc-800 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
-              <th className="px-4 py-2 text-left">Title</th>
+              <th scope="col" className="sticky left-0 z-10 bg-surface px-4 py-2 text-left">
+                Title
+              </th>
               <th className="px-3 py-2">GP</th>
               <th className="px-3 py-2 text-accent">W</th>
               <th className="px-3 py-2">L</th>
@@ -100,8 +103,12 @@ export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
               <th className="px-3 py-2">GF/G</th>
               <th className="px-3 py-2">GA/G</th>
               <th className="px-3 py-2">TOA</th>
-              <th className="px-3 py-2">PP%</th>
-              <th className="px-3 py-2">PK%</th>
+              {showSpecialTeams && (
+                <>
+                  <th className="px-3 py-2">PP%</th>
+                  <th className="px-3 py-2">PK%</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/50">
@@ -109,7 +116,10 @@ export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
               const s = getModeStats(title, mode)
               return (
                 <tr key={title.slug} className={title.isLive ? 'bg-accent/5' : 'bg-surface'}>
-                  <td className="px-4 py-3">
+                  <th
+                    scope="row"
+                    className={`sticky left-0 z-10 px-4 py-3 text-left font-normal ${title.isLive ? 'bg-[color-mix(in_srgb,var(--color-accent)_5%,var(--color-surface))]' : 'bg-surface'}`}
+                  >
                     <span
                       className={`font-condensed text-sm font-semibold ${title.isLive ? 'text-accent' : 'text-zinc-300'}`}
                     >
@@ -120,9 +130,9 @@ export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
                         live
                       </span>
                     )}
-                  </td>
+                  </th>
                   {s === null ? (
-                    Array.from({ length: 10 }, (_, i) => (
+                    Array.from({ length: statCols }, (_, i) => (
                       <td key={i} className="px-3 py-3 text-right text-zinc-700">
                         —
                       </td>
@@ -140,7 +150,7 @@ export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums text-zinc-500">{s.otl}</td>
                       <td className="px-3 py-3 text-right tabular-nums text-zinc-300">
-                        {winPct(s.wins, s.losses, s.otl)}
+                        {formatWinPct(s.wins, s.wins + s.losses + s.otl)}
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums text-zinc-300">
                         {fmt(s.avgGoalsFor)}
@@ -151,12 +161,16 @@ export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
                       <td className="px-3 py-3 text-right tabular-nums text-zinc-400">
                         {fmt(s.avgTimeOnAttack)}
                       </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-zinc-400">
-                        {fmtPct(s.powerPlayPct)}
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-zinc-400">
-                        {fmtPct(s.powerPlayKillPct)}
-                      </td>
+                      {showSpecialTeams && (
+                        <>
+                          <td className="px-3 py-3 text-right tabular-nums text-zinc-400">
+                            {fmtPct(s.powerPlayPct)}
+                          </td>
+                          <td className="px-3 py-3 text-right tabular-nums text-zinc-400">
+                            {fmtPct(s.powerPlayKillPct)}
+                          </td>
+                        </>
+                      )}
                     </>
                   )}
                 </tr>

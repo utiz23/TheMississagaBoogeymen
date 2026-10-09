@@ -237,6 +237,21 @@ body:has([data-nav-pending]) .nav-pending-bar::after {
   }
 }
 
+/* Reduced motion, site-wide (polish backlog): animations and transitions end
+   at once on their final frame, so infinite pulses (live dots, skeletons) stop
+   and nothing slides. The game sheet is excluded: it has its own, curated
+   reduced-motion block below that keeps every cue's resting style. */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.game-sheet, .game-sheet *),
+  *:not(.game-sheet, .game-sheet *)::before,
+  *:not(.game-sheet, .game-sheet *)::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Focus (site-wide since 2026-10-09; was game-sheet only, Phase 10): ONE rule
    gives every interactive element a visible keyboard ring, so a control can
    never ship without one. Unlayered, so it beats Tailwind's layered

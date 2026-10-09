@@ -86,6 +86,17 @@ function histSingleRecord(
   }
 }
 
+/** "8:30" → 510; anything else → null. */
+function toaSeconds(v: string | null): number | null {
+  const m = v === null ? null : /^(\d+):(\d{2})$/.exec(v.trim())
+  return m === null ? null : Number(m[1]) * 60 + Number(m[2])
+}
+
+function toaText(seconds: number): string {
+  const s = Math.round(seconds)
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
+
 function histAllRecord(
   rows: readonly HistoricalClubTeamBatchRow[],
   titleId: number,
@@ -100,6 +111,8 @@ function histAllRecord(
   let gfgWeighted = 0
   let gagWeighted = 0
   let gpForRates = 0
+  let toaWeighted = 0
+  let gpForToa = 0
 
   for (const r of titleRows) {
     const rGp = r.gamesPlayed ?? 0
@@ -112,6 +125,13 @@ function histAllRecord(
       gagWeighted += parseFloat(r.avgGoalsAgainst ?? '0') * rGp
       gpForRates += rGp
     }
+    // Average TOA per game combines exactly across playlists (weighted by GP);
+    // PP% / PK% need opportunity counts the archive doesn't keep, so they stay null.
+    const toa = toaSeconds(r.avgTimeOnAttack)
+    if (toa !== null && rGp > 0) {
+      toaWeighted += toa * rGp
+      gpForToa += rGp
+    }
   }
 
   return {
@@ -121,7 +141,7 @@ function histAllRecord(
     otl,
     avgGoalsFor: gpForRates > 0 ? (gfgWeighted / gpForRates).toFixed(2) : null,
     avgGoalsAgainst: gpForRates > 0 ? (gagWeighted / gpForRates).toFixed(2) : null,
-    avgTimeOnAttack: null,
+    avgTimeOnAttack: gpForToa > 0 ? toaText(toaWeighted / gpForToa) : null,
     powerPlayPct: null,
     powerPlayKillPct: null,
   }

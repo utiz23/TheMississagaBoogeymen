@@ -86,11 +86,10 @@ export function ScoringLeadersPanel({
           <span className="metric">{titleMetric}</span>
         </span>
         <div className="sl-right">
-          <div className="sl-group" role="tablist" aria-label="Leaders view">
+          <div className="sl-group" role="group" aria-label="Leaders view">
             <button
               type="button"
-              role="tab"
-              aria-selected={view === 'skaters'}
+              aria-pressed={view === 'skaters'}
               onClick={() => {
                 setView('skaters')
               }}
@@ -99,8 +98,7 @@ export function ScoringLeadersPanel({
             </button>
             <button
               type="button"
-              role="tab"
-              aria-selected={view === 'goalies'}
+              aria-pressed={view === 'goalies'}
               disabled={!hasGoalies}
               onClick={() => {
                 if (hasGoalies) setView('goalies')
@@ -178,8 +176,14 @@ export function ScoringLeadersPanel({
               <b>{String(teamGp)}</b> GP ·{' '}
             </>
           ) : null}
-          {source ? <>{source} · </> : null}
-          <b>{modeLabel}</b>
+          {source ?? null}
+          {/* The local source already names its mode ("local tracked 6s"). */}
+          {gameMode == null && (
+            <>
+              {source ? ' · ' : null}
+              <b>{modeLabel}</b>
+            </>
+          )}
         </span>
         <Link prefetch href={ctaHref}>
           View all →

@@ -206,6 +206,16 @@ void test('loadTitleRecords: a genuinely empty dataset is ready, distinct from a
   assert.notDeepEqual(result, { status: 'unavailable' })
   if (result.status === 'ok') {
     assert.equal(result.rows.length, TITLES.length, 'every title still gets a row')
-    for (const row of result.rows) assert.equal(row.all, null, 'empty is null cells, not dropped rows')
+    for (const row of result.rows)
+      assert.equal(row.all, null, 'empty is null cells, not dropped rows')
   }
+})
+
+void test('archive "All" TOA is the games-weighted average of the playlists', () => {
+  const rows = buildTitleRecords([NHL22], new Map(), [
+    { ...hist(6, 'club_private', 30, 15), avgTimeOnAttack: '08:00' },
+    { ...hist(6, 'eashl_3v3', 10, 5), avgTimeOnAttack: '12:00' },
+  ])
+  // (30 × 480 s + 10 × 720 s) / 40 = 540 s.
+  assert.equal(rows[0]?.all?.avgTimeOnAttack, '09:00')
 })

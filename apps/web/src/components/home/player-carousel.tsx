@@ -155,13 +155,12 @@ export function PlayerCarousel({ cards }: PlayerCarouselProps) {
             <ChevronLeft />
           </button>
 
-          <div className="hpcr-progress" role="tablist">
+          <div className="hpcr-progress">
             {cards.map((c, i) => (
               <button
                 key={c.front.playerId}
                 type="button"
-                role="tab"
-                aria-selected={i === activeIndex}
+                aria-current={i === activeIndex ? 'true' : undefined}
                 aria-label={`Show ${c.front.name}`}
                 onClick={() => {
                   setActiveIndex(i)
@@ -379,7 +378,11 @@ function FanSlot({
     >
       {/* Prevents the Link from navigating when the intent is to rotate.
           The outer div owns the click; this inner div only blocks card-link events. */}
-      <div style={{ pointerEvents: isActive ? 'auto' : 'none' }}>{children(isActive)}</div>
+      {/* Only the front card is reachable by Tab and screen readers; the others
+          are scenery you promote with a click or the arrows. */}
+      <div style={{ pointerEvents: isActive ? 'auto' : 'none' }} inert={!isActive}>
+        {children(isActive)}
+      </div>
     </div>
   )
 }

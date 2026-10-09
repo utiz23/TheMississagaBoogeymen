@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import type { ClubGameTitleStats, ClubSeasonalStats, ClubSeasonRank, MatchResult } from '@eanhl/db'
 import './record-strip.css'
-import { formatClubDateTime } from '@/lib/format'
+import { formatClubDateTime, formatRecord } from '@/lib/format'
 
 interface Props {
   /** EA-official seasonal record (W/L/OTL/GP). Optional. */
@@ -121,9 +121,7 @@ export function RecordStrip({
               {hasRecord ? (
                 <>
                   <span className="sep">·</span>
-                  <span>
-                    {String(wins)}-{String(losses)}-{String(otl)}
-                  </span>
+                  <span>{formatRecord(wins, losses, otl)}</span>
                 </>
               ) : null}
             </div>
@@ -234,10 +232,8 @@ export function RecordStrip({
                 </span>
               ) : null}
               <span className="last">
-                <b>
-                  {String(last10Wins)}-{String(last10Losses)}-{String(last10Otl)}
-                </b>{' '}
-                in last 10
+                <b>{formatRecord(last10Wins, last10Losses, last10Otl)}</b>{' '}
+                {dots.length >= 10 ? 'in last 10' : `in ${String(dots.length)} games`}
               </span>
             </div>
             <div className="dots">
