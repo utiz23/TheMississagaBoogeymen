@@ -152,6 +152,9 @@ const STAT_DEFS: StatDef[] = [
 
 const CX = 210
 const CY = 210
+/** SVG coordinates to 2 decimals: server and browser trig can differ in the
+ *  last digit, which broke hydration on every profile. */
+const px = (n: number) => Math.round(n * 100) / 100
 const R_OUTER = 170
 const R_INNER = 110
 
@@ -283,12 +286,12 @@ export function ContributionWheel({
   const callouts = segments.slice(0, 3).map((s) => {
     const r1 = R_OUTER + 4
     const r2 = R_OUTER + 22
-    const x1 = CX + Math.cos(s.am) * r1
-    const y1 = CY + Math.sin(s.am) * r1
-    const x2 = CX + Math.cos(s.am) * r2
-    const y2 = CY + Math.sin(s.am) * r2
-    const tx = CX + Math.cos(s.am) * (r2 + 10)
-    const ty = CY + Math.sin(s.am) * (r2 + 10)
+    const x1 = px(CX + Math.cos(s.am) * r1)
+    const y1 = px(CY + Math.sin(s.am) * r1)
+    const x2 = px(CX + Math.cos(s.am) * r2)
+    const y2 = px(CY + Math.sin(s.am) * r2)
+    const tx = px(CX + Math.cos(s.am) * (r2 + 10))
+    const ty = px(CY + Math.sin(s.am) * (r2 + 10))
     const cosAm = Math.cos(s.am)
     const anchor: 'start' | 'middle' | 'end' =
       cosAm > 0.2 ? 'start' : cosAm < -0.2 ? 'end' : 'middle'
@@ -380,8 +383,8 @@ export function ContributionWheel({
                   <text
                     key={label}
                     className="cw-cardinal-label"
-                    x={CX + Math.cos(a) * r}
-                    y={CY + Math.sin(a) * r + 3}
+                    x={px(CX + Math.cos(a) * r)}
+                    y={px(CY + Math.sin(a) * r) + 3}
                     textAnchor="middle"
                   >
                     {label}%
@@ -730,10 +733,10 @@ const TICK_LINES = (() => {
     const ri = major ? 176 : 178
     const ro = major ? 193 : 190
     lines.push({
-      x1: CX + Math.cos(a) * ri,
-      y1: CY + Math.sin(a) * ri,
-      x2: CX + Math.cos(a) * ro,
-      y2: CY + Math.sin(a) * ro,
+      x1: px(CX + Math.cos(a) * ri),
+      y1: px(CY + Math.sin(a) * ri),
+      x2: px(CX + Math.cos(a) * ro),
+      y2: px(CY + Math.sin(a) * ro),
       major,
     })
   }
@@ -806,14 +809,14 @@ function computeRank(
 
 function arcPath(cx: number, cy: number, rO: number, rI: number, a1: number, a2: number): string {
   const large = a2 - a1 > Math.PI ? 1 : 0
-  const x1o = cx + Math.cos(a1) * rO
-  const y1o = cy + Math.sin(a1) * rO
-  const x2o = cx + Math.cos(a2) * rO
-  const y2o = cy + Math.sin(a2) * rO
-  const x1i = cx + Math.cos(a2) * rI
-  const y1i = cy + Math.sin(a2) * rI
-  const x2i = cx + Math.cos(a1) * rI
-  const y2i = cy + Math.sin(a1) * rI
+  const x1o = px(cx + Math.cos(a1) * rO)
+  const y1o = px(cy + Math.sin(a1) * rO)
+  const x2o = px(cx + Math.cos(a2) * rO)
+  const y2o = px(cy + Math.sin(a2) * rO)
+  const x1i = px(cx + Math.cos(a2) * rI)
+  const y1i = px(cy + Math.sin(a2) * rI)
+  const x2i = px(cx + Math.cos(a1) * rI)
+  const y2i = px(cy + Math.sin(a1) * rI)
   return `M ${String(x1o)} ${String(y1o)} A ${String(rO)} ${String(rO)} 0 ${String(large)} 1 ${String(x2o)} ${String(y2o)} L ${String(x1i)} ${String(y1i)} A ${String(rI)} ${String(rI)} 0 ${String(large)} 0 ${String(x2i)} ${String(y2i)} Z`
 }
 
