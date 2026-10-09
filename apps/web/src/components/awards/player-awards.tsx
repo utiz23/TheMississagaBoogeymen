@@ -2,16 +2,8 @@
 
 import { useState } from 'react'
 import { AwardSymbol } from './award-symbol'
-import type { AwardKind, PlayerAwardsView } from './awards-model'
+import type { PlayerAwardsView } from './awards-model'
 import './player-awards.css'
-
-const LEGEND: { kind: AwardKind; label: string }[] = [
-  { kind: 'trophy', label: 'Club trophy' },
-  { kind: 'banner', label: 'Championship banner' },
-  { kind: 'record', label: 'Season record' },
-  { kind: 'alltime', label: 'All-time record' },
-  { kind: 'milestone', label: 'Milestone' },
-]
 
 interface PlayerAwardsProps {
   gamertag: string
@@ -24,8 +16,6 @@ export function PlayerAwards({ gamertag, awards }: PlayerAwardsProps) {
   const [selId, setSelId] = useState(() => items[0]?.id ?? '')
   const sel = items.find((i) => i.id === selId) ?? items[0]
   if (sel === undefined) return null
-
-  const present = new Set(items.map((i) => i.kind))
 
   return (
     <section className="pa" aria-label="Awards">
@@ -94,20 +84,6 @@ export function PlayerAwards({ gamertag, awards }: PlayerAwardsProps) {
         </div>
         <span className="pa-detail-meta">{sel.meta}</span>
       </div>
-      <footer className="pa-foot">
-        <div className="pa-legend">
-          {LEGEND.filter((l) => present.has(l.kind)).map((l) => (
-            <span key={l.kind}>
-              <span className={`pa-key pa-key-${l.kind}`} />
-              {l.label}
-            </span>
-          ))}
-        </div>
-        <div className="pa-source">
-          <span>Source EA NHL + club archive · Boogeymen</span>
-          <span>Sheet BGM/AWD/0028</span>
-        </div>
-      </footer>
     </section>
   )
 }
