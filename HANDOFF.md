@@ -30,7 +30,7 @@ tunnel. **The launch plan is closed** (all 8 items ✅ 2026-10-09; four green
 unattended backup nights 10-06 → 10-09). Next: post-launch work (polish,
 video-stats OCR).
 
-**Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. No feature behind it yet — **next is Card Locker EQUIP** (step 1b of the [member-logins plan](docs/superpowers/plans/2026-10-09-member-logins-step-1.md)); profile self-edit and admin tools are later steps. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
+**Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. **Card Locker EQUIP is live** (`f24507f`): a member equips a theme on their own card (admin: any card) or AUTO. Plan: [member-logins step 1](docs/superpowers/plans/2026-10-09-member-logins-step-1.md); profile self-edit (B) and admin tools (C) are later steps. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
 **Awards trophy case is live** (2026-10-08): records, season leaders, milestones, plus hand-entered trophies/banners in `apps/web/src/components/awards/club-awards.ts` (add new results there). Awards rank player-card ALL SKATERS totals, not the Stats page's club archive (operator choice).
 
@@ -43,6 +43,8 @@ video-stats OCR).
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
 ## Latest Verified Checkpoint
+
+**2026-10-09 — Card Locker EQUIP deployed** (`f24507f`, web only; rollback `eanhl-team-website-web:rollback-he-2026-10-09-pre-equip`). Operator-verified on localhost (own card, admin on others, plain member refused).
 
 **2026-10-09 — member logins deployed** (`7b76804`, web + worker; migration 0065 applied to live/test/preview; rollback images `:rollback-he-2026-10-09-pre-logins`, server `.env` backup `.env.bak-2026-10-09`). Live checks passed; operator signed in as admin. Security review: no findings. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
@@ -67,7 +69,7 @@ video-stats OCR).
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web and worker at `7b76804`), web and worker as the non-root
+  and nightly backup (web at `f24507f`, worker at `7b76804`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
@@ -137,9 +139,10 @@ None.
 
 ## Next 1-3 Actions
 
-0. **Member logins step 1b — Card Locker EQUIP** (commits 7–8 of the
-   [plan](docs/superpowers/plans/2026-10-09-member-logins-step-1.md); web only,
-   0065 already live). Watch the first teammate invite go through.
+0. Member logins: watch the first teammate invite + equip. Queued (operator):
+   Discord avatar instead of initials in the nav (needs storing the avatar
+   URL — undoes "no avatar" — and a legal-text update); then steps B
+   (profile self-edit) and C (admin tools), each its own plan.
 1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
 2. Polish: cross-cutting + by-surface passes **deployed 2026-10-09** (`5269fbe`, web only; rollback `eanhl-team-website-web:rollback-he-2026-10-09-pre-polish` = `fafeefb`), incl. the live UTC-dates fix, the operator's four answers and the goalie Contribution Wheel. Every backlog entry has an outcome ([`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md), journal 10-09).
 3. Backup hardening from the Codex review (optional, small): weekly/monthly
