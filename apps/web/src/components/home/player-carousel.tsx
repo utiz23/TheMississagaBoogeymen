@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState, type PointerEvent } from 'react'
 import { PlayerCard } from '@/components/cards/player-card'
+import { PlayerCardCompact, type CompactCardSize } from '@/components/cards/player-card-compact'
 import type { CardViewModel } from '@/components/cards/card-model'
+import { colorForPosition } from '@/lib/position-colors'
 import './player-carousel.css'
 
 interface PlayerCarouselProps {
@@ -10,21 +12,24 @@ interface PlayerCarouselProps {
 }
 
 /**
- * Stacked V-formation carousel for featured player cards.
+ * Stacked fan carousel for featured player cards.
  *
- * Desktop: 5-slot podium layout — center card at full scale, flanking cards
- * recede via scale + Y-offset. All 5 staged cards are fully opaque; opacity
- * animates only when a card enters or leaves the visible formation.
- * Clicking any non-center staged card promotes it to the front.
+ * Desktop (>1100px): full player cards in a 5-slot fan — center card at full
+ * scale, flanking cards recede via rotate + scale + opacity. Clicking any
+ * non-center staged card promotes it to the front.
  *
- * Mobile: single card with arrow + swipe navigation.
+ * Smaller screens use the compact card (Roster Carousel.dc.html), one fan per
+ * tier, swapped by CSS (player-carousel.css) so nothing depends on JS sizing:
+ *   Medium ≤1100 — 176px cards, LIVE tag + counter inside the stage
+ *   Small  ≤720  — 115px cards, arrows · dots · name below
+ *   Micro  ≤480  — 67px cards, a stat strip for the active player below
  *
  * All player data is fetched server-side; this component is Client-only
  * for interactivity (activeIndex state + transitions).
  */
 export function PlayerCarousel({ cards }: PlayerCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0)
-  const [swipeStart, setSwipeStart] = useState<number | null>(null)
+  const swipe = useRef<{ x: number | null; dragged: boolean }>({ x: null, dragged: false })
   const total = cards.length
 
   if (total === 0) return null
@@ -36,18 +41,57 @@ export function PlayerCarousel({ cards }: PlayerCarouselProps) {
     setActiveIndex((i) => (i + 1) % total)
   }
 
-  const onTouchStart = (e: React.TouchEvent) => {
-    setSwipeStart(e.touches[0]?.clientX ?? null)
+  // Pointer swipe for every stage; a drag past 30px rotates and swallows the
+  // click that follows, so it doesn't also promote the card under the pointer.
+  const onPointerDown = (e: PointerEvent) => {
+    swipe.current = { x: e.clientX, dragged: false }
   }
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (swipeStart === null) return
-    const delta = (e.changedTouches[0]?.clientX ?? swipeStart) - swipeStart
-    if (Math.abs(delta) > 44) {
-      if (delta < 0) next()
+  const onPointerUp = (e: PointerEvent) => {
+    const start = swipe.current.x
+    if (start === null) return
+    swipe.current.x = null
+    const dx = e.clientX - start
+    if (Math.abs(dx) > 30) {
+      swipe.current.dragged = true
+      if (dx < 0) next()
       else prev()
+      setTimeout(() => {
+        swipe.current.dragged = false
+      }, 0)
     }
-    setSwipeStart(null)
   }
+  const promote = (index: number) => {
+    if (!swipe.current.dragged) setActiveIndex(index)
+  }
+
+  const active = cards[activeIndex]
+  const now = (activeIndex + 1).toString().padStart(2, '0')
+  const totalStr = total.toString().padStart(2, '0')
+
+  const stageProps = {
+    onPointerDown,
+    onPointerUp,
+    onPointerCancel: () => {
+      swipe.current.x = null
+    },
+  }
+
+  const dots = (
+    <div className="hpcr-dots">
+      {cards.map((c, i) => (
+        <button
+          key={c.front.playerId}
+          type="button"
+          aria-label={`Show ${c.front.name}`}
+          aria-current={i === activeIndex ? 'true' : undefined}
+          onClick={() => {
+            setActiveIndex(i)
+          }}
+          className={i === activeIndex ? 'dot on' : 'dot'}
+        />
+      ))}
+    </div>
+  )
 
   return (
     <div
@@ -61,13 +105,13 @@ export function PlayerCarousel({ cards }: PlayerCarouselProps) {
       }}
     >
       {/* ── Desktop: stacked depth carousel ─────────────────────────────── */}
-      <div className="hidden sm:block">
-        <div className="hpcr-stage" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div className="hpcr-desktop">
+        <div className="hpcr-stage" {...stageProps}>
           {/* LIVE indicator — top-left of stage. The label updates with the
               active player so the chrome reads as a broadcast lower-third. */}
           <div className="hpcr-now-tag">
             <span className="live">Live</span>
-            <span className="type">{cards[activeIndex]?.front.name ?? 'Player Spotlight'}</span>
+            <span className="type">{active?.front.name ?? 'Player Spotlight'}</span>
           </div>
           {/* Side vignette masks — create the "cards fade into darkness" effect */}
           <div
@@ -84,50 +128,25 @@ export function PlayerCarousel({ cards }: PlayerCarouselProps) {
           />
 
           {/* Cards — all rendered so CSS opacity transitions fire on enter/exit */}
-          {cards.map((card, index) => {
-            const rel = getRelPos(index, activeIndex, total)
-            // Visible slots use full opacity. Off-stage cards park at the nearest
-            // outer position with opacity 0 so entering/leaving fades animate there.
-            const cfg = SLOT_CONFIG[rel] ?? (rel < 0 ? HIDDEN_LEFT : HIDDEN_RIGHT)
-            const visible = Math.abs(rel) <= 2
-            const isActive = rel === 0
-
-            return (
-              <div
-                key={card.front.playerId}
-                className="absolute"
-                style={{
-                  top: '50%',
-                  left: '50%',
-                  transform: `translateX(calc(-50% + ${cfg.x.toString()}px)) translateY(-50%) rotate(${cfg.rotate.toString()}deg) scale(${cfg.scale.toString()})`,
-                  opacity: cfg.opacity,
-                  zIndex: cfg.zIndex,
-                  transition: 'transform 600ms cubic-bezier(0.22, 0.8, 0.2, 1), opacity 400ms ease',
-                  cursor: !isActive && visible ? 'pointer' : 'default',
-                  // Off-stage cards must not intercept clicks on visible cards below
-                  pointerEvents: visible ? 'auto' : 'none',
-                }}
-                onClick={
-                  !isActive && visible
-                    ? () => {
-                        setActiveIndex(index)
-                      }
-                    : undefined
-                }
-              >
-                {/* Prevents the Link from navigating when the intent is to rotate.
-                    The outer div owns the click; this inner div only blocks card-link events. */}
-                <div style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
-                  <PlayerCard
-                    card={card}
-                    context="list"
-                    active={isActive}
-                    href={`/roster/${String(card.front.playerId)}`}
-                  />
-                </div>
-              </div>
-            )
-          })}
+          {cards.map((card, index) => (
+            <FanSlot
+              key={card.front.playerId}
+              rel={getRelPos(index, activeIndex, total)}
+              fan={DESKTOP_FAN}
+              onPromote={() => {
+                promote(index)
+              }}
+            >
+              {(isActive) => (
+                <PlayerCard
+                  card={card}
+                  context="list"
+                  active={isActive}
+                  href={`/roster/${String(card.front.playerId)}`}
+                />
+              )}
+            </FanSlot>
+          ))}
         </div>
 
         {/* Controls — arrow · progress bars · arrow (bundle pattern) */}
@@ -160,113 +179,250 @@ export function PlayerCarousel({ cards }: PlayerCarouselProps) {
         {/* Index counter + keybind hint */}
         <div className="hpcr-meta">
           <span className="hpcr-index">
-            <span className="now">{(activeIndex + 1).toString().padStart(2, '0')}</span>
+            <span className="now">{now}</span>
             <span className="sep">/</span>
-            <span>{total.toString().padStart(2, '0')}</span>
+            <span>{totalStr}</span>
           </span>
           <span className="hpcr-index dim">⇠ ⇢ Arrow Keys · Click Peeks</span>
         </div>
       </div>
 
-      {/* ── Mobile: single card + arrows ────────────────────────────────── */}
-      <div className="sm:hidden">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={prev}
-            aria-label="Previous player"
-            className="flex h-9 w-9 shrink-0 items-center justify-center border border-zinc-700 text-zinc-500 transition-colors hover:border-zinc-500 hover:text-zinc-200"
-          >
+      {/* ── Medium: compact fan, chrome inside the stage ────────────────── */}
+      <div className="hpcr-m">
+        <div className="hpcr-cstage" {...stageProps}>
+          <div className="hpcr-ctag">
+            <span className="live">
+              <i />
+              Live
+            </span>
+            <span className="name">{active?.front.name ?? ''}</span>
+          </div>
+          <div className="hpcr-vig left" />
+          <div className="hpcr-vig right" />
+          <CompactFan
+            cards={cards}
+            activeIndex={activeIndex}
+            fan={MEDIUM_FAN}
+            size="medium"
+            top="52%"
+            onPromote={promote}
+          />
+          <div className="hpcr-cfoot">
+            <span className="count">
+              <b>{now}</b>
+              <span>/</span>
+              <span>{totalStr}</span>
+            </span>
+            <span>⇠ ⇢ Arrow keys · Click peeks</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Small: compact fan · arrows, dots and name below ────────────── */}
+      <div className="hpcr-s">
+        <div className="hpcr-cstage" {...stageProps}>
+          <div className="hpcr-vig left" />
+          <div className="hpcr-vig right" />
+          <CompactFan
+            cards={cards}
+            activeIndex={activeIndex}
+            fan={SMALL_FAN}
+            size="small"
+            top="50%"
+            onPromote={promote}
+          />
+        </div>
+        <div className="hpcr-srow">
+          <button type="button" onClick={prev} aria-label="Previous player" className="hpcr-sarrow">
             <ChevronLeft />
           </button>
-
-          <div
-            className="flex flex-1 justify-center"
-            onTouchStart={onTouchStart}
-            onTouchEnd={onTouchEnd}
-          >
-            {cards[activeIndex] && (
-              <PlayerCard
-                card={cards[activeIndex]}
-                context="list"
-                active
-                href={`/roster/${String(cards[activeIndex].front.playerId)}`}
-              />
-            )}
+          <div className="mid">
+            {dots}
+            <span className="name">{active?.front.name ?? ''}</span>
           </div>
-
-          <button
-            type="button"
-            onClick={next}
-            aria-label="Next player"
-            className="flex h-9 w-9 shrink-0 items-center justify-center border border-zinc-700 text-zinc-500 transition-colors hover:border-zinc-500 hover:text-zinc-200"
-          >
+          <button type="button" onClick={next} aria-label="Next player" className="hpcr-sarrow">
             <ChevronRight />
           </button>
         </div>
+      </div>
 
-        {/* Thin-bar indicators + player label */}
-        <div className="mt-3 flex flex-col items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            {cards.map((c, i) => (
-              <button
-                key={c.front.playerId}
-                type="button"
-                aria-label={`Show ${c.front.name}`}
-                onClick={() => {
-                  setActiveIndex(i)
-                }}
-                className={[
-                  'rounded-full transition-all duration-300',
-                  i === activeIndex
-                    ? 'h-0.5 w-6 bg-accent'
-                    : 'h-0.5 w-3 bg-zinc-700 hover:bg-zinc-500',
-                ].join(' ')}
-              />
-            ))}
-          </div>
-          <span className="font-condensed text-sm font-black uppercase tracking-wider text-zinc-400">
-            {cards[activeIndex]?.front.name ?? ''}
+      {/* ── Micro: compact fan · stat strip for the active player ───────── */}
+      <div className="hpcr-u">
+        <div className="hpcr-cstage" {...stageProps}>
+          <span className="hpcr-ucount">
+            <b>{now}</b> / {totalStr}
           </span>
+          <div className="hpcr-vig left" />
+          <div className="hpcr-vig right" />
+          <CompactFan
+            cards={cards}
+            activeIndex={activeIndex}
+            fan={MICRO_FAN}
+            size="micro"
+            top="50%"
+            onPromote={promote}
+          />
         </div>
+        {active !== undefined && (
+          <div className="hpcr-strip">
+            <div className="who">
+              <div className="tags">
+                <span className="num">#{active.front.jersey}</span>
+                {active.front.position !== null && (
+                  <span style={{ color: colorForPosition(active.front.position) }}>
+                    {active.front.position}
+                  </span>
+                )}
+                <span className="rec">{active.front.record}</span>
+              </div>
+              <span className="name">{active.front.name}</span>
+            </div>
+            <div className="line">
+              {active.front.stats.map((st, i) => (
+                <div key={st.label} className="st">
+                  <span className="k">{st.label}</span>
+                  <span className={i === active.front.stats.length - 1 ? 'v lead' : 'v'}>
+                    {st.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {dots}
+        <span className="hpcr-uhint">Swipe · Tap peeks</span>
       </div>
     </div>
   )
 }
 
-// ─── Position config ──────────────────────────────────────────────────────────
+// ─── Fan slots ────────────────────────────────────────────────────────────────
 
-interface SlotConfig {
-  x: number
-  rotate: number
-  scale: number
-  opacity: number
-  zIndex: number
+/**
+ * One fan layout. Arrays are indexed by distance from the center card; the
+ * last entry is the off-stage holding position (opacity 0), where cards park
+ * so entering/leaving fades animate at the outer edge.
+ */
+interface Fan {
+  x: number[]
+  rotate: number[]
+  scale: number[]
+  opacity: number[]
+  /** z-index drop per step away from the center. */
+  zStep: number
 }
 
 /**
- * Fan-layout slot values, ported from the bundle's
- * `components-card-carousel-v3.html`. Rotation + horizontal offset
- * + scale + opacity falloff create the deck-shuffle look. No vertical
- * offset — all cards are vertically centered.
+ * Desktop fan, ported from the bundle's `components-card-carousel-v3.html`.
  *   rel 0  → center hero (full scale, no rotate)
  *   rel ±1 → inner peeks  (scale 0.86, ±8°,  ±250px, opacity 0.55)
  *   rel ±2 → outer peeks  (scale 0.72, ±14°, ±440px, opacity 0.22)
+ *   beyond → parked at ±620px, scale 0.6, ±18°, opacity 0
  */
-const SLOT_CONFIG: Record<number, SlotConfig> = {
-  [-2]: { x: -440, rotate: -14, scale: 0.72, opacity: 0.22, zIndex: 10 },
-  [-1]: { x: -250, rotate: -8, scale: 0.86, opacity: 0.55, zIndex: 20 },
-  [0]: { x: 0, rotate: 0, scale: 1.0, opacity: 1.0, zIndex: 30 },
-  [1]: { x: 250, rotate: 8, scale: 0.86, opacity: 0.55, zIndex: 20 },
-  [2]: { x: 440, rotate: 14, scale: 0.72, opacity: 0.22, zIndex: 10 },
+const DESKTOP_FAN: Fan = {
+  x: [0, 250, 440, 620],
+  rotate: [0, 8, 14, 18],
+  scale: [1, 0.86, 0.72, 0.6],
+  opacity: [1, 0.55, 0.22, 0],
+  zStep: 10,
+}
+// Compact fans — Roster Carousel.dc.html.
+const MEDIUM_FAN: Fan = {
+  x: [0, 150, 258, 340],
+  rotate: [0, 8, 14, 18],
+  scale: [1, 0.86, 0.72, 0.6],
+  opacity: [1, 0.55, 0.22, 0],
+  zStep: 5,
+}
+const SMALL_FAN: Fan = { ...MEDIUM_FAN, x: [0, 96, 164, 220] }
+const MICRO_FAN: Fan = {
+  x: [0, 60, 110, 152, 186],
+  rotate: [0, 6, 11, 15, 18],
+  scale: [1, 0.88, 0.76, 0.66, 0.56],
+  opacity: [1, 0.7, 0.42, 0.18, 0],
+  zStep: 5,
 }
 
-/**
- * Off-stage holding positions — parked further out at scale 0.6 with full
- * tilt and opacity 0 so cards fade out at the outer edge as they exit.
- */
-const HIDDEN_LEFT: SlotConfig = { x: -620, rotate: -18, scale: 0.6, opacity: 0, zIndex: 0 }
-const HIDDEN_RIGHT: SlotConfig = { x: 620, rotate: 18, scale: 0.6, opacity: 0, zIndex: 0 }
+function FanSlot({
+  rel,
+  fan,
+  top = '50%',
+  onPromote,
+  children,
+}: {
+  rel: number
+  fan: Fan
+  top?: string
+  onPromote: () => void
+  children: (isActive: boolean) => React.ReactNode
+}) {
+  const last = fan.x.length - 1
+  const dist = Math.min(Math.abs(rel), last)
+  const sign = rel < 0 ? -1 : 1
+  const visible = Math.abs(rel) < last
+  const isActive = rel === 0
+  return (
+    <div
+      className="absolute"
+      style={{
+        top,
+        left: '50%',
+        transform: `translate(-50%, -50%) translateX(${String(sign * (fan.x[dist] ?? 0))}px) rotate(${String(sign * (fan.rotate[dist] ?? 0))}deg) scale(${String(fan.scale[dist] ?? 1)})`,
+        opacity: visible ? (fan.opacity[dist] ?? 0) : 0,
+        zIndex: 30 - dist * fan.zStep,
+        transition: 'transform 600ms cubic-bezier(0.22, 0.8, 0.2, 1), opacity 400ms ease',
+        cursor: !isActive && visible ? 'pointer' : 'default',
+        // Off-stage cards must not intercept clicks on visible cards below
+        pointerEvents: visible ? 'auto' : 'none',
+      }}
+      onClick={!isActive && visible ? onPromote : undefined}
+    >
+      {/* Prevents the Link from navigating when the intent is to rotate.
+          The outer div owns the click; this inner div only blocks card-link events. */}
+      <div style={{ pointerEvents: isActive ? 'auto' : 'none' }}>{children(isActive)}</div>
+    </div>
+  )
+}
+
+function CompactFan({
+  cards,
+  activeIndex,
+  fan,
+  size,
+  top,
+  onPromote,
+}: {
+  cards: CardViewModel[]
+  activeIndex: number
+  fan: Fan
+  size: CompactCardSize
+  top: string
+  onPromote: (index: number) => void
+}) {
+  return (
+    <>
+      {cards.map((card, index) => (
+        <FanSlot
+          key={card.front.playerId}
+          rel={getRelPos(index, activeIndex, cards.length)}
+          fan={fan}
+          top={top}
+          onPromote={() => {
+            onPromote(index)
+          }}
+        >
+          {() => (
+            <PlayerCardCompact
+              card={card.front}
+              size={size}
+              href={`/roster/${String(card.front.playerId)}`}
+            />
+          )}
+        </FanSlot>
+      ))}
+    </>
+  )
+}
 
 /**
  * Compute the relative position of a card from the active index.
