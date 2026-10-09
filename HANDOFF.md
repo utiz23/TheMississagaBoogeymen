@@ -44,7 +44,7 @@ video-stats OCR).
 
 ## Latest Verified Checkpoint
 
-**2026-10-09 — Card Locker EQUIP deployed** (`f24507f`, web only; rollback `eanhl-team-website-web:rollback-he-2026-10-09-pre-equip`). Operator-verified on localhost (own card, admin on others, plain member refused).
+**2026-10-09 — Card Locker EQUIP + Discord picture in the nav deployed** (`f24507f`, then `354f2da`; web only; rollbacks `:rollback-he-2026-10-09-pre-equip`, `:rollback-he-2026-10-09-pre-avatar`). Operator-verified on localhost.
 
 **2026-10-09 — member logins deployed** (`7b76804`, web + worker; migration 0065 applied to live/test/preview; rollback images `:rollback-he-2026-10-09-pre-logins`, server `.env` backup `.env.bak-2026-10-09`). Live checks passed; operator signed in as admin. Security review: no findings. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
@@ -69,7 +69,7 @@ video-stats OCR).
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web at `f24507f`, worker at `7b76804`), web and worker as the non-root
+  and nightly backup (web at `354f2da`, worker at `7b76804`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
@@ -139,9 +139,7 @@ None.
 
 ## Next 1-3 Actions
 
-0. Member logins: watch the first teammate invite + equip. Queued (operator):
-   Discord avatar instead of initials in the nav (needs storing the avatar
-   URL — undoes "no avatar" — and a legal-text update); then steps B
+0. Member logins: watch the first teammate invite + equip. Next steps B
    (profile self-edit) and C (admin tools), each its own plan.
 1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
 2. Polish: cross-cutting + by-surface passes **deployed 2026-10-09** (`5269fbe`, web only; rollback `eanhl-team-website-web:rollback-he-2026-10-09-pre-polish` = `fafeefb`), incl. the live UTC-dates fix, the operator's four answers and the goalie Contribution Wheel. Every backlog entry has an outcome ([`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md), journal 10-09).
