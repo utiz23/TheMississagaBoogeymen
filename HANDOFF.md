@@ -28,22 +28,19 @@ tunnel. Launch plan items 2–8 are done; item 1 counts three green nightly
 backups on Hotel-Echo from 2026-10-06. Next: observe for a few days, then
 post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
+**Awards trophy case is live** (2026-10-08): records, season leaders, milestones, plus hand-entered trophies/banners in `apps/web/src/components/awards/club-awards.ts` (add new results there). Awards rank player-card ALL SKATERS totals, not the Stats page's club archive (operator choice).
+
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
 ## Latest Verified Checkpoint
+
+**2026-10-08 (late night) — Awards + migration 0064 deployed** (`d038b36`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-08-pre-awards`). 0064 adds 12 derived `all_skaters` archive rows (seasons captured only per position); rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`. Detail: [journal 2026-10-08 late night](docs/journal/2026-10.md).
 
 **2026-10-08 (night) — position filter + deeper season table deployed** (`29ee6a2`, also ships `c7b2eab` depth chart top 4 lines / 3 D pairs; migration 0063 `player_position_stats`; rollback images `:rollback-he-2026-10-08-pre-positions`; dump `~/eanhl-backups/pre-positions-2026-10-08-2155.dump`, sha256 `421bc764…4a47`). Position pills (All · C · LW · RW · W · D) on roster, stats and player-season tables; `recompute-aggregates --all` backfilled NHL 26 (no longer ingested). Live: position GP = skater GP for 60/60 + 28/28 players; HenryTheBobJr NHL 26 D 118 of 571. Detail: [journal 2026-10-08 evening](docs/journal/2026-10.md).
 
 **2026-10-08 (later) — featured badges, roster additions, AI goalies, multi-position depth chart deployed** (`d772784`; migrations 0061 + 0062; rollback images `:rollback-he-2026-10-08-pre-ai-goalies`; dump `~/eanhl-backups/pre-ai-goalies-2026-10-08-1127.dump`). AI goalies Matteo Lehmann / Jonas Wagner and pinned Jimmy Cap are players; the worker syncs AI-goalie lines every cycle. Detail: [journal 2026-10-08](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
 
-**2026-10-08 — player cards deployed** (`3ec9dc0`, web + worker; rollback
-images `eanhl-team-website-{web,worker}:rollback-he-2026-10-08-pre-cards`;
-pre-change dump `~/eanhl-backups/pre-cards-2026-10-08-0957.dump`, sha256
-`1ac7f102…dbe2`). Migration 0060 is on live (3 card tables). The worker
-recomputes cards each cycle: NHL 27, 29 players, everyone at most T2 Rookie.
-Pages return 200; `/roster/3` is 44 KB gzipped. Rollback: retag
-`:rollback-he-2026-10-08-pre-cards` as `:latest` and run `up -d --no-deps web worker`
-(the old code ignores the new tables). Detail: [journal 2026-10-08](docs/journal/2026-10.md).
+**2026-10-08 — player cards deployed** (`3ec9dc0`; migration 0060; rollback `:rollback-he-2026-10-08-pre-cards`, dump `~/eanhl-backups/pre-cards-2026-10-08-0957.dump`). Detail: [journal 2026-10-08](docs/journal/2026-10.md).
 
 **2026-10-06 — NHL 26 contamination cleaned up** (worker `3f35733`; rollback
 image `eanhl-team-website-worker:rollback-2026-10-05-quarantine`; pre-change
@@ -54,11 +51,7 @@ strip is restored to 365-229-27 / 621 GP. Detail:
 [plan](docs/planning/2026-10-05-nhl26-club-19224-quarantine.md),
 [journal 2026-10-06](docs/journal/2026-10.md).
 
-**2026-10-06 — performance pass deployed** (`351354d`, web only; rollback
-image `eanhl-team-website-web:rollback-he-2026-10-06-pre-perf`): no route
-loading screens, full link preloading, 7-day image cache; phone content
-598 → 303 ms, taps 349 → 187 ms. Unknown ids 404. Detail:
-[journal 2026-10-06](docs/journal/2026-10.md).
+**2026-10-06 — performance pass deployed** (`351354d`; rollback `:rollback-he-2026-10-06-pre-perf`). Detail: [journal 2026-10-06](docs/journal/2026-10.md).
 
 **2026-10-05 — launched; security update + polish deployed.** Detail:
 [journal 2026-10-05](docs/journal/2026-10.md).
@@ -91,7 +84,7 @@ nofollow` and robots meta; no `X-Powered-By`, no cookies, no Cloudflare
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web + worker at `29ee6a2`), web and worker as the non-root
+  and nightly backup (web at `d038b36`, worker at `29ee6a2`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
