@@ -32,7 +32,9 @@ video-stats OCR).
 
 **Awards trophy case is live** (2026-10-08): records, season leaders, milestones, plus hand-entered trophies/banners in `apps/web/src/components/awards/club-awards.ts` (add new results there). Awards rank player-card ALL SKATERS totals, not the Stats page's club archive (operator choice).
 
-**Responsive sizes are live** (2026-10-09): Medium/Small/Micro layouts below desktop, compact cards on phones, side rail on wide screens. Open for the operator: finish the Roster Stats table tiers (or delete the orphan `stats-table-shell.css`), Build Locker v3 desktop redesign, and whether to restore any content the mockups hide on small screens (list in the journal).
+**Responsive sizes are live** (2026-10-09): Medium/Small/Micro layouts below desktop, compact cards on phones, side rail on wide screens. Content the mockups hide on small screens stays hidden (operator, 10-09).
+
+**Committed, NOT deployed** (2026-10-09, `9aae4ce`…`098c1e4`, web only, no migration): stats-table size tiers, Build Locker v3 desktop (persona name from OCR), "Last 10" includes the newest game, Action Map clocks show time elapsed, short-code build names ("Connor McDavid-PLY") map to archetypes, and the switch plan's deferred minors. Detail: [journal 2026-10-09](docs/journal/2026-10.md). Deploy is the next step.
 
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
@@ -135,11 +137,11 @@ None.
 
 ## Next 1-3 Actions
 
-1. Cards: watch the first days live (worker log `AI goalies nhl27` + `Card progression recomputed`, teammates' reactions). Re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Open for the operator: Jimmy Cap's position (RW placeholder), the Action Map clock direction, the deferred minors in the switch plan's record, and a pre-existing Contribution Wheel hydration warning. `eanhl_preview` can be dropped on the operator's say. New migrations must also go to `eanhl_test` (verify-ocr seed).
+1. Deploy the 10-09 batch above to Hotel-Echo (web only; `docker-redeploy` skill). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
 2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
    time deltas). The security review is closed (journal 10-06).
 3. Backup hardening from the Codex review (optional, small): weekly/monthly
    copies after a missed Sunday/1st, and a run lock for manual + scheduled
-   overlap. Watch teammates' feedback (including on speed). Also decide how video-stats OCR (main PC) writes to Hotel-Echo's
-   database (over Tailscale, opening the database to the tailnet).
+   overlap. Watch teammates' feedback (including on speed). Video-stats OCR
+   writing to Hotel-Echo's database is on hold (operator, 10-09).
