@@ -14,6 +14,11 @@ const STAT_LABEL: Record<AwardStat, string> = {
   GP: 'GAMES',
   W: 'WINS',
   SO: 'SHUTOUTS',
+  HIT: 'HITS',
+  PIM: 'PIM',
+  FW: 'FIGHTS WON',
+  HAT: 'HAT TRICKS',
+  BLK: 'BLOCKS',
 }
 
 const METAL: Record<AwardTier, CSSProperties> = {

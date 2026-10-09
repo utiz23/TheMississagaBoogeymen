@@ -24,6 +24,11 @@ function line(
     goals: 0,
     assists: 0,
     points: 0,
+    hits: 0,
+    pim: 0,
+    fightsWon: 0,
+    hatTricks: 0,
+    blockedShots: 0,
     goalieGp: 0,
     wins: 0,
     shutouts: 0,
@@ -208,4 +213,28 @@ void test('order: all-time, season records, trophies, banners, milestones; newes
     'milestone-A-250',
     'milestone-G-250',
   ])
+})
+
+void test('physical and hat-trick records, season and all-time', () => {
+  const lines = [
+    line(1, 'NHL 22', { hits: 900, pim: 300, fightsWon: 4, hatTricks: 60, blockedShots: 100 }),
+    line(1, 'NHL 26', { hits: 3324, pim: 1562, fightsWon: 75, hatTricks: 103, blockedShots: 167 }),
+    line(2, 'NHL 26', { hits: 2480, pim: 444, fightsWon: 4, hatTricks: 61, blockedShots: 443 }),
+    line(3, 'NHL 27', { hits: 1 }),
+  ]
+  const p1 = buildPlayerAwards(lines, 1).items
+  const rec = (id: string) => p1.find((i) => i.id === id)
+  const pim = rec('record-PIM-NHL 26')
+  assert.equal(pim?.name, 'Most Penalty Minutes, Single Season')
+  assert.equal(pim.short, 'Most PIM · season')
+  assert.equal(rec('record-FW-NHL 26')?.glyph, '75')
+  assert.equal(rec('record-HAT-NHL 26')?.short, 'Most hat tricks · season')
+  assert.equal(rec('record-HIT-NHL 26')?.glyph, '3,324')
+  assert.equal(rec('alltime-HAT')?.glyph, '163')
+  assert.equal(rec('alltime-FW')?.name, 'Most Career Fights Won')
+  // Player 2's 443-block season beats player 1's 267 career blocks: both go to player 2.
+  assert.equal(rec('alltime-BLK'), undefined)
+  const p2 = buildPlayerAwards(lines, 2).items
+  assert.ok(p2.some((i) => i.id === 'record-BLK-NHL 26'))
+  assert.equal(p2.find((i) => i.id === 'alltime-BLK')?.glyph, '443')
 })

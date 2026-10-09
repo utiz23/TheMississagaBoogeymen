@@ -23,10 +23,20 @@ export interface ClubSeasonLine {
   goals: number
   assists: number
   points: number
+  hits: number
+  pim: number
+  fightsWon: number
+  hatTricks: number
+  blockedShots: number
   goalieGp: number
   wins: number
   shutouts: number
 }
+
+/** A whole-number count from the archive row's `stats_json`; anything else counts 0. */
+const jsonCount = (key: string) =>
+  sql`CASE WHEN ${historicalPlayerSeasonStats.statsJson}->>${key} ~ '^[0-9]+$'
+    THEN (${historicalPlayerSeasonStats.statsJson}->>${key})::int ELSE 0 END`
 
 const toInt = (v: string | number | null): number =>
   v === null ? 0 : typeof v === 'number' ? v : Number.parseInt(v, 10) || 0
@@ -51,6 +61,11 @@ export async function getClubSeasonLines(): Promise<ClubSeasonLine[]> {
       goals: eaMemberSeasonStats.goals,
       assists: eaMemberSeasonStats.assists,
       points: eaMemberSeasonStats.points,
+      hits: eaMemberSeasonStats.hits,
+      pim: eaMemberSeasonStats.pim,
+      fightsWon: eaMemberSeasonStats.fightsWon,
+      hatTricks: eaMemberSeasonStats.hatTricks,
+      blockedShots: eaMemberSeasonStats.blockedShots,
       goalieGp: eaMemberSeasonStats.goalieGp,
       wins: eaMemberSeasonStats.goalieWins,
       shutouts: eaMemberSeasonStats.goalieShutouts,
@@ -72,6 +87,12 @@ export async function getClubSeasonLines(): Promise<ClubSeasonLine[]> {
       goals: sql<string | null>`SUM(${historicalPlayerSeasonStats.goals})`,
       assists: sql<string | null>`SUM(${historicalPlayerSeasonStats.assists})`,
       points: sql<string | null>`SUM(${historicalPlayerSeasonStats.points})`,
+      hits: sql<string | null>`SUM(${historicalPlayerSeasonStats.hits})`,
+      pim: sql<string | null>`SUM(${historicalPlayerSeasonStats.pim})`,
+      blockedShots: sql<string | null>`SUM(${historicalPlayerSeasonStats.blockedShots})`,
+      // Fights won and hat tricks were only captured in the raw screenshot data.
+      fightsWon: sql<string | null>`SUM(${jsonCount('fights_won')})`,
+      hatTricks: sql<string | null>`SUM(${jsonCount('hat_tricks')})`,
       wins: sql<string | null>`SUM(${historicalPlayerSeasonStats.wins})`,
       shutouts: sql<string | null>`SUM(${historicalPlayerSeasonStats.shutouts})`,
     })
@@ -110,6 +131,11 @@ export async function getClubSeasonLines(): Promise<ClubSeasonLine[]> {
     goals: r.goals,
     assists: r.assists,
     points: r.points,
+    hits: r.hits,
+    pim: r.pim,
+    fightsWon: r.fightsWon,
+    hatTricks: r.hatTricks,
+    blockedShots: r.blockedShots,
     goalieGp: r.goalieGp,
     wins: r.wins ?? 0,
     shutouts: r.shutouts ?? 0,
@@ -129,6 +155,11 @@ export async function getClubSeasonLines(): Promise<ClubSeasonLine[]> {
       goals: 0,
       assists: 0,
       points: 0,
+      hits: 0,
+      pim: 0,
+      fightsWon: 0,
+      hatTricks: 0,
+      blockedShots: 0,
       goalieGp: 0,
       wins: 0,
       shutouts: 0,
@@ -138,6 +169,11 @@ export async function getClubSeasonLines(): Promise<ClubSeasonLine[]> {
       line.goals = toInt(r.goals)
       line.assists = toInt(r.assists)
       line.points = toInt(r.points)
+      line.hits = toInt(r.hits)
+      line.pim = toInt(r.pim)
+      line.fightsWon = toInt(r.fightsWon)
+      line.hatTricks = toInt(r.hatTricks)
+      line.blockedShots = toInt(r.blockedShots)
     } else {
       line.goalieGp = toInt(r.gamesPlayed)
       line.wins = toInt(r.wins)

@@ -8,7 +8,7 @@ import type { ClubAward, VotedTrophy } from './club-awards'
  * (`club-awards.ts`).
  */
 
-export type AwardStat = 'G' | 'A' | 'PTS' | 'GP' | 'W' | 'SO'
+export type AwardStat = 'G' | 'A' | 'PTS' | 'GP' | 'W' | 'SO' | 'HIT' | 'PIM' | 'FW' | 'HAT' | 'BLK'
 export type AwardTier = 'bronze' | 'silver' | 'gold'
 export type AwardKind = 'alltime' | 'record' | 'trophy' | 'banner' | 'milestone'
 export type AwardSymbolKind =
@@ -54,17 +54,49 @@ export interface PlayerAwardsView {
   totals: { trophies: number; banners: number; accolades: number }
 }
 
-const STATS: Record<AwardStat, { word: string; get: (l: ClubSeasonLine) => number }> = {
-  G: { word: 'goals', get: (l) => l.goals },
-  A: { word: 'assists', get: (l) => l.assists },
-  PTS: { word: 'points', get: (l) => l.points },
-  GP: { word: 'games played', get: (l) => l.skaterGp + l.goalieGp },
-  W: { word: 'goalie wins', get: (l) => l.wins },
-  SO: { word: 'shutouts', get: (l) => l.shutouts },
+/** `word` reads in sentences and names; `short` labels the record tiles. */
+const STATS: Record<
+  AwardStat,
+  { word: string; short: string; get: (l: ClubSeasonLine) => number }
+> = {
+  G: { word: 'goals', short: 'goals', get: (l) => l.goals },
+  A: { word: 'assists', short: 'assists', get: (l) => l.assists },
+  PTS: { word: 'points', short: 'points', get: (l) => l.points },
+  GP: { word: 'games played', short: 'GP', get: (l) => l.skaterGp + l.goalieGp },
+  W: { word: 'goalie wins', short: 'goalie wins', get: (l) => l.wins },
+  SO: { word: 'shutouts', short: 'shutouts', get: (l) => l.shutouts },
+  HIT: { word: 'hits', short: 'hits', get: (l) => l.hits },
+  PIM: { word: 'penalty minutes', short: 'PIM', get: (l) => l.pim },
+  FW: { word: 'fights won', short: 'fights won', get: (l) => l.fightsWon },
+  HAT: { word: 'hat tricks', short: 'hat tricks', get: (l) => l.hatTricks },
+  BLK: { word: 'blocked shots', short: 'blocked shots', get: (l) => l.blockedShots },
 }
 
-const SEASON_RECORD_STATS: readonly AwardStat[] = ['G', 'A', 'PTS', 'W', 'SO']
-const ALLTIME_RECORD_STATS: readonly AwardStat[] = ['G', 'A', 'PTS', 'GP', 'W', 'SO']
+const SEASON_RECORD_STATS: readonly AwardStat[] = [
+  'G',
+  'A',
+  'PTS',
+  'HAT',
+  'HIT',
+  'BLK',
+  'PIM',
+  'FW',
+  'W',
+  'SO',
+]
+const ALLTIME_RECORD_STATS: readonly AwardStat[] = [
+  'G',
+  'A',
+  'PTS',
+  'GP',
+  'HAT',
+  'HIT',
+  'BLK',
+  'PIM',
+  'FW',
+  'W',
+  'SO',
+]
 
 /** Season-leader trophies, awarded for every finished title. */
 const LEADERS: readonly { stat: AwardStat; symbol: AwardSymbolKind; name: string }[] = [
@@ -134,7 +166,19 @@ export const MILESTONES: Partial<Record<AwardStat, readonly (readonly [number, A
 /** These keep only the highest milestone reached — one plaque each. */
 const SINGLE_PLAQUE: ReadonlySet<AwardStat> = new Set(['G', 'A', 'PTS'])
 
-const STAT_ORDER: readonly AwardStat[] = ['G', 'A', 'PTS', 'GP', 'W', 'SO']
+const STAT_ORDER: readonly AwardStat[] = [
+  'G',
+  'A',
+  'PTS',
+  'GP',
+  'HAT',
+  'HIT',
+  'BLK',
+  'PIM',
+  'FW',
+  'W',
+  'SO',
+]
 const SYMBOL_ORDER: readonly AwardSymbolKind[] = [
   'mvp',
   'scorer',
@@ -228,7 +272,7 @@ export function buildPlayerAwards(
         kind: 'record',
         symbol: 'record',
         name: `Most ${titleCase(word)}, Single Season`,
-        short: `Most ${word} · season`,
+        short: `Most ${STATS[stat].short} · season`,
         when: season,
         order: at,
         stat,
@@ -350,7 +394,7 @@ export function buildPlayerAwards(
       kind: 'alltime',
       symbol: 'alltime',
       name: stat === 'GP' ? 'Most Games Played' : `Most Career ${titleCase(word)}`,
-      short: `Most ${stat === 'GP' ? 'GP' : word} · all-time`,
+      short: `Most ${STATS[stat].short}`,
       when: 'All-time',
       order: newestOrder,
       stat,
