@@ -121,7 +121,9 @@ export function ProvenanceChip({
 }
 
 function formatProvenanceTimestamp(d: Date): string {
-  return d.toLocaleString(undefined, {
+  // Club zone, like every other stamp (server runs UTC; viewers may not).
+  return d.toLocaleString('en-US', {
+    timeZone: 'America/Edmonton',
     year: 'numeric',
     month: 'short',
     day: '2-digit',

@@ -7,25 +7,47 @@ import { formatMatchDate } from '@/lib/format'
 interface ContextFooterProps {
   previous: AdjacentMatch | null
   next: AdjacentMatch | null
+  /** The games-list filters this sheet was opened from, kept across prev/next (as the top bar does). */
+  listQuery?: string | undefined
 }
 
-export function ContextFooter({ previous, next }: ContextFooterProps) {
+export function ContextFooter({ previous, next, listQuery }: ContextFooterProps) {
   if (!previous && !next) return null
 
   return (
     <nav className="grid grid-cols-1 gap-3 border-t border-zinc-800 pt-6 sm:grid-cols-2">
-      {previous ? <AdjacentLink match={previous} direction="prev" /> : <Spacer direction="prev" />}
-      {next ? <AdjacentLink match={next} direction="next" /> : <Spacer direction="next" />}
+      {previous ? (
+        <AdjacentLink match={previous} direction="prev" listQuery={listQuery} />
+      ) : (
+        <Spacer direction="prev" />
+      )}
+      {next ? (
+        <AdjacentLink match={next} direction="next" listQuery={listQuery} />
+      ) : (
+        <Spacer direction="next" />
+      )}
     </nav>
   )
 }
 
-function AdjacentLink({ match, direction }: { match: AdjacentMatch; direction: 'prev' | 'next' }) {
+function AdjacentLink({
+  match,
+  direction,
+  listQuery,
+}: {
+  match: AdjacentMatch
+  direction: 'prev' | 'next'
+  listQuery?: string | undefined
+}) {
   const arrow = direction === 'prev' ? '←' : '→'
   const label = direction === 'prev' ? 'Previous game' : 'Next game'
 
   return (
-    <Link prefetch href={`/games/${match.id.toString()}`} className="group block">
+    <Link
+      prefetch
+      href={`/games/${match.id.toString()}${listQuery ? `?${listQuery}` : ''}`}
+      className="group block"
+    >
       <Panel
         hoverable
         className={`flex flex-col gap-1.5 p-4 ${

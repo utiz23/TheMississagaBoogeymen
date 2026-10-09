@@ -14,9 +14,16 @@ interface TopPerformersProps {
   performers: TopPerformerWithDelta[]
   allTeamScores: PlayerScoreEntry[]
   opponentLabel: string
+  /** Players left out for having no recorded stats (e.g. left before playing). */
+  unrankedCount?: number | undefined
 }
 
-export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopPerformersProps) {
+export function TopPerformers({
+  performers,
+  allTeamScores,
+  opponentLabel,
+  unrankedCount = 0,
+}: TopPerformersProps) {
   if (allTeamScores.length === 0) return null
 
   const deltas: Record<string, number> = {}
@@ -41,6 +48,13 @@ export function TopPerformers({ performers, allTeamScores, opponentLabel }: TopP
           deltas={deltas}
           opponentLabel={abbreviateTeamName(opponentLabel)}
         />
+        {unrankedCount > 0 && (
+          <p className="px-3.5 pb-3 font-condensed text-[12px] tracking-[0.04em] text-fg-5">
+            {unrankedCount === 1
+              ? '1 player with no recorded stats isn’t ranked.'
+              : `${String(unrankedCount)} players with no recorded stats aren’t ranked.`}
+          </p>
+        )}
       </MotionReveal>
     </section>
   )

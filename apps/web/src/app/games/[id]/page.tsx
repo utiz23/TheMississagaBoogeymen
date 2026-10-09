@@ -298,6 +298,9 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
                 performers={topPerformers}
                 allTeamScores={allTeamScores}
                 opponentLabel={match.opponentName}
+                unrankedCount={
+                  playerStatsForStars.length + opponentStatsForStars.length - allTeamScores.length
+                }
               />
 
               {/* Deserve-to-win — arc gauge over the weighted possession model;
@@ -338,7 +341,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         />
 
         {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}
-        <ContextFooter previous={adjacent.previous} next={adjacent.next} />
+        <ContextFooter previous={adjacent.previous} next={adjacent.next} listQuery={listQuery} />
       </div>
     </MemberLinks>
   )

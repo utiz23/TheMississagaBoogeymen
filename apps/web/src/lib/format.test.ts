@@ -6,7 +6,14 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { formatDataDay, formatDuration, formatSavePct, headingName } from './format.ts'
+import {
+  formatDataDay,
+  formatDuration,
+  formatMatchDate,
+  formatMatchTime,
+  formatSavePct,
+  headingName,
+} from './format.ts'
 
 const MIN = 60
 const HOUR = 60 * MIN
@@ -62,4 +69,11 @@ void test('formatDataDay: the club-zone calendar day, the same on server and bro
   assert.equal(formatDataDay(undefined), '—')
   assert.equal(formatDataDay(null), '—')
   assert.equal(formatDataDay('not a date'), '—')
+})
+
+void test('match date and time read in the club zone, whatever the server zone is', () => {
+  // 03:30 UTC Oct 9 = 9:30 PM Oct 8 in Edmonton (MDT). The live server runs UTC.
+  const end = new Date('2026-10-09T03:30:00Z')
+  assert.equal(formatMatchTime(end), '9:30 PM')
+  assert.match(formatMatchDate(end), /^Oct 8/)
 })

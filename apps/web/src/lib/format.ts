@@ -1,24 +1,30 @@
+/** The club's zone. Every date and time is read here, never in the server's
+ *  zone (the live container runs UTC) or the viewer's (hydration). */
+const CLUB_TIME_ZONE = 'America/Edmonton'
+const CLUB_YEAR = new Intl.DateTimeFormat('en-US', { timeZone: CLUB_TIME_ZONE, year: 'numeric' })
+
 /**
- * Format a match date for display.
+ * Format a match date for display, in the club's zone.
  * Shows month/day and year only when it differs from the current year.
  */
 export function formatMatchDate(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date
-  const now = new Date()
-  const opts: Intl.DateTimeFormatOptions = {
+  const sameYear = CLUB_YEAR.format(d) === CLUB_YEAR.format(new Date())
+  return d.toLocaleDateString('en-US', {
+    timeZone: CLUB_TIME_ZONE,
     month: 'short',
     day: 'numeric',
-    ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
-  }
-  return d.toLocaleDateString('en-US', opts)
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
 }
 
 /**
- * Format match time as "9:40 PM".
+ * Format match time as "9:40 PM", in the club's zone.
  */
 export function formatMatchTime(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date
   return d.toLocaleTimeString('en-US', {
+    timeZone: CLUB_TIME_ZONE,
     hour: 'numeric',
     minute: '2-digit',
   })
@@ -68,8 +74,6 @@ export function formatSavePct(val: string | null): string {
   return s.startsWith('0') ? s.slice(1) : s
 }
 
-/** The club's zone: data-freshness days read as the operator sees them. */
-const CLUB_TIME_ZONE = 'America/Edmonton'
 const DATA_DAY = new Intl.DateTimeFormat('en-CA', {
   timeZone: CLUB_TIME_ZONE,
   year: 'numeric',

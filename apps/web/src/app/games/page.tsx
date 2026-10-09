@@ -16,7 +16,7 @@ import { ScoreCard } from '@/components/matches/score-card'
 import { Panel } from '@/components/ui/panel'
 import { SectionHeader } from '@/components/ui/section-header'
 import { ResultPill } from '@/components/ui/result-pill'
-import { formatMatchDate } from '@/lib/format'
+import { formatDataDay, formatMatchDate } from '@/lib/format'
 import { resolveTitleFromSlug, switcherTitles } from '@/lib/title-resolver'
 
 export const metadata: Metadata = { title: 'Scores — Club Stats' }
@@ -295,8 +295,8 @@ function groupMatchesByDate(matches: Awaited<ReturnType<typeof getRecentMatches>
   const groups = new Map<string, { key: string; label: string; matches: typeof matches }>()
 
   for (const match of matches) {
-    const d = new Date(match.playedAt)
-    const key = `${d.getFullYear().toString()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`
+    // The club's calendar day (the server runs UTC: evening games would split).
+    const key = formatDataDay(match.playedAt)
     const label = formatMatchDate(match.playedAt)
     const group = groups.get(key)
     if (group) {
