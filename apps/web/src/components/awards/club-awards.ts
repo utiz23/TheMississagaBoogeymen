@@ -34,8 +34,10 @@ export const CLUB_AWARDS: readonly ClubAward[] = [
   { kind: 'trophy', trophy: 'defense', title: 'NHL 25', playerIds: [1], from: 'vote' }, // HenryTheBobJr ("Erb")
   { kind: 'trophy', trophy: 'rookie', title: 'NHL 25', playerIds: [8], from: 'vote' }, // Ordinary_Samich ("beav")
 
-  // NHL 22–24 — no vote on record; picked from the archive. NHL 22 has no
-  // Rookie (the archive starts there) and NHL 23's only newcomer played 7 games.
+  // NHL 22–24 — no vote on record; picked from the archive. No Rookie for any
+  // of them: the archive starts at NHL 22, NHL 23's only newcomer played 7
+  // games, and NHL 24's joseph4577 is a 10-year veteran back from retirement
+  // (operator veto, 2026-10-08), leaving BoshBandrews' 6 games.
   {
     kind: 'trophy',
     trophy: 'mvp',
@@ -53,14 +55,6 @@ export const CLUB_AWARDS: readonly ClubAward[] = [
     from: 'stats',
     reason:
       'Most blocked shots (554) and interceptions (3,374) on the club, +364, with 334 games on defense.',
-  },
-  {
-    kind: 'trophy',
-    trophy: 'rookie',
-    title: 'NHL 24',
-    playerIds: [13], // joseph4577
-    from: 'stats',
-    reason: 'First season with the club: 187 goals and 313 points in 148 games, +36.',
   },
   {
     kind: 'trophy',
