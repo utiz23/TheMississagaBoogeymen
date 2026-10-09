@@ -75,9 +75,10 @@ export const sections: LegalPageSection[] = [
         </P>
         <P>
           For team members who sign in, we also keep a small member-account record: the member's
-          Discord user ID and Discord display name, which player on our team the account is linked
-          to, the account's role, settings the member chooses for their own player, and sign-in
-          session records. We do not receive or keep the member's email address, Discord avatar, or
+          Discord user ID, Discord display name and a link to their Discord profile picture (if they
+          set one), which player on our team the account is linked to, the account's role, settings
+          the member chooses for their own player, and sign-in session records. The picture is shown
+          only to the member themselves. We do not receive or keep the member's email address or
           Discord password, and we do not keep Discord access tokens.
         </P>
         <P>
@@ -166,8 +167,9 @@ export const sections: LegalPageSection[] = [
           test fixtures), <Strong>Backblaze</Strong> (off-site storage for backup copies of our
           database), <Strong>Healthchecks.io</Strong> (monitoring that receives only status messages
           from our server, not information about visitors), <Strong>Discord</Strong> (the sign-in
-          service team members use; it tells us only the member's Discord user ID and display name),{' '}
-          <Strong>EA's game services</Strong> (the source of underlying game data), and{' '}
+          service team members use; it tells us only the member's Discord user ID, display name and
+          profile picture link), <Strong>EA's game services</Strong> (the source of underlying game
+          data), and{' '}
           <Strong>community-operated hosting infrastructure based in Alberta, Canada</Strong>.
         </P>
         <P>

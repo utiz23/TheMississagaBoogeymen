@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs'
 import {
   DISABLED_AUTH_PATHS,
   DISCORD_SCOPES,
+  customDiscordAvatar,
   loginErrorMessage,
   mapDiscordProfile,
   readAuthEnv,
@@ -85,4 +86,18 @@ void test('the auth instance keeps the invite gate and no password sign-in', () 
   assert.match(src, /accountLinking:\s*\{\s*enabled:\s*false\s*\}/)
   assert.match(src, /user:\s*\{\s*create:\s*\{\s*before:/, 'user.create.before is the invite gate')
   assert.doesNotMatch(src, /dev-only|change-me/i, 'no hardcoded fallback secret')
+})
+
+void test('only a custom Discord avatar link is kept', () => {
+  const custom =
+    'https://cdn.discordapp.com/avatars/320600985372196866/a1b2c3d4e5f60718293a4b5c6d7e8f90.png'
+  const animated =
+    'https://cdn.discordapp.com/avatars/320600985372196866/a_a1b2c3d4e5f60718293a4b5c6d7e8f90.gif'
+  assert.equal(customDiscordAvatar(custom), custom)
+  assert.equal(customDiscordAvatar(animated), animated)
+  assert.equal(customDiscordAvatar('https://cdn.discordapp.com/embed/avatars/3.png'), null)
+  assert.equal(customDiscordAvatar('https://evil.example/avatars/1/abc.png'), null)
+  assert.equal(customDiscordAvatar(`${custom}?x=1`), null)
+  assert.equal(customDiscordAvatar(null), null)
+  assert.equal(customDiscordAvatar(undefined), null)
 })

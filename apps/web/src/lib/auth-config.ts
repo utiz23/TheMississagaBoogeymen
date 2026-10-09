@@ -62,8 +62,8 @@ export interface DiscordProfile {
  * Discord account → user row. Discord gives no email under `identify`, but
  * `users.email` is NOT NULL UNIQUE and Better Auth needs one, so it is a
  * synthetic, undeliverable address (RFC 2606 `.invalid`) — still unique per
- * Discord account. The avatar URL Discord offers is dropped in the
- * `user.create.before` hook (./auth.ts), so no avatar is stored.
+ * Discord account. The avatar URL is filtered by `customDiscordAvatar` in
+ * the user hooks (./auth.ts).
  */
 export function mapDiscordProfile(profile: DiscordProfile) {
   return {
@@ -71,6 +71,19 @@ export function mapDiscordProfile(profile: DiscordProfile) {
     emailVerified: false,
     name: profile.global_name || profile.username,
   }
+}
+
+const CUSTOM_AVATAR =
+  /^https:\/\/cdn\.discordapp\.com\/avatars\/\d+\/a?_?[0-9a-f]+\.(png|gif|webp)$/
+
+/**
+ * The member's own Discord profile picture link, kept so the nav can show it
+ * to them (operator, 2026-10-09). Only a custom avatar on Discord's CDN is
+ * kept; Discord's generic default (`/embed/avatars/…`) and anything else
+ * become null, and the site shows the card silhouette instead.
+ */
+export function customDiscordAvatar(url: unknown): string | null {
+  return typeof url === 'string' && CUSTOM_AVATAR.test(url) ? url : null
 }
 
 export const DISCORD_SCOPES = ['identify'] as const

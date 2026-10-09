@@ -55,11 +55,12 @@ from — along with raw data as received from EA's game services and
 correspondence sent to our project email addresses.
 
 For team members who sign in, we also keep a small member-account record:
-the member's Discord user ID and Discord display name, which player on our
-team the account is linked to, the account's role, settings the member
-chooses for their own player, and sign-in session records. We do not receive
-or keep the member's email address, Discord avatar, or Discord password, and
-we do not keep Discord access tokens.
+the member's Discord user ID, Discord display name and a link to their
+Discord profile picture (if they set one), which player on our team the
+account is linked to, the account's role, settings the member chooses for
+their own player, and sign-in session records. The picture is shown only to
+the member themselves. We do not receive or keep the member's email address
+or Discord password, and we do not keep Discord access tokens.
 
 Our source gameplay recordings may incidentally include in-game party voice
 chat. This is not a statement that any recording is lawful; see the Data
@@ -124,7 +125,7 @@ a limited set of test fixtures), **Backblaze** (off-site storage for backup
 copies of our database), **Healthchecks.io** (monitoring that receives only
 status messages from our server, not information about visitors),
 **Discord** (the sign-in service team members use; it tells us only the
-member's Discord user ID and display name), **EA's game services** (the source of underlying game data), and
+member's Discord user ID, display name and profile picture link), **EA's game services** (the source of underlying game data), and
 **community-operated hosting infrastructure based in Alberta, Canada**.
 
 This is a summary list, not a legal classification. We do not describe any

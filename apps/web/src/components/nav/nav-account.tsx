@@ -3,11 +3,15 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
-type SessionState = { status: 'loading' } | { status: 'out' } | { status: 'in'; name: string }
+type SessionState =
+  | { status: 'loading' }
+  | { status: 'out' }
+  | { status: 'in'; name: string; image: string | null }
 
 /**
- * The nav's member control: LOG IN when signed out, the member's initials when
- * signed in. It reads the session from the browser after load, so the root
+ * The nav's member control: LOG IN when signed out, the member's Discord
+ * picture when signed in (the card silhouette when they have none, or it
+ * won't load). Only the signed-in member's own picture is ever loaded. It reads the session from the browser after load, so the root
  * layout never touches `headers()` and every page stays as cacheable as before.
  * The box keeps its size while loading, so nothing shifts.
  */
@@ -26,11 +30,19 @@ export function NavAccount({
       .then((r) => (r.ok ? r.json() : null))
       .then((body: unknown) => {
         if (!live) return
-        const name =
+        const user =
           body !== null && typeof body === 'object' && 'user' in body
-            ? (body as { user?: { name?: unknown } }).user?.name
+            ? (body as { user?: { name?: unknown; image?: unknown } }).user
             : undefined
-        setSession(typeof name === 'string' ? { status: 'in', name } : { status: 'out' })
+        setSession(
+          typeof user?.name === 'string'
+            ? {
+                status: 'in',
+                name: user.name,
+                image: typeof user.image === 'string' ? user.image : null,
+              }
+            : { status: 'out' },
+        )
       })
       .catch(() => {
         if (live) setSession({ status: 'out' })
@@ -62,9 +74,9 @@ export function NavAccount({
         href={href}
         aria-label={`Your account (${session.name})`}
         title={session.name}
-        className="hidden h-[38px] w-[38px] items-center justify-center rounded-xs border border-accent-line bg-accent-soft font-condensed text-[13px] font-extrabold uppercase tracking-[0.06em] text-accent-readable transition-colors hover:bg-[rgba(232,65,49,0.18)] nav:inline-flex"
+        className="hidden h-[38px] w-[38px] items-center justify-center overflow-hidden rounded-xs border border-accent-line bg-surface-raised transition-[filter] hover:brightness-110 nav:inline-flex"
       >
-        {initials(session.name)}
+        <MemberPicture image={session.image} />
       </Link>
     )
   }
@@ -79,9 +91,37 @@ export function NavAccount({
   )
 }
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  const letters =
-    parts.length >= 2 ? `${parts[0]![0]!}${parts[1]![0]!}` : (parts[0] ?? '?').slice(0, 2)
-  return letters.toUpperCase()
+/** The Discord picture, or the player-card silhouette (also if the picture fails). */
+function MemberPicture({ image }: { image: string | null }) {
+  const [failed, setFailed] = useState(false)
+  if (image !== null && !failed) {
+    return (
+      // A plain <img>: one 64px picture from Discord's CDN, no optimisation proxy.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={`${image}?size=64`}
+        alt=""
+        width={38}
+        height={38}
+        referrerPolicy="no-referrer"
+        className="h-full w-full object-cover"
+        onError={() => {
+          setFailed(true)
+        }}
+      />
+    )
+  }
+  // The player card's silhouette (card-front.tsx).
+  return (
+    <svg
+      viewBox="0 0 100 110"
+      fill="currentColor"
+      preserveAspectRatio="xMidYMax meet"
+      aria-hidden
+      className="mt-[6px] h-[32px] w-[30px] text-fg-5"
+    >
+      <circle cx="50" cy="32" r="21" />
+      <path d="M 8 110 Q 8 66 50 66 Q 92 66 92 110 Z" />
+    </svg>
+  )
 }

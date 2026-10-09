@@ -28,6 +28,7 @@ import {
 } from '@eanhl/db/queries'
 import {
   DISABLED_AUTH_PATHS,
+  customDiscordAvatar,
   DISCORD_SCOPES,
   SESSION_EXPIRES_IN_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
@@ -68,6 +69,8 @@ function createAuth() {
         // Sign-in never creates a user unless the request asks to sign up,
         // which only the invite flow does — and the hook below still checks.
         disableImplicitSignUp: true,
+        // Each sign-in refreshes the display name and avatar link from Discord.
+        overrideUserInfoOnSignIn: true,
         mapProfileToUser: (profile) => mapDiscordProfile(profile as DiscordProfile),
       },
     },
@@ -111,8 +114,15 @@ function createAuth() {
             const status = evaluateInvite(await getAccountInviteByToken(token))
             if (status !== 'ok') refuse(`invite_${status}`)
             // The role comes from the invite, set after creation — never from
-            // input. No Discord avatar is stored.
-            return { data: { ...user, image: null, role: 'user', disabledAt: null } }
+            // input. Only a custom Discord avatar link is kept.
+            return {
+              data: {
+                ...user,
+                image: customDiscordAvatar(user.image),
+                role: 'user',
+                disabledAt: null,
+              },
+            }
           },
           after: async (user) => {
             const token = await inviteTokenFromState()
@@ -133,6 +143,11 @@ function createAuth() {
               refuse(`invite_${status}`)
             }
           },
+        },
+        update: {
+          // The sign-in refresh: same avatar rule as on creation.
+          before: async (data) =>
+            'image' in data ? { data: { ...data, image: customDiscordAvatar(data.image) } } : true,
         },
       },
       account: {

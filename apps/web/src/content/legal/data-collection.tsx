@@ -168,11 +168,12 @@ export const sections: LegalPageSection[] = [
           </LI>
           <LI>
             <Strong>Member accounts.</Strong> For team members who sign in: the member's Discord
-            user ID and Discord display name (as it was when the account was created), the player on
-            our team the account is linked to, the account's role (member or admin), whether the
-            account has been disabled, when it was created, settings the member chooses for their
-            own player (such as their player card's theme), and sign-in session records. See
-            "Accounts and authentication" below for what is not kept.
+            user ID, Discord display name and a link to their Discord profile picture (if they set
+            one; all refreshed each time they sign in), the player on our team the account is linked
+            to, the account's role (member or admin), whether the account has been disabled, when it
+            was created, settings the member chooses for their own player (such as their player
+            card's theme), and sign-in session records. See "Accounts and authentication" below for
+            what is not kept.
           </LI>
           <LI>
             <Strong>
@@ -334,10 +335,13 @@ export const sections: LegalPageSection[] = [
           Discord; this site has no passwords.
         </P>
         <P>
-          When a member signs in, Discord tells us only the member's Discord user ID and display
-          name (Discord's <Code>identify</Code> permission). We do not ask Discord for, receive, or
-          keep the member's email address, and we do not keep their Discord avatar or any Discord
-          access tokens. Because our account software requires an email field, each account stores a
+          When a member signs in, Discord tells us only the member's Discord user ID, display name
+          and profile picture (Discord's <Code>identify</Code> permission). We do not ask Discord
+          for, receive, or keep the member's email address, and we do not keep any Discord access
+          tokens. We keep a link to the member's profile picture, not the picture itself, so the
+          site can show it to that member in its navigation bar; their browser then loads it from
+          Discord. Nobody else is shown it, and a member without a custom picture sees a plain
+          silhouette. Because our account software requires an email field, each account stores a
           placeholder address made from the Discord user ID that cannot receive mail.
         </P>
         <P>
@@ -402,8 +406,9 @@ export const sections: LegalPageSection[] = [
           </LI>
           <LI>
             <Strong>Discord</Strong> — the sign-in service team members use to sign in to this site.
-            Discord tells us the member's Discord user ID and display name when they sign in;
-            visitors who do not sign in are never sent to Discord by this site.
+            Discord tells us the member's Discord user ID, display name and profile picture link
+            when they sign in, and a signed-in member's browser loads their own picture from
+            Discord; visitors who do not sign in are never sent to Discord by this site.
           </LI>
           <LI>
             <Strong>Electronic Arts (EA)</Strong> — the source of the underlying game data and some
