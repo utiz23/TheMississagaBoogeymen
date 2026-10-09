@@ -1,6 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { AUTH_BUTTON_PRIMARY, AuthNotice, AuthPanel } from '@/components/auth/auth-panel'
+import {
+  AUTH_BUTTON_PRIMARY,
+  AUTH_BUTTON_SECONDARY,
+  AuthNotice,
+  AuthPanel,
+} from '@/components/auth/auth-panel'
 import { SignOutButton } from '@/components/auth/sign-out-button'
 import { requireUser } from '@/lib/auth'
 
@@ -37,6 +42,11 @@ export default async function AccountPage({
             className={AUTH_BUTTON_PRIMARY}
           >
             Your player card
+          </Link>
+        )}
+        {viewer.role === 'admin' && (
+          <Link prefetch href="/admin/accounts" className={AUTH_BUTTON_SECONDARY}>
+            Member accounts
           </Link>
         )}
         <SignOutButton />

@@ -127,10 +127,15 @@ void test('a login error code is shown from the dictionary, never echoed', { ski
   assert.match(html, /role="alert"[^>]*>Sign-in didn’t work/)
 })
 
-void test('the account page sends a signed-out visitor to sign in', { skip }, async () => {
-  const response = await fetch(`${BASE}/account`, { redirect: 'manual' })
-  assert.ok([303, 307, 308].includes(response.status), `got ${String(response.status)}`)
-  assert.match(response.headers.get('location') ?? '', /\/login$/)
+void test('member and admin pages send a signed-out visitor to sign in', { skip }, async () => {
+  for (const urlPath of ['/account', '/admin/accounts']) {
+    const response = await fetch(`${BASE}${urlPath}`, { redirect: 'manual' })
+    assert.ok(
+      [303, 307, 308].includes(response.status),
+      `${urlPath}: got ${String(response.status)}`,
+    )
+    assert.match(response.headers.get('location') ?? '', /\/login$/, urlPath)
+  }
 })
 
 void test('an unknown invite link renders a refusal, not an error', { skip }, async () => {

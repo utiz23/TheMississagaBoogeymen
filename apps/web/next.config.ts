@@ -31,19 +31,25 @@ const nextConfig: NextConfig = {
       dynamic: 300,
       static: 300,
     },
+    // Server Actions (member/admin forms) reject a POST whose Origin differs
+    // from the Host. Behind the Cloudflare tunnel the public origin is listed
+    // explicitly so a rewritten Host can't make every action fail.
+    serverActions: {
+      allowedOrigins: ['boogeymen.app'],
+    },
   },
 
   // Unlisted launch: keep every response out of search results. The header
   // also covers non-HTML responses; the page-level meta tag is set in
   // app/layout.tsx, and app/robots.ts explains why crawling stays allowed.
   //
-  // The rest is standard browser hardening for a read-only site with no
-  // logins: no framing by other sites (the legacy header and the CSP
+  // The rest is standard browser hardening (the site's only writes are member
+  // sign-in and the member/admin forms): no framing by other sites (the legacy header and the CSP
   // directive), no MIME sniffing, no Referer leaking this unlisted URL to
   // other sites, no device APIs. The CSP sets ONLY frame-ancestors — it does
   // not restrict scripts or styles. HSTS is belt-and-braces: every .app domain
   // is already HTTPS-only in browsers through the TLD-wide preload list.
-  // Checked over HTTP by test/disabled-routes-http.test.ts.
+  // Checked over HTTP by test/auth-http.test.ts.
   async headers() {
     return [
       {

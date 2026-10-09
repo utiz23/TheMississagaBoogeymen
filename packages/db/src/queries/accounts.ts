@@ -260,15 +260,3 @@ export async function assignUserPlayerClaim(args: {
       },
     })
 }
-
-export async function listClaimablePlayers() {
-  return db
-    .select({
-      id: players.id,
-      gamertag: players.gamertag,
-      isClaimed: sql<boolean>`${userPlayerClaims.userId} is not null`,
-    })
-    .from(players)
-    .leftJoin(userPlayerClaims, eq(players.id, userPlayerClaims.playerId))
-    .orderBy(players.gamertag)
-}
