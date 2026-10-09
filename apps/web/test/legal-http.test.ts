@@ -110,7 +110,7 @@ const LEGAL_ROUTES: readonly {
 
 const EA_FOOTER_SENTENCE = 'This website is not endorsed by or affiliated with EA or its licensors.'
 
-/** Prototype-only destinations that must never appear in the sitewide footer. */
+/** Prototype-only destinations the sitewide footer must never link to. */
 const FORBIDDEN_FOOTER_DESTINATIONS = [
   'Discord',
   'Twitch',
@@ -183,9 +183,15 @@ function assertFooterContent(html: string, urlPath: string): void {
     )
   }
 
+  // Checked against LINK text: the rule is about destinations the prototype
+  // linked to. Prose may still name them (the material-change notice says
+  // members sign in "with Discord").
+  const linkTexts = [...footer.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/g)]
+    .map((m) => (m[1] ?? '').replace(/<[^>]+>/g, ''))
+    .join(' | ')
   for (const destination of FORBIDDEN_FOOTER_DESTINATIONS) {
     assert.ok(
-      !footer.includes(destination),
+      !linkTexts.includes(destination),
       `${urlPath}: footer contains an unsupported prototype destination: "${destination}"`,
     )
   }

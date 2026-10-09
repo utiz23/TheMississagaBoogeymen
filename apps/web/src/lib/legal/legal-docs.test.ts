@@ -10,6 +10,8 @@ import {
   publishedReferencesDraftViolations,
   formatLegalDate,
   isIsoDate,
+  activeLegalNotice,
+  LEGAL_CHANGE_NOTICE,
   type LegalDocMeta,
 } from './legal-docs.ts'
 
@@ -193,4 +195,12 @@ void test('publishedReferencesDraftViolations catches a published document linki
 
 void test('formatLegalDate renders a stable, unambiguous long-form date', () => {
   assert.equal(formatLegalDate('2026-03-05'), 'March 5, 2026')
+})
+
+void test('the material-change notice shows until its end date, then switches off', () => {
+  assert.ok(isIsoDate(LEGAL_CHANGE_NOTICE.showUntil), 'showUntil must be an ISO date')
+  const notice = { text: 'x', slug: 'privacy' as const, showUntil: '2026-11-09' }
+  // 2026-11-08 23:30 in Edmonton is already 11-09 in UTC: still shown.
+  assert.equal(activeLegalNotice(notice, new Date('2026-11-09T06:30:00Z')), notice)
+  assert.equal(activeLegalNotice(notice, new Date('2026-11-09T07:30:00Z')), null)
 })

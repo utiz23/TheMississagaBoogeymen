@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { LEGAL_DOCS } from '@/lib/legal/legal-docs'
+import { LEGAL_DOCS, activeLegalNotice, legalHref } from '@/lib/legal/legal-docs'
 
 const LINK_CLASS =
   'text-fg-3 transition-colors hover:text-fg-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
@@ -11,6 +11,9 @@ const LINK_CLASS =
  * so every route that renders it stays static/ISR, and the whole thing
  * works with JavaScript disabled.
  *
+ * The material-change notice the policies promise (LEGAL_CHANGE_NOTICE) sits
+ * under the EA line until its end date.
+ *
  * Legal links, labels, and draft status all come from `LEGAL_DOCS`
  * (`@/lib/legal/legal-docs`) rather than being duplicated here, so a
  * future publish (a registry status/date flip) is reflected here
@@ -18,6 +21,7 @@ const LINK_CLASS =
  */
 export function SiteFooter() {
   const year = new Date().getFullYear()
+  const notice = activeLegalNotice()
 
   return (
     <footer
@@ -46,6 +50,17 @@ export function SiteFooter() {
           <p className="max-w-[36ch] text-[13px] leading-relaxed text-fg-4">
             This website is not endorsed by or affiliated with EA or its licensors.
           </p>
+          {notice && (
+            <p className="max-w-[44ch] border-l-2 border-accent pl-3 text-[13px] leading-relaxed text-fg-3">
+              {notice.text}{' '}
+              <Link
+                href={legalHref(notice.slug)}
+                className="underline underline-offset-2 hover:text-fg-1"
+              >
+                See the Privacy Policy.
+              </Link>
+            </p>
+          )}
         </div>
 
         <nav aria-label="Legal" className="flex flex-col gap-3">

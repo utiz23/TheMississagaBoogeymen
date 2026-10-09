@@ -105,6 +105,36 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
   },
 ] as const
 
+/**
+ * The on-site notice the policies promise for a material change ("We will
+ * post an on-site notice when we make a material change"). Shown in the
+ * site footer until `showUntil` (exclusive, club time zone date), then it
+ * disappears on its own. Replace it for the next material change.
+ */
+export interface LegalChangeNotice {
+  text: string
+  /** The document the notice links to. */
+  slug: LegalSlug
+  /** ISO yyyy-mm-dd: the first day it is no longer shown. */
+  showUntil: string
+}
+
+export const LEGAL_CHANGE_NOTICE: LegalChangeNotice = {
+  text: 'Updated Oct 2026: invited team members can now sign in with Discord.',
+  slug: 'privacy',
+  showUntil: '2026-11-09',
+}
+
+/** The notice to show now, or null once it has run its course. */
+export function activeLegalNotice(
+  notice: LegalChangeNotice = LEGAL_CHANGE_NOTICE,
+  now: Date = new Date(),
+): LegalChangeNotice | null {
+  // Compare calendar dates in the club's zone (the container runs UTC).
+  const today = now.toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' })
+  return today < notice.showUntil ? notice : null
+}
+
 export function getLegalDoc(slug: LegalSlug): LegalDocMeta {
   const doc = LEGAL_DOCS.find((candidate) => candidate.slug === slug)
   if (!doc) {
