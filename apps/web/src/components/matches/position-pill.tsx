@@ -13,17 +13,6 @@ interface PositionPillProps {
   label: string
   position: string | null
   isGoalie: boolean
-  /**
-   * @deprecated Kept for call-site compatibility; color is now position-derived
-   * only. Will be removed in a follow-up cleanup once all call sites stop
-   * passing it.
-   */
-  side?: 'bgm' | 'opp'
-  /**
-   * @deprecated Same as `side` — L/R defensemen now share a per-position color
-   * regardless of which side they line up on.
-   */
-  defenseSide?: 'left' | 'right' | null
   onLight?: boolean
   /**
    * 'muted' keeps the position colour on the border + tint but sets the LABEL
