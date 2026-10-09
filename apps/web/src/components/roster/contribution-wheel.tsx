@@ -518,6 +518,8 @@ export function ContributionWheel({
           <div className="cw-leg-head">
             <span>
               <b>Stat Ledger</b> · sorted by impact
+              {/* The click-to-lock was undiscoverable (polish backlog). */}
+              <span className="cw-leg-hint"> · click a stat to pin it</span>
             </span>
             <span>RANK · TOTAL · /GM · IMPACT</span>
           </div>

@@ -381,6 +381,10 @@
 .cw-leg-head b {
   color: var(--color-fg-2);
 }
+.cw-leg-hint {
+  font-weight: 600;
+  color: var(--color-fg-5);
+}
 
 .cw-leg-row {
   position: relative;
