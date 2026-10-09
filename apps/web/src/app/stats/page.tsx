@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { MemberLinks } from '@/components/ui/member-links'
+import { formatDataDay } from '@/lib/format'
 import type { GameMode, GameTitle } from '@eanhl/db'
 import type { GameTitleListing } from '@eanhl/db/queries'
 import { GAME_MODE } from '@eanhl/db'
@@ -247,6 +248,8 @@ async function ActiveStats({
 
   const offenseHasData = teamShotAggregates?.shotsIce.some((v) => v > 0) ?? false
   const defenseHasData = teamGoalieAggregates?.shotsIce.some((v) => v > 0) ?? false
+  // A title/mode with no games shows the empty state alone, not empty modules under it.
+  const hasGames = clubStats !== null && clubStats.gamesPlayed > 0
 
   return (
     <MemberLinks>
@@ -279,7 +282,7 @@ async function ActiveStats({
           />
         </div>
 
-        {clubStats === null || clubStats.gamesPlayed === 0 ? (
+        {!hasGames ? (
           <EmptyState
             message={
               gameMode !== null
@@ -289,19 +292,19 @@ async function ActiveStats({
           />
         ) : null}
 
-        <TeamShotMap
-          offense={teamShotAggregates ?? emptyShotLocations()}
-          offenseHasData={offenseHasData}
-          defense={teamGoalieAggregates ?? emptyShotLocations()}
-          defenseHasData={defenseHasData}
-          titleName={gameTitle.name}
-          {...(clubStats !== null && clubStats.gamesPlayed > 0
-            ? { teamGp: clubStats.gamesPlayed }
-            : {})}
-          {...(recentMatches[0]
-            ? { updatedDate: recentMatches[0].playedAt.toISOString().slice(0, 10) }
-            : {})}
-        />
+        {hasGames && (
+          <TeamShotMap
+            offense={teamShotAggregates ?? emptyShotLocations()}
+            offenseHasData={offenseHasData}
+            defense={teamGoalieAggregates ?? emptyShotLocations()}
+            defenseHasData={defenseHasData}
+            titleName={gameTitle.name}
+            {...(clubStats !== null && clubStats.gamesPlayed > 0
+              ? { teamGp: clubStats.gamesPlayed }
+              : {})}
+            {...(recentMatches[0] ? { updatedDate: formatDataDay(recentMatches[0].playedAt) } : {})}
+          />
+        )}
 
         {/* Career team stats — live NHL rows for every active title plus
           reviewed archive imports; sources stay separate in the table. */}
@@ -345,25 +348,27 @@ async function ActiveStats({
           </section>
         ) : null}
 
-        <ChemistrySection
-          withWithout={<WithWithoutTable rows={withWithoutRows} />}
-          bestPairs={<BestPairsTable rows={pairRows} />}
-          matrix={
-            <PairWinMatrix
-              data={pairWinMatrix}
-              titleName={gameTitle.name}
-              clubName="Boogeymen"
-              updatedLabel={
-                recentMatches[0] ? recentMatches[0].playedAt.toISOString().slice(0, 10) : undefined
-              }
-              scope={
-                gameMode !== null
-                  ? `Pairwise win % when both players appeared · ${gameMode} mode · ${String(pairWinMatrix.players.length)} skaters`
-                  : undefined
-              }
-            />
-          }
-        />
+        {hasGames && (
+          <ChemistrySection
+            withWithout={<WithWithoutTable rows={withWithoutRows} />}
+            bestPairs={<BestPairsTable rows={pairRows} />}
+            matrix={
+              <PairWinMatrix
+                data={pairWinMatrix}
+                titleName={gameTitle.name}
+                clubName="Boogeymen"
+                updatedLabel={
+                  recentMatches[0] ? formatDataDay(recentMatches[0].playedAt) : undefined
+                }
+                scope={
+                  gameMode !== null
+                    ? `Pairwise win % when both players appeared · ${gameMode} mode · ${String(pairWinMatrix.players.length)} skaters`
+                    : undefined
+                }
+              />
+            }
+          />
+        )}
 
         {recentMatches.length > 0 && (
           <section className="space-y-3">

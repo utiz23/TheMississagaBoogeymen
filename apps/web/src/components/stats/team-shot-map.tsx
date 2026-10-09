@@ -49,10 +49,10 @@ export function TeamShotMap({
   const hasData = isOffense ? offenseHasData : defenseHasData
 
   const sideToggle = (
-    <div className="sm-view-toggle" role="tablist" aria-label="Shot side">
+    <div className="sm-view-toggle" role="group" aria-label="Shot side">
       <button
         type="button"
-        aria-selected={isOffense}
+        aria-pressed={isOffense}
         onClick={() => {
           setSide('offense')
         }}
@@ -61,7 +61,7 @@ export function TeamShotMap({
       </button>
       <button
         type="button"
-        aria-selected={!isOffense}
+        aria-pressed={!isOffense}
         onClick={() => {
           setSide('defense')
         }}

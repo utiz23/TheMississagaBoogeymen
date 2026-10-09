@@ -52,11 +52,16 @@ function fmtPerGame(total: number, gp: number): string {
 
 // ─── Sorted column header ──────────────────────────────────────────────────
 
+/** The table's fixed sort column (not clickable): the arrow is a marker, so
+ *  screen readers get words instead; the <th> carries aria-sort. */
 function SortedHeader({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center justify-end gap-1">
       {label}
-      <span className="text-[10px] text-accent">↓</span>
+      <span aria-hidden className="text-[10px] text-accent">
+        ↓
+      </span>
+      <span className="sr-only"> (sorted, highest first)</span>
     </span>
   )
 }
@@ -132,28 +137,59 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
       <table className="w-full min-w-[640px]">
         <thead>
           <tr className="border-b border-zinc-800 bg-surface-raised">
-            <th className="py-2 pl-4 pr-3 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              className="py-2 pl-4 pr-3 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               Player
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              title="Games played with this player"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               GP W/
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              title="Record (W–L) with this player"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               Rec W/
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              title="Win % with this player"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               Win% W/
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              title="Games played without this player"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               GP W/O
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              title="Record (W–L) without this player"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               Rec W/O
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              title="Win % without this player"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               Win% W/O
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-300">
+            <th
+              scope="col"
+              aria-sort="descending"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-300"
+            >
               <SortedHeader label="Δ" />
             </th>
           </tr>
@@ -241,28 +277,53 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
       <table className="w-full min-w-[680px]">
         <thead>
           <tr className="border-b border-zinc-800 bg-surface-raised">
-            <th className="py-2 pl-4 pr-3 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              className="py-2 pl-4 pr-3 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               Pair
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               GP
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               Record
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               Win%
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               GF/GP
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               GA/GP
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-300">
+            <th
+              scope="col"
+              aria-sort="descending"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-300"
+            >
               <SortedHeader label="Diff" />
             </th>
-            <th className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+            <th
+              scope="col"
+              className="px-3 py-2 text-right font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+            >
               Diff/GP
             </th>
           </tr>

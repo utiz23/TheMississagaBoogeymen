@@ -86,7 +86,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const { gameTitle, allTitles } = result.resolved
 
   // All mode sources from EA full-season totals; 6s/3s modes source from local tracked stats.
-  const rosterSource = gameMode === null ? 'EA season totals' : `local tracked ${gameMode}`
+  const rosterSource = gameMode === null ? 'EA season totals' : `Tracked ${gameMode} games`
 
   // The selected title's page-critical data and the supplemental cross-title
   // Title Records dataset are started concurrently but settle independently:

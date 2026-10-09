@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { SectionHeader } from '@/components/ui/section-header'
 
 type TabId = 'with-without' | 'best-pairs' | 'matrix'
@@ -50,6 +50,7 @@ interface Props {
  */
 export function ChemistrySection({ withWithout, bestPairs, matrix }: Props) {
   const [active, setActive] = useState<TabId>('matrix')
+  const idBase = useId()
   // The lookup falls back to a hard-coded default rather than asserting non-null,
   // so a stale `active` value can never crash the component.
   const activeTab: Tab = TABS.find((t) => t.id === active) ?? {
@@ -76,7 +77,9 @@ export function ChemistrySection({ withWithout, bestPairs, matrix }: Props) {
               key={t.id}
               type="button"
               role="tab"
+              id={`${idBase}-tab-${t.id}`}
               aria-selected={isActive}
+              aria-controls={`${idBase}-panel`}
               onClick={() => {
                 setActive(t.id)
               }}
@@ -96,7 +99,7 @@ export function ChemistrySection({ withWithout, bestPairs, matrix }: Props) {
       {/* Render only the active tab's content. Mount/unmount on switch keeps
           per-table state (slider, sort) fresh — user re-enters with default
           view rather than a stale slider position. */}
-      <div>
+      <div role="tabpanel" id={`${idBase}-panel`} aria-labelledby={`${idBase}-tab-${active}`}>
         {active === 'matrix' ? matrix : null}
         {active === 'best-pairs' ? bestPairs : null}
         {active === 'with-without' ? withWithout : null}

@@ -177,7 +177,7 @@ export function ScoringLeadersPanel({
             </>
           ) : null}
           {source ?? null}
-          {/* The local source already names its mode ("local tracked 6s"). */}
+          {/* The local source already names its mode ("Tracked 6s games"). */}
           {gameMode == null && (
             <>
               {source ? ' · ' : null}

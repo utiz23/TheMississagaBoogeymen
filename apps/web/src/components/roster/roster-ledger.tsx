@@ -5,7 +5,7 @@ import { PlayerLink } from '@/components/ui/player-link'
 import type { PlayerArchetype } from '@eanhl/db/schema'
 import { PLAYER_ARCHETYPES } from '@eanhl/db/schema'
 import { ArchetypePillCompact } from '@/components/ui/archetype-pill'
-import { formatPosition } from '@/lib/format'
+import { formatPosition, formatSavePct } from '@/lib/format'
 import './roster-ledger.css'
 
 export interface RosterLedgerRow {
@@ -455,13 +455,6 @@ function positionTag(r: RosterLedgerRow, goalie = false): string {
   const raw = r.favoritePosition ?? r.position
   if (raw === null) return '—'
   return formatPosition(raw)
-}
-
-function formatSavePct(raw: string | null): string {
-  if (raw === null) return '—'
-  const n = parseFloat(raw)
-  if (!Number.isFinite(n)) return '—'
-  return (n / 100).toFixed(3).slice(1) // ".762"
 }
 
 function formatGaa(raw: string | null): string {

@@ -225,10 +225,13 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
     setSort(nextSort(activeKey, activeAsc, key))
   }
 
-  // Rank accents follow the sort but only for rows that actually have a value.
+  // Rank accents mark the leaders: only when the sort runs best-first for this
+  // stat (high-to-low, or low-to-high for GAA/PIM-style stats) — never the
+  // worst rows of a reversed sort — and only for rows that have a value.
+  const bestFirst = activeMetric !== undefined && activeAsc === (activeMetric.sortAsc ?? false)
   let ranked = 0
   const rankOf = new Map<R, number>()
-  for (const r of sorted) {
+  for (const r of bestFirst ? sorted : []) {
     const v = activeMetric ? resolveCell(activeMetric, r, rateOn).value : null
     if (v !== null && Number.isFinite(v)) rankOf.set(r, ranked++)
   }
@@ -447,6 +450,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
         <Panel className="overflow-x-auto">
           <div role="tabpanel" aria-label={`${title} ${view?.label ?? ''}`.trim()}>
             <table className="st-table w-full min-w-[520px] border-separate border-spacing-0 [--pw:8.5rem] sm:[--pw:11rem]">
+              <caption className="sr-only">{`${title}${view ? ` · ${view.label}` : ''}`}</caption>
               <thead>
                 {view && view.groups.length > 0 && (
                   <tr className="bg-surface-raised">
@@ -578,8 +582,9 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                         }
                         className="group transition-colors"
                       >
-                        <td
-                          className="st-name sticky left-0 z-10 w-[var(--pw)] min-w-[var(--pw)] max-w-[var(--pw)] border-b border-zinc-800/40 bg-surface py-2 pl-4 pr-2 group-hover:bg-surface-raised"
+                        <th
+                          scope="row"
+                          className="st-name sticky left-0 z-10 text-left font-normal w-[var(--pw)] min-w-[var(--pw)] max-w-[var(--pw)] border-b border-zinc-800/40 bg-surface py-2 pl-4 pr-2 group-hover:bg-surface-raised"
                           style={
                             rank !== undefined && rank < 3 ? { boxShadow: RAIL[rank] } : undefined
                           }
@@ -622,7 +627,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                               )}
                             </div>
                           )}
-                        </td>
+                        </th>
                         {[...(metrics.gp ? ['gp'] : []), ...cols].map((k) => {
                           const m = metrics[k]
                           if (!m) return null

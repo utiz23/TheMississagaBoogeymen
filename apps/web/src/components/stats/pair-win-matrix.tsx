@@ -295,14 +295,13 @@ export function PairWinMatrix({
         <span className="divider" aria-hidden />
 
         <span className="label">Order by</span>
-        <span className="seg" role="tablist" aria-label="Order matrix by">
+        <span className="seg" role="group" aria-label="Order matrix by">
           {ORDER_OPTIONS.map((o) => (
             <button
               key={o.id}
               type="button"
-              role="tab"
               title={o.tooltip}
-              aria-selected={orderId === o.id}
+              aria-pressed={orderId === o.id}
               className={`seg-btn${orderId === o.id ? ' active' : ''}`}
               onClick={() => {
                 setOrderId(o.id)

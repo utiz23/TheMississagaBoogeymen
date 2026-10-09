@@ -194,13 +194,12 @@ function ShotMapContent({
           </h2>
           <span className="scope">{titleName} · Regular</span>
         </div>
-        <div className="sm-tabs" role="tablist">
+        <div className="sm-tabs" role="group" aria-label="Map metric">
           {modeTabs.map((t) => (
             <button
               key={t.id}
               type="button"
-              role="tab"
-              aria-selected={mode === t.id}
+              aria-pressed={mode === t.id}
               className="sm-tab"
               onClick={() => {
                 setMode(t.id)
@@ -218,10 +217,10 @@ function ShotMapContent({
         {/* ── Map column ─────────────────────────────────────────────── */}
         <div className="sm-rink-col">
           <div className="sm-view-toggle-row">
-            <div className="sm-view-toggle" role="tablist" aria-label="Map view">
+            <div className="sm-view-toggle" role="group" aria-label="Map view">
               <button
                 type="button"
-                aria-selected={view === 'ice'}
+                aria-pressed={view === 'ice'}
                 onClick={() => {
                   setView('ice')
                 }}
@@ -230,7 +229,7 @@ function ShotMapContent({
               </button>
               <button
                 type="button"
-                aria-selected={view === 'goal'}
+                aria-pressed={view === 'goal'}
                 onClick={() => {
                   setView('goal')
                 }}

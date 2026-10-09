@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { SectionHeader } from '@/components/ui/section-header'
 
 type SourceId = 'club' | 'card'
@@ -44,6 +44,7 @@ interface Props {
  */
 export function CareerStatsSection({ clubScoped, playerCard, titleName }: Props) {
   const [active, setActive] = useState<SourceId>('club')
+  const idBase = useId()
   // Fallback values rather than asserting non-null so a stale `active` state
   // can't crash the render.
   const activeSource: SourceTab = SOURCES.find((s) => s.id === active) ?? {
@@ -71,7 +72,9 @@ export function CareerStatsSection({ clubScoped, playerCard, titleName }: Props)
                 key={s.id}
                 type="button"
                 role="tab"
+                id={`${idBase}-tab-${s.id}`}
                 aria-selected={isActive}
+                aria-controls={`${idBase}-panel`}
                 onClick={() => {
                   setActive(s.id)
                 }}
@@ -88,7 +91,12 @@ export function CareerStatsSection({ clubScoped, playerCard, titleName }: Props)
           })}
         </div>
       </div>
-      <div className="module-frame divide-y divide-zinc-800/60">
+      <div
+        role="tabpanel"
+        id={`${idBase}-panel`}
+        aria-labelledby={`${idBase}-tab-${active}`}
+        className="module-frame divide-y divide-zinc-800/60"
+      >
         {active === 'club' ? clubScoped : playerCard}
       </div>
     </section>

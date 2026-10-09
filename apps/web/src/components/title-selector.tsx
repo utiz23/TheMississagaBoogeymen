@@ -137,16 +137,3 @@ export function EmptyState({ message }: { message: string }) {
     </Panel>
   )
 }
-
-/** Subtitle shown above the skater/goalie tables to clarify data origin. */
-export function statsSourceLabel({
-  isActive,
-  gameMode,
-}: {
-  isActive: boolean
-  gameMode: ModeValue
-}): string {
-  if (!isActive) return 'Archived season totals (reviewed historical import)'
-  if (gameMode === null) return 'EA season totals'
-  return `local tracked ${gameMode}`
-}
