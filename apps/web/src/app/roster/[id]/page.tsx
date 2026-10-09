@@ -355,7 +355,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
       {builds !== null && (
         <div id="sheet-builds" className="scroll-mt-24">
-          <BuildLocker view={toBuildLockerView(builds)} />
+          <BuildLocker view={toBuildLockerView(builds)} gamertag={overview.player.gamertag} />
         </div>
       )}
 

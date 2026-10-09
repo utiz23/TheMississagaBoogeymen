@@ -1,9 +1,10 @@
 /**
- * Build Locker v2 view model (Build Locker v2.dc.html renderVals; spec Part 4).
+ * Build Locker v3 view model (Build Locker v3.dc.html renderVals; spec Part 4).
  * Pure and type-only on the db package, so the page builds it on the server
  * (dates format once, in the operator's zone) and the client only renders.
  */
 import type { PlayerBuild, PlayerBuilds } from '@eanhl/db/queries'
+import { xFactorIconUrl } from '../../lib/xfactor-asset.ts'
 
 /** The game sheet's 23 attributes in the design's 5 groups (keys as stored). */
 export const BUILD_ATTRIBUTE_GROUPS: readonly {
@@ -74,9 +75,10 @@ export interface BuildTileView {
   arcInitials: string
   tag: string
   current: boolean
-  xf: { abbr: string; title: string; tier: XFactorTierName | null }[]
-  htwt: string
-  hand: string
+  /** `src` null → the tier-bordered abbreviation stands in (no art for an unknown tier). */
+  xf: { abbr: string; title: string; tier: XFactorTierName | null; src: string | null }[]
+  /** "6'6\" · 220 lb · R", known parts only. */
+  body: string
   gp: number
   record: string
 }
@@ -104,12 +106,26 @@ export interface BuildDetailView {
   name: string
   meta: string
   note: string
+  /** Attributes up / down against the Δ baseline. */
+  up: number
+  down: number
   groups: BuildGroupView[]
+}
+
+/** One archetype in the header mix, with how many shown builds use it. */
+export interface BuildMixView {
+  archetypeRaw: string | null
+  arcName: string
+  arcInitials: string
+  n: number
 }
 
 export interface BuildLockerView {
   titleName: string
+  persona: string | null
   count: number
+  totalGp: number
+  mix: BuildMixView[]
   tiles: BuildTileView[]
   details: BuildDetailView[]
 }
@@ -136,18 +152,21 @@ function initials(name: string, max: number): string {
     .toUpperCase()
 }
 
-function heightWeight(b: PlayerBuild): string {
-  const parts = [b.heightText, b.weightLbs === null ? null : `${String(b.weightLbs)} lb`].filter(
-    (p): p is string => p !== null && p !== '',
-  )
-  return parts.length > 0 ? parts.join(' · ') : DASH
+const known = (parts: (string | null)[]) => parts.filter((p): p is string => p !== null && p !== '')
+
+const heightWeight = (b: PlayerBuild) =>
+  known([b.heightText, b.weightLbs === null ? null : `${String(b.weightLbs)} lb`])
+
+function hand(raw: string | null): string | null {
+  if (raw === null) return null
+  if (/right/i.test(raw) || /^r$/i.test(raw.trim())) return 'R'
+  if (/left/i.test(raw) || /^l$/i.test(raw.trim())) return 'L'
+  return null
 }
 
-function hand(raw: string | null): string {
-  if (raw === null) return DASH
-  if (/right/i.test(raw) || /^r$/i.test(raw.trim())) return 'Right'
-  if (/left/i.test(raw) || /^l$/i.test(raw.trim())) return 'Left'
-  return DASH
+function body(b: PlayerBuild): string {
+  const parts = [...heightWeight(b), ...known([hand(b.handedness)])]
+  return parts.length > 0 ? parts.join(' · ') : DASH
 }
 
 const record = (b: PlayerBuild) => `${String(b.wins)}–${String(b.losses)}–${String(b.otl)}`
@@ -172,26 +191,35 @@ function attrView(label: string, v: number | null, prev: number | null | undefin
   }
 }
 
-function detail(b: PlayerBuild, prev: PlayerBuild | null, when: string): BuildDetailView {
+function detail(
+  b: PlayerBuild,
+  prev: PlayerBuild | null,
+  when: string,
+  prevDate: string,
+): BuildDetailView {
+  const groups = BUILD_ATTRIBUTE_GROUPS.map((g) => {
+    const keys = g.attrs.map((a) => a.key)
+    const avg = groupAverage(b, keys)
+    const prevAvg = prev === null ? null : groupAverage(prev, keys)
+    const gd = avg !== null && prevAvg !== null ? avg - prevAvg : 0
+    return {
+      name: g.name,
+      avg: avg === null ? DASH : String(avg),
+      dTxt: deltaText(gd),
+      dSign: sign(gd),
+      attrs: g.attrs.map((a) =>
+        attrView(a.label, b.attributes[a.key] ?? null, prev?.attributes[a.key]),
+      ),
+    }
+  })
+  const attrs = groups.flatMap((g) => g.attrs)
   return {
     name: archetypeName(b.archetype),
-    meta: `${when} · ${String(b.gp)} GP · ${record(b)}`,
-    note: prev === null ? '' : 'Δ vs previous build',
-    groups: BUILD_ATTRIBUTE_GROUPS.map((g) => {
-      const keys = g.attrs.map((a) => a.key)
-      const avg = groupAverage(b, keys)
-      const prevAvg = prev === null ? null : groupAverage(prev, keys)
-      const gd = avg !== null && prevAvg !== null ? avg - prevAvg : 0
-      return {
-        name: g.name,
-        avg: avg === null ? DASH : String(avg),
-        dTxt: deltaText(gd),
-        dSign: sign(gd),
-        attrs: g.attrs.map((a) =>
-          attrView(a.label, b.attributes[a.key] ?? null, prev?.attributes[a.key]),
-        ),
-      }
-    }),
+    meta: [when, ...heightWeight(b), `${String(b.gp)} GP`, record(b)].join(' · '),
+    note: prev === null ? '' : `Δ vs ${prevDate} build`,
+    up: attrs.filter((a) => a.dSign === 1).length,
+    down: attrs.filter((a) => a.dSign === -1).length,
+    groups,
   }
 }
 
@@ -203,6 +231,7 @@ export function toBuildLockerView(
   const { builds } = data
   const tiles: BuildTileView[] = []
   const details: BuildDetailView[] = []
+  const mix = new Map<string, BuildMixView>()
   builds.forEach((b, i) => {
     const prev = builds[i + 1] ?? (i === builds.length - 1 ? data.older : null)
     const date = fmt.format(b.lastPlayed)
@@ -218,14 +247,40 @@ export function toBuildLockerView(
           abbr: initials(name, 2),
           title: `${name} — ${x.tier ?? 'tier unknown'}`,
           tier: x.tier,
+          src: xFactorIconUrl(x.name.replace(/\s+/g, '_'), x.tier),
         }
       }),
-      htwt: heightWeight(b),
-      hand: hand(b.handedness),
+      body: body(b),
       gp: b.gp,
       record: record(b),
     })
-    details.push(detail(b, prev, i === 0 ? 'Current' : `Last used ${date}`))
+    details.push(
+      detail(
+        b,
+        prev,
+        i === 0 ? 'Current' : `Last used ${date}`,
+        prev === null ? '' : fmt.format(prev.lastPlayed),
+      ),
+    )
+    const arcName = archetypeName(b.archetype)
+    const held = mix.get(arcName)
+    if (held) held.n++
+    else
+      mix.set(arcName, {
+        archetypeRaw: b.archetype,
+        arcName,
+        arcInitials: b.archetype === null ? '?' : initials(arcName, 3),
+        n: 1,
+      })
   })
-  return { titleName: data.gameTitleName, count: builds.length, tiles, details }
+  return {
+    titleName: data.gameTitleName,
+    persona: data.persona,
+    count: builds.length,
+    totalGp: builds.reduce((s, b) => s + b.gp, 0),
+    // Most used first; ties keep newest-first order (Array sort is stable).
+    mix: [...mix.values()].sort((a, b) => b.n - a.n),
+    tiles,
+    details,
+  }
 }

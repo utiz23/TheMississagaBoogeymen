@@ -30,6 +30,7 @@ const data = (builds: PlayerBuild[], older: PlayerBuild | null = null): PlayerBu
   gameTitleName: 'NHL 26',
   builds,
   older,
+  persona: null,
 })
 
 void test('the 5 groups hold the 23 attributes of the game sheet', () => {
@@ -66,21 +67,38 @@ void test('single build (Stick Menace): Current tile, no delta, empty note', () 
   const tile = v.tiles[0]
   assert.ok(tile)
   assert.deepEqual(
-    [tile.tag, tile.current, tile.arcName, tile.htwt, tile.hand, tile.gp, tile.record],
-    ['Current', true, 'Power Forward', '220 lb', '—', 2, '2–0–0'],
+    [tile.tag, tile.current, tile.arcName, tile.body, tile.gp, tile.record],
+    ['Current', true, 'Power Forward', '220 lb', 2, '2–0–0'],
   )
   assert.deepEqual(
-    tile.xf.map((x) => [x.abbr, x.title, x.tier]),
+    tile.xf.map((x) => [x.abbr, x.title, x.tier, x.src]),
     [
-      ['BR', 'Big Rig — Elite', 'Elite'],
-      ['OT', 'One T — Elite', 'Elite'],
-      ['AB', 'Ankle Breaker — Elite', 'Elite'],
+      [
+        'BR',
+        'Big Rig — Elite',
+        'Elite',
+        '/assets/x-factors/Big_Rig/NHL_26_Big_Rig_X-Factor_Image__Red__File.png',
+      ],
+      [
+        'OT',
+        'One T — Elite',
+        'Elite',
+        '/assets/x-factors/One_T/NHL_26_One_T_X-Factor_Image__Red__File.png',
+      ],
+      [
+        'AB',
+        'Ankle Breaker — Elite',
+        'Elite',
+        '/assets/x-factors/Ankle_Breaker/NHL_26_Ankle_Breaker_X-Factor_Image__Red__File.png',
+      ],
     ],
   )
+  assert.equal(v.totalGp, 2)
   const d = v.details[0]
   assert.ok(d)
-  assert.equal(d.meta, 'Current · 2 GP · 2–0–0')
+  assert.equal(d.meta, 'Current · 220 lb · 2 GP · 2–0–0')
   assert.equal(d.note, '')
+  assert.deepEqual([d.up, d.down], [0, 0])
   assert.ok(d.groups.every((g) => g.dTxt === '' && g.attrs.every((a) => a.dTxt === '')))
 })
 
@@ -115,7 +133,8 @@ void test('deltas against the next-older build: signs, text and bar segments', (
     segL: 88,
     segW: 3,
   })
-  assert.equal(v.details[0]?.note, 'Δ vs previous build')
+  assert.equal(v.details[0]?.note, 'Δ vs May 12 build')
+  assert.deepEqual([v.details[0]?.up, v.details[0]?.down], [1, 1])
   assert.equal(v.tiles[1]?.tag, 'May 12')
   const olderDetail = v.details[1]
   assert.ok(olderDetail)
@@ -129,7 +148,7 @@ void test('the older build supplies the delta for the last shown tile', () => {
   )
   const speed = v.details[0]?.groups[0]?.attrs.find((a) => a.label === 'Speed')
   assert.equal(speed?.dTxt, '+10')
-  assert.equal(v.details[0]?.note, 'Δ vs previous build')
+  assert.equal(v.details[0]?.note, 'Δ vs May 9 build')
 })
 
 void test('null attribute (deking): dash, no bar, out of the group average, no delta', () => {
@@ -157,12 +176,12 @@ void test('blanks render as dashes: height, weight, hand, unknown tier', () => {
   const v = toBuildLockerView(data([build({ xFactors: [{ name: 'Quick_Release', tier: null }] })]))
   const tile = v.tiles[0]
   assert.ok(tile)
-  assert.equal(tile.htwt, '—')
-  assert.equal(tile.hand, '—')
+  assert.equal(tile.body, '—')
   assert.deepEqual(tile.xf[0], {
     abbr: 'QR',
     title: 'Quick Release — tier unknown',
     tier: null,
+    src: null,
   })
 })
 
@@ -171,10 +190,29 @@ void test('height, weight and hand formats', () => {
     data([build({ heightText: `6'0"`, weightLbs: 160, handedness: 'SHOOTS RIGHT' })]),
   ).tiles[0]
   assert.ok(tile)
-  assert.equal(tile.htwt, `6'0" · 160 lb`)
-  assert.equal(tile.hand, 'Right')
-  assert.equal(toBuildLockerView(data([build({ handedness: 'L' })])).tiles[0]?.hand, 'Left')
-  assert.equal(toBuildLockerView(data([build({ heightText: `5'9"` })])).tiles[0]?.htwt, `5'9"`)
+  assert.equal(tile.body, `6'0" · 160 lb · R`)
+  assert.equal(toBuildLockerView(data([build({ handedness: 'Left' })])).tiles[0]?.body, 'L')
+  assert.equal(toBuildLockerView(data([build({ heightText: `5'9"` })])).tiles[0]?.body, `5'9"`)
+})
+
+void test('header: archetype mix (most used first), total GP and persona', () => {
+  const v = toBuildLockerView({
+    ...data([
+      build({ archetype: 'Sniper', gp: 3 }),
+      build({ archetype: 'Power Forward', gp: 6 }),
+      build({ archetype: 'Power Forward', gp: 9 }),
+    ]),
+    persona: 'M. RANTANEN',
+  })
+  assert.deepEqual(
+    v.mix.map((m) => [m.arcName, m.n]),
+    [
+      ['Power Forward', 2],
+      ['Sniper', 1],
+    ],
+  )
+  assert.equal(v.totalGp, 18)
+  assert.equal(v.persona, 'M. RANTANEN')
 })
 
 void test('record with DNF already folded into losses, OTL last', () => {

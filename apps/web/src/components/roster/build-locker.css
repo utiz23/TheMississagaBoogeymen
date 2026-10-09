@@ -1,26 +1,39 @@
 /*
- * Build Locker v2 (Build Locker v2.dc.html; spec Part 4). Site tokens stand in
- * for the design system's: --inset-leader-rail → inset 2px accent rail,
- * --bg-ticker-red → --color-accent. Medium / Small / Micro tiers at the end
- * follow the Build Locker v3 tier mockups (size deltas only).
+ * Build Locker v3 (Build Locker v3.dc.html; spec Part 4). Site tokens stand in
+ * for the design system's (--fg-N → --color-fg-N). Medium / Small / Micro
+ * tiers at the end follow the Build Locker v3 tier mockups.
  */
 .bl {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
   font-family: var(--font-condensed);
 }
+.bl-strip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 4;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(232, 65, 49, 0.2), var(--color-accent));
+}
+
+/* ── Header ───────────────────────────────────────────────────────── */
 .bl-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px 16px;
+  gap: 12px 16px;
+  padding: 12px 14px;
 }
-.bl-head-text {
+.bl-head-main {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 4px;
+  gap: 9px;
 }
 .bl-title {
   margin: 0;
@@ -34,46 +47,134 @@
   padding-right: 4px;
   color: var(--color-fg-5);
 }
-.bl-sub,
-.bl-game {
-  margin: 0;
-  font-size: 12px;
+.bl-id {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.bl-avatar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background:
+    radial-gradient(circle at top, rgba(232, 65, 49, 0.14), transparent 55%),
+    linear-gradient(180deg, rgba(50, 48, 49, 0.9), rgba(26, 24, 25, 1));
+}
+.bl-avatar svg {
+  width: 19px;
+  height: 20px;
+  color: var(--color-fg-6);
+}
+.bl-names {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+.bl-persona {
+  font-size: 16px;
+  font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.05em;
+  color: var(--color-fg-1);
+  white-space: nowrap;
+}
+.bl-gamertag {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-fg-3);
+  white-space: nowrap;
+}
+.bl-totals {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-left: 1px solid var(--color-border);
+  padding-left: 14px;
+}
+.bl-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.bl-stat-l {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  color: var(--color-fg-4);
+}
+.bl-stat-v {
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-fg-2);
+}
+.bl-total-title .bl-stat-v {
+  text-transform: uppercase;
+  color: var(--color-fg-4);
+}
+.bl-mix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.bl-mix-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bl-mix-n {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-fg-4);
+}
+.bl-src {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
   color: var(--color-fg-5);
 }
-.bl-game {
-  font-weight: 600;
-  letter-spacing: 0.14em;
-}
-.bl-panel {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
+
+/* ── Tiles ────────────────────────────────────────────────────────── */
+.bl-tiles-wrap {
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-background);
 }
 .bl-tiles {
   display: grid;
   grid-auto-flow: column;
   /* A quarter of the row each (design count = 4), so 1–3 builds don't stretch. */
-  grid-auto-columns: minmax(200px, calc((100% - 24px) / 4));
+  grid-auto-columns: minmax(212px, calc((100% - 24px) / 4));
   gap: 8px;
   overflow-x: auto;
-  padding: 14px 14px 12px;
+  padding: 12px 14px;
 }
-
-/* ── Tile ─────────────────────────────────────────────────────────── */
 .bl-tile {
   position: relative;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-  padding: 12px;
+  padding: 11px 12px 10px;
   text-align: left;
   font: inherit;
   color: inherit;
   cursor: pointer;
-  background: var(--color-background);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   transition:
     border-color 0.15s,
@@ -82,23 +183,18 @@
 }
 .bl-tile:hover {
   transform: translateY(-2px);
+  border-color: var(--color-accent-line);
 }
 .bl-tile[aria-pressed='true'] {
   background: var(--color-surface-raised);
   border-color: var(--color-accent-line);
-  box-shadow: inset 2px 0 0 var(--color-accent);
+  box-shadow:
+    inset 0 2px 0 var(--color-accent),
+    0 0 14px rgba(232, 65, 49, 0.12);
 }
 .bl-tile:focus-visible {
   outline: 2px solid var(--color-loss);
   outline-offset: 2px;
-}
-.bl-current-strip {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 2px;
-  width: 100%;
-  background: var(--color-accent);
 }
 .bl-row {
   display: flex;
@@ -109,28 +205,43 @@
 .bl-arc-fallback {
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0 8px;
+  height: 20px;
+  padding: 0 6px;
   border: 1px solid var(--color-border);
   background: var(--color-charcoal);
   color: var(--color-fg-2);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.2em;
-  border-radius: 2px;
+  letter-spacing: 0.1em;
 }
 .bl-tag {
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: var(--color-fg-5);
+  color: var(--color-fg-4);
 }
 .bl-tag[data-current='true'] {
   color: var(--color-accent);
 }
+.bl-tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 6px rgba(232, 65, 49, 0.6);
+}
+.bl-name-block {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
 .bl-name {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -140,15 +251,34 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.bl-body {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-fg-4);
+  white-space: nowrap;
+}
 .bl-xfs {
   display: flex;
   gap: 6px;
-  min-height: 40px;
+  min-height: 46px;
 }
 .bl-xf {
+  position: relative;
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 46px;
+  height: 46px;
+}
+.bl-xf-img {
+  width: 46px;
+  height: 46px;
+}
+/* No art for an unknown tier: a bordered abbreviation, as the design's fallback. */
+.bl-xf-abbr {
+  position: absolute;
+  inset: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -159,112 +289,74 @@
   letter-spacing: 0.04em;
   color: var(--color-fg-2);
 }
-.bl-xf[data-tier='Elite'] {
-  border-color: #e84131;
-}
-.bl-xf[data-tier='All Star'] {
-  border-color: #3ab7ff;
-}
-.bl-xf[data-tier='Specialist'] {
-  border-color: #f59e0b;
-}
-.bl-bio {
-  display: flex;
-  gap: 12px;
-  border-top: 1px solid var(--color-border-subtle);
-  padding-top: 9px;
-}
-.bl-bio-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.bl-label {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--color-fg-5);
-}
-.bl-bio-value {
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--color-fg-2);
-  font-variant-numeric: tabular-nums;
-}
 .bl-foot {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 8px;
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 9px;
   font-variant-numeric: tabular-nums;
 }
-.bl-gp {
+.bl-foot-stats {
   display: flex;
-  align-items: baseline;
-  gap: 5px;
+  gap: 14px;
 }
-.bl-gp-n {
-  font-size: 20px;
+.bl-foot-gp {
+  font-size: 15px;
   font-weight: 900;
-  line-height: 1;
   color: var(--color-fg-1);
 }
-.bl-gp-l {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: var(--color-fg-4);
-}
-.bl-record {
-  font-size: 13px;
+.bl-foot-rec {
+  font-size: 15px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  color: var(--color-fg-2);
+}
+.bl-chev {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  flex: none;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
   color: var(--color-fg-3);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+.bl-tile[aria-pressed='true'] .bl-chev {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 
 /* ── Detail ───────────────────────────────────────────────────────── */
 .bl-detail {
-  position: relative;
-  margin: 0 14px 14px;
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
-}
-.bl-detail-rail {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--color-accent);
-  box-shadow: 0 0 8px rgba(232, 65, 49, 0.35);
-}
-.bl-detail-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px 16px 16px;
+  border-top: 1px solid var(--color-border);
 }
 .bl-detail-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 6px 16px;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  border-left: 2px solid var(--color-accent);
+  background: var(--color-surface-raised);
 }
 .bl-detail-title {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
+  align-items: center;
+  gap: 6px 10px;
 }
 .bl-detail-name {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: var(--color-fg-1);
 }
 .bl-detail-meta {
@@ -272,35 +364,52 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
   color: var(--color-fg-4);
 }
-.bl-detail-note {
-  font-size: 11px;
+.bl-detail-cmp {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: var(--color-fg-5);
+}
+.bl-detail-note {
+  color: var(--color-fg-4);
+}
+.bl-detail-updown {
+  display: flex;
+  gap: 10px;
+}
+.bl-detail-updown [data-sign='1'] {
+  color: var(--color-win);
+}
+.bl-detail-updown [data-sign='-1'] {
+  color: var(--color-loss);
 }
 .bl-groups {
   display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  background: var(--color-border-subtle);
+  border-top: 1px solid var(--color-border-subtle);
 }
 .bl-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  border: 1px solid var(--color-border);
+  gap: 7px;
   background: var(--color-surface);
-  padding: 9px 10px;
+  padding: 12px 14px 14px;
 }
 .bl-group-head {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: flex-end;
   gap: 8px;
   border-bottom: 1px solid var(--color-border-subtle);
-  padding-bottom: 6px;
+  padding-bottom: 8px;
 }
 /* Wraps the attrs only so the Micro accordion can collapse them; layout-neutral. */
 .bl-group-body {
@@ -320,16 +429,17 @@
   font-variant-numeric: tabular-nums;
 }
 .bl-group-avg {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 900;
-  line-height: 1;
+  line-height: 0.85;
+  letter-spacing: -0.01em;
   color: var(--color-fg-1);
 }
 .bl-delta {
   min-width: 20px;
   text-align: right;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--color-fg-5);
 }
@@ -344,11 +454,17 @@
   grid-template-columns: minmax(0, 1fr) auto 20px;
   align-items: center;
   column-gap: 8px;
+  row-gap: 4px;
+}
+.bl-attr .bl-delta {
+  font-weight: 700;
 }
 .bl-attr-name {
   font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  color: var(--color-fg-4);
+  letter-spacing: 0.04em;
+  color: var(--color-fg-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -356,9 +472,9 @@
 .bl-attr-value {
   min-width: 24px;
   text-align: right;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
-  color: var(--color-fg-2);
+  color: var(--color-fg-1);
   font-variant-numeric: tabular-nums;
 }
 .bl-attr[data-sign='1'] .bl-attr-value {
@@ -369,14 +485,12 @@
 }
 .bl-bar-wrap {
   grid-column: 1 / -1;
-  margin-top: 2px;
-  padding-bottom: 4px;
 }
 .bl-bar {
   position: relative;
   display: block;
   height: 3px;
-  background: var(--color-border-subtle);
+  background: var(--color-charcoal);
 }
 .bl-bar-base,
 .bl-bar-seg {
@@ -387,9 +501,6 @@
 .bl-bar-base {
   left: 0;
   background: var(--color-fg-4);
-}
-.bl-attr[data-sign='1'] .bl-bar-base {
-  background: var(--color-fg-1);
 }
 .bl-attr[data-sign='1'] .bl-bar-seg {
   background: var(--color-win);
@@ -420,9 +531,9 @@
 
 /* ── Small (≤720px) ───────────────────────────────────────────────── */
 @media (max-width: 720px) {
-  /* Header keeps the build count; the source line and title name drop. */
-  .bl-sub-src,
-  .bl-game {
+  /* The title stat and the source line drop. */
+  .bl-total-title,
+  .bl-src {
     display: none;
   }
   /* Groups two-up, the fifth full width. */
@@ -440,6 +551,20 @@
 
 /* ── Micro (≤480px) ───────────────────────────────────────────────── */
 @media (max-width: 480px) {
+  .bl {
+    border-left: none;
+    border-right: none;
+  }
+  /* Header: persona and the two counts only. */
+  .bl-avatar,
+  .bl-gamertag,
+  .bl-mix {
+    display: none;
+  }
+  .bl-totals {
+    border-left: none;
+    padding-left: 0;
+  }
   /* Back to a horizontal strip, fixed-width tiles that snap. */
   .bl-tiles {
     grid-auto-flow: column;
@@ -454,17 +579,15 @@
     scroll-snap-align: start;
   }
   .bl-xfs {
-    min-height: 32px;
+    min-height: 36px;
   }
-  .bl-xf {
-    width: 32px;
-    height: 32px;
+  .bl-xf,
+  .bl-xf-img {
+    width: 36px;
+    height: 36px;
   }
-  .bl-detail {
-    margin: 0 12px 12px;
-  }
-  .bl-detail-body {
-    padding: 12px 12px 14px;
+  .bl-xf-abbr {
+    inset: 3px;
   }
   .bl-detail-note {
     display: none;
@@ -485,7 +608,7 @@
   .bl-group-head {
     align-items: center;
     min-height: 48px;
-    padding: 0 12px;
+    padding: 0 14px;
     border-bottom: none;
     font: inherit;
     color: inherit;
@@ -511,8 +634,8 @@
   .bl-group-body {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 10px 12px 12px;
+    gap: 7px;
+    padding: 10px 14px 14px;
     border-top: 1px solid var(--color-border-subtle);
   }
 }

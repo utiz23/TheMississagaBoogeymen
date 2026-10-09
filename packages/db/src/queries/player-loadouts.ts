@@ -93,6 +93,11 @@ export interface PlayerBuilds {
   builds: PlayerBuild[]
   /** The build before the oldest shown one (its Δ baseline), or null. */
   older: PlayerBuild | null
+  /**
+   * In-game persona name ("M. RANTANEN"), the most common one on the title's
+   * sheets (OCR misreads are rarer than the true name; ties go to the newest).
+   */
+  persona: string | null
 }
 
 /** Reviewed, human, match-linked snapshots of one player (the Build Locker's gate). */
@@ -149,8 +154,16 @@ export async function getPlayerBuilds(playerId: number, limit = 4): Promise<Play
   }
 
   const titleNames = new Map<number, string>()
+  const personaCounts = new Map<number, Map<string, { n: number; latest: number }>>()
   const sheets = rows.map(({ snapshot: s, playedAt, result, titleName }) => {
     titleNames.set(s.gameTitleId, titleName)
+    const persona = s.playerNamePersona?.trim()
+    if (persona) {
+      const counts = personaCounts.get(s.gameTitleId) ?? new Map()
+      const held = counts.get(persona) ?? { n: 0, latest: 0 }
+      counts.set(persona, { n: held.n + 1, latest: Math.max(held.latest, playedAt.getTime()) })
+      personaCounts.set(s.gameTitleId, counts)
+    }
     return {
       gameTitleId: s.gameTitleId,
       snapshotId: s.id,
@@ -173,5 +186,17 @@ export async function getPlayerBuilds(playerId: number, limit = 4): Promise<Play
     gameTitleName: titleNames.get(picked.gameTitleId) ?? '',
     builds: picked.builds.slice(0, limit),
     older: picked.builds[limit] ?? null,
+    persona: mostCommon(personaCounts.get(picked.gameTitleId)),
   }
+}
+
+function mostCommon(counts: Map<string, { n: number; latest: number }> | undefined): string | null {
+  let best: [string, { n: number; latest: number }] | null = null
+  for (const entry of counts ?? []) {
+    const [, c] = entry
+    if (best === null || c.n > best[1].n || (c.n === best[1].n && c.latest > best[1].latest)) {
+      best = entry
+    }
+  }
+  return best?.[0] ?? null
 }
