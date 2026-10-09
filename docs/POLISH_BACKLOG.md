@@ -74,7 +74,7 @@
 - ✅ (`666f70c`, one band scale `c649dba`) **DtW legend colors map to nothing** — `dtw-chip.tsx:100-116` advertises 4 color bands but the gauge/number are always red; color the value by band. `[NICE]`
 - ⛔ (old home player card removed) **Jersey number near-invisible** — `player-card.css:98-105` `#3f3f46` on `#0a0a0a` (~1.6:1) for a key identifier. Lift the color or add a stroke. `[NICE]`
 - ✅ (`666f70c`: removed until wired) **Placeholder period-score tiles always show "— —"** — `latest-result.tsx:269-288`; pipeline doesn't extract period scores yet. Hide until wired. `[QUICK-WIN]`
-- ❓ (operator: keep the mockups' sheet codes or remove — asked 2026-10-09) **Fake "Sheet BGM/REC/0001" broadcast string** — `record-strip.tsx:36,272-274`; invented flavor that reads like leftover placeholder. Remove or make real. `[NICE]`
+- ✅ (operator 2026-10-09: removed, `d40a7db`) **Fake "Sheet BGM/REC/0001" broadcast string** — `record-strip.tsx:36,272-274`; invented flavor that reads like leftover placeholder. Remove or make real. `[NICE]`
 - ✅ (`666f70c`) **Leaders footer GP doesn't match the mode filter** — `page.tsx:170` → `leaders-section.tsx:175-181` shows all-modes `officialRecord.gamesPlayed` beside per-mode leaders. Source mode-scoped GP when `gameMode !== null`. `[QUICK-WIN]`
 - ✅ (`666f70c`: GP-weighted archive TOA; PP/PK hidden in All) **TOA / PP% / PK% columns are all "—" in default "All" view** — `page.tsx:295-297`, `354-359` null them; only single-mode rows populate. Hide those columns in "All" or aggregate. `[NICE]`
 - ⛔ (source is already "MM:SS") **TOA in title-records table rendered unformatted** — `title-records-table.tsx:151-153` passes raw through `fmt()`; apply `formatTOA` (verify the source unit). `[NICE]`
@@ -107,7 +107,7 @@
 - ✅ (`1b20f15`) **No `focus-visible` styling on card link / filters / pagination** — `score-card.tsx:155-158`, `page.tsx` links; only the opponent input has focus styling. `[QUICK-WIN]`
 - ✅ (`c649dba`) **Card link has no accessible name** — `score-card.tsx:155-158`; add an `aria-label`. `[NICE]`
 - ✅ (`c649dba`) **Redundant page indicator (up to 3×)** — toolbar `page.tsx:376` + top/bottom `PaginationNav` `:517-519`. `[NICE]`
-- ❓ (operator: keep the OCR "Dev" filter public or hide — asked 2026-10-09) **"Dev" filter + `DEV_MATCH_IDS` shipped in the UI** — `page.tsx:29-41,307`; OCR-training scaffolding surfaced as a first-class filter. Gate or remove. `[NICE]`
+- ✅ (operator 2026-10-09: keep it) **"Dev" filter + `DEV_MATCH_IDS` shipped in the UI** — `page.tsx:29-41,307`; OCR-training scaffolding surfaced as a first-class filter. Gate or remove. `[NICE]`
 
 ### Game detail (`/games/[id]`)
 
@@ -142,12 +142,12 @@ _(bugs in §1: goalie marquee "skaters" noun, TOI day-rollover — both fixed 20
 - ✅ (`175c0bf`: removed; EASHL has no shootouts) **Goalie "Shootouts" subsection is dead data for EASHL** — `club-stats-tabs.tsx:1307-1409,1328`; always-zero cells read as broken. Drop or guard on `soShots > 0`. `[NICE — verify on a real goalie row]`
 - ✅ (moot: Recent Form chart removed (`4095e49`)) **TrendChart paints DNF as a loss** — `trend-chart.tsx:61` else-branch; legend `:84-95` only lists W/OT/L. `[NICE]`
 - ⛔ (one map per role now) **Two stacked, visually similar shot maps** — `page.tsx:239` (`CareerShotMap`) + `:241-262` (`ShotMap`); read as duplicates. Tab/toggle or differentiate headers. `[NICE]`
-- ❓ (needs a goalie version of the wheel — design question, asked 2026-10-09) **Skater vs goalie contribution use different components/headers** — `contribution-section.tsx:59-71` (rich wheel) vs `:74-112` (older donut); "Contribution Wheel" vs "Season Profile". `[NICE]`
+- ✅ (operator 2026-10-09: goalie wheel built, `e94b4cf`) **Skater vs goalie contribution use different components/headers** — `contribution-section.tsx:59-71` (rich wheel) vs `:74-112` (older donut); "Contribution Wheel" vs "Season Profile". `[NICE]`
 - ⛔ (section removed `fb40008`) **Two permanent "Coming Soon" stubs advertised in subtitle** — `charts-visuals-section.tsx:14,18-26` (archetype radar, awards). `[NICE]`
 - ✅ (`5de5a13`) **Contribution wheel click-to-lock undiscoverable** — `contribution-wheel.tsx:303-311`; no affordance hint. `[NICE]`
 - ⛔ (trend chart removed; the donut's bars carry the same values as text) **Charts `aria-hidden` with no text alternative** — `trend-chart.tsx:44`, `contribution-section.tsx:137`; add SR-only summary for the trend chart. `[NICE]`
 - ✅ (`175c0bf`: nav + aria-current) **Hero role tabs are `<Link role="tab">` without tabpanel/roving-tabindex** — `profile-hero.tsx:536`. `[NICE]`
-- ❓ (sizes come from the design mockups — asked 2026-10-09) **Pervasive 9px `text-zinc-600/700` micro-labels** — `roster-ledger.css:213,255,325,441`, `club-stats-tabs.css:131`, `shot-map.css:373,538`, `profile-hero.tsx:432`. Bump to 10-11px / zinc-500. `[NICE]`
+- ✅ (operator 2026-10-09: nothing under 10px, `75c8a45`) **Pervasive 9px `text-zinc-600/700` micro-labels** — `roster-ledger.css:213,255,325,441`, `club-stats-tabs.css:131`, `shot-map.css:373,538`, `profile-hero.tsx:432`. Bump to 10-11px / zinc-500. `[NICE]`
 - ✅ (`19d8b81`) **Dead: `shot-map-renderer.tsx` (`IceMapSvg`/`NetMapSvg`)** — zero importers; also prune the divergent net-zone exports in `shot-map-zones.ts:36`. Delete. `[QUICK-WIN]`
 - ⛔ (component removed) **`ComingSoonCard` `icon` prop never passed** — `coming-soon-card.tsx:6,24-28`. `[NICE]`
 
@@ -198,7 +198,7 @@ _(bugs in §1: transparent sticky Player column, hardcoded `nhl26` shot map)_
 4. ✅ (`666f70c`, `110828c`) **Duplicated formatters diverging from `lib/format.ts`** — win%, save%, record, playlist labels, tooltip builders re-implemented across home + stats. Import the shared helpers.
 5. ✅ (`bb8f097`) **Misleading "Updated {today}" timestamps** — `ClubStatsTabs`, profile shot map, home record strip all show render-time as data freshness. Thread real `lastFetchedAt`.
 6. ✅ (`8d1ecee`; operator 2026-10-09: neutral grey, still a loss in records) **DNF handled inconsistently** — styled as a loss on home form dots (`record-strip.tsx:246`), games-list cards (`score-card.tsx:32-36`), and the profile trend chart (`trend-chart.tsx:61`); folded into losses in the games-list record. Decide one treatment (distinct neutral) and apply everywhere.
-7. ❓ (asked 2026-10-09) **Decorative fabricated IDs** — "Sheet BGM/REC/0001" (home), "BGM/PAIR/0001", "BGM/TSM/…" (stats). Confirm the broadcast-flavor intent or remove.
+7. ✅ (operator 2026-10-09: removed, `d40a7db`) **Decorative fabricated IDs** — "Sheet BGM/REC/0001" (home), "BGM/PAIR/0001", "BGM/TSM/…" (stats). Confirm the broadcast-flavor intent or remove.
 8. ✅ partly (slug gating fixed `007523d`; "Boogeymen" stays hardcoded — single-club site) **Hardcoded club identity & game-title slug** — `Boogeymen` hardcoded in 3 stats call sites; shot map gated on literal `nhl26`. Source from config / gate on data.
 9. ✅ (`19d8b81`; /preview is untracked locally, never deployed) **Dead code inventory** — `lineup-card.tsx`, `shot-map-renderer.tsx` (+ unused net-zone exports), `ui/stat-card.tsx` (0 uses), `rl-rank-*` CSS classes, deprecated `PositionPill` props, single-use `ui/stat-strip.tsx`. `ArchetypePillFeature` and `/preview/*` routes are preview-only but **publicly reachable in production** — gate or remove.
 
