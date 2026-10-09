@@ -108,10 +108,11 @@ export function CareerActionMap({
   const markers = useMemo(() => buildMarkers(visible, pin), [visible, pin])
   const groups = useMemo(() => buildGroups(visible, sort), [visible, sort])
   const shown = useMemo(() => limitGroups(groups, limit), [groups, limit])
+  // pinEvent reads the latest groups without changing identity (the list rows are memoized).
   const groupsRef = useRef(groups)
-  groupsRef.current = groups
   // A new filter or sort starts the list over at the first batch.
   useEffect(() => {
+    groupsRef.current = groups
     setLimit(LIST_BATCH)
   }, [groups])
   // Next batch when the end of the list scrolls into view.

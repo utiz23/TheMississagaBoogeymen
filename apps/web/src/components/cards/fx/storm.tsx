@@ -186,49 +186,49 @@ export function StormOverlay({
               </feMerge>
             </filter>
           </defs>
-          <rect
-            x={0}
-            y={0}
-            width="100%"
-            height="100%"
-            rx={15}
-            fill="none"
-            stroke="rgba(170,215,255,0.55)"
-            strokeWidth={1}
-            filter={`url(#${fid})`}
-            style={{ animation: 'hpcZapFast 3.3s linear infinite' }}
-          />
-          <rect
-            x={0}
-            y={0}
-            width="100%"
-            height="100%"
-            rx={15}
-            fill="none"
-            pathLength={1000}
-            stroke="#eaf6ff"
-            strokeWidth={1.6}
-            strokeLinecap="round"
-            strokeDasharray="90 910"
-            filter={`url(#${fid})`}
-            style={{ animation: 'hpcCurrent 2.6s linear infinite' }}
-          />
-          <rect
-            x={0}
-            y={0}
-            width="100%"
-            height="100%"
-            rx={15}
-            fill="none"
-            pathLength={1000}
-            stroke="#9fd2ff"
-            strokeWidth={1.2}
-            strokeLinecap="round"
-            strokeDasharray="50 950"
-            strokeDashoffset={-500}
-            filter={`url(#${fid})`}
-            style={{ animation: 'hpcCurrent 3.7s linear -1.4s infinite reverse' }}
-          />
+          {/* One filter pass over all three strokes, not one per stroke. */}
+          <g filter={`url(#${fid})`}>
+            <rect
+              x={0}
+              y={0}
+              width="100%"
+              height="100%"
+              rx={15}
+              fill="none"
+              stroke="rgba(170,215,255,0.55)"
+              strokeWidth={1}
+              style={{ animation: 'hpcZapFast 3.3s linear infinite' }}
+            />
+            <rect
+              x={0}
+              y={0}
+              width="100%"
+              height="100%"
+              rx={15}
+              fill="none"
+              pathLength={1000}
+              stroke="#eaf6ff"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              strokeDasharray="90 910"
+              style={{ animation: 'hpcCurrent 2.6s linear infinite' }}
+            />
+            <rect
+              x={0}
+              y={0}
+              width="100%"
+              height="100%"
+              rx={15}
+              fill="none"
+              pathLength={1000}
+              stroke="#9fd2ff"
+              strokeWidth={1.2}
+              strokeLinecap="round"
+              strokeDasharray="50 950"
+              strokeDashoffset={-500}
+              style={{ animation: 'hpcCurrent 3.7s linear -1.4s infinite reverse' }}
+            />
+          </g>
         </svg>
       )}
       {on &&
