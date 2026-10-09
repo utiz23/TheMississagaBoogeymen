@@ -133,11 +133,11 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   const titles = switcherTitles(allTitles, gameTitle.id)
 
   let pageMatches: Awaited<ReturnType<typeof getRecentMatches>> = []
-  let rawFormMatches: Awaited<ReturnType<typeof getRecentMatches>> = []
+  let formMatches: Awaited<ReturnType<typeof getRecentMatches>> = []
   let total = 0
   let opponentClubs: Awaited<ReturnType<typeof getOpponentClubs>> = []
   try {
-    ;[pageMatches, total, rawFormMatches] = await Promise.all([
+    ;[pageMatches, total, formMatches] = await Promise.all([
       getRecentMatches({
         gameTitleId: gameTitle.id,
         limit: PAGE_SIZE,
@@ -156,7 +156,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
       }),
       getRecentMatches({
         gameTitleId: gameTitle.id,
-        limit: FORM_WINDOW_SIZE + 1,
+        limit: FORM_WINDOW_SIZE,
         offset: 0,
         gameMode: queryGameMode,
         result: resultValues(resultFilter),
@@ -176,9 +176,6 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   const ocrCoverage = await getOcrCoverageForMatches(pageMatches.map((match) => match.id)).catch(
     () => new Map<number, MatchOcrCoverage>(),
   )
-
-  // Exclude the most recent game from the summary rail and trend bullets.
-  const formMatches = rawFormMatches.slice(1, FORM_WINDOW_SIZE + 1)
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   // Clamp page to valid range — handles stale bookmarks
