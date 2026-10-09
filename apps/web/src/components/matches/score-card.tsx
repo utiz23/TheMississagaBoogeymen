@@ -31,10 +31,12 @@ const CARD_STYLES: Record<MatchResult, { bg: string; border: string; hoverBorder
     border: 'border-amber-900/40',
     hoverBorder: 'hover:border-amber-800/60',
   },
+  // DNF: neutral grey body with the accent edge, like the DNF pill — it counts
+  // as a loss in records but is visibly not one (operator, 2026-10-09).
   DNF: {
-    bg: 'bg-[radial-gradient(circle_at_top,rgba(239,68,68,0.07),transparent_50%),linear-gradient(180deg,rgba(18,13,13,0.99),rgba(10,10,10,1))]',
-    border: 'border-rose-900/40',
-    hoverBorder: 'hover:border-rose-800/50',
+    bg: 'bg-[linear-gradient(180deg,rgba(30,28,29,0.99),rgba(10,10,10,1))]',
+    border: 'border-[rgba(232,65,49,0.28)]',
+    hoverBorder: 'hover:border-[rgba(232,65,49,0.50)]',
   },
 }
 
@@ -42,7 +44,7 @@ const TOP_BAR: Record<MatchResult, string> = {
   WIN: 'bg-emerald-500',
   LOSS: 'bg-rose-600',
   OTL: 'bg-amber-500/80',
-  DNF: 'bg-rose-600',
+  DNF: 'bg-zinc-600',
 }
 
 // Mode + private chips — colors mirror preview/components-pills.html

@@ -13,7 +13,8 @@ export type MarkerType = Exclude<ActionType, 'faceoff'>
 export type PeriodFilter = 'all' | 1 | 2 | 3 | 'ot'
 export type RoleFilter = 'all' | 'by' | 'on'
 export type SortMode = 'game' | 'newest' | 'type'
-export type ResultTone = 'W' | 'L' | 'OTL'
+/** DNF counts as a loss in records but reads neutral (operator, 2026-10-09). */
+export type ResultTone = 'W' | 'L' | 'OTL' | 'DNF'
 
 export const ACTION_TYPES: readonly ActionType[] = ['goal', 'shot', 'hit', 'penalty', 'faceoff']
 export const PERIOD_FILTERS: readonly PeriodFilter[] = ['all', 1, 2, 3, 'ot']
@@ -143,7 +144,7 @@ const clockText = (clock: string | null) =>
   clock === null || clock.trim() === '' ? DASH : (toElapsedClock(clock.trim()) ?? DASH)
 
 function tone(result: CareerActionRow['result']): ResultTone {
-  return result === 'WIN' ? 'W' : result === 'OTL' ? 'OTL' : 'L'
+  return result === 'WIN' ? 'W' : result === 'OTL' ? 'OTL' : result === 'DNF' ? 'DNF' : 'L'
 }
 
 function resultText(e: CareerActionRow): string {

@@ -218,10 +218,10 @@ void test('filters narrowed to nothing: no groups, no markers, pin dropped', () 
   )
 })
 
-void test('blank names and unknown mode show dashes; DNF reads as a loss', () => {
+void test('blank names and unknown mode show dashes; DNF gets its own neutral tone', () => {
   const e = ev({ actorName: null, targetName: null, gameMode: null, result: 'DNF', clock: null })
   const g = buildGroups([e], 'game')[0]
-  assert.deepEqual([g?.sub, g?.result, g?.tone], ['Oct 4', 'DNF 4–2', 'L'])
+  assert.deepEqual([g?.sub, g?.result, g?.tone], ['Oct 4', 'DNF 4–2', 'DNF'])
   const row = g?.rows[0]
   assert.deepEqual([row?.actor, row?.target, row?.clock], ['—', '—', '—'])
 })
