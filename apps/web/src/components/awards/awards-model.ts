@@ -293,8 +293,11 @@ export function buildPlayerAwards(
         glyph: '',
         tier: null,
         kindLabel: `Club trophy · ${a.title}`,
-        basis: `Voted by the club at the end of ${a.title}.`,
-        meta: `${a.title} · club vote`,
+        basis:
+          a.from === 'vote'
+            ? `Voted by the club at the end of ${a.title}.`
+            : `No vote on record — picked from the ${a.title} stats. ${a.reason}`,
+        meta: `${a.title} · ${a.from === 'vote' ? 'club vote' : 'picked from stats'}`,
       })
     } else {
       const b = BANNER[a.mode]

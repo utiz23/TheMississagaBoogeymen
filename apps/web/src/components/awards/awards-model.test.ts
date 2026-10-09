@@ -161,20 +161,31 @@ void test('club-vote trophies and banners come from the hand-entered list', () =
     line(3, 'NHL 27', { goals: 1 }),
   ]
   const v = buildPlayerAwards(lines, 3, [
-    { kind: 'trophy', trophy: 'mvp', title: 'NHL 23', playerIds: [3] },
+    { kind: 'trophy', trophy: 'mvp', title: 'NHL 23', playerIds: [3], from: 'vote' },
+    {
+      kind: 'trophy',
+      trophy: 'defense',
+      title: 'NHL 22',
+      playerIds: [3],
+      from: 'stats',
+      reason: 'Most takeaways.',
+    },
     { kind: 'banner', mode: '3s', title: 'NHL 22', playerIds: [1, 2, 3] },
     { kind: 'banner', mode: 'arcade', title: 'NHL 23', playerIds: [1, 2] },
   ])
   const mvp = v.items.find((i) => i.id === 'trophy-mvp-NHL 23')
   assert.equal(mvp?.symbol, 'mvp')
   assert.equal(mvp.meta, 'NHL 23 · club vote')
+  const dpoy = v.items.find((i) => i.id === 'trophy-defense-NHL 22')
+  assert.equal(dpoy?.meta, 'NHL 22 · picked from stats')
+  assert.equal(dpoy.basis, 'No vote on record — picked from the NHL 22 stats. Most takeaways.')
   const banner = v.items.find((i) => i.id === 'banner-3s-NHL 22')
   assert.equal(banner?.glyph, '22')
   assert.equal(banner.basis, '3v3 champions in NHL 22. Won with P1 and P2.')
   assert.ok(!v.items.some((i) => i.id === 'banner-arcade-NHL 23'))
   assert.equal(v.span, 'NHL 22–NHL 27')
   // Accolades: all-time goals plus the tied one-goal season record in NHL 26 and NHL 27.
-  assert.deepEqual(v.totals, { trophies: 2, banners: 1, accolades: 3 })
+  assert.deepEqual(v.totals, { trophies: 3, banners: 1, accolades: 3 })
 })
 
 void test('order: all-time, season records, trophies, banners, milestones; newest first in each', () => {
