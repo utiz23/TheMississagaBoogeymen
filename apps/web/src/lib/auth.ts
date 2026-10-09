@@ -24,6 +24,7 @@ import {
   evaluateInvite,
   getAccountInviteByToken,
   getAccountUserById,
+  type InviteStatus,
 } from '@eanhl/db/queries'
 import {
   DISABLED_AUTH_PATHS,
@@ -115,12 +116,20 @@ function createAuth() {
           },
           after: async (user) => {
             const token = await inviteTokenFromState()
-            const status =
-              token === null
-                ? 'not_found'
-                : await acceptInviteForNewUser({ token, userId: user.id })
+            let status: InviteStatus | 'error'
+            try {
+              status =
+                token === null
+                  ? 'not_found'
+                  : await acceptInviteForNewUser({ token, userId: user.id })
+            } catch {
+              status = 'error'
+            }
             if (status !== 'ok') {
-              await deleteAccountUser(user.id)
+              // Any failure — a refused invite or a thrown query — removes the
+              // half-created user, so the Discord account isn't left stranded
+              // (unable to sign in, yet never offered sign-up again).
+              await deleteAccountUser(user.id).catch(() => undefined)
               refuse(`invite_${status}`)
             }
           },
