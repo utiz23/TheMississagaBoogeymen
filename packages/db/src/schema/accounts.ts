@@ -76,14 +76,14 @@ export const accountInvites = pgTable(
   {
     id: text('id').primaryKey(),
     tokenHash: text('token_hash').notNull(),
-    email: text('email').notNull(),
+    /** Unused for Discord invites (migration 0065): an invite binds a player, not an address. */
+    email: text('email'),
     role: text('role').$type<UserRole>().notNull().default('user'),
     claimedPlayerId: integer('claimed_player_id')
       .notNull()
       .references(() => players.id),
-    invitedByUserId: text('invited_by_user_id')
-      .notNull()
-      .references(() => users.id),
+    /** NULL = minted by the operator's bootstrap CLI while `users` was empty (migration 0065). */
+    invitedByUserId: text('invited_by_user_id').references(() => users.id),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),

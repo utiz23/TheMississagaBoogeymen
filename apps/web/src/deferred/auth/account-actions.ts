@@ -73,10 +73,12 @@ export async function acceptInvite(formData: FormData) {
     redirect(`/login?token=${encodeURIComponent(token)}&error=invalid_invite_form`)
   }
 
-  const invite = await getAccountInviteByToken(token)
-  if (!invite || !isInviteUsable(invite)) {
+  const found = await getAccountInviteByToken(token)
+  // Discord invites (migration 0065) carry no email; this password flow can't use them.
+  if (!found || !isInviteUsable(found) || found.email === null) {
     redirect('/login?error=invite_unusable')
   }
+  const invite = { ...found, email: found.email }
 
   const existing = await getUserByEmail(invite.email)
   if (existing) {
@@ -97,7 +99,7 @@ export async function acceptInvite(formData: FormData) {
       passwordHash,
       inviteId: invite.id,
       playerId: invite.claimedPlayerId,
-      assignedByUserId: invite.invitedByUserId,
+      assignedByUserId: invite.invitedByUserId ?? userId,
     })
   } catch {
     redirect(`/login?token=${encodeURIComponent(token)}&error=accept_failed`)
