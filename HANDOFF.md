@@ -140,9 +140,7 @@ None.
 ## Next 1-3 Actions
 
 1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
-2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
-   (next: honest numbers — real "Updated" dates, one SV% format, readable
-   time deltas). The security review is closed (journal 10-06).
+2. Polish: the cross-cutting pass is committed, NOT deployed (2026-10-09, `bb8f097`…`4b24930`: real "Updated" dates, SV% as .923 everywhere, readable time deltas, site-wide focus ring, neutral-grey DNF, dead code removed, TOI skater/goalie split, wheel hydration fix). Deploy next; then per-surface quick-wins in [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md).
 3. Backup hardening from the Codex review (optional, small): weekly/monthly
    copies after a missed Sunday/1st, and a run lock for manual + scheduled
    overlap. Watch teammates' feedback (including on speed). Video-stats OCR

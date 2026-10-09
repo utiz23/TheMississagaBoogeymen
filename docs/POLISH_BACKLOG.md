@@ -78,13 +78,13 @@
 - **Leaders footer GP doesn't match the mode filter** — `page.tsx:170` → `leaders-section.tsx:175-181` shows all-modes `officialRecord.gamesPlayed` beside per-mode leaders. Source mode-scoped GP when `gameMode !== null`. `[QUICK-WIN]`
 - **TOA / PP% / PK% columns are all "—" in default "All" view** — `page.tsx:295-297`, `354-359` null them; only single-mode rows populate. Hide those columns in "All" or aggregate. `[NICE]`
 - **TOA in title-records table rendered unformatted** — `title-records-table.tsx:151-153` passes raw through `fmt()`; apply `formatTOA` (verify the source unit). `[NICE]`
-- **"Updated {last game time}" mislabels a game timestamp as a refresh time** — `record-strip.tsx:64,88-95`; relabel "Last game". `[NICE]`
+- ✅ (`bb8f097`: relabelled "Last game", club zone) **"Updated {last game time}" mislabels a game timestamp as a refresh time** — `record-strip.tsx:64,88-95`; relabel "Last game". `[NICE]`
 - **"in last 10" copy with <10 games** — `record-strip.tsx:235-240`; use `dots.length`. `[NICE]`
 - **Mode capitalization split** — `latest-result.tsx:60` shows "6S"/"3S" while other sections show "6s"/"3s". Standardize lowercase. `[QUICK-WIN]`
 - **Record dash mixes `-` and `–`** — `record-strip.tsx:124-126,237` use ASCII hyphen vs `formatRecord`'s en-dash. Route through `formatRecord`. `[QUICK-WIN]`
 - **Duplicated formatters diverging from `lib/format.ts`** — `title-records-table.tsx:37` (`winPct`), `leaders-section.tsx:365` (`formatSavePct`, uses `isNaN` vs shared `Number.isFinite`). Import shared helpers. `[NICE]`
 - **Redundant mode label** — `leaders-section.tsx:180-181` renders "local tracked 6s · 6s". Drop the trailing label. `[QUICK-WIN]`
-- **Carousel focus ring removed** — `player-carousel.tsx:54` `outline-none` with no replacement. Add `focus-visible:` ring. `[QUICK-WIN]`
+- ✅ (`1b20f15`: global focus ring) **Carousel focus ring removed** — `player-carousel.tsx:54` `outline-none` with no replacement. Add `focus-visible:` ring. `[QUICK-WIN]`
 - **Off-stage carousel cards stay in tab order** — `player-carousel.tsx:87-124`; add `tabIndex={-1}`/`aria-hidden` (or `visibility:hidden`). `[QUICK-WIN]`
 - **Redundant crest alt on every card** — `player-card.tsx:160` `alt="BGM"` decorative noise; use `alt=""`. `[QUICK-WIN]`
 - **No `prefers-reduced-motion` handling** — pulse/animate-pulse/transitions across `record-strip.css`, `latest-result.tsx`, `player-card.css`, carousel. `[NICE]`
@@ -97,14 +97,14 @@
 ### Games list (`/games`)
 
 - **Promote an always-on quality pill + always-render mode pill** — seed item #1; `score-card.tsx:161-190`. `[QUICK-WIN]`
-- **DNF card looks identical to a LOSS** — `score-card.tsx:32-36,43` reuse the rose palette; the DNF _pill_ is grey-with-red-border, so cards disagree with pills. Give DNF a neutral card surface. `[NICE]`
+- ✅ (`8d1ecee`: neutral DNF card) **DNF card looks identical to a LOSS** — `score-card.tsx:32-36,43` reuse the rose palette; the DNF _pill_ is grey-with-red-border, so cards disagree with pills. Give DNF a neutral card surface. `[NICE]`
 - **Low-contrast stat labels & timestamp** — `score-card.tsx:64,85,99` (`text-zinc-600` at 10px), `:189` timestamp. Lift contrast. `[NICE]`
 - **Card DtW uses EA shots; detail page uses OCR-reviewed shots** — `score-card.tsx:133` calls `buildPossessionEdge(match)` without period summaries, so the card can disagree with `/games/[id]`. `[NICE]`
 - **DNF folded into losses in the form record** — `page.tsx:596,611`; confirm this semantic choice. `[NICE]`
 - **Score dash bypasses `formatScore` and mixes dash glyphs** — `score-card.tsx:216` literal `-` vs `:104` en-dash vs `format.ts:31`. Use `formatScore`. `[QUICK-WIN]`
 - **"DtW" acronym unexplained; "Outshot" ambiguous** — `score-card.tsx:86,144`. Add a legend/tooltip; disambiguate direction. `[NICE]`
 - **Segmented filter links lack `aria-current`** — `page.tsx:441-453` (contrast with `PageLink` at `:572` which sets it). `[QUICK-WIN]`
-- **No `focus-visible` styling on card link / filters / pagination** — `score-card.tsx:155-158`, `page.tsx` links; only the opponent input has focus styling. `[QUICK-WIN]`
+- ✅ (`1b20f15`) **No `focus-visible` styling on card link / filters / pagination** — `score-card.tsx:155-158`, `page.tsx` links; only the opponent input has focus styling. `[QUICK-WIN]`
 - **Card link has no accessible name** — `score-card.tsx:155-158`; add an `aria-label`. `[NICE]`
 - **Redundant page indicator (up to 3×)** — toolbar `page.tsx:376` + top/bottom `PaginationNav` `:517-519`. `[NICE]`
 - **"Dev" filter + `DEV_MATCH_IDS` shipped in the UI** — `page.tsx:29-41,307`; OCR-training scaffolding surfaced as a first-class filter. Gate or remove. `[NICE]`
@@ -131,16 +131,16 @@ _(bugs listed in §1: double GAME number, hero highlight index, lineup Home/Away
 
 _(bugs in §1: goalie marquee "skaters" noun, TOI day-rollover — both fixed 2026-10-05)_
 
-- **Club Stats delta badges show raw seconds for time stats** — found 2026-10-05: Time on Ice reads "2d 10h 58m" with a "+67509" badge, Possession "+5992" (`club-stats-tabs.tsx`, the `cs-delta` beside each cell). Format time deltas with `formatDuration`. `[QUICK-WIN]`
-- **Hydration mismatch on every profile** — found 2026-10-05: the contribution wheel's SVG `<line>` attributes differ server vs client (float rounding), logged as a console error. Round the coordinates. `[NICE]`
+- ✅ (`bb8f097`) **Club Stats delta badges show raw seconds for time stats** — found 2026-10-05: Time on Ice reads "2d 10h 58m" with a "+67509" badge, Possession "+5992" (`club-stats-tabs.tsx`, the `cs-delta` beside each cell). Format time deltas with `formatDuration`. `[QUICK-WIN]`
+- ✅ (`4b24930`: coordinates rounded) **Hydration mismatch on every profile** — found 2026-10-05: the contribution wheel's SVG `<line>` attributes differ server vs client (float rounding), logged as a console error. Round the coordinates. `[NICE]`
 
-- **Add shared `formatDuration(seconds)` → "Nd Nh Nm" + surface skater/goalie TOI split** — seed item #5; new helper in `lib/format.ts`, render both `toiSeconds` & `goalieToiSeconds` regardless of selected role. `[QUICK-WIN]`
-- **Hero goalie SV% in non-hockey format** — `profile-hero.tsx:698-700,716,630` shows "92.30" while ledger + `formatSavePct` use ".923". Use the shared helper. `[QUICK-WIN]`
+- ✅ (`ca7cff2`: split in the Club Stats header) **Add shared `formatDuration(seconds)` → "Nd Nh Nm" + surface skater/goalie TOI split** — seed item #5; new helper in `lib/format.ts`, render both `toiSeconds` & `goalieToiSeconds` regardless of selected role. `[QUICK-WIN]`
+- ✅ (`bb8f097`) **Hero goalie SV% in non-hockey format** — `profile-hero.tsx:698-700,716,630` shows "92.30" while ledger + `formatSavePct` use ".923". Use the shared helper. `[QUICK-WIN]`
 - **Career-Totals goalie SV%/GAA always "—"** — `profile-hero.tsx:846` hardcodes null; `PlayerCareerSeasonRow` lacks saves/shots/TOI to recompute. Looks like missing data. `[NICE]`
-- **`ClubStatsTabs` "Updated" defaults to `new Date()`** — `club-stats-tabs.tsx:227`; page never passes the real `lastFetchedAt` though it's available. Pass `eaStats[0].lastFetchedAt`. `[QUICK-WIN]`
-- **Shot-map "Updated" hardcoded to today** — `page.tsx` (both `ShotMap` call sites) pass `new Date()`; footer implies false freshness. `[QUICK-WIN]`
+- ✅ (`bb8f097`: real lastFetchedAt) **`ClubStatsTabs` "Updated" defaults to `new Date()`** — `club-stats-tabs.tsx:227`; page never passes the real `lastFetchedAt` though it's available. Pass `eaStats[0].lastFetchedAt`. `[QUICK-WIN]`
+- ✅ (`bb8f097`) **Shot-map "Updated" hardcoded to today** — `page.tsx` (both `ShotMap` call sites) pass `new Date()`; footer implies false freshness. `[QUICK-WIN]`
 - **Goalie "Shootouts" subsection is dead data for EASHL** — `club-stats-tabs.tsx:1307-1409,1328`; always-zero cells read as broken. Drop or guard on `soShots > 0`. `[NICE — verify on a real goalie row]`
-- **TrendChart paints DNF as a loss** — `trend-chart.tsx:61` else-branch; legend `:84-95` only lists W/OT/L. `[NICE]`
+- ✅ (moot: Recent Form chart removed (`4095e49`)) **TrendChart paints DNF as a loss** — `trend-chart.tsx:61` else-branch; legend `:84-95` only lists W/OT/L. `[NICE]`
 - **Two stacked, visually similar shot maps** — `page.tsx:239` (`CareerShotMap`) + `:241-262` (`ShotMap`); read as duplicates. Tab/toggle or differentiate headers. `[NICE]`
 - **Skater vs goalie contribution use different components/headers** — `contribution-section.tsx:59-71` (rich wheel) vs `:74-112` (older donut); "Contribution Wheel" vs "Season Profile". `[NICE]`
 - **Two permanent "Coming Soon" stubs advertised in subtitle** — `charts-visuals-section.tsx:14,18-26` (archetype radar, awards). `[NICE]`
@@ -155,7 +155,7 @@ _(bugs in §1: goalie marquee "skaters" noun, TOI day-rollover — both fixed 20
 
 _(bugs in §1: transparent sticky Player column, hardcoded `nhl26` shot map)_
 
-- **Goalie SV% shown as raw percent** — `goalie-stats-table.tsx:102` ("67.00%") vs app-wide `formatSavePct` (".670"). Use the shared helper, keep numeric sort. `[QUICK-WIN]`
+- ✅ (`bb8f097`: .923 in SV%, BRKSV%, PSV%) **Goalie SV% shown as raw percent** — `goalie-stats-table.tsx:102` ("67.00%") vs app-wide `formatSavePct` (".670"). Use the shared helper, keep numeric sort. `[QUICK-WIN]`
 - **`ArchiveClubTeamSection` table has no `min-w`** — `page.tsx:511`; its twin `TeamHistoryTable` uses `min-w-[760px]`. Cramps on mobile instead of scrolling. `[QUICK-WIN]`
 - **Sortable `<th>` not keyboard-operable / no `aria-sort`/`scope`** — `skater-stats-table.tsx:519-537`, `goalie-stats-table.tsx:371-388`; wrap label in a `<button>`, add `scope="col"` + `aria-sort`. `[QUICK-WIN]`
 - **"Leader" accent band tracks sort position, not merit** — `skater-stats-table.tsx:578-602`; ascending sort paints the _worst_ rows with the winner accent. Only apply on default higher-is-better sort. `[NICE]`
@@ -192,15 +192,15 @@ _(bugs in §1: transparent sticky Player column, hardcoded `nhl26` shot map)_
 
 ## 3. Cross-cutting themes (fix once, apply everywhere)
 
-1. **Missing `focus-visible` styling is site-wide** — home carousel, games-list card/filter/pagination links, nav links, title switchers, stats sort headers. A single global `:focus-visible` ring treatment closes most of these. `[QUICK-WIN, high leverage]`
-2. **SV% format divergence** — hockey-style `.923` (`formatSavePct`) vs raw `92.30%`/`92.30` appears wrong in: profile hero (`profile-hero.tsx:698-700,716`) and stats goalie table (`goalie-stats-table.tsx:102`). Route all SV% through the shared helper.
-3. **Duration formatting is bespoke & not day-aware** — `formatHrsMin`/`formatMinutes` (private to `club-stats-tabs.tsx`) + `formatTOA` (`lib/format.ts`). Add one shared `formatDuration` and consolidate.
+1. ✅ (`1b20f15`) **Missing `focus-visible` styling is site-wide** — home carousel, games-list card/filter/pagination links, nav links, title switchers, stats sort headers. A single global `:focus-visible` ring treatment closes most of these. `[QUICK-WIN, high leverage]`
+2. ✅ (`bb8f097`; operator 2026-10-09: .923 everywhere) **SV% format divergence** — hockey-style `.923` (`formatSavePct`) vs raw `92.30%`/`92.30` appears wrong in: profile hero (`profile-hero.tsx:698-700,716`) and stats goalie table (`goalie-stats-table.tsx:102`). Route all SV% through the shared helper.
+3. ✅ (`99ace54` + `bb8f097`) **Duration formatting is bespoke & not day-aware** — `formatHrsMin`/`formatMinutes` (private to `club-stats-tabs.tsx`) + `formatTOA` (`lib/format.ts`). Add one shared `formatDuration` and consolidate.
 4. **Duplicated formatters diverging from `lib/format.ts`** — win%, save%, record, playlist labels, tooltip builders re-implemented across home + stats. Import the shared helpers.
-5. **Misleading "Updated {today}" timestamps** — `ClubStatsTabs`, profile shot map, home record strip all show render-time as data freshness. Thread real `lastFetchedAt`.
-6. **DNF handled inconsistently** — styled as a loss on home form dots (`record-strip.tsx:246`), games-list cards (`score-card.tsx:32-36`), and the profile trend chart (`trend-chart.tsx:61`); folded into losses in the games-list record. Decide one treatment (distinct neutral) and apply everywhere.
+5. ✅ (`bb8f097`) **Misleading "Updated {today}" timestamps** — `ClubStatsTabs`, profile shot map, home record strip all show render-time as data freshness. Thread real `lastFetchedAt`.
+6. ✅ (`8d1ecee`; operator 2026-10-09: neutral grey, still a loss in records) **DNF handled inconsistently** — styled as a loss on home form dots (`record-strip.tsx:246`), games-list cards (`score-card.tsx:32-36`), and the profile trend chart (`trend-chart.tsx:61`); folded into losses in the games-list record. Decide one treatment (distinct neutral) and apply everywhere.
 7. **Decorative fabricated IDs** — "Sheet BGM/REC/0001" (home), "BGM/PAIR/0001", "BGM/TSM/…" (stats). Confirm the broadcast-flavor intent or remove.
 8. **Hardcoded club identity & game-title slug** — `Boogeymen` hardcoded in 3 stats call sites; shot map gated on literal `nhl26`. Source from config / gate on data.
-9. **Dead code inventory** — `lineup-card.tsx`, `shot-map-renderer.tsx` (+ unused net-zone exports), `ui/stat-card.tsx` (0 uses), `rl-rank-*` CSS classes, deprecated `PositionPill` props, single-use `ui/stat-strip.tsx`. `ArchetypePillFeature` and `/preview/*` routes are preview-only but **publicly reachable in production** — gate or remove.
+9. ✅ (`19d8b81`; /preview is untracked locally, never deployed) **Dead code inventory** — `lineup-card.tsx`, `shot-map-renderer.tsx` (+ unused net-zone exports), `ui/stat-card.tsx` (0 uses), `rl-rank-*` CSS classes, deprecated `PositionPill` props, single-use `ui/stat-strip.tsx`. `ArchetypePillFeature` and `/preview/*` routes are preview-only but **publicly reachable in production** — gate or remove.
 
 ---
 
