@@ -35,7 +35,7 @@ function parseGameMode(raw: string | string[] | undefined): GameMode | null {
   return (GAME_MODE as readonly string[]).includes(raw) ? (raw as GameMode) : null
 }
 
-export const metadata: Metadata = { title: 'Club Stats' }
+export const metadata: Metadata = { title: 'Boogeymen — Club Stats' }
 
 export const revalidate = 300
 

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 interface PanelProps {
-  /** Surface fill. `default` = #18181b (--color-surface), `raised` = #1f1f22 (--color-surface-raised). */
+  /** Surface fill. `default` = #232122 (--color-surface), `raised` = #2a2829 (--color-surface-raised). */
   tone?: 'default' | 'raised'
   /** Adds hover state: border lightens, surface steps up to raised. Default false. */
   hoverable?: boolean

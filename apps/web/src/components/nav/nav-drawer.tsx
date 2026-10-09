@@ -160,7 +160,7 @@ export function NavDrawer({
             type="button"
             aria-label="Close menu"
             onClick={close}
-            className="grid h-10 w-10 place-items-center text-2xl leading-none text-fg-3 transition-colors hover:text-fg-1"
+            className="grid h-11 w-11 place-items-center text-2xl leading-none text-fg-3 transition-colors hover:text-fg-1"
           >
             &times;
           </button>

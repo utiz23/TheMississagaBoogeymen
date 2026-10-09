@@ -43,7 +43,7 @@ export function SectionHeader({
           {label}
         </Heading>
         {subtitle ? (
-          <p className="font-condensed text-[11px] uppercase tracking-wider text-zinc-600">
+          <p className="font-condensed text-[11px] uppercase tracking-wider text-fg-5">
             {subtitle}
           </p>
         ) : null}

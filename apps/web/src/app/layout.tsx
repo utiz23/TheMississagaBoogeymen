@@ -57,8 +57,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="flex min-h-screen flex-col font-sans antialiased">
+        {/* Keyboard users skip the nav; visible only when focused. */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:bg-accent focus:px-4 focus:py-2 focus:font-condensed focus:text-sm focus:font-bold focus:uppercase focus:tracking-widest focus:text-white"
+        >
+          Skip to content
+        </a>
         <TopNav />
-        <main className="mx-auto w-full max-w-screen-xl flex-1 px-4 py-8">{children}</main>
+        <main id="main" className="mx-auto w-full max-w-screen-xl flex-1 px-4 py-8">
+          {children}
+        </main>
         <SiteFooter />
       </body>
     </html>
