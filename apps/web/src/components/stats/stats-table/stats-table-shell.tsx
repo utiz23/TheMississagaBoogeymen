@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Panel } from '@/components/ui/panel'
 import { Toggle, ToggleGroup } from '@/components/ui/pill-toggle'
 import { DASH } from './format.ts'
+import './stats-table-shell.css'
 import { metricLabel, resolveCell, type Metric, type MetricMap } from './metrics.ts'
 import {
   EXPANDED_FETCH_FAILED_NOTE,
@@ -239,8 +240,8 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
     <div>
       {/* Title, source, scope + category tabs */}
       <div className="mb-px flex flex-wrap items-center justify-between gap-y-1 border-b border-zinc-800">
-        <div className="flex flex-col gap-1 py-2 pl-4 pr-3">
-          <h3 className="flex items-center gap-2 font-condensed text-base font-black uppercase tracking-[0.18em] text-zinc-50 sm:text-lg">
+        <div className="st-px flex flex-col gap-1 py-2 pl-4 pr-3">
+          <h3 className="st-title flex items-center gap-2 font-condensed text-base font-black uppercase tracking-[0.18em] text-zinc-50 sm:text-lg">
             <span className="text-accent" aria-hidden>
               ▌
             </span>
@@ -305,7 +306,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
       </div>
 
       {subsets && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-zinc-800/60 px-4 py-2">
+        <div className="st-px flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-zinc-800/60 px-4 py-2">
           <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
             {subsets.label}
           </span>
@@ -342,8 +343,8 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
       )}
 
       {state === 'ok' && (
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-zinc-800/60 px-4 py-2">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="st-px st-controls flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-zinc-800/60 px-4 py-2">
+          <div className="st-controls flex flex-wrap items-center gap-x-4 gap-y-2">
             <div role="group" aria-label="Value type" className="flex gap-1">
               {[false, true].map((pg) => {
                 const disabled = pg && !anyRate
@@ -372,9 +373,24 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
               })}
             </div>
             <p className="font-condensed text-[11px] uppercase tracking-wider text-zinc-500">
-              {inputOrder && rowLabel
-                ? `Sorted by ${rowLabel.header} ${activeAsc ? `↑ ${rowLabel.order.reversed}` : `↓ ${rowLabel.order.input}`} · click a stat to rank`
-                : `Sorted by ${activeSortDesc} ${activeAsc ? '↑ low to high' : '↓ high to low'} · rank follows sort, no minimum GP`}
+              {inputOrder && rowLabel ? (
+                <>
+                  Sorted by {rowLabel.header} {activeAsc ? '↑' : '↓'}
+                  <span className="st-sort-long">
+                    {' '}
+                    {activeAsc ? rowLabel.order.reversed : rowLabel.order.input} · click a stat to
+                    rank
+                  </span>
+                </>
+              ) : (
+                <>
+                  Sorted by {activeSortDesc} {activeAsc ? '↑' : '↓'}
+                  <span className="st-sort-long">
+                    {' '}
+                    {activeAsc ? 'low to high' : 'high to low'} · rank follows sort, no minimum GP
+                  </span>
+                </>
+              )}
             </p>
           </div>
           <button
@@ -391,7 +407,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
       )}
 
       {state === 'ok' && keyOpen && (
-        <div className="border-b border-zinc-800/60 bg-zinc-900/40 px-4 py-3">
+        <div className="st-px border-b border-zinc-800/60 bg-zinc-900/40 px-4 py-3">
           <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
             {visibleKeys.map((k) => {
               const m = metrics[k]
@@ -430,7 +446,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
       ) : (
         <Panel className="overflow-x-auto">
           <div role="tabpanel" aria-label={`${title} ${view?.label ?? ''}`.trim()}>
-            <table className="w-full min-w-[520px] border-separate border-spacing-0 [--pw:8.5rem] sm:[--pw:11rem]">
+            <table className="st-table w-full min-w-[520px] border-separate border-spacing-0 [--pw:8.5rem] sm:[--pw:11rem]">
               <thead>
                 {view && view.groups.length > 0 && (
                   <tr className="bg-surface-raised">
@@ -471,7 +487,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                             : 'sort'
                         }`}
                         className={[
-                          'flex w-full items-center gap-1 py-2 pl-4 pr-2 font-condensed text-[10px] font-semibold uppercase tracking-widest transition-colors',
+                          'st-name-head flex w-full items-center gap-1 py-2 pl-4 pr-2 font-condensed text-[10px] font-semibold uppercase tracking-widest transition-colors',
                           inputOrder ? 'text-zinc-100' : 'text-zinc-500 hover:text-zinc-300',
                         ].join(' ')}
                       >
@@ -484,7 +500,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                   ) : (
                     <th
                       scope="col"
-                      className="sticky left-0 z-20 w-[var(--pw)] min-w-[var(--pw)] max-w-[var(--pw)] border-b border-zinc-800 bg-surface-raised py-2 pl-4 pr-2 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+                      className="st-name-head sticky left-0 z-20 w-[var(--pw)] min-w-[var(--pw)] max-w-[var(--pw)] border-b border-zinc-800 bg-surface-raised py-2 pl-4 pr-2 text-left font-condensed text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
                     >
                       Player
                     </th>
@@ -563,7 +579,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                         className="group transition-colors"
                       >
                         <td
-                          className="sticky left-0 z-10 w-[var(--pw)] min-w-[var(--pw)] max-w-[var(--pw)] border-b border-zinc-800/40 bg-surface py-2 pl-4 pr-2 group-hover:bg-surface-raised"
+                          className="st-name sticky left-0 z-10 w-[var(--pw)] min-w-[var(--pw)] max-w-[var(--pw)] border-b border-zinc-800/40 bg-surface py-2 pl-4 pr-2 group-hover:bg-surface-raised"
                           style={
                             rank !== undefined && rank < 3 ? { boxShadow: RAIL[rank] } : undefined
                           }
@@ -577,14 +593,14 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                                   prefetch
                                   href={`/roster/${row.playerId.toString()}`}
                                   title={tip}
-                                  className="truncate font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
+                                  className="st-name-text truncate font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
                                 >
                                   {row.gamertag}
                                 </Link>
                               ) : (
                                 <span
                                   title="Unmatched gamertag: no current player profile"
-                                  className="truncate font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-400"
+                                  className="st-name-text truncate font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-400"
                                 >
                                   {row.gamertag}
                                 </span>
@@ -628,7 +644,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                             <td
                               key={k}
                               className={[
-                                'whitespace-nowrap border-b border-zinc-800/40 px-2 py-2 text-right font-condensed text-sm tabular-nums transition-colors',
+                                'st-cell whitespace-nowrap border-b border-zinc-800/40 px-2 py-2 text-right font-condensed text-sm tabular-nums transition-colors',
                                 color,
                                 isActive ? 'bg-accent-soft font-semibold' : '',
                                 isGp
@@ -664,7 +680,7 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
       )}
 
       {state === 'ok' && footnotes.length > 0 && (
-        <ol className="flex flex-col gap-1 border-t border-zinc-800/60 px-4 py-2.5">
+        <ol className="st-px flex flex-col gap-1 border-t border-zinc-800/60 px-4 py-2.5">
           {footnotes.map((n) => (
             <li key={n} className="flex gap-2 text-xs leading-snug text-zinc-500">
               <span aria-hidden className="font-bold text-amber-500">

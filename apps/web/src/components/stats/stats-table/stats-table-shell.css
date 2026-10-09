@@ -1,0 +1,77 @@
+/* ============================================================================
+   STATS TABLE SHELL — responsive size tiers
+   Ported from the "Roster Stats Live" mockup's per-size `sz` map. Desktop
+   (>1100px) is styled entirely by the Tailwind classes in
+   stats-table-shell.tsx; these rules only tighten sizes at the smaller tiers.
+   Unlayered, so they win over the (layered) Tailwind utilities.
+   ============================================================================ */
+
+/* Medium */
+@media (max-width: 1100px) {
+  .st-title {
+    font-size: 17px;
+  }
+}
+
+/* Small */
+@media (max-width: 720px) {
+  .st-title {
+    font-size: 16px;
+  }
+  .st-px {
+    padding-inline: 14px;
+  }
+  .st-controls {
+    column-gap: 14px;
+  }
+  .st-table {
+    --pw: 150px;
+  }
+  .st-name {
+    padding: 7px 8px 7px 10px;
+  }
+  .st-name-head {
+    padding-left: 10px;
+    padding-right: 8px;
+  }
+  .st-name-text {
+    font-size: 13px;
+  }
+  .st-cell {
+    padding: 7px;
+    font-size: 13px;
+  }
+  /* Sort line shortens to "Sorted by PTS ↓". */
+  .st-sort-long {
+    display: none;
+  }
+}
+
+/* Micro */
+@media (max-width: 480px) {
+  .st-title {
+    font-size: 15px;
+  }
+  .st-px {
+    padding-inline: 12px;
+  }
+  .st-controls {
+    column-gap: 12px;
+  }
+  .st-table {
+    --pw: 118px;
+  }
+  .st-name {
+    padding: 7px 6px 7px 8px;
+  }
+  .st-name-head {
+    padding-left: 8px;
+    padding-right: 6px;
+  }
+  .st-name-text {
+    font-size: 12px;
+  }
+  .st-cell {
+    padding: 6px;
+  }
+}
