@@ -361,7 +361,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
       {showActionMap && (
         <div id="sheet-action-map" className="scroll-mt-24">
-          <LazyMount minHeight={760} label="Career Action Map">
+          <LazyMount minHeight={660} minHeightSmall={1200} label="Career Action Map">
             <CareerActionMap events={careerActions} gamertag={overview.player.gamertag} />
           </LazyMount>
         </div>
