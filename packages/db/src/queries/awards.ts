@@ -33,10 +33,13 @@ export interface ClubSeasonLine {
   shutouts: number
 }
 
-/** A whole-number count from the archive row's `stats_json`; anything else counts 0. */
+/**
+ * A whole-number count from the archive row's `stats_json` ("1,912" or "1912",
+ * as `parseArchiveCount` accepts); anything else counts 0.
+ */
 const jsonCount = (key: string) =>
-  sql`CASE WHEN ${historicalPlayerSeasonStats.statsJson}->>${key} ~ '^[0-9]+$'
-    THEN (${historicalPlayerSeasonStats.statsJson}->>${key})::int ELSE 0 END`
+  sql`CASE WHEN ${historicalPlayerSeasonStats.statsJson}->>${key} ~ '^([0-9]{1,3}(,[0-9]{3})*|[0-9]+)$'
+    THEN replace(${historicalPlayerSeasonStats.statsJson}->>${key}, ',', '')::int ELSE 0 END`
 
 const toInt = (v: string | number | null): number =>
   v === null ? 0 : typeof v === 'number' ? v : Number.parseInt(v, 10) || 0

@@ -1173,8 +1173,8 @@ export async function getPlayerCareerSeasons(playerId: number): Promise<PlayerCa
       // If a player only has position-specific rows (e.g. wing-only) for a title, that
       // title is excluded here — otherwise the title would appear in the title-list but
       // produce no data, requiring a silent skip. This keeps the title-list and the
-      // emit-loop consistent. Documented data gap: such players' missing titles will
-      // need an importer-side fix to backfill the all_skaters aggregate row.
+      // emit-loop consistent. Seasons captured only per position got a derived
+      // all_skaters row (summed from those rows) in migration 0064.
       sql`${gameTitles.id} IN (
         SELECT ${eaMemberSeasonStats.gameTitleId}
           FROM ${eaMemberSeasonStats}
