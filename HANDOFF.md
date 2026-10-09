@@ -24,11 +24,13 @@ commit/push rules in `CLAUDE.md`.
 ## Current Objective / Status
 
 **The site is live at https://boogeymen.app** (2026-10-05 ~15:15 MDT) for
-teammates, by link — unlisted (`noindex` everywhere), no analytics, no
-logins. Served from Hotel-Echo through the `hotel-echo-web` Cloudflare
+teammates, by link — unlisted (`noindex` everywhere), no analytics.
+Served from Hotel-Echo through the `hotel-echo-web` Cloudflare
 tunnel. **The launch plan is closed** (all 8 items ✅ 2026-10-09; four green
 unattended backup nights 10-06 → 10-09). Next: post-launch work (polish,
 video-stats OCR).
+
+**Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. No feature behind it yet — **next is Card Locker EQUIP** (step 1b of the [member-logins plan](docs/superpowers/plans/2026-10-09-member-logins-step-1.md)); profile self-edit and admin tools are later steps. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
 **Awards trophy case is live** (2026-10-08): records, season leaders, milestones, plus hand-entered trophies/banners in `apps/web/src/components/awards/club-awards.ts` (add new results there). Awards rank player-card ALL SKATERS totals, not the Stats page's club archive (operator choice).
 
@@ -36,26 +38,21 @@ video-stats OCR).
 
 **Member-only player pages are live** (2026-10-09, `fafeefb`; rollback `:rollback-he-2026-10-09-pre-members`): only team members, present and past (EA member list for any title, member archive, pinned, AI goalies — 18 of 92) have a `/roster/[id]` page; guests 404 and show as plain text elsewhere (`PlayerLink` + `MemberLinks`), and the home carousel shows members only.
 
-**Deployed 2026-10-09** (`3d62b8a`, web only, no migration; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-locker-v3` = `4095e49`): stats-table size tiers, Build Locker v3 desktop (persona name from OCR), "Last 10" includes the newest game, Action Map clocks show time elapsed, short-code build names ("Connor McDavid-PLY") map to archetypes, and the switch plan's deferred minors. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
+**Also live 2026-10-09** (`3d62b8a`; rollback `:rollback-he-2026-10-09-pre-locker-v3`): stats-table size tiers, Build Locker v3 (persona name from OCR), Action Map clocks, short-code build names. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
 ## Latest Verified Checkpoint
 
+**2026-10-09 — member logins deployed** (`7b76804`, web + worker; migration 0065 applied to live/test/preview; rollback images `:rollback-he-2026-10-09-pre-logins`, server `.env` backup `.env.bak-2026-10-09`). Live checks passed; operator signed in as admin. Security review: no findings. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
+
 **2026-10-09 — responsive sizes, side rail, compact carousel deployed** (`fb40008`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-responsive`). Medium ≤1100 / Small ≤720 / Micro ≤480 tiers for the player, roster and home components; `PlayerCardCompact`; player-page side rail at ≥1680px; Charts & Visuals and Recent Form removed (`4095e49`, rollback `:rollback-he-2026-10-09-pre-no-form`). Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
 **2026-10-08 (late night) — Awards + migration 0064 deployed** (`d038b36`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-08-pre-awards`). 0064 adds 12 derived `all_skaters` archive rows (seasons captured only per position); rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`. Detail: [journal 2026-10-08 late night](docs/journal/2026-10.md).
 
-**2026-10-08 — player cards, AI goalies, position filter deployed** (`3ec9dc0` → `d772784` → `29ee6a2`; migrations 0060–0063; rollback images `:rollback-he-2026-10-08-pre-{cards,ai-goalies,positions}`; dumps in `~/eanhl-backups/pre-*-2026-10-08-*.dump`). AI goalies Lehmann / Wagner and pinned Jimmy Cap are players (worker syncs AI-goalie lines each cycle). Detail: [journal 2026-10-08](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
+**2026-10-08 — player cards, AI goalies, position filter deployed** (`29ee6a2`; migrations 0060–0063; rollbacks `:rollback-he-2026-10-08-pre-{cards,ai-goalies,positions}`, dumps `~/eanhl-backups/pre-*-2026-10-08-*.dump`). Lehmann / Wagner (AI goalies) and pinned Jimmy Cap are players. [Journal](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
 
-**2026-10-06 — NHL 26 contamination cleaned up** (worker `3f35733`; rollback
-image `eanhl-team-website-worker:rollback-2026-10-05-quarantine`; pre-change
-dump `~/eanhl-backups/pre-quarantine-2026-10-05/` on Hotel-Echo). EA's NHL 26
-club 19224 has been another club ("Chipstuttar") since 2026-09-07. Its 172
-matches and 6 players are out, NHL 26 is back to 204 games, and the record
-strip is restored to 365-229-27 / 621 GP. Detail:
-[plan](docs/planning/2026-10-05-nhl26-club-19224-quarantine.md),
-[journal 2026-10-06](docs/journal/2026-10.md).
+**2026-10-06 — NHL 26 contamination cleaned up** (worker `3f35733`; rollback `:rollback-2026-10-05-quarantine`; dump `~/eanhl-backups/pre-quarantine-2026-10-05/`): club 19224 is "Chipstuttar" since 2026-09-07; its 172 matches are out. [Plan](docs/planning/2026-10-05-nhl26-club-19224-quarantine.md), [journal](docs/journal/2026-10.md).
 
 **2026-10-06 — performance pass deployed** (`351354d`; rollback `:rollback-he-2026-10-06-pre-perf`). Detail: [journal 2026-10-06](docs/journal/2026-10.md).
 
@@ -70,7 +67,7 @@ strip is restored to 365-229-27 / 621 GP. Detail:
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web at `5269fbe`, worker at `29ee6a2`), web and worker as the non-root
+  and nightly backup (web and worker at `7b76804`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
@@ -95,7 +92,12 @@ strip is restored to 365-229-27 / 621 GP. Detail:
   only, catch-all 404). Token in `secrets/cloudflared-tunnel-token`, `600`,
   owned by uid `65532` (the image's user — see `DEPLOY.md`). **Take the site
   offline:** `docker compose stop cloudflared` on Hotel-Echo. A copy of the
-  pre-launch `.env` (still holding the old `TUNNEL_TOKEN` line) was deleted by 2026-10-06. The main PC has no tunnel. Login/auth is removed.
+  pre-launch `.env` (still holding the old `TUNNEL_TOKEN` line) was deleted by 2026-10-06. The main PC has no tunnel.
+- **Member logins** (Discord, invite-only): Discord apps "Boogeymen" (prod,
+  creds in Hotel-Echo `.env`) and "Boogeymen Dev" (local `.env`,
+  `localhost:3000` only). Settings, first-admin command, checks and the
+  sign-everyone-out lever (`DELETE FROM sessions`): `DEPLOY.md` §7. Legal
+  footer notice ends 2026-11-09 (`LEGAL_CHANGE_NOTICE`).
 - NHL 27 ingestion has been live since 2026-09-05. Since migration 0057
   three settings are separate: collection (`is_active`: **NHL 27 only** —
   NHL 26 was switched off 2026-10-06; its pages remain), site default
@@ -135,6 +137,9 @@ None.
 
 ## Next 1-3 Actions
 
+0. **Member logins step 1b — Card Locker EQUIP** (commits 7–8 of the
+   [plan](docs/superpowers/plans/2026-10-09-member-logins-step-1.md); web only,
+   0065 already live). Watch the first teammate invite go through.
 1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
 2. Polish: cross-cutting + by-surface passes **deployed 2026-10-09** (`5269fbe`, web only; rollback `eanhl-team-website-web:rollback-he-2026-10-09-pre-polish` = `fafeefb`), incl. the live UTC-dates fix, the operator's four answers and the goalie Contribution Wheel. Every backlog entry has an outcome ([`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md), journal 10-09).
 3. Backup hardening from the Codex review (optional, small): weekly/monthly
