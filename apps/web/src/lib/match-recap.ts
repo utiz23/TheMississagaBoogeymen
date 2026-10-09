@@ -270,19 +270,51 @@ const BUILD_TO_ARCHETYPE: Record<string, PlayerArchetype> = {
   Grinder: 'grinder',
   'Two-Way Forward': 'two-way-fwd',
   'Power Forward': 'power-forward',
+  Enforcer: 'enforcer',
   'Puck Moving Defenseman': 'puckmover',
   'Defensive Defenseman': 'defensive-d',
   'Offensive Defenseman': 'offensive-d',
   'Two-Way Defenseman': 'two-way-d',
+  'Enforcer Defenseman': 'enforcer-d',
 }
+
+/** The game sheet's short codes ("Connor McDavid-PLY"), as on the archetype pills. */
+const CODE_TO_ARCHETYPE: Record<string, PlayerArchetype> = {
+  PLY: 'playmaker',
+  SNP: 'sniper',
+  PWF: 'power-forward',
+  GRN: 'grinder',
+  TWF: 'two-way-fwd',
+  ENF: 'enforcer',
+  DFD: 'defensive-d',
+  OFD: 'offensive-d',
+  TWD: 'two-way-d',
+  EFD: 'enforcer-d',
+  PMD: 'puckmover',
+}
+
+/** OCR drops or adds spaces ("Two-WayDefenseman"): compare without them. */
+const squash = (s: string) => s.replace(/[\s-]+/g, '').toLowerCase()
+const BY_SQUASHED = new Map(Object.entries(BUILD_TO_ARCHETYPE).map(([k, v]) => [squash(k), v]))
+const ARCHETYPE_TO_BUILD = new Map(Object.entries(BUILD_TO_ARCHETYPE).map(([k, v]) => [v, k]))
 
 export function buildClassToArchetype(canonical: string | null): PlayerArchetype | null {
   if (canonical === null) return null
+  const raw = canonical.trim()
+  // "Reference Player-PLY": the sheet's short code, however the dash is spaced.
+  const code = /-\s*([A-Z]{3})$/.exec(raw)?.[1]
+  if (code !== undefined && code in CODE_TO_ARCHETYPE) return CODE_TO_ARCHETYPE[code] ?? null
   // Strip optional "Reference Player - " prefix: "Cole Caufield - Sniper" → "Sniper".
   // Only a spaced dash separates it — "Two-Way Forward" keeps its hyphen.
-  const parts = canonical.split(/\s+-\s+/)
-  const build = (parts.length > 1 ? (parts[parts.length - 1] ?? canonical) : canonical).trim()
-  return BUILD_TO_ARCHETYPE[build] ?? null
+  const parts = raw.split(/\s+-\s+/)
+  const build = (parts.length > 1 ? (parts[parts.length - 1] ?? raw) : raw).trim()
+  return BY_SQUASHED.get(squash(build)) ?? null
+}
+
+/** The plain build name ("Playmaker") for any recognised form, else null. */
+export function buildClassName(canonical: string | null): string | null {
+  const archetype = buildClassToArchetype(canonical)
+  return archetype === null ? null : (ARCHETYPE_TO_BUILD.get(archetype) ?? null)
 }
 
 /**

@@ -255,3 +255,8 @@ void test('archetype names: reference-player prefix dropped; initials for the fa
     ],
   )
 })
+
+void test('sheet short-code builds read as their archetype, not raw OCR initials', () => {
+  const v = toBuildLockerView(data([build({ archetype: 'Connor McDavid-PLY' })]))
+  assert.deepEqual([v.tiles[0]?.arcName, v.details[0]?.name], ['Playmaker', 'Playmaker'])
+})

@@ -4,6 +4,7 @@
  * (dates format once, in the operator's zone) and the client only renders.
  */
 import type { PlayerBuild, PlayerBuilds } from '@eanhl/db/queries'
+import { buildClassName } from '../../lib/match-recap.ts'
 import { xFactorIconUrl } from '../../lib/xfactor-asset.ts'
 
 /** The game sheet's 23 attributes in the design's 5 groups (keys as stored). */
@@ -138,6 +139,8 @@ const deltaText = (d: number) => (d > 0 ? `+${String(d)}` : d < 0 ? String(d) : 
 /** "Connor Mcdavid - Playmaker" → "Playmaker". */
 function archetypeName(raw: string | null): string {
   if (raw === null) return 'Unknown build'
+  const known = buildClassName(raw)
+  if (known !== null) return known
   const parts = raw.split(/\s+-\s+/)
   return (parts[parts.length - 1] ?? raw).trim()
 }
