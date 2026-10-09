@@ -32,9 +32,9 @@ video-stats OCR).
 
 **Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. **Card Locker EQUIP is live** (`f24507f`): a member equips a theme on their own card (admin: any card) or AUTO. Plan: [member-logins step 1](docs/superpowers/plans/2026-10-09-member-logins-step-1.md); profile self-edit (B) and admin tools (C) are later steps. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
-**Awards trophy case is live** (2026-10-08): records, season leaders, milestones, plus hand-entered trophies/banners in `apps/web/src/components/awards/club-awards.ts` (add new results there). Awards rank player-card ALL SKATERS totals, not the Stats page's club archive (operator choice).
+**Awards trophy case is live** (2026-10-08); add new trophies/banners in `apps/web/src/components/awards/club-awards.ts`. Awards rank ALL SKATERS totals (operator choice).
 
-**Responsive sizes are live** (2026-10-09): Medium/Small/Micro layouts below desktop, compact cards on phones, side rail on wide screens. Content the mockups hide on small screens stays hidden (operator, 10-09).
+**Responsive sizes are live** (2026-10-09): Medium/Small/Micro tiers, compact cards on phones, side rail on wide screens.
 
 **Member-only player pages are live** (2026-10-09, `fafeefb`; rollback `:rollback-he-2026-10-09-pre-members`): only team members, present and past (EA member list for any title, member archive, pinned, AI goalies — 18 of 92) have a `/roster/[id]` page; guests 404 and show as plain text elsewhere (`PlayerLink` + `MemberLinks`), and the home carousel shows members only.
 
