@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import type { ClubGameTitleStats, ClubSeasonalStats, ClubSeasonRank, MatchResult } from '@eanhl/db'
 import './record-strip.css'
+import { formatClubDateTime } from '@/lib/format'
 
 interface Props {
   /** EA-official seasonal record (W/L/OTL/GP). Optional. */
@@ -61,7 +62,7 @@ export function RecordStrip({
 
   const streak = computeStreak(recentResults.slice(0, 10))
 
-  const updatedAtIso = formatTimestamp(recentResults[0]?.playedAt)
+  const lastGameAt = formatClubDateTime(recentResults[0]?.playedAt)
 
   return (
     <section className="rs-frame">
@@ -85,11 +86,11 @@ export function RecordStrip({
               </span>
             </>
           ) : null}
-          {updatedAtIso ? (
+          {lastGameAt ? (
             <>
               <span className="dot">·</span>
               <span>
-                Updated <b>{updatedAtIso}</b>
+                Last game <b>{lastGameAt}</b>
               </span>
             </>
           ) : null}
@@ -344,15 +345,4 @@ function markerPctFromDiff(diff: number): number {
   // Map [-50, +50] → [0, 100]; clamped.
   const clamped = Math.max(-50, Math.min(50, diff))
   return ((clamped + 50) / 100) * 100
-}
-
-function formatTimestamp(d: Date | undefined): string | null {
-  if (!d) return null
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const yyyy = d.getFullYear()
-  const mm = pad(d.getMonth() + 1)
-  const dd = pad(d.getDate())
-  const hh = pad(d.getHours())
-  const min = pad(d.getMinutes())
-  return `${String(yyyy)}-${mm}-${dd} ${hh}:${min}`
 }

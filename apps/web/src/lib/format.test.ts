@@ -6,7 +6,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { formatDuration, headingName } from './format.ts'
+import { formatDataDay, formatDuration, formatSavePct, headingName } from './format.ts'
 
 const MIN = 60
 const HOUR = 60 * MIN
@@ -45,4 +45,21 @@ void test('headingName shortens long multi-word names to initial + last name', (
   assert.equal(headingName('Jonas Wagner'), 'Jonas Wagner') // 12 characters: fits
   assert.equal(headingName('Igor Orlov'), 'Igor Orlov')
   assert.equal(headingName('HenryTheBobJr'), 'HenryTheBobJr') // one word: a gamertag
+})
+
+void test('formatSavePct: hockey style, a perfect game reads 1.000', () => {
+  assert.equal(formatSavePct('92.30'), '.923')
+  assert.equal(formatSavePct('100.00'), '1.000')
+  assert.equal(formatSavePct('0'), '.000')
+  assert.equal(formatSavePct(null), '—')
+  assert.equal(formatSavePct('x'), '—')
+})
+
+void test('formatDataDay: the club-zone calendar day, the same on server and browser', () => {
+  // 03:30 UTC on Oct 9 is still Oct 8 evening in Edmonton (MDT, UTC−6).
+  assert.equal(formatDataDay(new Date('2026-10-09T03:30:00Z')), '2026-10-08')
+  assert.equal(formatDataDay('2026-10-09T18:00:00Z'), '2026-10-09')
+  assert.equal(formatDataDay(undefined), '—')
+  assert.equal(formatDataDay(null), '—')
+  assert.equal(formatDataDay('not a date'), '—')
 })

@@ -11,6 +11,7 @@ import { ArchetypePillCompact } from '@/components/ui/archetype-pill'
 import { resolvePlatform } from '@/components/ui/platform-badge'
 import { splitBuild, type HeadToHeadStatLine } from '@/lib/head-to-head'
 import { delayVar, durationVar } from '@/lib/motion'
+import { formatSavePct } from '@/lib/format'
 import { DrawerLoadout } from './drawer-loadout'
 import { DrawerStats } from './drawer-stats'
 import {
@@ -739,7 +740,7 @@ function goalieTiles(stat: LineupModuleStatRow | null): LineupStatTile[] {
       value: goalsAgainst?.toString() ?? '—',
       tone: goalsAgainst === null ? 'muted' : 'dim',
     },
-    { label: 'SV%', value: savePct ?? '—', tone: savePct === null ? 'muted' : 'lead' },
+    { label: 'SV%', value: formatSavePct(savePct), tone: savePct === null ? 'muted' : 'lead' },
   ]
 }
 

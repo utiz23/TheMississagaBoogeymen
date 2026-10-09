@@ -9,7 +9,7 @@ import type { GameMode, PlayerArchetype } from '@eanhl/db'
 import { PLAYER_ARCHETYPES } from '@eanhl/db'
 import { NationalityFlag, PlatformIcon } from '@/components/player-meta-icons'
 import { ArchetypePillFlagship } from '@/components/ui/archetype-pill'
-import { formatPositionFull, headingName } from '@/lib/format'
+import { formatPositionFull, formatSavePct, headingName } from '@/lib/format'
 import { formatCareerTitleRange } from '@/lib/title-resolver'
 import './profile-hero.css'
 
@@ -552,7 +552,7 @@ function MiniStats({
           : [
               career.gp.toString(),
               `${(career as GoalieAggregate).w.toString()}-${(career as GoalieAggregate).l.toString()}-${(career as GoalieAggregate).otl.toString()}`,
-              (career as GoalieAggregate).savePct ?? '—',
+              formatSavePct((career as GoalieAggregate).savePct),
               (career as GoalieAggregate).gaa ?? '—',
             ],
     })
@@ -632,7 +632,7 @@ function GoalieLedger({
     <div className="ph-ledger-grid cols-5 dense">
       <Stat label="GP" value={gp.toString()} />
       <Stat label="REC" value={record} />
-      <Stat label="SV%" value={savePct ?? '—'} lead />
+      <Stat label="SV%" value={formatSavePct(savePct)} lead />
       <Stat label="GAA" value={gaa ?? '—'} />
       <Stat label="SO" value={so.toString()} />
     </div>

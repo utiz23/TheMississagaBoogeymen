@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
-import { formatDuration, formatPosition } from '@/lib/format'
+import { formatDataDay, formatDuration, formatPosition } from '@/lib/format'
 import './club-stats-tabs.css'
 
 interface SeasonRow {
+  /** When EA's numbers were last fetched (the "Updated" stamp). */
+  lastFetchedAt?: Date | string | undefined
   gameTitleId: number
   gameTitleName: string
   favoritePosition: string | null
@@ -172,6 +174,8 @@ interface CellSpec {
   perGameOf?: number | undefined
   /** Optional pre-formatted /G value (e.g. EA's pointsPerGame string). Wins over `perGameOf`. */
   perGameValue?: string | undefined
+  /** The value is seconds: the vs-average badge reads "+18h 45m", not raw seconds. */
+  duration?: boolean | undefined
 }
 
 interface MarqueeSpec {
@@ -224,7 +228,7 @@ export function ClubStatsTabs({
       ? (teammates ?? []).filter((t) => t.goalieGp > 0)
       : (teammates ?? []).filter((t) => t.skaterGp > 0 || t.gamesPlayed > 0)
 
-  const today = updatedDate ?? new Date().toISOString().slice(0, 10)
+  const today = updatedDate ?? formatDataDay(season.lastFetchedAt)
   const subtitle =
     `EA-Reported · Full Season · ${season.gameTitleName}` + (gamertag ? ` · ${gamertag}` : '')
   // Micro tier (≤480px) swaps in a shorter scope line — game title first, no
@@ -396,7 +400,12 @@ function Subsection({
           const perGame = computePerGame(c)
           const diff =
             c.rankKey && pool.length > 0
-              ? computeDiffVsAvg(c.rankKey, pool, c.bar, c.unit === '%')
+              ? computeDiffVsAvg(
+                  c.rankKey,
+                  pool,
+                  c.bar,
+                  c.unit === '%' ? 'pct' : c.duration ? 'duration' : 'count',
+                )
               : null
           const diffClass = diff ? diffClassFor(diff.diff, c.rankDir ?? 'desc') : null
           return (
@@ -818,6 +827,7 @@ const TAB_BUILDERS_SKATER: Record<SkaterTabKey, TabBuilder> = {
             {
               label: 'Possession',
               value: formatDuration(s.possessionSeconds),
+              duration: true,
               bar: s.possessionSeconds,
               rankKey: (r) => r.possessionSeconds,
             },
@@ -855,6 +865,7 @@ const TAB_BUILDERS_SKATER: Record<SkaterTabKey, TabBuilder> = {
             {
               label: 'Time on Ice',
               value: formatDuration(s.toiSeconds),
+              duration: true,
               bar: s.toiSeconds ?? 0,
               lead: true,
               rankKey: (r) => r.toiSeconds,
@@ -1278,6 +1289,7 @@ const TAB_BUILDERS_GOALIE: Record<GoalieTabKey, TabBuilder> = {
             {
               label: 'Time on Ice',
               value: formatDuration(toi),
+              duration: true,
               bar: toi,
               lead: true,
               rankKey: (r) => r.goalieToiSeconds ?? null,
@@ -1515,7 +1527,7 @@ function computeDiffVsAvg(
   rankKey: (row: SeasonRow) => number | null,
   pool: TeammateRow[],
   focalValue: number | undefined,
-  isPct: boolean,
+  kind: DiffKind,
 ): DiffResult | null {
   if (focalValue === undefined || !Number.isFinite(focalValue)) return null
   let sum = 0
@@ -1529,11 +1541,18 @@ function computeDiffVsAvg(
   if (count === 0) return null
   const avg = sum / count
   const diff = focalValue - avg
-  return { diff, label: formatDiff(diff, isPct) }
+  return { diff, label: formatDiff(diff, kind) }
 }
 
-function formatDiff(diff: number, isPct: boolean): string {
-  if (isPct) {
+type DiffKind = 'pct' | 'duration' | 'count'
+
+function formatDiff(diff: number, kind: DiffKind): string {
+  if (kind === 'duration') {
+    const abs = Math.abs(diff)
+    if (abs < 60) return '±0m'
+    return `${diff > 0 ? '+' : '−'}${formatDuration(abs)}`
+  }
+  if (kind === 'pct') {
     if (diff > 0.05) return `+${diff.toFixed(1)}`
     if (diff < -0.05) return `−${Math.abs(diff).toFixed(1)}`
     return '±0.0'

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './contribution-wheel.css'
+import { formatDataDay } from '@/lib/format'
 
 /** Subset of the EA season row needed to compute the wheel inputs. */
 export interface ContributionWheelSeason {
@@ -171,7 +172,7 @@ export function ContributionWheel({
   updatedAt,
   sheetCode = 'BGM/CONTRIB/0001',
 }: Props) {
-  const updatedLabel = useMemo(() => formatUpdated(updatedAt), [updatedAt])
+  const updatedLabel = useMemo(() => formatDataDay(updatedAt), [updatedAt])
   const gp = season.skaterGp || season.gamesPlayed || 0
   const lowSample = gp > 0 && gp < 10
 
@@ -844,14 +845,6 @@ function splitDecimal(v: number): React.ReactNode {
       <small>{dec}</small>
     </>
   )
-}
-
-function formatUpdated(d: Date | string | undefined): string {
-  if (d === undefined) return '—'
-  const date = typeof d === 'string' ? new Date(d) : d
-  if (Number.isNaN(date.getTime())) return '—'
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
 function segmentAria(s: EnrichedStat): string {

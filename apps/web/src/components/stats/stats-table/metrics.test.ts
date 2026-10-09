@@ -142,7 +142,7 @@ void test('goalie per-game rates never produce Infinity/NaN for GP = 0 (sortable
 })
 
 void test('goalie supplied SV% and GAA keep stored precision; nulls are dashes', () => {
-  assert.equal(gcell('svp', goalie(), false).text, '80.00%')
+  assert.equal(gcell('svp', goalie(), false).text, '.800')
   assert.equal(gcell('gaa', goalie(), false).text, '3.10')
   assert.equal(gcell('gaa', goalie({ gaa: null }), false).text, '—')
   assert.equal(gcell('w', goalie({ wins: null }), false).text, '—')

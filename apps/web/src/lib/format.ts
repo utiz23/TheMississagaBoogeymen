@@ -63,8 +63,42 @@ export function formatDuration(seconds: number | null): string {
 export function formatSavePct(val: string | null): string {
   if (val === null) return '—'
   const n = parseFloat(val)
-  if (isNaN(n)) return '—'
-  return (n / 100).toFixed(3).slice(1)
+  if (!Number.isFinite(n)) return '—'
+  const s = (n / 100).toFixed(3)
+  return s.startsWith('0') ? s.slice(1) : s
+}
+
+/** The club's zone: data-freshness days read as the operator sees them. */
+const CLUB_TIME_ZONE = 'America/Edmonton'
+const DATA_DAY = new Intl.DateTimeFormat('en-CA', {
+  timeZone: CLUB_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+const CLUB_TIME = new Intl.DateTimeFormat('en-GB', {
+  timeZone: CLUB_TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+/** "2026-10-09 21:14" in the club's zone (a game's time, not a fetch time). */
+export function formatClubDateTime(date: Date | null | undefined): string | null {
+  if (date === null || date === undefined || Number.isNaN(date.getTime())) return null
+  return `${DATA_DAY.format(date)} ${CLUB_TIME.format(date)}`
+}
+
+/**
+ * "Updated" stamps: the day data was last fetched, as "2026-10-09" in the
+ * club's zone, so server and browser render the same text. "—" when unknown.
+ */
+export function formatDataDay(date: Date | string | null | undefined): string {
+  if (date === null || date === undefined) return '—'
+  const d = typeof date === 'string' ? new Date(date) : date
+  if (Number.isNaN(d.getTime())) return '—'
+  return DATA_DAY.format(d)
 }
 
 /**

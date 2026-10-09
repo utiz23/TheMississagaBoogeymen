@@ -1,4 +1,5 @@
-import { fmtSuppliedDecimal, fmtSuppliedPct, parseSupplied, ratio } from './format.ts'
+import { formatSavePct } from '../../../lib/format.ts'
+import { fmtSuppliedDecimal, parseSupplied, ratio } from './format.ts'
 import type { Metric, MetricMap } from './metrics.ts'
 import { gaaCoverageAnnotation, toiCoverageAnnotation } from './notes.ts'
 import type { GoalieDisplayRow as R, GoalieExpanded } from './types.ts'
@@ -31,7 +32,7 @@ const exPctText =
   (k: keyof GoalieExpanded) =>
   (r: R): string => {
     const v = r.expanded?.[k]
-    return fmtSuppliedPct(typeof v === 'string' ? v : null)
+    return formatSavePct(typeof v === 'string' ? v : null)
   }
 
 export const GOALIE_METRICS: MetricMap<R> = {
@@ -53,7 +54,7 @@ export const GOALIE_METRICS: MetricMap<R> = {
     full: 'Save percentage as supplied by the source',
     value: (r) => parseSupplied(r.savePct),
     format: 'pct1',
-    text: (r) => fmtSuppliedPct(r.savePct),
+    text: (r) => formatSavePct(r.savePct),
   },
   gaa: {
     key: 'gaa',

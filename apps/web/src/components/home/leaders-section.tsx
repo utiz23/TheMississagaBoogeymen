@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { PlayerLink } from '@/components/ui/player-link'
 import type { GameMode } from '@eanhl/db'
-import { formatPosition } from '@/lib/format'
+import { formatPosition, formatSavePct } from '@/lib/format'
 import './leaders-section.css'
 
 /** Structural row that satisfies both `getRoster` and `getEARoster` outputs. */
@@ -363,11 +363,4 @@ function positionVar(r: ScoringLeaderRow): string | undefined {
     default:
       return undefined
   }
-}
-
-function formatSavePct(raw: string | null): string {
-  if (raw === null) return '—'
-  const n = parseFloat(raw)
-  if (!Number.isFinite(n)) return '—'
-  return (n / 100).toFixed(3).slice(1) // ".762"
 }

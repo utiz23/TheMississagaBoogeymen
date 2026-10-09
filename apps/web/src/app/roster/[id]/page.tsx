@@ -43,6 +43,7 @@ import { buildLockerView } from '@/components/cards/locker-model'
 import { cardFromProfile } from '@/components/cards/card-adapters'
 import { Panel } from '@/components/ui/panel'
 import { PlayerRail, type RailSheet } from '@/components/roster/player-rail'
+import { formatDataDay } from '@/lib/format'
 
 export const revalidate = 3600
 
@@ -388,7 +389,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
               titleName={focalEaRow.gameTitleName}
               gamertag={overview.player.gamertag}
               playerGp={focalEaRow.skaterGp}
-              updatedDate={new Date().toISOString().slice(0, 10)}
+              updatedDate={formatDataDay(focalEaRow.lastFetchedAt)}
             />
           )}
           {selectedRole === 'goalie' && focalEaRow !== undefined && (
@@ -400,7 +401,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
               titleName={focalEaRow.gameTitleName}
               gamertag={overview.player.gamertag}
               playerGp={focalEaRow.goalieGp}
-              updatedDate={new Date().toISOString().slice(0, 10)}
+              updatedDate={formatDataDay(focalEaRow.lastFetchedAt)}
             />
           )}
         </div>
