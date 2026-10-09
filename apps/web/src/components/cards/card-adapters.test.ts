@@ -293,3 +293,33 @@ void test('hero position falls back to the EA favourite position like the live h
   })
   assert.equal(card.front.position, 'RW')
 })
+
+void test('an equipped theme shows where the card allows it, otherwise AUTO', () => {
+  const base = {
+    player: {
+      id: 2,
+      gamertag: 'silkyjoker85',
+      playerName: null,
+      jerseyNumber: null,
+      nationality: null,
+      position: 'rightWing',
+      preferredPosition: null,
+    },
+    season: null,
+    trendGames: [],
+    career: [],
+    role: 'skater' as const,
+  }
+  const theme = (themePref: 'away' | 'carbon' | 'frozen' | null, tier: 2 | 4 | 6 = 4) =>
+    cardFromProfile({
+      ...base,
+      progress: {
+        standing: { tier, level: 1, mythicTheme: tier === 6 ? 'inferno' : null, themePref },
+        badges: [],
+      },
+    }).front.theme
+  assert.equal(theme(null), 'carbon')
+  assert.equal(theme('away'), 'away')
+  assert.equal(theme('carbon', 2), 'home', 'not unlocked on this card: AUTO')
+  assert.equal(theme('frozen', 6), 'inferno', 'a mythic the club did not award: AUTO')
+})

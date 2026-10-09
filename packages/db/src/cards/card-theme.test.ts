@@ -1,9 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  isThemeEquippable,
   isThemeUnlocked,
   pickBestBadge,
   resolveCardTheme,
+  resolveEquippedTheme,
   themeTier,
   topBadges,
 } from './card-theme.js'
@@ -49,4 +51,27 @@ void test('top badges: earned only, highest level first, ties in catalog order, 
   assert.deepEqual(pickBestBadge(rows), { familyId: 'pwins', level: 15 })
   assert.equal(pickBestBadge([{ familyId: 'gso', level: 0 }]), null)
   assert.equal(pickBestBadge([]), null)
+})
+
+void test('equippable: regular themes by tier, mythics only as the awarded one', () => {
+  assert.equal(isThemeEquippable('home', 2, null), true)
+  assert.equal(isThemeEquippable('carbon', 3, null), false)
+  assert.equal(isThemeEquippable('futureB', 6, 'inferno'), true)
+  assert.equal(isThemeEquippable('inferno', 6, 'inferno'), true)
+  assert.equal(
+    isThemeEquippable('frozen', 6, 'inferno'),
+    false,
+    'a non-awarded mythic stays locked',
+  )
+  assert.equal(isThemeEquippable('inferno', 6, null), false, 'no award, no mythic')
+  assert.equal(isThemeEquippable('inferno', 5, 'inferno'), false)
+})
+
+void test('equipped theme: the pick where allowed, otherwise AUTO', () => {
+  assert.equal(resolveEquippedTheme(4, null, null), 'carbon', 'no pick = AUTO')
+  assert.equal(resolveEquippedTheme(4, null, 'away'), 'away', 'a lower theme can be worn')
+  assert.equal(resolveEquippedTheme(5, null, 'away'), 'away', 'a pick survives a tier-up')
+  assert.equal(resolveEquippedTheme(2, null, 'carbon'), 'home', 'locked on this card: AUTO')
+  assert.equal(resolveEquippedTheme(6, 'inferno', 'frozen'), 'inferno', 'unawarded mythic: AUTO')
+  assert.equal(resolveEquippedTheme(6, 'inferno', 'carbon'), 'carbon')
 })

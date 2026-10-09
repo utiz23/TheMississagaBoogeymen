@@ -4,6 +4,7 @@ import {
   gameTitles,
   playerBadgeLevels,
   playerCardEvents,
+  playerCardPrefs,
   playerCardProgress,
   players,
 } from '../schema/index.js'
@@ -15,7 +16,7 @@ import type {
   TierPool,
 } from '../cards/badge-catalog.js'
 import type { CardEventKind } from '../cards/progression.js'
-import { pickBestBadge, resolveCardTheme, type BadgeLevelRef } from '../cards/card-theme.js'
+import { pickBestBadge, resolveEquippedTheme, type BadgeLevelRef } from '../cards/card-theme.js'
 
 export interface PlayerCardProgress {
   /** One of the two AI goalies (their badges use AI_GOALIE_LADDERS). */
@@ -28,6 +29,8 @@ export interface PlayerCardProgress {
     level: number
     pool: TierPool | 'manual'
     mythicTheme: MythicThemeKey | null
+    /** The theme the member equipped (all titles); null = AUTO. May be locked on this card. */
+    themePref: CardThemeKey | null
     computedAt: Date
     /** When the worker first computed this card: its history starts here. */
     trackedSince: Date
@@ -54,11 +57,13 @@ async function cardRowsNewestFirst(playerIds: readonly number[]) {
       level: playerCardProgress.level,
       tierPool: playerCardProgress.tierPool,
       mythicTheme: playerCardProgress.mythicTheme,
+      themePref: playerCardPrefs.theme,
       computedAt: playerCardProgress.computedAt,
       createdAt: playerCardProgress.createdAt,
     })
     .from(playerCardProgress)
     .innerJoin(gameTitles, eq(gameTitles.id, playerCardProgress.gameTitleId))
+    .leftJoin(playerCardPrefs, eq(playerCardPrefs.playerId, playerCardProgress.playerId))
     .where(inArray(playerCardProgress.playerId, [...playerIds]))
     .orderBy(desc(gameTitles.releaseOrder), desc(gameTitles.id))
 }
@@ -122,6 +127,7 @@ export async function getPlayerCardProgress(
       level: s.level,
       pool: s.tierPool,
       mythicTheme: s.mythicTheme ?? null,
+      themePref: s.themePref ?? null,
       computedAt: s.computedAt,
       trackedSince: s.createdAt,
     },
@@ -152,11 +158,23 @@ export async function getCardProgressForPlayers(
   if (playerIds.length === 0) return out
   const cards = new Map<
     number,
-    { gameTitleId: number; tier: CardTier; level: number; mythicTheme: MythicThemeKey | null }
+    {
+      gameTitleId: number
+      tier: CardTier
+      level: number
+      mythicTheme: MythicThemeKey | null
+      themePref: CardThemeKey | null
+    }
   >()
   for (const r of await cardRowsNewestFirst(playerIds)) {
     if (gameTitleId !== undefined && r.gameTitleId !== gameTitleId) continue
-    if (!cards.has(r.playerId)) cards.set(r.playerId, { ...r, mythicTheme: r.mythicTheme ?? null })
+    if (!cards.has(r.playerId)) {
+      cards.set(r.playerId, {
+        ...r,
+        mythicTheme: r.mythicTheme ?? null,
+        themePref: r.themePref ?? null,
+      })
+    }
   }
   if (cards.size === 0) return out
   const badgeRows = await db
@@ -190,9 +208,27 @@ export async function getCardProgressForPlayers(
     out.set(playerId, {
       tier: c.tier,
       level: c.level,
-      theme: resolveCardTheme(c.tier, c.mythicTheme),
+      theme: resolveEquippedTheme(c.tier, c.mythicTheme, c.themePref),
       bestBadge: featured.get(playerId) ?? pickBestBadge(badges.get(playerId) ?? []),
     })
   }
   return out
+}
+
+/**
+ * Equip a card theme for a player (every title's card), or `null` for AUTO.
+ * The caller checks who may do this and that the theme is equippable.
+ */
+export async function setPlayerCardPref(args: {
+  playerId: number
+  theme: CardThemeKey | null
+  userId: string
+}): Promise<void> {
+  await db
+    .insert(playerCardPrefs)
+    .values({ playerId: args.playerId, theme: args.theme, updatedByUserId: args.userId })
+    .onConflictDoUpdate({
+      target: playerCardPrefs.playerId,
+      set: { theme: args.theme, updatedByUserId: args.userId, updatedAt: new Date() },
+    })
 }

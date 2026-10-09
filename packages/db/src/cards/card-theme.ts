@@ -5,6 +5,7 @@
 import {
   BADGE_FAMILY_IDS,
   CARD_THEME_ORDER,
+  MYTHIC_THEMES,
   TIER_THEME,
   type BadgeFamilyId,
   type CardThemeKey,
@@ -26,6 +27,36 @@ export function themeTier(theme: CardThemeKey): CardTier {
 
 export function isThemeUnlocked(theme: CardThemeKey, tier: CardTier): boolean {
   return themeTier(theme) <= tier
+}
+
+/**
+ * Whether a member may equip `theme` on a card of this tier. The five regular
+ * themes unlock with tier; a mythic only ever as the one the club awarded
+ * this card (operator, 2026-10-09: reaching T6 does not open every mythic).
+ */
+export function isThemeEquippable(
+  theme: CardThemeKey,
+  tier: CardTier,
+  mythicTheme: MythicThemeKey | null,
+): boolean {
+  if ((MYTHIC_THEMES as readonly string[]).includes(theme)) {
+    return tier === 6 && theme === mythicTheme
+  }
+  return themeTier(theme) <= tier
+}
+
+/**
+ * The theme a card shows: the member's equipped pick where this card allows
+ * it, otherwise AUTO (follow tier). One pick covers every title's card, so an
+ * older season with a lower tier simply falls back to AUTO there.
+ */
+export function resolveEquippedTheme(
+  tier: CardTier,
+  mythicTheme: MythicThemeKey | null,
+  pref: CardThemeKey | null,
+): CardThemeKey {
+  if (pref !== null && isThemeEquippable(pref, tier, mythicTheme)) return pref
+  return resolveCardTheme(tier, mythicTheme)
 }
 
 export interface BadgeLevelRef {

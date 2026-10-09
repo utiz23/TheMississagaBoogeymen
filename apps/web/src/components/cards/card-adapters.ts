@@ -4,7 +4,7 @@
  * profile/career/game-log data (+ getPlayerCardProgress) for the hero.
  * Structural input types only — no runtime import of the db client.
  */
-import { pickBestBadge, resolveCardTheme } from '@eanhl/db/cards'
+import { pickBestBadge, resolveEquippedTheme } from '@eanhl/db/cards'
 import type { BadgeFamilyId, CardThemeKey, CardTier, MythicThemeKey } from '@eanhl/db/cards'
 import {
   buildBadgeShowcase,
@@ -136,7 +136,13 @@ export interface CardProfileInput {
   role: CardRole
   /** getPlayerCardProgress result, or null when it failed to load. */
   progress: {
-    standing: { tier: CardTier; level: number; mythicTheme: MythicThemeKey | null } | null
+    standing: {
+      tier: CardTier
+      level: number
+      mythicTheme: MythicThemeKey | null
+      /** The member's equipped theme; null/absent = AUTO. */
+      themePref?: CardThemeKey | null
+    } | null
     badges: readonly { familyId: BadgeFamilyId; value: number; level: number; featured?: boolean }[]
   } | null
 }
@@ -191,7 +197,7 @@ export function cardFromProfile(input: CardProfileInput): CardViewModel {
       nationality: player.nationality,
       tier,
       level: standing?.level ?? 1,
-      theme: resolveCardTheme(tier, standing?.mythicTheme ?? null),
+      theme: resolveEquippedTheme(tier, standing?.mythicTheme ?? null, standing?.themePref ?? null),
       badge:
         featured === undefined
           ? pickBestBadge(badges)
