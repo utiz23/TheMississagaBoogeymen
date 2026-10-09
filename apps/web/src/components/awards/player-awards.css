@@ -47,6 +47,10 @@
   font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
+.pa-dot {
+  margin-right: 10px;
+  color: #52525b;
+}
 .pa-rule {
   height: 1px;
   background: linear-gradient(90deg, #7a1a10, #e84131, #7a1a10);
@@ -216,6 +220,19 @@
 .pa-key {
   width: 10px;
   height: 12px;
+}
+.pa-key-trophy {
+  width: 12px;
+  height: 10px;
+  box-sizing: border-box;
+  border-radius: 0 0 6px 6px;
+  background: #a1a1aa;
+  border-top: 2px solid #e84131;
+}
+.pa-key-banner {
+  width: 9px;
+  background: linear-gradient(180deg, #e84131 0 3px, #71717a 3px);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
 }
 .pa-key-record {
   background: #e84131;

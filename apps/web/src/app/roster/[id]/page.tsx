@@ -38,6 +38,7 @@ import { shouldShowActionMap } from '@/components/roster/action-map-model'
 import { PlayerBadges } from '@/components/badges/player-badges'
 import { PlayerAwards } from '@/components/awards/player-awards'
 import { buildPlayerAwards } from '@/components/awards/awards-model'
+import { CLUB_AWARDS } from '@/components/awards/club-awards'
 import { LazyMount } from '@/components/ui/lazy-mount'
 import { HeroCard } from '@/components/cards/hero-card'
 import { buildLockerView } from '@/components/cards/locker-model'
@@ -243,7 +244,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     seasonName: cardProgress?.gameTitle?.name ?? null,
   })
 
-  const awards = buildPlayerAwards(clubLines, id)
+  const awards = buildPlayerAwards(clubLines, id, CLUB_AWARDS)
 
   // Trend: role-filtered, oldest first, max 15
   const trendGames = [...overview.trendGames]
@@ -385,7 +386,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       />
 
       {awards.items.length > 0 && (
-        <PlayerAwards gamertag={overview.player.gamertag} span={awards.span} items={awards.items} />
+        <PlayerAwards gamertag={overview.player.gamertag} awards={awards} />
       )}
     </div>
   )

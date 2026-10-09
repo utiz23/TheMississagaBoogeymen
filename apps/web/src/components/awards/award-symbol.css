@@ -200,3 +200,284 @@
   height: 4px;
   background: #2a2829;
 }
+
+/* Club trophies: metal cup on a stem, foot and name plate. */
+.as-tr {
+  --as-metal: linear-gradient(90deg, #52525b, #e4e4e7 40%, #a1a1aa 62%, #52525b);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.as-tr-stem {
+  background: linear-gradient(90deg, #52525b, #d4d4d8, #71717a);
+}
+.as-tr-foot {
+  height: 3px;
+  background: #a1a1aa;
+}
+.as-tr-plate {
+  width: 34px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  background: #2a2829;
+  border: 1px solid #514e4f;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #fafafa;
+}
+.as-mvp-cup {
+  position: relative;
+  width: 34px;
+  height: 28px;
+}
+.as-mvp-handle {
+  position: absolute;
+  top: 4px;
+  width: 8px;
+  height: 13px;
+  border: 3px solid #a1a1aa;
+}
+.as-mvp-handle-l {
+  left: -9px;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+}
+.as-mvp-handle-r {
+  right: -9px;
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+}
+.as-mvp-bowl {
+  position: absolute;
+  inset: 0;
+  border-radius: 0 0 17px 17px;
+  background: var(--as-metal);
+  border-top: 2px solid #fafafa;
+}
+.as-mvp-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  height: 4px;
+  background: #e84131;
+}
+.as-sc-puck {
+  width: 30px;
+  height: 9px;
+  box-sizing: border-box;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #3a3839, #18181b);
+  border: 1px solid #71717a;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.12);
+}
+.as-sc-rim {
+  width: 30px;
+  height: 2px;
+  background: #e84131;
+}
+.as-sc-cone {
+  width: 28px;
+  height: 20px;
+  background: var(--as-metal);
+  clip-path: polygon(0 0, 100% 0, 68% 100%, 32% 100%);
+}
+.as-as-lip {
+  width: 50px;
+  height: 3px;
+  background: #fafafa;
+}
+.as-as-dish {
+  width: 46px;
+  height: 12px;
+  border-radius: 0 0 23px 23px;
+  background: var(--as-metal);
+}
+.as-as-band {
+  width: 14px;
+  height: 3px;
+  background: #e84131;
+}
+.as-pt-gem {
+  width: 9px;
+  height: 9px;
+  margin-bottom: 2px;
+  transform: rotate(45deg);
+  background: #e84131;
+}
+.as-pt-step {
+  height: 8px;
+  background: linear-gradient(90deg, #52525b, #e4e4e7 45%, #71717a);
+}
+.as-df-shield {
+  position: relative;
+  width: 30px;
+  height: 34px;
+  background: var(--as-metal);
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+}
+.as-df-inner {
+  position: absolute;
+  inset: 3px;
+  background: #2a2829;
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+}
+.as-df-bar {
+  position: absolute;
+  left: 13px;
+  top: 3px;
+  width: 4px;
+  height: 28px;
+  background: #e84131;
+}
+.as-ry-star {
+  width: 14px;
+  height: 14px;
+  margin-bottom: 1px;
+  background: #e84131;
+  clip-path: polygon(
+    50% 0,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2% 35%,
+    39% 35%
+  );
+}
+.as-ry-cup {
+  width: 20px;
+  height: 22px;
+  box-sizing: border-box;
+  border-radius: 0 0 10px 10px;
+  background: var(--as-metal);
+  border-top: 2px solid #fafafa;
+}
+
+/* 3v3 championship banner. */
+.as-b3 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.as-b3-rod {
+  width: 48px;
+  height: 3px;
+  background: linear-gradient(90deg, #52525b, #e4e4e7, #52525b);
+}
+.as-b3-edge,
+.as-b3-face {
+  clip-path: polygon(0 0, 100% 0, 100% 78%, 50% 100%, 0 78%);
+}
+.as-b3-edge {
+  width: 40px;
+  height: 60px;
+  background: #71717a;
+}
+.as-b3-face {
+  margin: 0 1px;
+  height: 59px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(
+    90deg,
+    #e84131 0 3px,
+    #232122 3px calc(100% - 3px),
+    #e84131 calc(100% - 3px)
+  );
+}
+.as-b3-mode {
+  margin-top: 9px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #e84131;
+}
+.as-b3-glyph {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 900;
+  color: #fafafa;
+}
+.as-b3-word {
+  margin-top: 4px;
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #a1a1aa;
+}
+
+/* Arcade championship pennant on a pole. */
+.as-ba {
+  position: relative;
+  width: 82px;
+  height: 70px;
+}
+.as-ba-knob {
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fafafa, #71717a);
+}
+.as-ba-pole {
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  width: 3px;
+  height: 64px;
+  background: linear-gradient(90deg, #52525b, #e4e4e7, #71717a);
+}
+.as-ba-edge,
+.as-ba-face {
+  position: absolute;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+.as-ba-edge {
+  left: 8px;
+  top: 9px;
+  width: 72px;
+  height: 46px;
+  background: #71717a;
+}
+.as-ba-face {
+  left: 0;
+  top: 1px;
+  width: 71px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(180deg, #2f2d2e 0 50%, #252324 50%);
+}
+.as-ba-tag {
+  flex: none;
+  width: 12px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: #e84131;
+}
+.as-ba-tag span {
+  transform: rotate(-90deg);
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #fff;
+  white-space: nowrap;
+}
+.as-ba-glyph {
+  padding-left: 6px;
+  font-size: 16px;
+  font-weight: 900;
+  color: #fafafa;
+}
