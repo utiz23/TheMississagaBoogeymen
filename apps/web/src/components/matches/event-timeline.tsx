@@ -9,7 +9,7 @@ import {
   type CSSProperties,
   type RefObject,
 } from 'react'
-import Link from 'next/link'
+import { PlayerLink } from '@/components/ui/player-link'
 import type { MatchEventRow } from '@eanhl/db/queries'
 import { abbreviateTeamName } from '@/lib/format'
 import { cssVars, delayVar, durationVar, prefersReducedMotion } from '@/lib/motion'
@@ -927,9 +927,9 @@ function ActorName({
     )
   }
   return (
-    <Link prefetch href={`/roster/${String(id)}`} className={`${base} hover:text-accent`}>
+    <PlayerLink playerId={id} className={`${base} hover:text-accent`} guestClassName={base}>
       {name}
-    </Link>
+    </PlayerLink>
   )
 }
 
@@ -995,9 +995,9 @@ function AssistName({ name, id }: { name: string; id: number | null }) {
     )
   }
   return (
-    <Link prefetch href={`/roster/${String(id)}`} className={`${base} hover:text-accent`}>
+    <PlayerLink playerId={id} className={`${base} hover:text-accent`} guestClassName={base}>
       {name}
-    </Link>
+    </PlayerLink>
   )
 }
 

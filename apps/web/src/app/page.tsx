@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { MemberLinks } from '@/components/ui/member-links'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import {
@@ -12,6 +13,7 @@ import {
   getEARoster,
   getRosterCarryOvers,
   getCardProgressForPlayers,
+  getClubMemberIds,
   getHistoricalClubTeamStatsBatch,
 } from '@eanhl/db/queries'
 import { redirect } from 'next/navigation'
@@ -148,7 +150,14 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   // The carousel also carries last title's members who haven't played this
   // title yet (zero games, sorted last). A failure only leaves them out.
   const carryOvers = await getRosterCarryOvers(gameTitle.id).catch(() => [])
-  const featuredPlayers = selectFeaturedPlayers([...roster, ...carryOvers])
+  // Cards are for team members only (operator, 2026-10-09): a mode's local
+  // roster also holds guests who filled in. A failure keeps everyone.
+  const memberIds = await getClubMemberIds()
+    .then((ids) => new Set(ids))
+    .catch(() => null)
+  const featuredPlayers = selectFeaturedPlayers(
+    [...roster, ...carryOvers].filter((p) => memberIds === null || memberIds.has(p.playerId)),
+  )
   // Player cards (tier, theme, featured badge). A failure only drops the
   // progression: every card then shows tier 1, as for a player not yet computed.
   const cardSummaries = await getCardProgressForPlayers(
@@ -170,100 +179,102 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const teamGp = officialRecord ? officialRecord.gamesPlayed : (clubStats?.gamesPlayed ?? null)
 
   return (
-    <div className="space-y-8">
-      {/* Page header — team identity first */}
-      <div className="flex items-baseline gap-3">
-        <h1 className="font-condensed text-2xl font-semibold uppercase tracking-widest text-zinc-50">
-          Boogeymen
-        </h1>
-        <span className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
-          {gameTitle.name}
-        </span>
+    <MemberLinks>
+      <div className="space-y-8">
+        {/* Page header — team identity first */}
+        <div className="flex items-baseline gap-3">
+          <h1 className="font-condensed text-2xl font-semibold uppercase tracking-widest text-zinc-50">
+            Boogeymen
+          </h1>
+          <span className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
+            {gameTitle.name}
+          </span>
+        </div>
+
+        {/* 1. LATEST RESULT */}
+        {lastMatch !== null && (
+          <section>
+            <LatestResult
+              match={lastMatch}
+              clubRecord={latestClubRecord}
+              opponentCrestAssetId={lastMatchOpponent?.crestAssetId ?? null}
+              opponentCrestUseBaseAsset={lastMatchOpponent?.useBaseAsset ?? null}
+              faceoffs={lastMatchFaceoffs}
+              divisionName={seasonRank?.divisionName ?? null}
+            />
+          </section>
+        )}
+
+        {/* 2. ROSTER SPOTLIGHT */}
+        {featuredPlayers.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <SectionHeader label="Roster Spotlight" />
+              <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
+                {rosterSource}
+              </span>
+            </div>
+            <PlayerCarousel cards={featuredCards} />
+          </section>
+        )}
+
+        {/* 3. SCORING LEADERS */}
+        {(pointsLeaders.length > 0 || goalieLeaders.length > 0) && (
+          <section>
+            <ScoringLeadersPanel
+              pointsLeaders={pointsLeaders}
+              goalsLeaders={goalsLeaders}
+              goalieLeaders={goalieLeaders}
+              gameMode={gameMode}
+              source={rosterSource}
+              teamGp={teamGp ?? undefined}
+            />
+          </section>
+        )}
+
+        {/* 4. RECORD STRIP — record / win% / goal diff / form */}
+        <RecordStrip
+          officialRecord={officialRecord}
+          localStats={clubStats}
+          seasonRank={seasonRank}
+          recentResults={recentMatches.map((m) => ({ result: m.result, playedAt: m.playedAt }))}
+          gameTitleName={gameTitle.name}
+        />
+
+        {/* 5. RECENT RESULTS */}
+        {recentMatches.length > 1 && (
+          <section className="space-y-3">
+            <SectionHeader label="Recent Results" />
+            <RecentGamesStrip matches={recentMatches.slice(1, 6)} />
+          </section>
+        )}
+
+        {/* 7. TITLE RECORDS — cross-title comparison */}
+        <section className="space-y-3">
+          <SectionHeader label="Title Records" />
+          {titleRecords.status === 'ok' ? (
+            <TitleRecordsTable titles={titleRecords.rows} />
+          ) : (
+            <Panel className="flex min-h-[8rem] items-center justify-center">
+              <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
+                Title Records unavailable right now.
+              </p>
+            </Panel>
+          )}
+        </section>
+
+        {/* Empty state when no data at all */}
+        {clubStats !== null &&
+          clubStats.gamesPlayed === 0 &&
+          lastMatch === null &&
+          roster.length === 0 && (
+            <Panel className="flex min-h-[12rem] items-center justify-center">
+              <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
+                No games recorded for {gameTitle.name} yet.
+              </p>
+            </Panel>
+          )}
       </div>
-
-      {/* 1. LATEST RESULT */}
-      {lastMatch !== null && (
-        <section>
-          <LatestResult
-            match={lastMatch}
-            clubRecord={latestClubRecord}
-            opponentCrestAssetId={lastMatchOpponent?.crestAssetId ?? null}
-            opponentCrestUseBaseAsset={lastMatchOpponent?.useBaseAsset ?? null}
-            faceoffs={lastMatchFaceoffs}
-            divisionName={seasonRank?.divisionName ?? null}
-          />
-        </section>
-      )}
-
-      {/* 2. ROSTER SPOTLIGHT */}
-      {featuredPlayers.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <SectionHeader label="Roster Spotlight" />
-            <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-600">
-              {rosterSource}
-            </span>
-          </div>
-          <PlayerCarousel cards={featuredCards} />
-        </section>
-      )}
-
-      {/* 3. SCORING LEADERS */}
-      {(pointsLeaders.length > 0 || goalieLeaders.length > 0) && (
-        <section>
-          <ScoringLeadersPanel
-            pointsLeaders={pointsLeaders}
-            goalsLeaders={goalsLeaders}
-            goalieLeaders={goalieLeaders}
-            gameMode={gameMode}
-            source={rosterSource}
-            teamGp={teamGp ?? undefined}
-          />
-        </section>
-      )}
-
-      {/* 4. RECORD STRIP — record / win% / goal diff / form */}
-      <RecordStrip
-        officialRecord={officialRecord}
-        localStats={clubStats}
-        seasonRank={seasonRank}
-        recentResults={recentMatches.map((m) => ({ result: m.result, playedAt: m.playedAt }))}
-        gameTitleName={gameTitle.name}
-      />
-
-      {/* 5. RECENT RESULTS */}
-      {recentMatches.length > 1 && (
-        <section className="space-y-3">
-          <SectionHeader label="Recent Results" />
-          <RecentGamesStrip matches={recentMatches.slice(1, 6)} />
-        </section>
-      )}
-
-      {/* 7. TITLE RECORDS — cross-title comparison */}
-      <section className="space-y-3">
-        <SectionHeader label="Title Records" />
-        {titleRecords.status === 'ok' ? (
-          <TitleRecordsTable titles={titleRecords.rows} />
-        ) : (
-          <Panel className="flex min-h-[8rem] items-center justify-center">
-            <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
-              Title Records unavailable right now.
-            </p>
-          </Panel>
-        )}
-      </section>
-
-      {/* Empty state when no data at all */}
-      {clubStats !== null &&
-        clubStats.gamesPlayed === 0 &&
-        lastMatch === null &&
-        roster.length === 0 && (
-          <Panel className="flex min-h-[12rem] items-center justify-center">
-            <p className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
-              No games recorded for {gameTitle.name} yet.
-            </p>
-          </Panel>
-        )}
-    </div>
+    </MemberLinks>
   )
 }

@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlayerLink } from '@/components/ui/player-link'
 import type { WithWithoutRow, PairRow } from '@eanhl/db/queries'
 import {
   CHEMISTRY_MIN_GP_WITH,
@@ -167,13 +167,13 @@ export function WithWithoutTable({ rows }: WithWithoutTableProps) {
             return (
               <tr key={row.playerId} className="transition-colors hover:bg-surface-raised">
                 <td className="py-2.5 pl-4 pr-3">
-                  <Link
-                    prefetch
-                    href={`/roster/${row.playerId.toString()}`}
+                  <PlayerLink
+                    playerId={row.playerId}
                     className="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
+                    guestClassName="font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200"
                   >
                     {row.gamertag}
-                  </Link>
+                  </PlayerLink>
                 </td>
                 <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">
                   <SampleBadge gp={row.gpWith} threshold={CHEMISTRY_MIN_GP_WITH} />
@@ -286,21 +286,21 @@ export function BestPairsTable({ rows }: BestPairsTableProps) {
               >
                 <td className="py-2.5 pl-4 pr-3">
                   <span className="inline-flex items-center gap-1.5 text-sm">
-                    <Link
-                      prefetch
-                      href={`/roster/${row.p1Id.toString()}`}
+                    <PlayerLink
+                      playerId={row.p1Id}
                       className="font-condensed font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
+                      guestClassName="font-condensed font-semibold uppercase tracking-wide text-zinc-200"
                     >
                       {row.p1Gamertag}
-                    </Link>
+                    </PlayerLink>
                     <span className="text-zinc-700">+</span>
-                    <Link
-                      prefetch
-                      href={`/roster/${row.p2Id.toString()}`}
+                    <PlayerLink
+                      playerId={row.p2Id}
                       className="font-condensed font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
+                      guestClassName="font-condensed font-semibold uppercase tracking-wide text-zinc-200"
                     >
                       {row.p2Gamertag}
-                    </Link>
+                    </PlayerLink>
                   </span>
                 </td>
                 <td className="px-3 py-2.5 text-right font-condensed text-sm tabular-nums text-zinc-300">

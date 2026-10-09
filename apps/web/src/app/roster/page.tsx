@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { MemberLinks } from '@/components/ui/member-links'
 import type { GameMode, GameTitle } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import { FIRST_CARD_RELEASE_ORDER } from '@eanhl/db/cards'
@@ -554,7 +555,7 @@ function PageShell({ gameTitle, children }: { gameTitle: GameTitle; children: Re
   return (
     <div className="space-y-10">
       <PageHeader gameTitle={gameTitle} />
-      {children}
+      <MemberLinks>{children}</MemberLinks>
     </div>
   )
 }

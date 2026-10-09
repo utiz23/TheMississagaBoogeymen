@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlayerLink } from '@/components/ui/player-link'
 import type { ReactNode } from 'react'
 import type { LineupRow } from '@eanhl/db/queries'
 
@@ -39,13 +39,13 @@ export function FullPlayerPageLink({ bgmRow }: { bgmRow: LineupRow | null }) {
   const player = bgmRow?.player ?? null
   if (player === null) return null
   return (
-    <Link
-      prefetch
-      href={`/roster/${player.id.toString()}`}
+    <PlayerLink
+      playerId={player.id}
+      fallback={null}
       className="inline-flex min-h-[44px] items-center self-start font-condensed text-[12px] font-bold uppercase tracking-[0.12em] text-accent hover:underline"
     >
       Full player page · {player.gamertag} →
-    </Link>
+    </PlayerLink>
   )
 }
 

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { MemberLinks } from '@/components/ui/member-links'
 import type { GameMode, GameTitle } from '@eanhl/db'
 import type { GameTitleListing } from '@eanhl/db/queries'
 import { GAME_MODE } from '@eanhl/db'
@@ -248,141 +249,143 @@ async function ActiveStats({
   const defenseHasData = teamGoalieAggregates?.shotsIce.some((v) => v > 0) ?? false
 
   return (
-    <PageShell gameTitle={gameTitle}>
-      {/* Record strip — broadcast-style season ledger (W/L/OTL bar, win-pct
+    <MemberLinks>
+      <PageShell gameTitle={gameTitle}>
+        {/* Record strip — broadcast-style season ledger (W/L/OTL bar, win-pct
           gauge, goal differential, last-10 form ribbon). Shared component with
           the home page; renders cleanly even when officialRecord/seasonRank
           haven't been fetched yet (the EA endpoints lag the local aggregate). */}
-      <RecordStrip
-        officialRecord={officialRecord}
-        localStats={clubStats}
-        seasonRank={seasonRank}
-        recentResults={recentMatches}
-        gameTitleName={gameTitle.name}
-      />
-
-      {/* Selectors — page-level context, sit just under the record strip. */}
-      <div className="flex flex-wrap items-center gap-3">
-        <TitleSelector
-          pathname="/stats"
-          titles={allTitles}
-          activeTitleSlug={gameTitle.slug}
-          activeMode={gameMode}
+        <RecordStrip
+          officialRecord={officialRecord}
+          localStats={clubStats}
+          seasonRank={seasonRank}
+          recentResults={recentMatches}
+          gameTitleName={gameTitle.name}
         />
-        <ModeFilter
-          pathname="/stats"
-          titleSlug={gameTitle.slug}
-          activeMode={gameMode}
-          modes={['all', '6s', '3s']}
+
+        {/* Selectors — page-level context, sit just under the record strip. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <TitleSelector
+            pathname="/stats"
+            titles={allTitles}
+            activeTitleSlug={gameTitle.slug}
+            activeMode={gameMode}
+          />
+          <ModeFilter
+            pathname="/stats"
+            titleSlug={gameTitle.slug}
+            activeMode={gameMode}
+            modes={['all', '6s', '3s']}
+          />
+        </div>
+
+        {clubStats === null || clubStats.gamesPlayed === 0 ? (
+          <EmptyState
+            message={
+              gameMode !== null
+                ? `No ${emptyModeLabel}games recorded for ${gameTitle.name} yet.`
+                : `No stats recorded for ${gameTitle.name} yet.`
+            }
+          />
+        ) : null}
+
+        <TeamShotMap
+          offense={teamShotAggregates ?? emptyShotLocations()}
+          offenseHasData={offenseHasData}
+          defense={teamGoalieAggregates ?? emptyShotLocations()}
+          defenseHasData={defenseHasData}
+          titleName={gameTitle.name}
+          {...(clubStats !== null && clubStats.gamesPlayed > 0
+            ? { teamGp: clubStats.gamesPlayed }
+            : {})}
+          {...(recentMatches[0]
+            ? { updatedDate: recentMatches[0].playedAt.toISOString().slice(0, 10) }
+            : {})}
         />
-      </div>
 
-      {clubStats === null || clubStats.gamesPlayed === 0 ? (
-        <EmptyState
-          message={
-            gameMode !== null
-              ? `No ${emptyModeLabel}games recorded for ${gameTitle.name} yet.`
-              : `No stats recorded for ${gameTitle.name} yet.`
-          }
-        />
-      ) : null}
-
-      <TeamShotMap
-        offense={teamShotAggregates ?? emptyShotLocations()}
-        offenseHasData={offenseHasData}
-        defense={teamGoalieAggregates ?? emptyShotLocations()}
-        defenseHasData={defenseHasData}
-        titleName={gameTitle.name}
-        {...(clubStats !== null && clubStats.gamesPlayed > 0
-          ? { teamGp: clubStats.gamesPlayed }
-          : {})}
-        {...(recentMatches[0]
-          ? { updatedDate: recentMatches[0].playedAt.toISOString().slice(0, 10) }
-          : {})}
-      />
-
-      {/* Career team stats — live NHL rows for every active title plus
+        {/* Career team stats — live NHL rows for every active title plus
           reviewed archive imports; sources stay separate in the table. */}
-      {teamHistory.status === 'unavailable' ? (
-        <TeamHistoryUnavailable />
-      ) : teamHistory.rows.length > 0 ? (
-        <TeamHistoryTable rows={teamHistory.rows} />
-      ) : null}
+        {teamHistory.status === 'unavailable' ? (
+          <TeamHistoryUnavailable />
+        ) : teamHistory.rows.length > 0 ? (
+          <TeamHistoryTable rows={teamHistory.rows} />
+        ) : null}
 
-      {/* Skater + Goalie stats — wrapped together in a shared module-frame
+        {/* Skater + Goalie stats — wrapped together in a shared module-frame
           container so they read as one "Player Stats" module, matching the
           depth-chart card frame on /roster (visually-linked sibling). Both
           tables always render together (see `shouldShowPlayerModule`) so
           neither role's independent result — error, explicit empty, or rows
           — can hide the other, or hide its own All Time dataset. */}
-      {showPlayerModule ? (
-        <section className="module-frame divide-y divide-zinc-800/60">
-          <SkaterStatsTable
-            rows={skaterRows}
-            title="Skaters"
-            source={liveSource(gameMode)}
-            allTimeRows={allTimeSkaterRows}
-            allTimeSource={careerSource('Career totals across all titles · all clubs')}
-            allTimeUnavailable={allTimeSkaters.status === 'error'}
-            playerMeta={playerMeta}
-            state={skaters.status}
-            emptyMessage={`No ${emptyModeLabel}skater stats recorded yet.`}
-            positions={positions}
-          />
-          <GoalieStatsTable
-            rows={goalieRows}
-            title="Goalies"
-            source={liveSource(gameMode)}
-            allTimeRows={allTimeGoalieRows}
-            allTimeSource={careerSource('Career totals across all titles · all clubs')}
-            allTimeUnavailable={allTimeGoalies.status === 'error'}
-            playerMeta={playerMeta}
-            state={goalies.status}
-            emptyMessage={`No ${emptyModeLabel}goalie stats recorded yet.`}
-          />
-        </section>
-      ) : null}
+        {showPlayerModule ? (
+          <section className="module-frame divide-y divide-zinc-800/60">
+            <SkaterStatsTable
+              rows={skaterRows}
+              title="Skaters"
+              source={liveSource(gameMode)}
+              allTimeRows={allTimeSkaterRows}
+              allTimeSource={careerSource('Career totals across all titles · all clubs')}
+              allTimeUnavailable={allTimeSkaters.status === 'error'}
+              playerMeta={playerMeta}
+              state={skaters.status}
+              emptyMessage={`No ${emptyModeLabel}skater stats recorded yet.`}
+              positions={positions}
+            />
+            <GoalieStatsTable
+              rows={goalieRows}
+              title="Goalies"
+              source={liveSource(gameMode)}
+              allTimeRows={allTimeGoalieRows}
+              allTimeSource={careerSource('Career totals across all titles · all clubs')}
+              allTimeUnavailable={allTimeGoalies.status === 'error'}
+              playerMeta={playerMeta}
+              state={goalies.status}
+              emptyMessage={`No ${emptyModeLabel}goalie stats recorded yet.`}
+            />
+          </section>
+        ) : null}
 
-      <ChemistrySection
-        withWithout={<WithWithoutTable rows={withWithoutRows} />}
-        bestPairs={<BestPairsTable rows={pairRows} />}
-        matrix={
-          <PairWinMatrix
-            data={pairWinMatrix}
-            titleName={gameTitle.name}
-            clubName="Boogeymen"
-            updatedLabel={
-              recentMatches[0] ? recentMatches[0].playedAt.toISOString().slice(0, 10) : undefined
-            }
-            scope={
-              gameMode !== null
-                ? `Pairwise win % when both players appeared · ${gameMode} mode · ${String(pairWinMatrix.players.length)} skaters`
-                : undefined
-            }
-          />
-        }
-      />
+        <ChemistrySection
+          withWithout={<WithWithoutTable rows={withWithoutRows} />}
+          bestPairs={<BestPairsTable rows={pairRows} />}
+          matrix={
+            <PairWinMatrix
+              data={pairWinMatrix}
+              titleName={gameTitle.name}
+              clubName="Boogeymen"
+              updatedLabel={
+                recentMatches[0] ? recentMatches[0].playedAt.toISOString().slice(0, 10) : undefined
+              }
+              scope={
+                gameMode !== null
+                  ? `Pairwise win % when both players appeared · ${gameMode} mode · ${String(pairWinMatrix.players.length)} skaters`
+                  : undefined
+              }
+            />
+          }
+        />
 
-      {recentMatches.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <SectionHeader label="Recent Games" />
-            <Link
-              prefetch
-              href="/games"
-              className="font-condensed text-xs font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:text-accent"
-            >
-              View all matches →
-            </Link>
-          </div>
-          <div className="space-y-2">
-            {recentMatches.slice(0, 3).map((match, i) => (
-              <MatchRow key={match.id} match={match} isMostRecent={i === 0} />
-            ))}
-          </div>
-        </section>
-      )}
-    </PageShell>
+        {recentMatches.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <SectionHeader label="Recent Games" />
+              <Link
+                prefetch
+                href="/games"
+                className="font-condensed text-xs font-bold uppercase tracking-widest text-zinc-500 transition-colors hover:text-accent"
+              >
+                View all matches →
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {recentMatches.slice(0, 3).map((match, i) => (
+                <MatchRow key={match.id} match={match} isMostRecent={i === 0} />
+              ))}
+            </div>
+          </section>
+        )}
+      </PageShell>
+    </MemberLinks>
   )
 }
 

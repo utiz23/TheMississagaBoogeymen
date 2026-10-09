@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { MemberLinks } from '@/components/ui/member-links'
 import type { CSSProperties } from 'react'
 import { notFound } from 'next/navigation'
 import {
@@ -223,121 +224,123 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       ? 'stats'
       : 'loadouts'
 
+  // `game-sheet` scopes the page's a11y rules (focus ring) — see globals.css.
   return (
-    // `game-sheet` scopes the page's a11y rules (focus ring) — see globals.css.
-    <div className="game-sheet space-y-4" style={opponentColorVars}>
-      {/* 1. Top bar */}
-      <GameTopBar
-        gamesHref={gamesHref}
-        adjacent={adjacent}
-        listQuery={listQuery}
-        seasonNumber={seasonNumber}
-      />
+    <MemberLinks>
+      <div className="game-sheet space-y-4" style={opponentColorVars}>
+        {/* 1. Top bar */}
+        <GameTopBar
+          gamesHref={gamesHref}
+          adjacent={adjacent}
+          listQuery={listQuery}
+          seasonNumber={seasonNumber}
+        />
 
-      {/* 2. Scoreboard hero */}
-      <HeroCard
-        match={match}
-        opponentCrestAssetId={opponentCrestAssetId}
-        opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
-        overtime={overtime}
-        meta={heroMeta}
-      />
+        {/* 2. Scoreboard hero */}
+        <HeroCard
+          match={match}
+          opponentCrestAssetId={opponentCrestAssetId}
+          opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
+          overtime={overtime}
+          meta={heroMeta}
+        />
 
-      <GameSheetModeProvider initialMode={initialMode} loadoutsAvailable={hasOcrLineups}>
-        {/* 3. LOADOUTS | STATS sub-nav — client mode context; the lineup
+        <GameSheetModeProvider initialMode={initialMode} loadoutsAvailable={hasOcrLineups}>
+          {/* 3. LOADOUTS | STATS sub-nav — client mode context; the lineup
               module consumes it from Phase 4. */}
-        <GameSheetModeTabs />
+          <GameSheetModeTabs />
 
-        {/* 4. Main grid — main column (3/4) + rail (1/4); the rail stacks after
+          {/* 4. Main grid — main column (3/4) + rail (1/4); the rail stacks after
               the main column below lg. */}
-        <div className="grid items-start gap-4 lg:grid-cols-4">
-          <GameSheetPanel className="min-w-0 space-y-4 lg:col-span-3">
-            {/* Lineup · Scouting — one roster at a time (BGM|OPP switch), rows
+          <div className="grid items-start gap-4 lg:grid-cols-4">
+            <GameSheetPanel className="min-w-0 space-y-4 lg:col-span-3">
+              {/* Lineup · Scouting — one roster at a time (BGM|OPP switch), rows
               trail X-Factors or stat columns per the LOADOUTS|STATS mode. Rich
               when OCR snapshots exist; lean box-score fallback otherwise. */}
-            <LineupModule
-              lineups={lineupData}
-              variant={lineupVariant}
-              ladder={ladder}
-              bgmStats={playerStats}
-              oppStats={opponentPlayerStats}
-              opponentName={match.opponentName}
-              opponentAbbrev={abbreviateTeamName(match.opponentName)}
-              opponentCrestAssetId={opponentCrestAssetId}
-              opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
-            >
-              {showDiagnostics ? (
-                <LineupModuleFooter
-                  lineups={lineupData}
-                  variant={lineupVariant}
-                  provenance={lineupProvenance}
-                />
-              ) : null}
-            </LineupModule>
+              <LineupModule
+                lineups={lineupData}
+                variant={lineupVariant}
+                ladder={ladder}
+                bgmStats={playerStats}
+                oppStats={opponentPlayerStats}
+                opponentName={match.opponentName}
+                opponentAbbrev={abbreviateTeamName(match.opponentName)}
+                opponentCrestAssetId={opponentCrestAssetId}
+                opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
+              >
+                {showDiagnostics ? (
+                  <LineupModuleFooter
+                    lineups={lineupData}
+                    variant={lineupVariant}
+                    provenance={lineupProvenance}
+                  />
+                ) : null}
+              </LineupModule>
 
-            {/* OCR-derived event timeline — story-mode scoresheet with running
+              {/* OCR-derived event timeline — story-mode scoresheet with running
               score, lead-change banners, and GWG highlight. The real score is
               passed in so a partial event set can never present itself as the
               final. */}
-            <EventTimeline
-              events={matchEventRows}
-              opponentLabel={match.opponentName}
-              scoreFor={match.scoreFor}
-              scoreAgainst={match.scoreAgainst}
-            />
-          </GameSheetPanel>
+              <EventTimeline
+                events={matchEventRows}
+                opponentLabel={match.opponentName}
+                scoreFor={match.scoreFor}
+                scoreAgainst={match.scoreAgainst}
+              />
+            </GameSheetPanel>
 
-          {/* `data-gs-rail` is the height-sync anchor: the event timeline
+            {/* `data-gs-rail` is the height-sync anchor: the event timeline
               measures this column's bottom edge and sizes itself to land on
               it, so the two columns end flush. Renaming it silently turns the
               sync off (the timeline then just runs to its natural height). */}
-          <div data-gs-rail className="min-w-0 space-y-4">
-            <TopPerformers
-              performers={topPerformers}
-              allTeamScores={allTeamScores}
-              opponentLabel={match.opponentName}
-            />
-
-            {/* Deserve-to-win — arc gauge over the weighted possession model;
-                self-collapses when the match has neither shots nor hits. */}
-            {possessionEdge !== null ? (
-              <DtwGauge
-                edge={possessionEdge}
-                opponentName={match.opponentName}
-                scoreFor={match.scoreFor}
-                scoreAgainst={match.scoreAgainst}
-                showCoverage={showDiagnostics}
+            <div data-gs-rail className="min-w-0 space-y-4">
+              <TopPerformers
+                performers={topPerformers}
+                allTeamScores={allTeamScores}
+                opponentLabel={match.opponentName}
               />
-            ) : null}
 
-            {/* OCR-derived per-period box score (hidden until reviewed). The
+              {/* Deserve-to-win — arc gauge over the weighted possession model;
+                self-collapses when the match has neither shots nor hits. */}
+              {possessionEdge !== null ? (
+                <DtwGauge
+                  edge={possessionEdge}
+                  opponentName={match.opponentName}
+                  scoreFor={match.scoreFor}
+                  scoreAgainst={match.scoreAgainst}
+                  showCoverage={showDiagnostics}
+                />
+              ) : null}
+
+              {/* OCR-derived per-period box score (hidden until reviewed). The
                 provenance chip and the source half of the subtitle are operator
                 diagnostics, so they ride the same admin gate as the rest. */}
-            <BoxScore
-              rows={periodSummaries}
-              opponentLabel={match.opponentName}
-              showDiagnostics={showDiagnostics}
-            />
+              <BoxScore
+                rows={periodSummaries}
+                opponentLabel={match.opponentName}
+                showDiagnostics={showDiagnostics}
+              />
 
-            <TeamStats rows={boxScore} opponentName={match.opponentName} />
+              <TeamStats rows={boxScore} opponentName={match.opponentName} />
+            </div>
           </div>
-        </div>
-      </GameSheetModeProvider>
+        </GameSheetModeProvider>
 
-      {/* 5. Full-width action tracker — rink-coordinate spatial extraction +
+        {/* 5. Full-width action tracker — rink-coordinate spatial extraction +
             the synced event list. Team colour comes from the page-root --opp /
             accent vars, so no per-match hexes are passed. */}
-      <ActionTracker
-        events={matchEventRows}
-        opponentLabel={match.opponentName}
-        bgmWasHome={match.bgmWasHome}
-        provenance={actionTrackerProvenance}
-        showProvenance={showDiagnostics}
-      />
+        <ActionTracker
+          events={matchEventRows}
+          opponentLabel={match.opponentName}
+          bgmWasHome={match.bgmWasHome}
+          provenance={actionTrackerProvenance}
+          showProvenance={showDiagnostics}
+        />
 
-      {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}
-      <ContextFooter previous={adjacent.previous} next={adjacent.next} />
-    </div>
+        {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}
+        <ContextFooter previous={adjacent.previous} next={adjacent.next} />
+      </div>
+    </MemberLinks>
   )
 }
 

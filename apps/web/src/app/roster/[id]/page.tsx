@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import {
+  isClubMember,
   getPlayerProfileOverview,
   getPlayerCareerSeasons,
   getPlayerGamertagHistory,
@@ -77,7 +78,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (isNaN(id)) return { title: 'Player Not Found — Club Stats' }
 
   try {
-    const overview = await getPlayerProfileOverview(id)
+    const overview = (await isClubMember(id)) ? await getPlayerProfileOverview(id) : null
     if (!overview) return { title: 'Player Not Found — Club Stats' }
     return { title: `${overview.player.gamertag} — Club Stats` }
   } catch {
@@ -95,6 +96,15 @@ export default async function PlayerPage({ params, searchParams }: Props) {
   const id = parseInt(idStr, 10)
 
   if (isNaN(id)) notFound()
+
+  // Only team members, present and past, have a player page (operator, 2026-10-09).
+  let member = false
+  try {
+    member = await isClubMember(id)
+  } catch {
+    return <ErrorState message="Unable to load player data right now." />
+  }
+  if (!member) notFound()
 
   let overview: Awaited<ReturnType<typeof getPlayerProfileOverview>> = null
   let careerSeasons: Awaited<ReturnType<typeof getPlayerCareerSeasons>> = []

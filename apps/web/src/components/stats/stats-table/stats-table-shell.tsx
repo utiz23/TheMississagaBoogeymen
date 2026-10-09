@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import Link from 'next/link'
+import { PlayerLink } from '@/components/ui/player-link'
 import { Panel } from '@/components/ui/panel'
 import { Toggle, ToggleGroup } from '@/components/ui/pill-toggle'
 import { DASH } from './format.ts'
@@ -589,14 +589,14 @@ export function StatsTableShell<R extends BaseDisplayRow>(props: StatsTableShell
                           ) : (
                             <div className="flex min-w-0 flex-col gap-0.5">
                               {row.playerId !== null ? (
-                                <Link
-                                  prefetch
-                                  href={`/roster/${row.playerId.toString()}`}
+                                <PlayerLink
+                                  playerId={row.playerId}
                                   title={tip}
                                   className="st-name-text truncate font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200 transition-colors hover:text-accent"
+                                  guestClassName="st-name-text truncate font-condensed text-sm font-semibold uppercase tracking-wide text-zinc-200"
                                 >
                                   {row.gamertag}
-                                </Link>
+                                </PlayerLink>
                               ) : (
                                 <span
                                   title="Unmatched gamertag: no current player profile"

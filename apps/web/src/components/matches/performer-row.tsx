@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { PlayerLink } from '@/components/ui/player-link'
 import type { PlayerScoreEntry, ScoreFactor } from '@/lib/match-recap'
 import { formatPosition } from '@/lib/format'
 import { delayVar, staggerDelay } from '@/lib/motion'
@@ -156,9 +156,9 @@ export function PerformerRow({
           <BreakdownBar breakdown={entry.breakdown} score={entry.score} />
           <SeasonDelta vsSeasonAvg={vsSeasonAvg} isBgm={isBgm} />
           {isBgm && entry.playerId !== null ? (
-            <Link
-              prefetch
-              href={`/roster/${entry.playerId.toString()}`}
+            <PlayerLink
+              playerId={entry.playerId}
+              fallback={null}
               className="gs-nudge-host self-start font-condensed text-[12px] font-bold uppercase tracking-[0.12em] text-accent hover:underline"
             >
               Full player page{' '}
@@ -167,7 +167,7 @@ export function PerformerRow({
               <span aria-hidden className="gs-nudge inline-block">
                 →
               </span>
-            </Link>
+            </PlayerLink>
           ) : null}
         </div>
       ) : null}

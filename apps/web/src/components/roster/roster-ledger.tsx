@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
+import { PlayerLink } from '@/components/ui/player-link'
 import type { PlayerArchetype } from '@eanhl/db/schema'
 import { PLAYER_ARCHETYPES } from '@eanhl/db/schema'
 import { ArchetypePillCompact } from '@/components/ui/archetype-pill'
@@ -299,13 +299,13 @@ export function RosterLedger({
           </div>
           {svLeader ? (
             <>
-              <Link prefetch href={`/roster/${String(svLeader.playerId)}`} className="rl-lead-line">
+              <PlayerLink playerId={svLeader.playerId} className="rl-lead-line">
                 <span className="seat">
                   {svLeader.jerseyNumber != null ? `#${String(svLeader.jerseyNumber)}` : '#—'}
                 </span>
                 <span className="name">{svLeader.gamertag}</span>
                 <span className="pos">{positionTag(svLeader, /* goalie */ true)}</span>
-              </Link>
+              </PlayerLink>
               <div className="rl-lead-stat">
                 <span className="big">{formatSavePct(svLeader.savePct)}</span>
                 <span className="unit">SV%</span>
@@ -377,13 +377,13 @@ function LeaderTile({
       </div>
       {leader ? (
         <>
-          <Link prefetch href={`/roster/${String(leader.playerId)}`} className="rl-lead-line">
+          <PlayerLink playerId={leader.playerId} className="rl-lead-line">
             <span className="seat">
               {leader.jerseyNumber != null ? `#${String(leader.jerseyNumber)}` : '#—'}
             </span>
             <span className="name">{leader.gamertag}</span>
             <span className="pos">{positionTag(leader)}</span>
-          </Link>
+          </PlayerLink>
           {(() => {
             const arch = asArchetype(leader.archetype)
             return arch !== null ? (

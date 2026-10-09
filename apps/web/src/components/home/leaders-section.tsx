@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { PlayerLink } from '@/components/ui/player-link'
 import type { GameMode } from '@eanhl/db'
 import { formatPosition } from '@/lib/format'
 import './leaders-section.css'
@@ -229,12 +230,7 @@ function LeaderColumn({
   return (
     <div className="sl-col">
       {focused ? (
-        <Link
-          prefetch
-          href={`/roster/${String(focused.playerId)}`}
-          className="sl-spot"
-          aria-live="polite"
-        >
+        <PlayerLink playerId={focused.playerId} className="sl-spot" aria-live="polite">
           <span className="sl-spot-eyebrow">{focusedEyebrow}</span>
           <div className="sl-spot-frame">
             <SilhouetteIcon />
@@ -261,7 +257,7 @@ function LeaderColumn({
               </div>
             ))}
           </div>
-        </Link>
+        </PlayerLink>
       ) : (
         <div className="sl-spot">
           <span className="sl-spot-eyebrow">{eyebrow}</span>
@@ -285,10 +281,9 @@ function LeaderColumn({
           <p className="sl-list-empty">No qualifying players yet.</p>
         ) : (
           rows.map((r, i) => (
-            <Link
-              prefetch
+            <PlayerLink
               key={r.playerId}
-              href={`/roster/${String(r.playerId)}`}
+              playerId={r.playerId}
               className={i === focusedIndex ? 'sl-row selected' : 'sl-row'}
               onMouseEnter={() => {
                 setHoveredIndex(i)
@@ -318,7 +313,7 @@ function LeaderColumn({
                 </span>
               </span>
               <span className="sl-val">{String(valueOf(r))}</span>
-            </Link>
+            </PlayerLink>
           ))
         )}
       </div>
