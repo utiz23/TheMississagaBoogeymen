@@ -36,10 +36,12 @@ fresh privacy review before any commercial activity begins.
 
 ### 2. How you can use this site
 
-This is a public, read-only website. Visitors cannot register, log in, upload
-anything, comment, or submit content through the site. There is no on-site
-submission form. You can still reach us voluntarily by email — see "Privacy
-contact and requests" below.
+This is a public website that visitors can read but not change. Visitors
+cannot register, upload anything, comment, or submit content through the
+site, and there is no on-site submission form. Members of our team can sign
+in with a Discord account, but only through an invite from the site's
+operator; there is no public sign-up. You can still reach us voluntarily by
+email — see "Privacy contact and requests" below.
 
 ### 3. Information we maintain
 
@@ -51,6 +53,13 @@ opponent's appearances over time), OCR (optical character recognition)
 evidence, and the source recordings and screenshots that evidence is drawn
 from — along with raw data as received from EA's game services and
 correspondence sent to our project email addresses.
+
+For team members who sign in, we also keep a small member-account record:
+the member's Discord user ID and Discord display name, which player on our
+team the account is linked to, the account's role, settings the member
+chooses for their own player, and sign-in session records. We do not receive
+or keep the member's email address, Discord avatar, or Discord password, and
+we do not keep Discord access tokens.
 
 Our source gameplay recordings may incidentally include in-game party voice
 chat. This is not a statement that any recording is lawful; see the Data
@@ -73,9 +82,12 @@ for how public display and indexing work in more detail.
 
 ### 5. Information about your visit
 
-Our own application source code does not directly use `localStorage`,
-`sessionStorage`, browser cookies, or `indexedDB`. That describes our own
-code — it is not a claim that no browser storage of any kind is ever used by
+Visitors who do not sign in get no cookies from this site's own code, and
+our code does not use `localStorage`, `sessionStorage`, or `indexedDB`. When a
+team member signs in, our code sets two strictly necessary cookies: a
+short-lived one (about 5 minutes) that protects the Discord sign-in step, and
+a session cookie that keeps the member signed in for up to 30 days. That
+describes our own code — it is not a claim that no browser storage of any kind is ever used by
 any underlying framework, dependency, or infrastructure component we rely on.
 
 Our hosting/security provider (Cloudflare) may, under some circumstances, use
@@ -110,8 +122,9 @@ We use a small number of outside services to run this project:
 Mail** (email), **GitHub** (a private repository holding our source code and
 a limited set of test fixtures), **Backblaze** (off-site storage for backup
 copies of our database), **Healthchecks.io** (monitoring that receives only
-status messages from our server, not information about visitors), **EA's
-game services** (the source of underlying game data), and
+status messages from our server, not information about visitors),
+**Discord** (the sign-in service team members use; it tells us only the
+member's Discord user ID and display name), **EA's game services** (the source of underlying game data), and
 **community-operated hosting infrastructure based in Alberta, Canada**.
 
 This is a summary list, not a legal classification. We do not describe any
@@ -124,8 +137,8 @@ Data Collection Policy for more detail on how each provider is used.
 
 ### 8. Cross-border handling
 
-Because we use Cloudflare, Proton Mail, GitHub, Backblaze, EA's services, and the
-ordinary infrastructure of the internet, some information may be processed or
+Because we use Cloudflare, Proton Mail, GitHub, Backblaze, Discord, EA's
+services, and the ordinary infrastructure of the internet, some information may be processed or
 transmitted outside Alberta, or outside Canada, as part of how those services
 work. We do not have verified information about the exact countries
 involved, and we do not publish a list of them here. Separately, we do not
@@ -156,6 +169,10 @@ automatically overwrites the oldest entries. Backup copies of our database
 are kept on the schedule described in the Data Collection Policy. Logs
 controlled independently by service providers are subject to those
 providers' own practices and retention periods.
+
+**Member accounts** are kept while the person is a member of our team and
+are deleted on request. A sign-in session is deleted when the member signs out
+and otherwise stops working after 30 days without use.
 
 We have not adopted a scheduled periodic review of our main historical
 archive.

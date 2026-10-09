@@ -20,21 +20,22 @@ keep it, and how you can ask about or correct it.
 
 ### 1. Scope and launch posture
 
-This is a public, read-only community gaming-club website. It publishes
+This is a public community gaming-club website that visitors can read but
+not change. It publishes
 statistics and history for our EA Sports NHL Pro Clubs team. The project is
 currently operated by a single individual on a volunteer basis; that
 describes who runs it day to day, not a conclusion about its legal form or
 about which privacy law, if any, applies to it.
 
-- No active public account system is offered at launch. Visitors cannot
-  register or log in. Dormant authentication software and database schema
-  for accounts exist in the underlying codebase but are disabled — see
-  "Accounts and authentication" below.
-- There is no on-site account, form, upload, comment, or submission
-  feature at launch. You cannot submit content through this site, though
-  you can still voluntarily send us information through project email —
-  see the information categories below and "Accounts and authentication"
+- There is no public account system. Members of our team can sign in with
+  a Discord account, but only through an invite from the site's operator;
+  nobody can register on their own — see "Accounts and authentication"
   below.
+- There is no on-site form, upload, comment, or submission feature. You
+  cannot submit content through this site, though you can still voluntarily
+  send us information through project email — see the information
+  categories below. Signed-in members can only change settings for their
+  own player, such as how their player card looks.
 - There is no advertising.
 - No monetization or other commercial activity exists on this site, and
   none is planned. If that changes, we intend to carry out a fresh privacy
@@ -120,6 +121,13 @@ game services and our own team members' review and correction of that data:
   contents, attachments, and any evidence you provide to verify a request
   (for example, to establish that you control a gamertag you're asking us
   to correct or remove).
+- **Member accounts.** For team members who sign in: the member's Discord
+  user ID and Discord display name (as it was when the account was
+  created), the player on our team the account is linked to, the account's
+  role (member or admin), whether the account has been disabled, when it was
+  created, settings the member chooses for their own player (such as their
+  player card's theme), and sign-in session records. See "Accounts and
+  authentication" below for what is not kept.
 - **A limited set of authentic source fixtures retained in our private
   GitHub repository**, used for testing and development. See "Service
   providers and other parties" below.
@@ -134,6 +142,8 @@ game services and our own team members' review and correction of that data:
 - Manual review and correction by our team's operator(s) — for example,
   fixing a misread gamertag or approving a display name.
 - Correspondence sent to our project email addresses.
+- Discord, when a team member signs in — it tells us the member's Discord
+  user ID and display name only.
 - Ordinary requests made to our public website and the infrastructure and
   security processing that supports it.
 
@@ -155,6 +165,7 @@ We use the information described above only to:
 - Develop, test, validate, and maintain this website and its data and OCR
   processing pipeline, including using a limited set of authentic source
   fixtures for testing, provenance, and regression verification.
+- Let invited team members sign in and manage settings for their own player.
 - Respond to privacy, correction, removal, and security-related requests.
 - Maintain provenance and auditability — i.e., being able to show where a
   published number came from and correct it if it's wrong.
@@ -185,10 +196,21 @@ resulting statistics and match information are.
 
 ### 6. Cookies, browser storage, and analytics
 
-Our website's own application source code does not directly use
-`localStorage`, `sessionStorage`, browser cookies, or `indexedDB`. This
-describes our own code; it is not a claim that no browser storage of any
-kind is ever used by any underlying framework, dependency, or
+Visitors who do not sign in get no cookies from this site's own code, and
+our code does not use `localStorage`, `sessionStorage`, or `indexedDB`. When
+a team member signs in, our code sets two strictly necessary cookies:
+
+- `__Secure-better-auth.state` — set when a member starts signing in with
+  Discord. It protects that step against forgery and expires after about 5
+  minutes.
+- `__Secure-better-auth.session_token` — keeps a signed-in member signed
+  in. It holds a random session reference rather than personal
+  information, cannot be read by the page's scripts, and expires after 30
+  days, renewed while the member keeps using the site. Signing out removes
+  it.
+
+This describes our own code; it is not a claim that no browser storage of
+any kind is ever used by any underlying framework, dependency, or
 infrastructure component.
 
 Our hosting/security provider (Cloudflare) may, under some circumstances,
@@ -208,24 +230,33 @@ resolves for itself.
 
 ### 7. Accounts and authentication
 
-No active public account system is offered at launch: this site does not
-currently offer account creation or login. There is also no on-site form,
-upload, comment, or other submission feature — see "Scope and launch
-posture" above, including for how you can still reach us voluntarily by
-email. Dormant authentication software is present in the underlying
-codebase but is deliberately disabled: the reachable authentication API
-refuses every request, and no login or account page is served.
+Members of our team can sign in to this site. There is no public sign-up:
+an account can only be created through a single-use invite link that the
+site's operator makes for a specific team member, and each account is
+linked to that member's player. Sign-in uses Discord; this site has no
+passwords.
 
-Our database structure is *capable* of storing account information,
-session details (including IP address and browser/user-agent information),
-authentication tokens, and credentials — because the underlying software
-includes an authentication feature we have chosen not to activate. This is
-a statement about database *capability*, not about current *contents*; we
-are not asserting these fields are currently populated with visitor data,
-because no accounts can currently be created.
+When a member signs in, Discord tells us only the member's Discord user ID
+and display name (Discord's `identify` permission). We do not ask Discord
+for, receive, or keep the member's email address, and we do not keep their
+Discord avatar or any Discord access tokens. Because our account software
+requires an email field, each account stores a placeholder address made
+from the Discord user ID that cannot receive mail.
 
-If we activate authentication in the future, we will conduct a fresh
-privacy review and update this policy before doing so.
+We keep a record of each sign-in session (when it was created and when it
+expires) so the member stays signed in. We do not record the IP address or
+browser of a session. To protect sign-in from abuse, our server counts
+recent sign-in attempts per IP address in memory for about a minute; those
+counts are not written to our database.
+
+Signed-in members can change settings for their own player, such as their
+player card's theme. The site's operator can create and cancel invites,
+disable an account, and change these settings for any player.
+
+A member can ask us to delete their account at any time — see "Requests
+and corrections" below. Deleting an account removes the member-account
+record; it does not remove the member's match statistics, which the rest of
+this policy covers.
 
 ### 8. Service providers and other parties
 
@@ -255,6 +286,10 @@ term, which remains a legal-review question.
 - **Healthchecks.io** — monitoring that alerts us if our backups or data
   collection stop working. It receives only short status messages from our
   server, not information about visitors.
+- **Discord** — the sign-in service team members use to sign in to this
+  site. Discord tells us the member's Discord user ID and display name when
+  they sign in; visitors who do not sign in are never sent to Discord by
+  this site.
 - **Electronic Arts (EA)** — the source of the underlying game data and
   some visual assets referenced by this site. EA does not endorse, and is
   not affiliated with, this project.
@@ -289,6 +324,11 @@ currently configured.
   automatically overwrites the oldest entries.
 - **Logs controlled independently by service providers** are subject to
   those providers' practices and retention periods.
+- **Member accounts** are kept while the person is a member of our team and
+  are deleted on request (see "Requests and corrections" below). A sign-in
+  session is deleted when the member signs out and otherwise stops working
+  after 30 days without use. Records of used, cancelled, or expired invite
+  links are kept for the operator's reference.
 - **Correspondence sent to our project email addresses** is retained under
   the following operator targets, reviewed at least annually:
   - Obvious spam or junk: approximately 30 days.
@@ -378,7 +418,8 @@ Some of the opponents we play against in matches may include minors. We do
 not know their ages, cannot verify them, do not collect them, and have no
 way to determine them from the information EA's game services provide. This
 site does not ask any visitor or opponent for age information, and does not
-offer user accounts or submissions at launch.
+offer submissions; sign-in is limited to invited members of our adult
+team.
 
 ### 12. Location and cross-border handling
 
@@ -387,8 +428,9 @@ every team member lives in Alberta, or in any other specific place — team
 members are located in various places, and we do not publish individual
 member locations.
 
-Because we use Cloudflare, Proton Mail, GitHub, Backblaze, EA's services, and the
-ordinary infrastructure of the internet, information may be processed or
+Because we use Cloudflare, Proton Mail, GitHub, Backblaze, Discord, EA's
+services, and the ordinary infrastructure of the internet, information may
+be processed or
 transmitted outside Alberta or Canada as part of how those services work.
 We do not have verified information about the exact physical storage
 locations each of these providers uses, and we do not claim otherwise.

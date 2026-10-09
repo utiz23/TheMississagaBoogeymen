@@ -64,7 +64,7 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
       'How this site collects, uses, and retains information, and how to make a request about it.',
     status: 'published',
     effectiveDate: '2026-10-05',
-    lastUpdated: '2026-10-05',
+    lastUpdated: '2026-10-09',
     references: ['data-collection'],
   },
   {
@@ -76,7 +76,7 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
       'The rules for using this website, including permitted use, accuracy, and liability.',
     status: 'published',
     effectiveDate: '2026-10-05',
-    lastUpdated: '2026-10-05',
+    lastUpdated: '2026-10-09',
     references: ['privacy', 'data-collection', 'attribution'],
   },
   {
@@ -88,7 +88,7 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
       'The detailed inventory of what this site collects, where it comes from, and how long it is kept.',
     status: 'published',
     effectiveDate: '2026-10-05',
-    lastUpdated: '2026-10-05',
+    lastUpdated: '2026-10-09',
     references: [],
   },
   {

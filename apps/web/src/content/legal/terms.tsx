@@ -42,10 +42,10 @@ export const sections: LegalPageSection[] = [
     body: (
       <>
         <P>
-          This is a public, read-only website that publishes match history, rosters, statistics,
-          gamertags and related identifiers, and related information for our EA Sports NHL Pro Clubs
-          team. It is an informational and archival project, run by a single individual on a
-          volunteer basis and offered free of charge.
+          This is a public website that publishes match history, rosters, statistics, gamertags and
+          related identifiers, and related information for our EA Sports NHL Pro Clubs team. It is
+          an informational and archival project, run by a single individual on a volunteer basis and
+          offered free of charge.
         </P>
         <P>
           There is no advertising, monetization, or other commercial activity on this site now, and
@@ -53,9 +53,10 @@ export const sections: LegalPageSection[] = [
           documents before any commercial activity begins.
         </P>
         <P>
-          There is no public account system: you cannot register, log in, upload, comment, or submit
-          content through this site. You can still reach us voluntarily by email — see "Contact"
-          below.
+          There is no public account system: you cannot register, upload, comment, or submit content
+          through this site. Members of our team can sign in with a Discord account, but only
+          through an invite from the site's operator. You can still reach us voluntarily by email —
+          see "Contact" below.
         </P>
         <P>
           Membership of our club is adult-only. Some of the opponents we play against in matches may
@@ -275,9 +276,10 @@ export const sections: LegalPageSection[] = [
           restricting access. These measures may be temporary.
         </P>
         <P>
-          Because this site has no accounts, there is nothing to suspend, cancel, or terminate —
-          these measures apply to requests, not to memberships. If you think your access has been
-          restricted in error, write to <MailLink address="webmaster@boogeymen.app" />.
+          Member accounts are invite-only, and the site's operator may disable a member account that
+          is misused or no longer needed. Otherwise, these measures apply to requests rather than to
+          accounts. If you think your access has been restricted in error, write to{' '}
+          <MailLink address="webmaster@boogeymen.app" />.
         </P>
       </>
     ),
