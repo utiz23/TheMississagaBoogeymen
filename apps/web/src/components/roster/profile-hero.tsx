@@ -148,10 +148,6 @@ export function ProfileHero({
   // Career range subtitle, oldest–newest by explicit chronology ("NHL 22–NHL 27 · sum")
   const careerRange = formatCareerTitleRange(career)
 
-  // Pad jersey for the BGM-NNNN ID
-  const jerseyForId =
-    player.jerseyNumber !== null ? player.jerseyNumber.toString().padStart(4, '0') : null
-
   // Last 10 games — filtered by role, aggregated from trendGames
   const last10 = aggregateLast10(overview.trendGames, selectedRole)
 
@@ -173,11 +169,6 @@ export function ProfileHero({
                 Player · {selectedRole === 'goalie' ? 'Goalie' : 'Skater'}
               </span>
               <span className="rule" aria-hidden />
-              {jerseyForId !== null && (
-                <span className="id-no">
-                  ID <b>BGM-{jerseyForId}</b>
-                </span>
-              )}
             </div>
 
             <div className="ph-nameplate">
@@ -390,17 +381,7 @@ export function ProfileHero({
             Source <b>EA NHL</b>
           </span>
           <span className="center">— Boogeymen Roster Card —</span>
-          <span className="right">
-            {jerseyForId !== null ? (
-              <>
-                Sheet <b>BGM/PRO/{jerseyForId}</b>
-              </>
-            ) : (
-              <>
-                Sheet <b>BGM/PRO</b>
-              </>
-            )}
-          </span>
+          <span className="right" aria-hidden />
         </footer>
       </section>
     </div>

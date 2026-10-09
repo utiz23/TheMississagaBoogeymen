@@ -34,8 +34,6 @@ interface Props {
   gameTitleName?: string | undefined
   /** Real freshness timestamp from the EA season row. */
   updatedAt?: Date | string | undefined
-  /** Footer sheet identifier. */
-  sheetCode?: string | undefined
 }
 
 /**
@@ -173,7 +171,6 @@ export function ContributionWheel({
   gamertag = 'player',
   gameTitleName = 'NHL 26',
   updatedAt,
-  sheetCode = 'BGM/CONTRIB/0001',
 }: Props) {
   const updatedLabel = useMemo(() => formatDataDay(updatedAt), [updatedAt])
   const gp = season.skaterGp || season.gamesPlayed || 0
@@ -632,7 +629,7 @@ export function ContributionWheel({
 
       <footer className="cw-foot">
         <span>
-          Source <b>EA NHL · Boogeymen</b> · Sheet <b>{sheetCode}</b>
+          Source <b>EA NHL · Boogeymen</b>
         </span>
         <span>
           Method <b>Σ(stat × Game Score weight × sign)</b>

@@ -38,8 +38,6 @@ interface Props {
   teamAvgGp?: number | undefined
   /** Optional rank summary card data (e.g. points rank within the club). */
   pointsRank?: { rank: number; total: number } | undefined
-  /** Sheet code in the footer. */
-  sheetCode?: string | undefined
   /** ISO date for the "Updated" cell. */
   updatedDate?: string | undefined
   /**
@@ -130,7 +128,6 @@ function ShotMapContent({
   playerGp,
   teamAvgGp,
   pointsRank,
-  sheetCode,
   updatedDate,
   role,
   subject,
@@ -355,9 +352,7 @@ function ShotMapContent({
         <span className="center">
           — {isGoalie ? 'Shots Faced' : 'Shot Locations'} · {subject ?? gamertag} —
         </span>
-        <span className="right">
-          Sheet <b>{sheetCode ?? (isGoalie ? 'BGM/GSM/0010' : 'BGM/SHM/0010')}</b>
-        </span>
+        <span className="right" aria-hidden />
       </footer>
     </section>
   )

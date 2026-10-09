@@ -212,7 +212,6 @@ export function PlayerBadges({ gamertag, seasonName, aiGoalie = false, rows }: P
       </div>
       <footer className="pb-foot">
         <span>Source EA NHL · Boogeymen</span>
-        <span>Sheet BGM/BDG/0028</span>
       </footer>
     </section>
   )

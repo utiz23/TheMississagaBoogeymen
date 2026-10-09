@@ -24,20 +24,12 @@ export interface DepthChartProps {
   goalies: (DepthSlot | null)[]
   /** Header scope line (e.g. "Boogeymen · NHL 26 · Season Totals · 22-skater pool"). */
   scopeLabel?: string | undefined
-  /** Footer sheet identifier. */
-  sheetCode?: string | undefined
 }
 
 const GOALIE_SLOT_LABELS = ['Starter', 'Backup', '3rd String']
 const goalieSlotLabel = (i: number) => GOALIE_SLOT_LABELS[i] ?? `${String(i + 1)}th String`
 
-export function DepthChart({
-  forwards,
-  defense,
-  goalies,
-  scopeLabel,
-  sheetCode = 'BGM/RST/0010',
-}: DepthChartProps) {
+export function DepthChart({ forwards, defense, goalies, scopeLabel }: DepthChartProps) {
   const skaterCount = countDistinctPlayers([
     ...forwards.flatMap((l) => [l.lw, l.c, l.rw]),
     ...defense.flatMap((p) => [p.ld, p.rd]),
@@ -75,11 +67,6 @@ export function DepthChart({
           <span>
             <b>{String(goalieCount)}</b> <span className="long">Goalies</span>
             <span className="short">G</span>
-          </span>
-          {/* The sheet code stays in the footer; the header drops it ≤1100px. */}
-          <span className="dot sheet">·</span>
-          <span className="sheet">
-            Sheet <b>{sheetCode}</b>
           </span>
         </div>
       </header>
@@ -173,9 +160,7 @@ export function DepthChart({
           Source <b>EA NHL · Boogeymen</b>
         </span>
         <span className="center">— Depth Chart · Season Totals —</span>
-        <span>
-          Sheet <b>{sheetCode}</b>
-        </span>
+        <span aria-hidden />
       </footer>
     </section>
   )

@@ -79,7 +79,6 @@ export function TeamShotMap({
       role={isOffense ? 'skater' : 'goalie'}
       subject="Team"
       gamertag="Boogeymen"
-      sheetCode={isOffense ? 'BGM/TSM/0010' : 'BGM/TSM/0020'}
       headerSlot={sideToggle}
       {...(teamGp !== undefined ? { playerGp: teamGp } : {})}
       {...(updatedDate !== undefined ? { updatedDate } : {})}

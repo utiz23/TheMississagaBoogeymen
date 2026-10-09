@@ -67,8 +67,6 @@ interface Props {
   dateRange?: string | undefined
   /** Footer date range when All Time is selected (e.g. "2022-09 → 2026-05"). */
   allTimeDateRange?: string | undefined
-  /** Footer sheet identifier. */
-  sheetCode?: string | undefined
   /** Optional updated-X-ago freshness label. */
   freshness?: string | undefined
   /** Last N team match results (newest last) — drives the Record-tile sparkline. */
@@ -88,7 +86,6 @@ export function RosterLedger({
   allTimeScopeLabel,
   dateRange,
   allTimeDateRange,
-  sheetCode = 'BGM/LDR/0001',
   freshness,
   recordSparkline,
   sparklines,
@@ -328,7 +325,7 @@ export function RosterLedger({
 
       <footer className="rl-foot">
         <span>
-          Source <b>EA NHL · Boogeymen</b> · Sheet <b>{sheetCode}</b>
+          Source <b>EA NHL · Boogeymen</b>
         </span>
         <span className="right">
           <span>

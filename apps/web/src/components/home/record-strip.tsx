@@ -14,8 +14,6 @@ interface Props {
   recentResults: { result: MatchResult; playedAt: Date }[]
   /** Title shown in the meta cluster (e.g. "NHL 26"). */
   gameTitleName: string
-  /** Footer sheet identifier. */
-  sheetCode?: string
   /** Team name shown in the identity tile. */
   teamName?: string
   /** 2-letter monogram for the crest fallback when no logo image is supplied. */
@@ -34,7 +32,6 @@ export function RecordStrip({
   seasonRank,
   recentResults,
   gameTitleName,
-  sheetCode = 'BGM/REC/0001',
   teamName = TEAM_NAME_DEFAULT,
   teamMonogram = MONOGRAM_DEFAULT,
   logoSrc = LOGO_DEFAULT,
@@ -266,9 +263,6 @@ export function RecordStrip({
           <b>
             EA Official · {gameTitleName} {teamName}
           </b>
-        </span>
-        <span>
-          Sheet <b>{sheetCode}</b>
         </span>
       </footer>
     </section>

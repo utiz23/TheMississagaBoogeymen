@@ -16,8 +16,6 @@ interface Props {
   clubName: string
   /** Optional ISO date / freshness label rendered in the header meta. */
   updatedLabel?: string | undefined
-  /** Footer sheet ID. */
-  sheetCode?: string | undefined
   scope?: string | undefined
   /** Initial value for the min-shared-GP slider (default 3). */
   defaultMinPairGp?: number | undefined
@@ -116,7 +114,6 @@ export function PairWinMatrix({
   titleName,
   clubName,
   updatedLabel,
-  sheetCode = 'BGM/PAIR/0001',
   scope,
   defaultMinPairGp = 3,
 }: Props) {
@@ -412,9 +409,6 @@ export function PairWinMatrix({
       <footer className="pwm-foot">
         <span>
           Source <b>EA NHL · Boogeymen</b>
-        </span>
-        <span>
-          Sheet <b>{sheetCode}</b>
         </span>
       </footer>
     </section>

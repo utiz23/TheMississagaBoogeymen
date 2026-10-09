@@ -201,14 +201,12 @@ interface TabContent {
 export function ClubStatsTabs({
   season,
   gamertag,
-  sheetCode = 'BGM/CST/0010',
   updatedDate,
   teammates,
   role = 'skater',
 }: {
   season: SeasonRow
   gamertag?: string | undefined
-  sheetCode?: string | undefined
   updatedDate?: string | undefined
   teammates?: TeammateRow[] | undefined
   role?: Role | undefined
@@ -269,10 +267,6 @@ export function ClubStatsTabs({
               </span>
             </>
           )}
-          <span className="dot sheet">·</span>
-          <span className="sheet">
-            Sheet <b>{sheetCode}</b>
-          </span>
           <span className="dot">·</span>
           <span>
             Updated <b>{today}</b>
@@ -317,9 +311,7 @@ export function ClubStatsTabs({
           Source <b>EA NHL · Boogeymen</b>
         </span>
         <span className="center">— Player Stats · {gamertag ?? 'BGM'} —</span>
-        <span className="right">
-          Sheet <b>{sheetCode}</b>
-        </span>
+        <span className="right" aria-hidden />
       </footer>
     </section>
   )
