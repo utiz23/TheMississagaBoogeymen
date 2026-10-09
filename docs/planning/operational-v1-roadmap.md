@@ -20,7 +20,8 @@ An item is done when its proof is written in the journal.
 2026-10-02 "launch from the main PC, move later" assumption, which had been
 carried into this list without being re-asked.
 
-1. **Data safe.** The nightly backup
+1. **Data safe.** ✅ Done 2026-10-09 (four unattended green nights on
+   Hotel-Echo, 2026-10-06 → 10-09; proof: journal 2026-10-09). The nightly backup
    ([`ops/nightly-backup/`](../../ops/nightly-backup/README.md)) runs on the
    production host with three green unattended nights on Healthchecks.io.
    It ran on the main PC on 2026-10-05 (restores from the local disk and

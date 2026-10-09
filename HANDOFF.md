@@ -26,9 +26,9 @@ commit/push rules in `CLAUDE.md`.
 **The site is live at https://boogeymen.app** (2026-10-05 ~15:15 MDT) for
 teammates, by link — unlisted (`noindex` everywhere), no analytics, no
 logins. Served from Hotel-Echo through the `hotel-echo-web` Cloudflare
-tunnel. Launch plan items 2–8 are done; item 1 counts three green nightly
-backups on Hotel-Echo from 2026-10-06. Next: observe for a few days, then
-post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
+tunnel. **The launch plan is closed** (all 8 items ✅ 2026-10-09; four green
+unattended backup nights 10-06 → 10-09). Next: post-launch work (polish,
+video-stats OCR).
 
 **Awards trophy case is live** (2026-10-08): records, season leaders, milestones, plus hand-entered trophies/banners in `apps/web/src/components/awards/club-awards.ts` (add new results there). Awards rank player-card ALL SKATERS totals, not the Stats page's club archive (operator choice).
 
@@ -61,9 +61,8 @@ strip is restored to 365-229-27 / 621 GP. Detail:
 
 **2026-10-05 — launched; security update + polish deployed** (`67ff9c4`; public checks all passed). Full checkpoint: [archive 2026-10-09](docs/archive/handoff-history-2026-10-09.md), [journal 2026-10-05](docs/journal/2026-10.md).
 
-- **Codex review of the nightly backup is still owed** (four tooling
-  failures). To run it: check out `feat/nightly-backup`, then
-  `/codex:review --wait --base 0ec6989`.
+- **Codex review of the nightly backup done** (2026-10-09): four P2s, none
+  affecting live today; open, operator to decide on fixes (journal 10-09).
 - Parked, local-only branches: `park/codex-claude-bridge`,
   `park/roster-stats-design-inputs` (real player data; not for merging).
 
@@ -96,9 +95,7 @@ strip is restored to 365-229-27 / 621 GP. Detail:
   only, catch-all 404). Token in `secrets/cloudflared-tunnel-token`, `600`,
   owned by uid `65532` (the image's user — see `DEPLOY.md`). **Take the site
   offline:** `docker compose stop cloudflared` on Hotel-Echo. A copy of the
-  pre-launch `.env` (still holding the old `TUNNEL_TOKEN` line) is at
-  `~/eanhl-moved-aside/env-before-launch-2026-10-05` (600) — delete once the
-  launch is settled. The main PC has no tunnel. Login/auth is removed.
+  pre-launch `.env` (still holding the old `TUNNEL_TOKEN` line) was deleted by 2026-10-06. The main PC has no tunnel. Login/auth is removed.
 - NHL 27 ingestion has been live since 2026-09-05. Since migration 0057
   three settings are separate: collection (`is_active`: **NHL 27 only** —
   NHL 26 was switched off 2026-10-06; its pages remain), site default
@@ -142,9 +139,7 @@ None.
 2. Polish continues from [`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md)
    (next: honest numbers — real "Updated" dates, one SV% format, readable
    time deltas). The security review is closed (journal 10-06).
-3. Observe the launch for a few days: Healthchecks (backup + collector)
-   emails, nightly backups on Hotel-Echo (item 1 closes after three green
-   nights), teammates' feedback (including on speed). Run the owed Codex
-   review of the nightly backup when Codex is available.
-   Also decide how video-stats OCR (main PC) writes to Hotel-Echo's
+3. Backup hardening from the Codex review (optional, small): weekly/monthly
+   copies after a missed Sunday/1st, and a run lock for manual + scheduled
+   overlap. Watch teammates' feedback (including on speed). Also decide how video-stats OCR (main PC) writes to Hotel-Echo's
    database (over Tailscale, opening the database to the tailnet).
