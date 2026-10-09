@@ -29,7 +29,7 @@ export function MatchRow({ match, isMostRecent = false }: MatchRowProps) {
         <Link
           prefetch
           href={`/games/${match.id.toString()}`}
-          className="flex flex-1 items-center gap-4 px-4 py-3"
+          className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3"
         >
           {/* Date */}
           <span className="w-20 shrink-0 whitespace-nowrap font-condensed text-sm font-semibold uppercase tracking-wider tabular-nums text-zinc-500 group-hover:text-zinc-400">
