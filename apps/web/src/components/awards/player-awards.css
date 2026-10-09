@@ -126,31 +126,6 @@
   color: #e84131;
 }
 
-.pa-more {
-  padding: 12px 22px;
-  border: none;
-  border-top: 1px solid #2a2829;
-  background: transparent;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #a1a1aa;
-  cursor: pointer;
-  transition:
-    color 150ms,
-    background-color 150ms;
-}
-.pa-more:hover {
-  color: #fafafa;
-  background: #262425;
-}
-.pa-more:focus-visible {
-  outline: 2px solid #e84131;
-  outline-offset: -2px;
-}
-
 /* Detail strip for the selected award. */
 .pa-detail {
   display: flex;

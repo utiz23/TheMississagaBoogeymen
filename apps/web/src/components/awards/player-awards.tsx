@@ -5,9 +5,6 @@ import { AwardSymbol } from './award-symbol'
 import type { AwardItem, AwardKind } from './awards-model'
 import './player-awards.css'
 
-/** Tiles shown before "Show all" — two desktop rows, four phone rows. */
-const COLLAPSED = 8
-
 const LEGEND: { kind: AwardKind; label: string }[] = [
   { kind: 'record', label: 'Season record' },
   { kind: 'alltime', label: 'All-time record' },
@@ -24,12 +21,10 @@ interface PlayerAwardsProps {
 /** Profile "Awards" trophy case — port of Awards Trophy Case.dc.html. */
 export function PlayerAwards({ gamertag, span, items }: PlayerAwardsProps) {
   const [selId, setSelId] = useState(() => items[0]?.id ?? '')
-  const [expanded, setExpanded] = useState(false)
   const sel = items.find((i) => i.id === selId) ?? items[0]
   if (sel === undefined) return null
 
   const present = new Set(items.map((i) => i.kind))
-  const shown = expanded ? items : items.slice(0, COLLAPSED)
 
   return (
     <section className="pa" aria-label="Awards">
@@ -50,7 +45,7 @@ export function PlayerAwards({ gamertag, span, items }: PlayerAwardsProps) {
       </header>
       <div className="pa-rule" />
       <div className="pa-grid">
-        {shown.map((it) => {
+        {items.map((it) => {
           const on = it.id === sel.id
           return (
             <button
@@ -58,7 +53,7 @@ export function PlayerAwards({ gamertag, span, items }: PlayerAwardsProps) {
               type="button"
               className="pa-tile"
               aria-pressed={on}
-              title={`${it.name} · ${it.season}`}
+              title={`${it.name} · ${it.when}`}
               onClick={() => {
                 setSelId(it.id)
               }}
@@ -70,24 +65,12 @@ export function PlayerAwards({ gamertag, span, items }: PlayerAwardsProps) {
               </div>
               <span className="pa-tile-text">
                 <span className="pa-tile-name">{it.short}</span>
-                <span className="pa-tile-season">{it.season}</span>
+                <span className="pa-tile-season">{it.when}</span>
               </span>
             </button>
           )
         })}
       </div>
-      {items.length > COLLAPSED && (
-        <button
-          type="button"
-          className="pa-more"
-          aria-expanded={expanded}
-          onClick={() => {
-            setExpanded((e) => !e)
-          }}
-        >
-          {expanded ? 'Show fewer' : `Show all ${String(items.length)} awards`}
-        </button>
-      )}
       <div className="pa-detail" aria-live="polite">
         <div className="pa-detail-symbol">
           <div>

@@ -362,6 +362,15 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         />
       )}
 
+      <LazyMount minHeight={720} label="Badges">
+        <PlayerBadges
+          gamertag={overview.player.gamertag}
+          seasonName={cardProgress?.gameTitle?.name ?? null}
+          aiGoalie={cardProgress?.aiGoalie ?? false}
+          rows={cardProgress?.badges ?? []}
+        />
+      </LazyMount>
+
       <ChartsVisualsSection
         trendChart={
           trendGames.length > 0 ? (
@@ -378,16 +387,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       {awards.items.length > 0 && (
         <PlayerAwards gamertag={overview.player.gamertag} span={awards.span} items={awards.items} />
       )}
-
-      {/* Toward the bottom of the player page (spec D13). */}
-      <LazyMount minHeight={720} label="Badges">
-        <PlayerBadges
-          gamertag={overview.player.gamertag}
-          seasonName={cardProgress?.gameTitle?.name ?? null}
-          aiGoalie={cardProgress?.aiGoalie ?? false}
-          rows={cardProgress?.badges ?? []}
-        />
-      </LazyMount>
     </div>
   )
 }

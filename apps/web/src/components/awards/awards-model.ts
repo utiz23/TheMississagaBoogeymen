@@ -18,13 +18,15 @@ export interface AwardItem {
   name: string
   /** Tile label, e.g. "Most goals · season". */
   short: string
-  /** Title the award belongs to ("NHL 26"); all-time records carry the newest title. */
-  season: string
+  /** Tile sub-label: "All-time", "NHL 26" (season record) or "Reached NHL 26" (milestone). */
+  when: string
+  /** Sort key: the title's release order (newest first within a kind). */
+  order: number
   stat: AwardStat
   /** The number on the symbol, formatted ("1,306"). */
   glyph: string
   tier: AwardTier | null
-  /** Detail-panel eyebrow, e.g. "Gold · Career milestone · NHL 26". */
+  /** Detail-panel eyebrow, e.g. "Gold · Career milestone · reached NHL 26". */
   kindLabel: string
   basis: string
   meta: string
@@ -167,7 +169,8 @@ export function buildPlayerAwards(
         kind: 'record',
         name: `Most ${titleCase(word)}, Single Season`,
         short: `Most ${word} · season`,
-        season: e.season ?? '',
+        when: e.season ?? '',
+        order: line === undefined ? 0 : order(line),
         stat,
         glyph: fmt(e.value),
         tier: null,
@@ -203,7 +206,8 @@ export function buildPlayerAwards(
       kind: 'alltime',
       name: stat === 'GP' ? 'Most Games Played' : `Most Career ${titleCase(word)}`,
       short: `Most ${stat === 'GP' ? 'GP' : word} · all-time`,
-      season: newestTitle,
+      when: 'All-time',
+      order: newestOrder,
       stat,
       glyph: fmt(mine.value),
       tier: null,
@@ -229,12 +233,13 @@ export function buildPlayerAwards(
           id: `milestone-${stat}-${String(at)}`,
           kind: 'milestone',
           name: stat === 'GP' ? `${fmt(at)} Games Played` : `${fmt(at)} Career ${titleCase(word)}`,
-          short: `${fmt(at)} ${statWord}`,
-          season: l.gameTitleName,
+          short: `${fmt(at)} career ${statWord}`,
+          when: `Reached ${l.gameTitleName}`,
+          order: order(l),
           stat,
           glyph: fmt(at),
           tier,
-          kindLabel: `${cap(tier)} · Career milestone · ${l.gameTitleName}`,
+          kindLabel: `${cap(tier)} · Career milestone · reached ${l.gameTitleName}`,
           basis: `Reached ${fmt(at)} career ${word} during ${l.gameTitleName}. Career total: ${fmt(
             own.reduce((s, x) => s + get(x), 0),
           )}.`,
@@ -244,12 +249,11 @@ export function buildPlayerAwards(
     }
   }
 
-  const seasonOrder = new Map(lines.map((l) => [l.gameTitleName, order(l)]))
   const value = (i: AwardItem): number => Number.parseInt(i.glyph.replace(/,/g, ''), 10)
   items.sort(
     (a, b) =>
-      (seasonOrder.get(b.season) ?? 0) - (seasonOrder.get(a.season) ?? 0) ||
       KIND_ORDER[a.kind] - KIND_ORDER[b.kind] ||
+      b.order - a.order ||
       STAT_ORDER.indexOf(a.stat) - STAT_ORDER.indexOf(b.stat) ||
       value(b) - value(a),
   )

@@ -48,7 +48,7 @@ void test('single-season record goes to the best player-title line', () => {
   const rec = p1.items.find((i) => i.id === 'record-G-NHL 26')
   assert.ok(rec)
   assert.equal(rec.glyph, '745')
-  assert.equal(rec.season, 'NHL 26')
+  assert.equal(rec.when, 'NHL 26')
   assert.match(rec.basis, /Next best: 726 \(P2, NHL 26\)/)
   assert.equal(rec.meta, 'Set NHL 26')
   assert.equal(p1.span, 'NHL 22–NHL 26')
@@ -83,7 +83,7 @@ void test('all-time records sum every title', () => {
   const v = buildPlayerAwards(lines, 1)
   const pts = v.items.find((i) => i.id === 'alltime-PTS')
   assert.equal(pts?.glyph, '1,200')
-  assert.equal(pts.season, 'NHL 26')
+  assert.equal(pts.when, 'All-time')
   assert.match(pts.basis, /Next best: 1,000 \(P2\)\./)
   assert.equal(v.items.find((i) => i.id === 'alltime-GP')?.glyph, '510')
 })
@@ -95,11 +95,11 @@ void test('milestones land in the title where the threshold was crossed', () => 
     line(1, 'NHL 26', { goals: 500 }),
   ]
   const ms = buildPlayerAwards(lines, 1).items.filter((i) => i.kind === 'milestone')
-  const at = Object.fromEntries(ms.map((m) => [m.id, `${m.season} ${m.tier ?? ''}`]))
+  const at = Object.fromEntries(ms.map((m) => [m.id, `${m.when} ${m.tier ?? ''}`]))
   assert.deepEqual(at, {
-    'milestone-G-250': 'NHL 22 bronze',
-    'milestone-G-500': 'NHL 23 silver',
-    'milestone-G-1000': 'NHL 26 gold',
+    'milestone-G-250': 'Reached NHL 22 bronze',
+    'milestone-G-500': 'Reached NHL 23 silver',
+    'milestone-G-1000': 'Reached NHL 26 gold',
   })
 })
 
@@ -109,15 +109,22 @@ void test('one title crossing several thresholds earns each', () => {
   )
   assert.deepEqual(
     ms.map((m) => m.short),
-    ['2,000 PTS', '1,000 PTS', '500 PTS'],
+    ['2,000 career PTS', '1,000 career PTS', '500 career PTS'],
   )
 })
 
-void test('newest season first; all-time, then records, then milestones', () => {
-  const lines = [line(1, 'NHL 22', { goals: 300 }), line(1, 'NHL 27', { goals: 5 })]
+void test('all-time records first, then season records, then milestones; newest first within each', () => {
+  const lines = [
+    line(1, 'NHL 22', { goals: 300, assists: 10 }),
+    line(1, 'NHL 26', { goals: 5, assists: 300 }),
+    line(2, 'NHL 27', { goals: 1 }),
+  ]
   assert.deepEqual(ids(buildPlayerAwards(lines, 1)), [
     'alltime-G',
+    'alltime-A',
+    'record-A-NHL 26',
     'record-G-NHL 22',
+    'milestone-A-250',
     'milestone-G-250',
   ])
 })
