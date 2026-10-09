@@ -228,9 +228,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         ? 'skater'
         : overview.primaryRole
 
-  const selectedContribution =
-    selectedRole === 'skater' ? overview.skaterContribution : overview.goalieContribution
-
   const heroCard = cardFromProfile({
     player: overview.player,
     season: overview.currentEaSeason,
@@ -353,7 +350,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
       <div id="sheet-contribution" className="scroll-mt-24">
         <ContributionSection
-          contribution={selectedContribution}
           selectedRole={selectedRole}
           skaterSeason={eaStats[0] ?? null}
           teammates={teammates}

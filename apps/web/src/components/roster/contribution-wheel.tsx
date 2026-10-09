@@ -17,6 +17,13 @@ export interface ContributionWheelSeason {
   giveaways: number
   gamesPlayed: number
   skaterGp: number
+  goalieGp: number
+  goalieSaves: number | null
+  goalieGoalsAgainst: number | null
+  goalieDesperationSaves: number | null
+  goalieBrkSaves: number | null
+  goaliePenSaves: number | null
+  goaliePokeChecks: number | null
 }
 
 /** A teammate row used to rank the focal player on each stat. */
@@ -25,6 +32,8 @@ export interface ContributionWheelTeammate extends ContributionWheelSeason {
 }
 
 interface Props {
+  /** Which stat set drives the wheel (goalies: saves-based Game Score). */
+  role?: 'skater' | 'goalie' | undefined
   season: ContributionWheelSeason
   /** Other team members in the same game title; drives `#X of Y` rank chips. */
   teammates?: ContributionWheelTeammate[] | undefined
@@ -53,18 +62,26 @@ type StatId =
   | 'faceoffWins'
   | 'pim'
   | 'giveaways'
+  | 'saves'
+  | 'despSaves'
+  | 'brkSaves'
+  | 'penSaves'
+  | 'pokeChecks'
+  | 'goalsAgainst'
 
 interface StatDef {
   id: StatId
   name: string
   short: string
+  /** Shorter label for the wheel callouts when `name` would clip at the edge. */
+  callout?: string
   color: string
   weight: number
   sign: 1 | -1
   extract: (s: ContributionWheelSeason) => number
 }
 
-const STAT_DEFS: StatDef[] = [
+const SKATER_STATS: StatDef[] = [
   {
     id: 'goals',
     name: 'Goals',
@@ -148,11 +165,81 @@ const STAT_DEFS: StatDef[] = [
   },
 ]
 
+/**
+ * Goalies: Luszczyszyn's goalie Game Score (Saves 0.10, Goals Against −0.75)
+ * plus the site's own bonuses for hard saves (lib/match-recap goalie model),
+ * so the wheel has more than one slice. Breakaway/penalty/desperation saves
+ * are also inside Saves — the bonus is on top, as in the per-game model.
+ */
+const GOALIE_STATS: StatDef[] = [
+  {
+    id: 'saves',
+    name: 'Saves',
+    short: 'SV',
+    color: '#38bdf8',
+    weight: 0.1,
+    sign: 1,
+    extract: (s) => s.goalieSaves ?? 0,
+  },
+  {
+    id: 'despSaves',
+    name: 'Desperation Saves',
+    short: 'DSV',
+    callout: 'Desperation',
+    color: '#e84131',
+    weight: 0.5,
+    sign: 1,
+    extract: (s) => s.goalieDesperationSaves ?? 0,
+  },
+  {
+    id: 'brkSaves',
+    name: 'Breakaway Saves',
+    short: 'BKS',
+    callout: 'Breakaways',
+    color: '#14b8a6',
+    weight: 0.8,
+    sign: 1,
+    extract: (s) => s.goalieBrkSaves ?? 0,
+  },
+  {
+    id: 'penSaves',
+    name: 'Penalty-Shot Saves',
+    short: 'PSS',
+    callout: 'Pen. Shots',
+    color: '#ece335',
+    weight: 0.8,
+    sign: 1,
+    extract: (s) => s.goaliePenSaves ?? 0,
+  },
+  {
+    id: 'pokeChecks',
+    name: 'Pokechecks',
+    short: 'PK',
+    color: '#a855f7',
+    weight: 0.15,
+    sign: 1,
+    extract: (s) => s.goaliePokeChecks ?? 0,
+  },
+  {
+    id: 'goalsAgainst',
+    name: 'Goals Against',
+    short: 'GA',
+    color: '#f87171',
+    weight: 0.75,
+    sign: -1,
+    extract: (s) => s.goalieGoalsAgainst ?? 0,
+  },
+]
+
 const CX = 210
 const CY = 210
 /** SVG coordinates to 2 decimals: server and browser trig can differ in the
  *  last digit, which broke hydration on every profile. */
 const px = (n: number) => Math.round(n * 100) / 100
+/** Callout name: 10px condensed caps with tracking ≈ 7.4 units a character
+ *  (measured: "GOALS" = 37). The frame leaves ~24 units beside the drawing. */
+const CALLOUT_CHAR_W = 7.4
+const CALLOUT_MARGIN = 24
 const R_OUTER = 170
 const R_INNER = 110
 
@@ -165,6 +252,7 @@ interface EnrichedStat extends StatDef {
 }
 
 export function ContributionWheel({
+  role = 'skater',
   season,
   teammates,
   playerId,
@@ -173,25 +261,29 @@ export function ContributionWheel({
   updatedAt,
 }: Props) {
   const updatedLabel = useMemo(() => formatDataDay(updatedAt), [updatedAt])
-  const gp = season.skaterGp || season.gamesPlayed || 0
+  const goalie = role === 'goalie'
+  const statDefs = goalie ? GOALIE_STATS : SKATER_STATS
+  const gp = goalie ? season.goalieGp : season.skaterGp || season.gamesPlayed || 0
   const lowSample = gp > 0 && gp < 10
 
   /** Positive segments only — these define the wheel's geometry/share %. */
   const positives = useMemo<EnrichedStat[]>(() => {
-    return STAT_DEFS.filter((d) => d.sign === 1)
-      .map((d) => buildEnriched(d, season, gp, teammates, playerId))
+    return statDefs
+      .filter((d) => d.sign === 1)
+      .map((d) => buildEnriched(d, season, gp, teammates, playerId, role))
       .filter((s) => s.imp > 0)
       .sort((a, b) => b.imp - a.imp)
-  }, [season, gp, teammates, playerId])
+  }, [statDefs, season, gp, teammates, playerId, role])
 
   /** Negative liabilities — rendered in their own ledger group, NOT in the
    *  wheel (they reduce the net score but don't take up share-of-impact slices). */
   const negatives = useMemo<EnrichedStat[]>(() => {
-    return STAT_DEFS.filter((d) => d.sign === -1)
-      .map((d) => buildEnriched(d, season, gp, teammates, playerId))
+    return statDefs
+      .filter((d) => d.sign === -1)
+      .map((d) => buildEnriched(d, season, gp, teammates, playerId, role))
       .filter((s) => s.total > 0)
       .sort((a, b) => b.total * b.weight - a.total * a.weight)
-  }, [season, gp, teammates, playerId])
+  }, [statDefs, season, gp, teammates, playerId, role])
 
   /** Total positive / negative / net contribution in Game Score units. */
   const totals = useMemo(() => {
@@ -293,7 +385,16 @@ export function ContributionWheel({
     const anchor: 'start' | 'middle' | 'end' =
       cosAm > 0.2 ? 'start' : cosAm < -0.2 ? 'end' : 'middle'
     const dx = anchor === 'start' ? 4 : anchor === 'end' ? -4 : 0
-    return { ...s, x1, y1, x2, y2, tx: tx + dx, ty, anchor }
+    const x = tx + dx
+    // A side label that would run past the frame (CALLOUT_MARGIN) falls back
+    // to its short callout, then its stat code.
+    const fits = (label: string) => {
+      const w = label.length * CALLOUT_CHAR_W
+      const left = anchor === 'end' ? x - w : anchor === 'middle' ? x - w / 2 : x
+      return left >= -CALLOUT_MARGIN && left + w <= 420 + CALLOUT_MARGIN
+    }
+    const label = [s.name, s.callout, s.short].find((l): l is string => l !== undefined && fits(l))
+    return { ...s, x1, y1, x2, y2, tx: x, ty, anchor, label: label ?? s.short }
   })
 
   const maxImpAll = Math.max(
@@ -327,7 +428,9 @@ export function ContributionWheel({
           <h2>
             <span className="accent">▌</span>Contribution<span className="cw-h2-tail"> Wheel</span>
           </h2>
-          <span className="scope">Game-Score share · skater · {gamertag}</span>
+          <span className="scope">
+            Game-Score share · {role} · {gamertag}
+          </span>
         </div>
         <div className="cw-meta">
           <span>
@@ -454,7 +557,7 @@ export function ContributionWheel({
                     {c.pct.toFixed(0)}%
                   </text>
                   <text className="cw-callout-name" x={c.tx} y={c.ty + 12} textAnchor={c.anchor}>
-                    {c.name.toUpperCase()}
+                    {c.label.toUpperCase()}
                   </text>
                 </g>
               ))}
@@ -614,8 +717,9 @@ export function ContributionWheel({
           <path d="M12 8v4M12 16h.01" />
         </svg>
         <span>
-          Game Score weights — Goals 0.75, Assists 0.70, Shots 0.075, Blocks/Takeaways/Hits 0.05,
-          Faceoffs Won 0.01. Penalty Minutes (−0.15) and Giveaways (−0.05) reduce the net score.
+          {goalie
+            ? 'Game Score weights — Saves 0.10 (Luszczyszyn) plus bonuses for hard saves: Desperation 0.50, Breakaway 0.80, Penalty Shot 0.80, Pokechecks 0.15. Goals Against (−0.75) reduces the net score.'
+            : 'Game Score weights — Goals 0.75, Assists 0.70, Shots 0.075, Blocks/Takeaways/Hits 0.05, Faceoffs Won 0.01. Penalty Minutes (−0.15) and Giveaways (−0.05) reduce the net score.'}{' '}
           Wheel slices show share of <b>positive</b> impact only; the center number reflects net
           Game Score over {String(gp)} GP.
           {lowSample ? (
@@ -778,11 +882,12 @@ function buildEnriched(
   gp: number,
   teammates: ContributionWheelTeammate[] | undefined,
   playerId: number | undefined,
+  role: 'skater' | 'goalie',
 ): EnrichedStat {
   const total = d.extract(s)
   const imp = total * d.weight * d.sign
   const pg = gp > 0 ? total / gp : 0
-  const rank = teammates ? computeRank(d, total, teammates, playerId) : undefined
+  const rank = teammates ? computeRank(d, total, teammates, playerId, role) : undefined
   return { ...d, total, imp, pct: 0, pg, rank: rank ?? undefined }
 }
 
@@ -793,9 +898,13 @@ function computeRank(
   focalValue: number,
   teammates: ContributionWheelTeammate[],
   playerId: number | undefined,
+  role: 'skater' | 'goalie',
 ): { rank: number; total: number } | null {
+  // Ranked against teammates in the same role (goalies vs goalies).
   const others = teammates.filter(
-    (t) => t.skaterGp > 0 && (playerId === undefined || t.playerId !== playerId),
+    (t) =>
+      (role === 'goalie' ? t.goalieGp : t.skaterGp) > 0 &&
+      (playerId === undefined || t.playerId !== playerId),
   )
   if (others.length === 0) return null
   let strictlyBetter = 0
