@@ -1,5 +1,6 @@
 import type { getEARoster } from '@eanhl/db/queries'
 import { PlayerCard } from '@/components/cards/player-card'
+import { PlayerCardCompact } from '@/components/cards/player-card-compact'
 import { cardFromRosterRow, type CardSummaryInput } from '@/components/cards/card-adapters'
 import './depth-chart.css'
 
@@ -58,23 +59,26 @@ export function DepthChart({
         <div className="legend">
           <span className="pip">
             <i />
-            Main position
+            Main<span className="long"> position</span>
           </span>
           <span className="pip dup">
             <i />
-            Depth · also plays
+            Depth<span className="long"> · also plays</span>
           </span>
         </div>
         <div className="meta">
           <span>
-            <b>{String(skaterCount)}</b> Skaters
+            <b>{String(skaterCount)}</b> <span className="long">Skaters</span>
+            <span className="short">SK</span>
           </span>
           <span className="dot">·</span>
           <span>
-            <b>{String(goalieCount)}</b> Goalies
+            <b>{String(goalieCount)}</b> <span className="long">Goalies</span>
+            <span className="short">G</span>
           </span>
-          <span className="dot">·</span>
-          <span>
+          {/* The sheet code stays in the footer; the header drops it ≤1100px. */}
+          <span className="dot sheet">·</span>
+          <span className="sheet">
             Sheet <b>{sheetCode}</b>
           </span>
         </div>
@@ -83,15 +87,21 @@ export function DepthChart({
       <div className="dc-ticker" />
 
       {/* ─── Forwards + Defense ──────────────────────────────────────────── */}
-      <div className="dc-section-bar">
+      <div className="dc-section-bar skaters">
         <h3>
           <span className="accent">▌</span>Forwards{' '}
-          <span className="count">{`${String(forwards.length * 3)} SLOTS`}</span>
+          <span className="count">
+            {String(forwards.length * 3)}
+            <span className="long"> SLOTS</span>
+          </span>
         </h3>
         <div className="rule" />
         <h3>
           <span className="accent">▌</span>Defense{' '}
-          <span className="count">{`${String(defense.length * 2)} SLOTS`}</span>
+          <span className="count">
+            {String(defense.length * 2)}
+            <span className="long"> SLOTS</span>
+          </span>
         </h3>
         <div className="rule" />
         <span className="units">Placement · GP at position</span>
@@ -99,12 +109,12 @@ export function DepthChart({
 
       <div className="dc-skaters-scroll">
         <div className="dc-skaters">
-          {/* Header row */}
-          <span />
+          {/* Header row (dc-* classes: responsive hooks, see depth-chart.css) */}
+          <span className="dc-corner" />
           <span className="col-head">LW</span>
           <span className="col-head">C</span>
           <span className="col-head">RW</span>
-          <span />
+          <span className="dc-gap" />
           <span />
           <span className="col-head">LD</span>
           <span className="col-head">RD</span>
@@ -128,13 +138,18 @@ export function DepthChart({
       </div>
 
       {/* ─── Goalies ─────────────────────────────────────────────────────── */}
-      <div className="dc-section-bar">
+      <div className="dc-section-bar goalies">
         <h3>
           <span className="accent">▌</span>Goalies{' '}
-          <span className="count">{`${String(goalieSlots.length)} SLOTS`}</span>
+          <span className="count">
+            {String(goalieSlots.length)}
+            <span className="long"> SLOTS</span>
+          </span>
         </h3>
         <div className="rule" />
-        <span className="units">Order · GP at goalie</span>
+        <span className="units">
+          Order · GP<span className="long"> at goalie</span>
+        </span>
       </div>
 
       <div className="dc-goalies-scroll">
@@ -188,16 +203,16 @@ function RowGroup({
       <SlotCell slot={fwd.lw} positionLabel="LW" />
       <SlotCell slot={fwd.c} positionLabel="C" />
       <SlotCell slot={fwd.rw} positionLabel="RW" />
-      <span />
+      <span className="dc-gap" />
       {def !== null && pairLabel !== null ? (
         <>
-          <RowRail label={pairLabel} num={lineNum} />
+          <RowRail label={pairLabel} num={lineNum} className="dc-pair-rail" />
           <SlotCell slot={def.ld} positionLabel="LD" />
           <SlotCell slot={def.rd} positionLabel="RD" />
         </>
       ) : (
         <>
-          <span />
+          <span className="dc-pair-rail" />
           <span />
           <span />
         </>
@@ -206,9 +221,9 @@ function RowGroup({
   )
 }
 
-function RowRail({ label, num }: { label: string; num: string }) {
+function RowRail({ label, num, className }: { label: string; num: string; className?: string }) {
   return (
-    <div className="dc-row-rail">
+    <div className={className === undefined ? 'dc-row-rail' : `dc-row-rail ${className}`}>
       <span className="lbl">{label}</span>
       <span className="num">{num}</span>
     </div>
@@ -217,13 +232,24 @@ function RowRail({ label, num }: { label: string; num: string }) {
 
 function SlotCell({ slot, positionLabel }: { slot: DepthSlot | null; positionLabel: string }) {
   if (slot === null) return <OpenSlot positionLabel={positionLabel} />
+  const card = cardFromRosterRow(slot.player, slot.card, positionLabel)
+  const href = `/roster/${String(slot.player.playerId)}`
+  // Full card on desktop; the compact sizes take over per tier (depth-chart.css
+  // shows exactly one of the four — no JS, so the server renders them all).
   return (
     <div className="dc-card">
-      <PlayerCard
-        card={cardFromRosterRow(slot.player, slot.card, positionLabel)}
-        context="list"
-        href={`/roster/${String(slot.player.playerId)}`}
-      />
+      <div className="dc-full">
+        <PlayerCard card={card} context="list" href={href} />
+      </div>
+      <div className="dc-compact dc-compact-m">
+        <PlayerCardCompact card={card.front} size="medium" href={href} />
+      </div>
+      <div className="dc-compact dc-compact-s">
+        <PlayerCardCompact card={card.front} size="small" href={href} />
+      </div>
+      <div className="dc-compact dc-compact-xs">
+        <PlayerCardCompact card={card.front} size="micro" href={href} />
+      </div>
       {slot.isDepth ? <span className="dc-depth-pill">DEPTH</span> : null}
     </div>
   )

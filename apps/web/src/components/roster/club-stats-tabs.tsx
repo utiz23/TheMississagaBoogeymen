@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { formatDuration, formatPosition } from '@/lib/format'
 import './club-stats-tabs.css'
 
@@ -227,6 +227,9 @@ export function ClubStatsTabs({
   const today = updatedDate ?? new Date().toISOString().slice(0, 10)
   const subtitle =
     `EA-Reported · Full Season · ${season.gameTitleName}` + (gamertag ? ` · ${gamertag}` : '')
+  // Micro tier (≤480px) swaps in a shorter scope line — game title first, no
+  // gamertag (the page hero already names the player).
+  const subtitleShort = `${season.gameTitleName} · Full Season · EA-Reported`
 
   return (
     <section className="cs-module">
@@ -235,14 +238,15 @@ export function ClubStatsTabs({
           <h2>
             <span className="accent">▌</span>Club Stats
           </h2>
-          <span className="scope">{subtitle}</span>
+          <span className="scope scope-full">{subtitle}</span>
+          <span className="scope scope-short">{subtitleShort}</span>
         </div>
         <div className="cs-meta">
           <span>
             <b>{String(season.gamesPlayed)}</b> Games Played
           </span>
-          <span className="dot">·</span>
-          <span>
+          <span className="dot sheet">·</span>
+          <span className="sheet">
             Sheet <b>{sheetCode}</b>
           </span>
           <span className="dot">·</span>
@@ -359,7 +363,12 @@ function Subsection({
   // Bars normalize within the subsection so each block's lead cell tends
   // to dominate visually.
   const barMax = computeBarMax(cells)
+  // Column counts per tier, read by the CSS media queries: desktop/medium up
+  // to 4; small keeps a 4-cell block on one row but drops longer blocks to 3;
+  // micro is 2-up.
   const cols = Math.min(4, Math.max(1, cells.length))
+  const colsSm = cells.length <= 4 ? cols : 3
+  const colsXs = Math.min(2, cols)
 
   return (
     <div className="cs-subsection">
@@ -370,7 +379,13 @@ function Subsection({
       </h3>
       <div
         className="cs-grid"
-        style={{ gridTemplateColumns: `repeat(${String(cols)}, minmax(0, 1fr))` }}
+        style={
+          {
+            '--cs-cols': String(cols),
+            '--cs-cols-sm': String(colsSm),
+            '--cs-cols-xs': String(colsXs),
+          } as CSSProperties
+        }
       >
         {cells.map((c) => {
           const pct = computeBarPct(c, barMax)

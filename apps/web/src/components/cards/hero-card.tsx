@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { useCallback, useRef, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { PlayerCard } from './player-card'
+import { PlayerCardCompact } from './player-card-compact'
 import type { CardViewModel } from './card-model'
 import type { LockerView } from './locker-model'
 import './card-locker.css'
@@ -39,6 +40,13 @@ export function HeroCard({
   return (
     <div className="clk-hero">
       <PlayerCard card={card} context="hero" initialFace={initialFace ?? 'front'} />
+      {/* Phone tiers show the compact card instead (card-locker.css). */}
+      <div className="clk-compact clk-compact-s">
+        <PlayerCardCompact card={card.front} size="small" />
+      </div>
+      <div className="clk-compact clk-compact-xs">
+        <PlayerCardCompact card={card.front} size="micro" />
+      </div>
       <button
         ref={editRef}
         type="button"

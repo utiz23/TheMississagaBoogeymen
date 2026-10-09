@@ -247,7 +247,8 @@ export function ContributionWheel({
         <header className="cw-head">
           <div>
             <h2>
-              <span className="accent">▌</span>Contribution Wheel
+              <span className="accent">▌</span>Contribution
+              <span className="cw-h2-tail"> Wheel</span>
             </h2>
             <span className="scope">{gameTitleName}</span>
           </div>
@@ -300,6 +301,12 @@ export function ContributionWheel({
     1,
   )
 
+  // Micro tier (≤480px) shows only the top 3 ledger rows; everything below
+  // folds into one summary row. Hidden by CSS on wider tiers.
+  const minor = positivesWithShare.slice(3)
+  const minorImp = minor.reduce((sum, s) => sum + s.imp, 0)
+  const minorPct = minor.reduce((sum, s) => sum + s.pct, 0)
+
   const onSelect = (id: StatId) => {
     if (lockedId === id) {
       setLockedId(null)
@@ -317,7 +324,7 @@ export function ContributionWheel({
       <header className="cw-head">
         <div>
           <h2>
-            <span className="accent">▌</span>Contribution Wheel
+            <span className="accent">▌</span>Contribution<span className="cw-h2-tail"> Wheel</span>
           </h2>
           <span className="scope">Game-Score share · skater · {gamertag}</span>
         </div>
@@ -327,8 +334,8 @@ export function ContributionWheel({
           </span>
           <span className="dot">·</span>
           <span>{String(gp)} GP</span>
-          <span className="dot">·</span>
-          <span>
+          <span className="dot updated">·</span>
+          <span className="updated">
             Updated <b>{updatedLabel}</b>
           </span>
         </div>
@@ -471,11 +478,11 @@ export function ContributionWheel({
                 {effectiveActiveId === null ? (
                   <>
                     <span>
-                      <b>+{totals.pos.toFixed(1)}</b> positive
+                      <b className="pos">+{totals.pos.toFixed(1)}</b> positive
                     </span>
                     <span className="sep" />
                     <span>
-                      <b>−{Math.abs(totals.neg).toFixed(1)}</b> liabilities
+                      <b className="neg">−{Math.abs(totals.neg).toFixed(1)}</b> liabilities
                     </span>
                   </>
                 ) : (
@@ -531,6 +538,19 @@ export function ContributionWheel({
             />
           ))}
 
+          {minor.length > 0 ? (
+            <div className="cw-leg-row cw-leg-other" style={cssVars('#6b6869')}>
+              <div className="name">
+                <span className="lbl">Other {String(minor.length)}</span>
+              </div>
+              <span className="share">{minorPct.toFixed(1)}%</span>
+              <span className="imp">{minorImp.toFixed(1)}</span>
+              <span className="bar">
+                <i style={{ width: `${((minorImp / maxImpAll) * 100).toFixed(1)}%` }} />
+              </span>
+            </div>
+          ) : null}
+
           {negatives.length > 0 ? (
             <>
               <div className="cw-leg-divider">
@@ -562,6 +582,20 @@ export function ContributionWheel({
           ) : null}
         </div>
       </div>
+
+      {/* Micro tier (≤480px): liabilities collapse to a one-line strip. */}
+      {negatives.length > 0 ? (
+        <div className="cw-liab-strip">
+          <span className="lab">Liabilities</span>
+          <span className="vals">
+            {negatives.map((s) => (
+              <span key={s.id} style={cssVars(s.color)}>
+                {s.short} <b>−{Math.abs(s.imp).toFixed(1)}</b>
+              </span>
+            ))}
+          </span>
+        </div>
+      ) : null}
 
       <div className="cw-cap">
         <svg
@@ -633,6 +667,7 @@ function LedgerRow({
         active ? 'active' : '',
         locked ? 'locked' : '',
         negative ? 'negative' : '',
+        rankIndex !== null && rankIndex >= 3 ? 'minor' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -672,6 +707,7 @@ function LedgerRow({
       </div>
       <span className="total">{formatCount(stat.total)}</span>
       <span className="pg">{stat.pg.toFixed(2)}</span>
+      {!negative ? <span className="share">{stat.pct.toFixed(1)}%</span> : null}
       <span className="imp">
         {negative ? '−' : ''}
         {Math.abs(stat.imp).toFixed(1)}

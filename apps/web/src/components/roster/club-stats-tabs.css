@@ -48,7 +48,10 @@
   align-items: center;
   gap: 10px;
 }
-.cs-title h2 .accent { color: var(--color-accent); font-weight: 900; }
+.cs-title h2 .accent {
+  color: var(--color-accent);
+  font-weight: 900;
+}
 .cs-title .scope {
   margin-top: 4px;
   display: block;
@@ -71,8 +74,16 @@
   flex-wrap: wrap;
   justify-content: flex-end;
 }
-.cs-meta b { color: var(--color-fg-2); font-weight: 700; }
-.cs-meta .dot { color: var(--color-accent); }
+.cs-title .scope-short {
+  display: none;
+}
+.cs-meta b {
+  color: var(--color-fg-2);
+  font-weight: 700;
+}
+.cs-meta .dot {
+  color: var(--color-accent);
+}
 
 /* ── TICKER ─────────────────────────────────────────────────────────────── */
 .cs-ticker {
@@ -99,7 +110,9 @@
   overflow-x: auto;
   scrollbar-width: none;
 }
-.cs-tabs::-webkit-scrollbar { display: none; }
+.cs-tabs::-webkit-scrollbar {
+  display: none;
+}
 .cs-tab {
   appearance: none;
   background: transparent;
@@ -118,9 +131,14 @@
   align-items: center;
   gap: 8px;
   white-space: nowrap;
-  transition: color 120ms, border-color 120ms, background 120ms;
+  transition:
+    color 120ms,
+    border-color 120ms,
+    background 120ms;
 }
-.cs-tab:hover { color: var(--color-fg-2); }
+.cs-tab:hover {
+  color: var(--color-fg-2);
+}
 .cs-tab[aria-selected='true'] {
   color: var(--color-fg-1);
   border-bottom-color: var(--color-accent);
@@ -133,7 +151,9 @@
   color: rgba(63, 63, 70, 0.9);
   letter-spacing: 0.04em;
 }
-.cs-tab[aria-selected='true'] .ix { color: var(--color-accent); }
+.cs-tab[aria-selected='true'] .ix {
+  color: var(--color-accent);
+}
 
 /* ── PANEL BODY ─────────────────────────────────────────────────────────── */
 .cs-panel {
@@ -167,7 +187,9 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 /* Push the rank summary to the bottom so the marquee fills the row height. */
-.cs-marquee .cs-marquee-rank { margin-top: auto; }
+.cs-marquee .cs-marquee-rank {
+  margin-top: auto;
+}
 .cs-marquee-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -283,7 +305,8 @@
 /* ── STAT GRID ──────────────────────────────────────────────────────────── */
 .cs-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Column count comes from the TSX (--cs-cols / -sm / -xs per tier). */
+  grid-template-columns: repeat(var(--cs-cols, 4), minmax(0, 1fr));
   gap: 1px;
   background: rgba(63, 63, 70, 0.6);
   border: 1px solid rgba(63, 63, 70, 0.6);
@@ -352,7 +375,9 @@
 .cs-cell .pct-rank .pg {
   color: var(--color-fg-4);
 }
-.cs-cell.lead .pct-rank > span:first-child { color: rgba(232, 65, 49, 0.85); }
+.cs-cell.lead .pct-rank > span:first-child {
+  color: rgba(232, 65, 49, 0.85);
+}
 
 /* Header row inside each cell — label on the left, diff chip on the right. */
 .cs-cell-head {
@@ -397,10 +422,11 @@
 }
 .cs-cell.lead {
   background:
-    linear-gradient(180deg, rgba(232, 65, 49, 0.08), rgba(15, 13, 14, 0)),
-    var(--color-surface);
+    linear-gradient(180deg, rgba(232, 65, 49, 0.08), rgba(15, 13, 14, 0)), var(--color-surface);
 }
-.cs-cell.lead .v { color: var(--color-accent); }
+.cs-cell.lead .v {
+  color: var(--color-accent);
+}
 
 /* ── FOOTER ─────────────────────────────────────────────────────────────── */
 .cs-foot {
@@ -419,28 +445,285 @@
   color: var(--color-fg-5);
   text-transform: uppercase;
 }
-.cs-foot b { color: var(--color-fg-3); font-weight: 700; }
+.cs-foot b {
+  color: var(--color-fg-3);
+  font-weight: 700;
+}
 .cs-foot .center {
   color: var(--color-fg-4);
   text-align: center;
   letter-spacing: 0.3em;
 }
-.cs-foot .right { text-align: right; }
+.cs-foot .right {
+  text-align: right;
+}
 
 /* ── RESPONSIVE ─────────────────────────────────────────────────────────── */
+/* Medium (≤1100): marquee stays beside the grid but narrows to a fixed
+   200px rail; everything tightens a notch. The Sheet code (meta + footer)
+   is dropped at every tier below desktop. */
 @media (max-width: 1100px) {
+  .cs-head {
+    padding: 18px 20px 12px;
+  }
+  .cs-title h2 {
+    font-size: 16px;
+  }
+  .cs-title .scope {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+  }
+  .cs-meta {
+    gap: 10px;
+    letter-spacing: 0.1em;
+  }
+  .cs-meta > span {
+    white-space: nowrap;
+  }
+  .cs-meta .sheet {
+    display: none;
+  }
+
+  .cs-tabs {
+    padding: 0 8px;
+  }
+  .cs-tab {
+    height: 36px;
+    padding: 0 14px;
+    letter-spacing: 0.2em;
+  }
+
+  .cs-panel {
+    padding: 18px 20px 20px;
+  }
   .cs-panel-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 18px;
   }
   .cs-marquee {
-    position: static;
-    order: -1; /* float marquee above subsections on narrow viewports */
+    padding: 18px 18px 16px;
+    gap: 10px;
   }
-  .cs-marquee-value { font-size: 64px; }
-  .cs-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cs-marquee-value {
+    font-size: 64px;
+  }
+  .cs-marquee-desc {
+    font-size: 12px;
+    text-wrap: pretty;
+  }
+  .cs-marquee-rank .num {
+    font-size: 22px;
+  }
+  .cs-subsections {
+    gap: 18px;
+  }
+
+  .cs-cell {
+    padding: 12px 12px 10px;
+    min-height: 84px;
+    min-width: 0;
+  }
+  .cs-cell .k {
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    line-height: 1.3;
+  }
+  .cs-delta {
+    font-size: 9.5px;
+    padding: 1px 5px;
+  }
+  .cs-cell .v {
+    font-size: 24px;
+    margin-top: 4px;
+    white-space: nowrap;
+  }
+  .cs-cell .v small {
+    font-size: 12px;
+  }
+  .cs-cell .bar {
+    margin-top: 6px;
+  }
+  .cs-cell .pct-rank {
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    margin-top: 4px;
+    gap: 6px;
+  }
+
+  .cs-foot {
+    display: none;
+  }
 }
+
+/* Small (≤720): header stacks, marquee goes full-width above the grid and
+   lays out as a strip — label/value | description | rank. */
 @media (max-width: 720px) {
-  .cs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cs-head { flex-direction: column; align-items: flex-start; }
-  .cs-meta { justify-content: flex-start; }
+  .cs-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 16px 18px 12px;
+  }
+  .cs-meta {
+    justify-content: flex-start;
+  }
+
+  .cs-tabs {
+    padding: 0 6px;
+  }
+  .cs-tab {
+    height: 34px;
+    padding: 0 12px;
+  }
+
+  .cs-panel {
+    padding: 16px 18px 18px;
+  }
+  .cs-panel-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .cs-subsections {
+    gap: 16px;
+  }
+
+  .cs-marquee {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto 1fr;
+    column-gap: 18px;
+    row-gap: 6px;
+    align-items: start;
+    padding: 14px 16px;
+  }
+  .cs-marquee-eyebrow {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .cs-marquee-key {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .cs-marquee-value {
+    grid-column: 1;
+    grid-row: 3;
+    font-size: 52px;
+    margin-top: 4px;
+  }
+  .cs-marquee-desc {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    align-self: center;
+    padding-left: 18px;
+    border-left: 1px dashed rgba(63, 63, 70, 0.5);
+    font-size: 12.5px;
+  }
+  .cs-marquee .cs-marquee-rank {
+    grid-column: 3;
+    grid-row: 1 / 4;
+    align-self: center;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .cs-grid {
+    grid-template-columns: repeat(var(--cs-cols-sm, 3), minmax(0, 1fr));
+  }
+}
+
+/* Micro (≤480): phone. Meta line and marquee description drop out, the
+   marquee is value-left / rank-right, cells go 2-up without bars, and tabs
+   grow to a 44px touch target. */
+@media (max-width: 480px) {
+  .cs-head {
+    gap: 6px;
+    padding: 14px 14px 10px;
+  }
+  .cs-title h2 {
+    font-size: 15px;
+    letter-spacing: 0.18em;
+  }
+  .cs-title .scope {
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+  }
+  .cs-title .scope-full {
+    display: none;
+  }
+  .cs-title .scope-short {
+    display: block;
+  }
+  .cs-meta {
+    display: none;
+  }
+
+  .cs-tabs {
+    padding: 0 4px;
+  }
+  .cs-tab {
+    height: 44px;
+    padding: 0 10px;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+  }
+
+  .cs-panel {
+    padding: 12px 12px 14px;
+  }
+  .cs-panel-grid {
+    gap: 14px;
+  }
+  .cs-subsections {
+    gap: 14px;
+  }
+
+  .cs-marquee {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 5px;
+    padding: 12px 14px;
+  }
+  .cs-marquee-value {
+    font-size: 44px;
+  }
+  .cs-marquee-desc {
+    display: none;
+  }
+  .cs-marquee .cs-marquee-rank {
+    grid-column: 2;
+    align-self: end;
+  }
+
+  .cs-grid {
+    grid-template-columns: repeat(var(--cs-cols-xs, 2), minmax(0, 1fr));
+  }
+  .cs-cell {
+    padding: 9px 10px 8px;
+    gap: 3px;
+    min-height: 0;
+  }
+  .cs-cell .k {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    line-height: 1.25;
+  }
+  .cs-delta {
+    font-size: 9px;
+    padding: 1px 4px;
+    letter-spacing: 0.02em;
+  }
+  .cs-cell .v {
+    font-size: 21px;
+  }
+  .cs-cell .bar {
+    display: none;
+  }
+  .cs-cell .pct-rank {
+    margin-top: 2px;
+    letter-spacing: 0.02em;
+  }
 }

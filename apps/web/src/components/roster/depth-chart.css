@@ -258,6 +258,11 @@
 .dc-card {
   position: relative;
 }
+/* Compact cards (PlayerCardCompact) replace the full card below desktop; the
+   tier queries below show exactly one size. */
+.dc-compact {
+  display: none;
+}
 /* Depth flag: a tab on the card's top edge (the card's top-right holds its tier label). */
 .dc-depth-pill {
   position: absolute;
@@ -321,4 +326,302 @@
 }
 .dc-foot .center {
   color: var(--color-fg-4);
+}
+
+/* ── Responsive tiers (Depth Chart Medium / Small / Mobile v2.dc.html) ────────
+   Desktop scrolls sideways when the chart outgrows the page; the smaller tiers
+   swap the full card for the compact card (medium 176px ≤1100, small 115px
+   ≤720, micro 67px ≤480) and fit all five skater columns to the width (no
+   sideways scroll), as the mockups do by zooming their whole grid.
+   --card-w is solved from the scroll wrapper's width (100cqw minus padding,
+   rails and gaps, ÷ 5, capped at the compact card's own --card-nat width) and
+   --card-zoom is that width ÷ --card-nat — tan(atan2(a, b)) is CSS's a ÷ b
+   for two lengths. Both use cqw, so they resolve on the element that reads
+   them, against the nearest scroll wrapper. The "Pair N" rail collapses into
+   a 1px divider (same number as the line beside it). */
+.dc-module .short {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .dc-module {
+    --rail-w: 28px;
+    --col-gap: 8px;
+    --row-gap: 16px;
+    --pad-x: 20px;
+    --card-nat: 176px;
+    /* compact card height ÷ width (252 / 176) */
+    --card-ratio: 1.432;
+    /* 2 × pad-x + rail + 1px divider + 6 column gaps */
+    --card-w: min(var(--card-nat), calc((100cqw - 117px) / 5));
+    --card-zoom: tan(atan2(var(--card-w), var(--card-nat)));
+  }
+  .dc-full {
+    display: none;
+  }
+  .dc-compact {
+    zoom: var(--card-zoom);
+  }
+  .dc-compact-m {
+    display: block;
+  }
+  .dc-module .short {
+    display: inline;
+  }
+  .dc-module .dc-head .long,
+  .dc-head .sheet,
+  .dc-section-bar.skaters .units,
+  .dc-foot .center {
+    display: none;
+  }
+  .dc-head {
+    padding: 20px 24px 16px;
+    gap: 12px 24px;
+  }
+  .dc-head .legend {
+    gap: 8px 16px;
+  }
+  .dc-head .meta {
+    gap: 8px;
+  }
+  .dc-section-bar {
+    padding: 14px var(--pad-x) 8px;
+    gap: 10px;
+  }
+  .dc-section-bar h3 {
+    font-size: 13px;
+    gap: 8px;
+  }
+  .dc-skaters-scroll,
+  .dc-goalies-scroll {
+    container-type: inline-size;
+  }
+  .dc-skaters {
+    grid-template-columns:
+      var(--rail-w)
+      repeat(3, var(--card-w))
+      1px
+      repeat(2, var(--card-w));
+    padding: 16px var(--pad-x) 22px;
+  }
+  .dc-gap {
+    display: none;
+  }
+  .dc-pair-rail {
+    align-self: stretch;
+    padding: 0;
+    background: rgba(63, 63, 70, 0.6);
+  }
+  .dc-skaters .dc-pair-rail .lbl,
+  .dc-skaters .dc-pair-rail .num,
+  .dc-pair-rail::after {
+    display: none;
+  }
+  .dc-row-rail {
+    text-align: center;
+    padding-right: 0;
+  }
+  .dc-row-rail::after {
+    display: none;
+  }
+  .dc-row-rail .lbl {
+    font-size: 8px;
+    letter-spacing: 0.2em;
+  }
+  .dc-row-rail .num {
+    font-size: 22px;
+  }
+  .dc-goalies {
+    padding: 16px var(--pad-x) 22px;
+  }
+  /* "GOALIES" no longer fits the narrow rail; keep the column as an indent so
+     goalie cards line up under the skater cards. */
+  .dc-goalies .dc-row-rail {
+    visibility: hidden;
+    overflow: hidden;
+  }
+  .dc-goalies-scroll {
+    scroll-snap-type: x mandatory;
+  }
+  .dc-goalies .dc-card,
+  .dc-goalies .dc-empty {
+    scroll-snap-align: start;
+  }
+  .dc-empty {
+    min-height: calc(var(--card-w) * var(--card-ratio));
+    border-radius: calc(var(--card-w) * 0.08);
+    gap: 8px;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+  }
+  .dc-empty svg {
+    width: calc(var(--card-w) * 0.34);
+    height: calc(var(--card-w) * 0.34);
+  }
+  .dc-foot {
+    padding: 12px 24px;
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 720px) {
+  .dc-module {
+    --rail-w: 24px;
+    --col-gap: 6px;
+    --row-gap: 14px;
+    --pad-x: 18px;
+    --card-nat: 115px;
+    --card-ratio: 1.461;
+    --card-w: min(var(--card-nat), calc((100cqw - 97px) / 5));
+  }
+  .dc-compact-m {
+    display: none;
+  }
+  .dc-compact-s {
+    display: block;
+  }
+  .dc-section-bar .count .long {
+    display: none;
+  }
+  .dc-head {
+    padding: 18px 18px 14px;
+    gap: 10px 20px;
+  }
+  .dc-head .title h2 {
+    font-size: 17px;
+  }
+  .dc-head .title .scope {
+    font-size: 10px;
+  }
+  .dc-head .legend {
+    gap: 6px 14px;
+  }
+  .dc-section-bar h3 {
+    font-size: 12px;
+  }
+  .dc-section-bar .units {
+    font-size: 9px;
+  }
+  .dc-row-rail .lbl {
+    font-size: 7px;
+    letter-spacing: 0.18em;
+  }
+  .dc-row-rail .num {
+    font-size: 18px;
+  }
+  .dc-depth-pill {
+    font-size: 8px;
+    letter-spacing: 0.14em;
+    padding: 1px 5px;
+  }
+  .dc-empty {
+    font-size: 8px;
+    letter-spacing: 0.1em;
+  }
+  .dc-foot {
+    padding: 12px 18px;
+  }
+}
+
+/* Micro: the left rail becomes a "LINE N" label row above each row of cards,
+   counts drop from the section bars, and the header puts counts + the Depth
+   key on the right of the title. */
+@media (max-width: 480px) {
+  .dc-module {
+    --rail-w: 0px;
+    --col-gap: 3px;
+    --row-gap: 10px;
+    --pad-x: 8px;
+    --card-nat: 67px;
+    --card-ratio: 1.403;
+    /* 2 × pad-x + 1px divider + 5 column gaps */
+    --card-w: min(var(--card-nat), calc((100cqw - 32px) / 5));
+  }
+  .dc-compact-s {
+    display: none;
+  }
+  .dc-compact-xs {
+    display: block;
+  }
+  .dc-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'title meta'
+      'title legend';
+    align-items: end;
+    gap: 5px 12px;
+    padding: 14px 12px 12px;
+  }
+  .dc-head .title {
+    grid-area: title;
+  }
+  .dc-head .meta {
+    grid-area: meta;
+  }
+  .dc-head .legend {
+    grid-area: legend;
+    justify-content: flex-end;
+    font-size: 9px;
+  }
+  .dc-head .legend .pip:not(.dup) {
+    display: none;
+  }
+  .dc-head .title .scope {
+    letter-spacing: 0.2em;
+  }
+  .dc-section-bar {
+    padding: 12px 12px 6px;
+  }
+  .dc-section-bar .count,
+  .dc-section-bar .units .long {
+    display: none;
+  }
+  .dc-skaters {
+    grid-template-columns: repeat(3, var(--card-w)) 1px repeat(2, var(--card-w));
+    padding: 12px var(--pad-x) 18px;
+  }
+  .dc-corner {
+    display: none;
+  }
+  .dc-skaters .col-head,
+  .dc-goalies .col-head {
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    padding-bottom: 4px;
+    gap: 4px;
+  }
+  .dc-skaters .dc-row-rail:not(.dc-pair-rail) {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    text-align: left;
+    margin-bottom: -2px;
+  }
+  .dc-row-rail .lbl {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+  }
+  .dc-row-rail .num {
+    margin-top: 0;
+    font-size: 12px;
+    color: var(--color-fg-2);
+  }
+  .dc-goalies {
+    padding: 12px var(--pad-x) 18px;
+  }
+  .dc-depth-pill {
+    top: -6px;
+    font-size: 7px;
+    letter-spacing: 0.1em;
+    padding: 0 3px;
+  }
+  .dc-empty span {
+    display: none;
+  }
+  .dc-foot {
+    justify-content: center;
+    padding: 10px 12px;
+  }
 }

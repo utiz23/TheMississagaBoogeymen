@@ -38,6 +38,68 @@
   outline-offset: 2px;
 }
 
+/* Hero slot at the profile-hero tiers (Profile Hero Medium/Small/Micro):
+   Medium zooms the 264px card to 176px; Small and Micro swap it for the
+   compact card (115 / 67px, no flip), and the EDIT button tightens with it. */
+.clk-compact {
+  display: none;
+}
+@media (max-width: 1100px) {
+  .clk-hero {
+    width: 176px;
+    gap: 12px;
+  }
+  .clk-hero .pcard {
+    zoom: 0.6667;
+  }
+  .clk-edit {
+    padding: 9px 12px;
+  }
+}
+@media (max-width: 720px) {
+  .clk-hero {
+    width: 115px;
+    gap: 10px;
+  }
+  .clk-hero > .pcard {
+    display: none;
+  }
+  .clk-compact-s {
+    display: block;
+  }
+  .clk-edit {
+    gap: 6px;
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+  .clk-edit svg {
+    width: 12px;
+    height: 12px;
+  }
+}
+@media (max-width: 480px) {
+  .clk-hero {
+    width: 67px;
+    gap: 8px;
+  }
+  .clk-compact-s {
+    display: none;
+  }
+  .clk-compact-xs {
+    display: block;
+  }
+  .clk-edit {
+    gap: 4px;
+    padding: 6px 4px;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+  }
+  .clk-edit svg {
+    width: 11px;
+    height: 11px;
+  }
+}
+
 /* ── Overlay ─────────────────────────────────────────────────────────── */
 .clk-overlay {
   position: fixed;
@@ -579,7 +641,7 @@
 }
 
 /* ── Phones ──────────────────────────────────────────────────────────── */
-@media (max-width: 639px) {
+@media (max-width: 720px) {
   .clk-overlay {
     padding: 12px;
   }

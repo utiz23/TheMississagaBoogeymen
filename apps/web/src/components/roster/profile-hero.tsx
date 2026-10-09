@@ -224,6 +224,14 @@ export function ProfileHero({
               </span>
             </div>
 
+            {/* Micro tier only: the ledger column is hidden there, so this
+                season + career collapse into a small table under the pills. */}
+            <MiniStats
+              role={selectedRole}
+              season={currentEaSeason}
+              career={aggregate.gp > 0 ? aggregate : null}
+            />
+
             <div className="ph-bottom">
               {player.bio !== null && (
                 <div className="ph-bio">
@@ -248,7 +256,11 @@ export function ProfileHero({
 
           {/* ── Col 3 — Stat Ledger ──────────────────────────────────── */}
           <aside className="ph-col-ledger">
-            <LedgerBlock title="Last 10 Games" src={`${last10.gp.toString()} GP · per-game`}>
+            <LedgerBlock
+              title="Last 10 Games"
+              src={`${last10.gp.toString()} GP · per-game`}
+              className="ph-ledger-last10"
+            >
               {last10.gp > 0 ? (
                 selectedRole === 'skater' ? (
                   <SkaterLedger
@@ -474,14 +486,16 @@ function GoalieIcon() {
 function LedgerBlock({
   title,
   src,
+  className,
   children,
 }: {
   title: string
   src: string
+  className?: string
   children: ReactNode
 }) {
   return (
-    <div className="ph-ledger-block">
+    <div className={className === undefined ? 'ph-ledger-block' : `ph-ledger-block ${className}`}>
       <div className="ph-ledger-head">
         <h3>
           <b>▌</b>
@@ -490,6 +504,81 @@ function LedgerBlock({
         <span className="src">{src}</span>
       </div>
       {children}
+    </div>
+  )
+}
+
+/**
+ * Micro-tier stat table (Profile Hero Micro.dc.html): this season + career in
+ * one compact grid. Hidden by CSS above 480px, where the ledger column shows.
+ */
+function MiniStats({
+  role,
+  season,
+  career,
+}: {
+  role: 'skater' | 'goalie'
+  season: PlayerProfileOverview['currentEaSeason']
+  career: CareerAggregate | null
+}) {
+  const heads = role === 'skater' ? ['GP', 'G', 'A', 'PTS'] : ['GP', 'REC', 'SV%', 'GAA']
+  const leadIndex = role === 'skater' ? 3 : 2
+  const rows: { label: string; vals: string[] }[] = []
+  if (season !== null) {
+    rows.push({
+      label: season.gameTitleName,
+      vals:
+        role === 'skater'
+          ? [season.skaterGp, season.goals, season.assists, season.points].map(String)
+          : [
+              season.goalieGp.toString(),
+              `${(season.goalieWins ?? 0).toString()}-${(season.goalieLosses ?? 0).toString()}-${(season.goalieOtl ?? 0).toString()}`,
+              season.goalieSavePct ?? '—',
+              season.goalieGaa ?? '—',
+            ],
+    })
+  }
+  if (career !== null) {
+    rows.push({
+      label: 'Career',
+      vals:
+        role === 'skater'
+          ? [
+              (career as SkaterAggregate).gp,
+              (career as SkaterAggregate).g,
+              (career as SkaterAggregate).a,
+              (career as SkaterAggregate).pts,
+            ].map(String)
+          : [
+              career.gp.toString(),
+              `${(career as GoalieAggregate).w.toString()}-${(career as GoalieAggregate).l.toString()}-${(career as GoalieAggregate).otl.toString()}`,
+              (career as GoalieAggregate).savePct ?? '—',
+              (career as GoalieAggregate).gaa ?? '—',
+            ],
+    })
+  }
+  if (rows.length === 0) return null
+  return (
+    <div className={`ph-mini ${role}`}>
+      <span className="h" aria-hidden />
+      {heads.map((h, i) => (
+        <span key={h} className={i === leadIndex ? 'h lead' : 'h'}>
+          {h}
+        </span>
+      ))}
+      {rows.map((r, ri) => {
+        const last = ri === rows.length - 1
+        return (
+          <div key={r.label} className={last ? 'row last' : 'row'}>
+            <span className="k">{r.label}</span>
+            {r.vals.map((v, i) => (
+              <span key={heads[i]} className={i === leadIndex ? 'v lead' : 'v'}>
+                {v}
+              </span>
+            ))}
+          </div>
+        )
+      })}
     </div>
   )
 }

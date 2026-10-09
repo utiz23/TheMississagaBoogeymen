@@ -607,18 +607,115 @@ button.am-group-head {
   color: var(--color-fg-5);
 }
 
-@media (max-width: 639px) {
+/*
+ * Responsive tiers (Player Action Map - Medium/Small/Micro.dc.html). Medium
+ * stacks the list under the rink and turns the filters into a grid; Small and
+ * Micro give each filter row the full width and scale the markers up, since
+ * the rink (viewBox units) renders small on a phone.
+ */
+.am-hint-tap {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .am-hint-click {
+    display: none;
+  }
+  .am-hint-tap {
+    display: inline;
+  }
+  .am-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+  .am-segs {
+    display: flex;
+  }
+  .am-seg {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 9px 10px;
+  }
+  .am-iso {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .am-chips {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    margin-left: 0;
+  }
+  .am-chip {
+    justify-content: center;
+    min-width: 0;
+    padding: 9px 6px;
+  }
+  .am-body {
+    flex-direction: column;
+  }
+  .am-rink-col,
+  .am-list-col {
+    flex: none;
+  }
+  .am-list-col {
+    min-height: 0;
+    height: 460px;
+  }
+}
+
+@media (max-width: 720px) {
   .am-panel {
     padding: 12px;
+  }
+  .am-filters {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 10px;
+  }
+  .am-chips {
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   }
   .am-rink-col {
     padding: 10px;
   }
   .am-list-col {
-    min-height: 0;
-    height: 440px;
+    height: 420px;
+  }
+  /* 56 → 64 viewBox units. */
+  .am-glyph {
+    transform: scale(1.142857);
+  }
+}
+
+@media (max-width: 480px) {
+  .am-panel {
+    padding: 8px;
+  }
+  .am-seg {
+    gap: 4px;
+    min-height: 44px;
+    padding: 6px 4px;
+    letter-spacing: 0.04em;
   }
   .am-chips {
-    margin-left: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .am-chip {
+    gap: 5px;
+    min-height: 44px;
+    padding: 6px 4px;
+  }
+  .am-rink-col {
+    padding: 8px;
+  }
+  .am-list-col {
+    height: 520px;
+  }
+  /* 56 → 80 viewBox units. */
+  .am-glyph {
+    transform: scale(1.428571);
   }
 }

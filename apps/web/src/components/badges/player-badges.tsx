@@ -91,7 +91,7 @@ export function PlayerBadges({ gamertag, seasonName, aiGoalie = false, rows }: P
       <div className="pb-body">
         <div className="pb-list">
           {board.groups.map((g) => (
-            <div key={g.group.id}>
+            <div key={g.group.id} className="pb-group-col">
               <div className="pb-group">
                 <span>{g.group.name}</span>
                 <span className="pb-group-line" />
@@ -99,33 +99,36 @@ export function PlayerBadges({ gamertag, seasonName, aiGoalie = false, rows }: P
                   {g.unlocked}/{g.members.length}
                 </span>
               </div>
-              {g.members.map((r) => (
-                <button
-                  key={r.family.id}
-                  type="button"
-                  className="pb-row"
-                  data-selected={r.family.id === sel.family.id}
-                  data-locked={r.locked}
-                  onClick={() => {
-                    pick(r.family.id)
-                  }}
-                >
-                  <span
-                    className="pb-row-badge"
-                    style={r.locked ? { opacity: LOCK_OPACITY, filter: LOCK_FILTER } : undefined}
+              {/* A block at desktop; a horizontal tile strip at ≤1100px (player-badges.css). */}
+              <div className="pb-members">
+                {g.members.map((r) => (
+                  <button
+                    key={r.family.id}
+                    type="button"
+                    className="pb-row"
+                    data-selected={r.family.id === sel.family.id}
+                    data-locked={r.locked}
+                    onClick={() => {
+                      pick(r.family.id)
+                    }}
                   >
-                    <BadgeAt row={r} level={r.progress.level} size={30} />
-                  </span>
-                  <span className="pb-row-text">
-                    <span className="pb-row-name">{r.family.short}</span>
-                    <span className="pb-row-theme">{r.themeLabel}</span>
-                  </span>
-                  <span className="pb-row-lvl">
-                    {r.progress.level}
-                    <span>/30</span>
-                  </span>
-                </button>
-              ))}
+                    <span
+                      className="pb-row-badge"
+                      style={r.locked ? { opacity: LOCK_OPACITY, filter: LOCK_FILTER } : undefined}
+                    >
+                      <BadgeAt row={r} level={r.progress.level} size={30} />
+                    </span>
+                    <span className="pb-row-text">
+                      <span className="pb-row-name">{r.family.short}</span>
+                      <span className="pb-row-theme">{r.themeLabel}</span>
+                    </span>
+                    <span className="pb-row-lvl">
+                      {r.progress.level}
+                      <span>/30</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           ))}
         </div>
@@ -133,6 +136,7 @@ export function PlayerBadges({ gamertag, seasonName, aiGoalie = false, rows }: P
         <div className="pb-detail">
           <div className="pb-detail-head">
             <div
+              className="pb-detail-badge"
               style={
                 headDim
                   ? { flex: 'none', opacity: LOCK_OPACITY, filter: LOCK_FILTER }
@@ -184,6 +188,7 @@ export function PlayerBadges({ gamertag, seasonName, aiGoalie = false, rows }: P
                       }}
                     >
                       <span
+                        className="pb-cell-badge"
                         style={{
                           opacity: done ? 1 : current ? 0.6 : LOCK_OPACITY,
                           filter: done ? 'none' : current ? 'grayscale(0.6)' : LOCK_FILTER,

@@ -191,7 +191,10 @@ export function CareerActionMap({
             </span>
             Action Tracker Map · Career
           </h3>
-          <span className="am-hint">Click a marker or card to pin it</span>
+          <span className="am-hint">
+            <span className="am-hint-click">Click</span>
+            <span className="am-hint-tap">Tap</span> a marker or card to pin it
+          </span>
         </div>
 
         <div className="am-stack">
@@ -329,21 +332,24 @@ export function CareerActionMap({
                       onKeyDown={markerKey(m)}
                     >
                       <title>{m.tip}</title>
-                      <circle
-                        className="am-focus"
-                        r={m.size * 0.95}
-                        fill="none"
-                        stroke={m.pinned ? '#ebebeb' : 'transparent'}
-                        strokeWidth={5}
-                        strokeDasharray="14 10"
-                      />
-                      <use
-                        href={`#${uid}-${m.type}-${m.role}`}
-                        x={-m.size / 2}
-                        y={-m.size / 2}
-                        width={m.size}
-                        height={m.size}
-                      />
+                      {/* Scaled up in CSS on narrow screens, where the rink renders small. */}
+                      <g className="am-glyph">
+                        <circle
+                          className="am-focus"
+                          r={m.size * 0.95}
+                          fill="none"
+                          stroke={m.pinned ? '#ebebeb' : 'transparent'}
+                          strokeWidth={5}
+                          strokeDasharray="14 10"
+                        />
+                        <use
+                          href={`#${uid}-${m.type}-${m.role}`}
+                          x={-m.size / 2}
+                          y={-m.size / 2}
+                          width={m.size}
+                          height={m.size}
+                        />
+                      </g>
                     </g>
                   ))}
                 </svg>

@@ -708,36 +708,284 @@
   color: var(--color-fg-2);
 }
 
-/* Responsive */
+/* Micro-tier stat table (MiniStats) — hidden until the 480px tier, where the
+   ledger column drops out. */
+.ph-mini {
+  display: none;
+}
+
+/* ── Responsive (Profile Hero Medium / Small / Micro .dc.html) ──────────────
+   The three columns stay side by side down to Small; the card shrinks by
+   zoom at Medium and becomes the compact card at Small/Micro (card-locker.css)
+   and the ledger column is capped at a share of the
+   width so the identity column keeps room at the low end of each tier. */
 @media (max-width: 1100px) {
   .ph-body {
-    grid-template-columns: 280px 1fr;
+    grid-template-columns: 224px minmax(0, 1fr) min(360px, 39%);
   }
-  .ph-col-ledger {
-    grid-column: 1 / -1;
-    border-left: none !important;
-    border-top: 1px solid rgba(63, 63, 70, 0.35);
-  }
-  .ph-body > * + * {
-    border-left: none;
+  .ph-col-portrait {
+    padding: 24px;
   }
   .ph-col-id {
-    border-left: 1px solid rgba(63, 63, 70, 0.35);
+    padding: 24px 20px;
+    gap: 16px;
+  }
+  .ph-eyebrow .label,
+  .ph-eyebrow .id-no {
+    white-space: nowrap;
+  }
+  .ph-nameplate {
+    padding-left: 16px;
   }
   .ph-nameplate .gamertag {
-    font-size: 64px;
+    /* 46px at the 960 mock; eases down to Small's size at the tier floor. */
+    font-size: clamp(34px, 4.8vw, 46px);
+  }
+  .ph-aka {
+    margin-top: 8px;
+  }
+  .ph-bio {
+    padding: 16px 0 12px;
+  }
+
+  .ph-col-ledger {
+    padding: 22px;
+    gap: 18px;
+  }
+  .ph-ledger-block,
+  .ph-position-block {
+    gap: 10px;
+  }
+  .ph-ledger-head,
+  .ph-position-block .head {
+    flex-wrap: wrap;
+    gap: 2px 10px;
+  }
+  .ph-ledger-head h3,
+  .ph-position-block h3 {
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    white-space: nowrap;
+  }
+  .ph-ledger-head h3 b,
+  .ph-position-block h3 b {
+    margin-right: 7px;
+  }
+  .ph-ledger-head .src {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+  .ph-position-block .total {
+    white-space: nowrap;
+  }
+  .ph-ledger-grid {
+    padding: 12px 0;
+  }
+  .ph-ledger-grid.cols-5:not(.dense) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .ph-ledger-grid:not(.dense) .stat {
+    padding: 0 6px;
+  }
+  .ph-ledger-grid:not(.dense) .stat:first-child {
+    padding-left: 2px;
+  }
+  .ph-ledger-grid:not(.dense) .stat:last-child {
+    padding-right: 2px;
+  }
+  .ph-ledger-grid .l {
+    letter-spacing: 0.2em;
+  }
+  .ph-ledger-grid .v {
+    font-size: 19px;
+  }
+  .ph-ledger-grid .stat.lead .v {
+    font-size: 22px;
+  }
+  .ph-pos-bar {
+    grid-template-columns: 28px 1fr 52px;
+    gap: 10px;
+  }
+  .ph-pos-bar .gp {
+    white-space: nowrap;
+  }
+
+  .ph-foot {
+    gap: 16px;
+    padding: 12px 24px;
+  }
+  .ph-foot .center {
+    white-space: nowrap;
   }
 }
+
 @media (max-width: 720px) {
   .ph-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: 155px minmax(0, 1fr) min(248px, 41%);
   }
-  .ph-col-portrait,
+  .ph-col-portrait {
+    padding: 20px;
+  }
   .ph-col-id {
-    border-left: none !important;
-    border-bottom: 1px solid rgba(63, 63, 70, 0.35);
+    padding: 20px 20px 20px 18px;
+    gap: 14px;
+  }
+  /* The mock drops the eyebrow, the aka line and every pill but position. */
+  .ph-eyebrow,
+  .ph-aka,
+  .ph-pills > :not(.pos) {
+    display: none;
+  }
+  .ph-nameplate {
+    padding-left: 14px;
   }
   .ph-nameplate .gamertag {
-    font-size: 48px;
+    font-size: clamp(26px, 5.3vw, 34px);
+  }
+  /* Not in the mock (its player is skater-only): keep both role tabs inside
+     the narrower identity column. */
+  .ph-role-tabs {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ph-role-tab {
+    gap: 8px;
+    padding: 8px 12px;
+    letter-spacing: 0.16em;
+  }
+
+  .ph-col-ledger {
+    padding: 18px;
+    gap: 16px;
+  }
+  .ph-ledger-head h3,
+  .ph-position-block h3 {
+    letter-spacing: 0.18em;
+  }
+  /* Last 10 drops out; ledgers lose their 5th stat (+/– or SO). */
+  .ph-ledger-last10 {
+    display: none;
+  }
+  .ph-ledger-grid.cols-5:not(.dense) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .ph-ledger-grid.cols-5.dense {
+    grid-template-columns: 0.75fr 1.6fr 1fr 0.85fr;
+  }
+  .ph-ledger-grid .stat:nth-child(5) {
+    display: none;
+  }
+  .ph-ledger-grid:not(.dense) .stat:nth-child(4) {
+    padding-right: 2px;
+  }
+
+  .ph-foot {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .ph-body {
+    grid-template-columns: 91px minmax(0, 1fr);
+  }
+  .ph-col-ledger {
+    display: none;
+  }
+  .ph-col-portrait {
+    padding: 14px 12px;
+  }
+  .ph-col-id {
+    padding: 14px 14px 12px 12px;
+    gap: 8px;
+  }
+  .ph-nameplate {
+    padding-left: 10px;
+  }
+  .ph-nameplate .gamertag {
+    font-size: 28px;
+  }
+  .ph-pill.pos {
+    gap: 6px;
+    padding: 4px 9px;
+    font-size: 10px;
+  }
+  .ph-pill.pos .swatch {
+    width: 7px;
+    height: 7px;
+  }
+  /* The mini table takes the bottom anchor; the bio is dropped at this size. */
+  .ph-bottom {
+    margin-top: 0;
+  }
+  .ph-bio {
+    display: none;
+  }
+  .ph-role-tab {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+  .ph-role-tab .ico {
+    width: 14px;
+    height: 14px;
+  }
+
+  .ph-mini {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: 54px repeat(4, minmax(0, 1fr));
+    column-gap: 6px;
+    align-items: center;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Goalie record (W-L-OTL) needs the widest cell. */
+  .ph-mini.goalie {
+    grid-template-columns: 54px 0.8fr 1.4fr 1fr 1fr;
+  }
+  .ph-mini .row {
+    display: contents;
+  }
+  .ph-mini .h {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    color: var(--color-fg-5);
+    text-align: right;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(63, 63, 70, 0.4);
+  }
+  .ph-mini .h.lead {
+    color: var(--color-accent);
+  }
+  .ph-mini .k,
+  .ph-mini .v {
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(63, 63, 70, 0.25);
+    white-space: nowrap;
+  }
+  .ph-mini .row.last > * {
+    border-bottom: 0;
+  }
+  .ph-mini .k {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    line-height: 1.1;
+    text-transform: uppercase;
+    color: var(--color-fg-3);
+  }
+  .ph-mini .v {
+    font-size: 14px;
+    font-weight: 700;
+    text-align: right;
+    color: #e4e4e7;
+  }
+  .ph-mini .row.last .v {
+    font-weight: 900;
+    color: var(--color-fg-1);
+  }
+  .ph-mini .v.lead {
+    font-weight: 900;
+    color: var(--color-accent);
   }
 }

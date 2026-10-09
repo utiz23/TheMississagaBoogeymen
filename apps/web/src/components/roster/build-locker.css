@@ -1,7 +1,8 @@
 /*
  * Build Locker v2 (Build Locker v2.dc.html; spec Part 4). Site tokens stand in
  * for the design system's: --inset-leader-rail → inset 2px accent rail,
- * --bg-ticker-red → --color-accent.
+ * --bg-ticker-red → --color-accent. Medium / Small / Micro tiers at the end
+ * follow the Build Locker v3 tier mockups (size deltas only).
  */
 .bl {
   display: flex;
@@ -301,6 +302,10 @@
   border-bottom: 1px solid var(--color-border-subtle);
   padding-bottom: 6px;
 }
+/* Wraps the attrs only so the Micro accordion can collapse them; layout-neutral. */
+.bl-group-body {
+  display: contents;
+}
 .bl-group-name {
   font-size: 12px;
   font-weight: 600;
@@ -391,4 +396,123 @@
 }
 .bl-attr[data-sign='-1'] .bl-bar-seg {
   background: var(--color-loss);
+}
+
+/* ── Medium (≤1100px) ─────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  /* Two tiles per row instead of the scroll strip. */
+  .bl-tiles {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+  /* Five groups as 3 + 2 (a 6-track grid; the last two span wider). */
+  .bl-groups {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .bl-group {
+    grid-column: span 2;
+  }
+  .bl-group:nth-child(n + 4) {
+    grid-column: span 3;
+  }
+}
+
+/* ── Small (≤720px) ───────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  /* Header keeps the build count; the source line and title name drop. */
+  .bl-sub-src,
+  .bl-game {
+    display: none;
+  }
+  /* Groups two-up, the fifth full width. */
+  .bl-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bl-group,
+  .bl-group:nth-child(n + 4) {
+    grid-column: auto;
+  }
+  .bl-group:nth-child(5) {
+    grid-column: span 2;
+  }
+}
+
+/* ── Micro (≤480px) ───────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  /* Back to a horizontal strip, fixed-width tiles that snap. */
+  .bl-tiles {
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    grid-auto-columns: 280px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 12px;
+    padding: 12px;
+  }
+  .bl-tile {
+    scroll-snap-align: start;
+  }
+  .bl-xfs {
+    min-height: 32px;
+  }
+  .bl-xf {
+    width: 32px;
+    height: 32px;
+  }
+  .bl-detail {
+    margin: 0 12px 12px;
+  }
+  .bl-detail-body {
+    padding: 12px 12px 14px;
+  }
+  .bl-detail-note {
+    display: none;
+  }
+  /* Groups stack as an accordion (the toggle is rendered by build-locker.tsx). */
+  .bl-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bl-group,
+  .bl-group:nth-child(n + 4),
+  .bl-group:nth-child(5) {
+    grid-column: auto;
+  }
+  .bl-group {
+    gap: 0;
+    padding: 0;
+  }
+  .bl-group-head {
+    align-items: center;
+    min-height: 48px;
+    padding: 0 12px;
+    border-bottom: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+  }
+  button.bl-group-head {
+    width: 100%;
+    border: none;
+  }
+  button.bl-group-head:focus-visible {
+    outline: 2px solid var(--color-loss);
+    outline-offset: -2px;
+  }
+  .bl-group-chev {
+    width: 12px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--color-fg-3);
+  }
+  .bl-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--color-border-subtle);
+  }
 }

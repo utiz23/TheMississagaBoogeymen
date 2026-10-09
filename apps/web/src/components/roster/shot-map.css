@@ -251,10 +251,19 @@
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
   display: inline-block;
 }
-.sm-density-legend .sw.r1 { background: #ff3030; }
-.sm-density-legend .sw.r2 { background: #e0823a; }
-.sm-density-legend .sw.r3 { background: #2f5d8a; }
-.sm-density-legend .sw.r4 { background: #1f1d1e; box-shadow: inset 0 0 0 1px rgba(63, 63, 70, 0.7); }
+.sm-density-legend .sw.r1 {
+  background: #ff3030;
+}
+.sm-density-legend .sw.r2 {
+  background: #e0823a;
+}
+.sm-density-legend .sw.r3 {
+  background: #2f5d8a;
+}
+.sm-density-legend .sw.r4 {
+  background: #1f1d1e;
+  box-shadow: inset 0 0 0 1px rgba(63, 63, 70, 0.7);
+}
 
 /* Rink lines & static elements */
 .sm-rink .ice-edge {
@@ -287,7 +296,9 @@
 .sm-rink .zone {
   stroke: rgba(0, 0, 0, 0.4);
   stroke-width: 1;
-  transition: filter 200ms ease, opacity 200ms ease;
+  transition:
+    filter 200ms ease,
+    opacity 200ms ease;
   cursor: default;
 }
 .sm-rink .zone:hover {
@@ -309,10 +320,18 @@
 }
 
 /* Density gradient — 4 ranks */
-.sm-rink .r1 { fill: #ff3030; }      /* hot   — high volume */
-.sm-rink .r2 { fill: #e0823a; }      /* warm  — mid volume */
-.sm-rink .r3 { fill: #2f5d8a; }      /* cold  — low volume */
-.sm-rink .r4 { fill: #1f1d1e; }      /* null  — empty / no shots */
+.sm-rink .r1 {
+  fill: #ff3030;
+} /* hot   — high volume */
+.sm-rink .r2 {
+  fill: #e0823a;
+} /* warm  — mid volume */
+.sm-rink .r3 {
+  fill: #2f5d8a;
+} /* cold  — low volume */
+.sm-rink .r4 {
+  fill: #1f1d1e;
+} /* null  — empty / no shots */
 
 /* Bucket isolation — dim non-bucket zones */
 .sm-rink[data-bucket]:not([data-bucket='all']) .sm-zones .zone:not(.in-bucket) {
@@ -341,10 +360,18 @@
 .sm-goal-svg .gz:hover {
   filter: brightness(1.25);
 }
-.sm-goal-svg .gz.r1 { fill: #ff3030; }
-.sm-goal-svg .gz.r2 { fill: #e0823a; }
-.sm-goal-svg .gz.r3 { fill: #2f5d8a; }
-.sm-goal-svg .gz.r4 { fill: #1f1d1e; }
+.sm-goal-svg .gz.r1 {
+  fill: #ff3030;
+}
+.sm-goal-svg .gz.r2 {
+  fill: #e0823a;
+}
+.sm-goal-svg .gz.r3 {
+  fill: #2f5d8a;
+}
+.sm-goal-svg .gz.r4 {
+  fill: #1f1d1e;
+}
 .sm-goal-svg .post-outline {
   fill: none;
   stroke: #000;
@@ -473,7 +500,9 @@
   padding: 12px 0;
   border-bottom: 1px dashed rgba(63, 63, 70, 0.35);
 }
-.sm-row:last-child { border-bottom: none; }
+.sm-row:last-child {
+  border-bottom: none;
+}
 .sm-row .lbl {
   font-size: 10px;
   font-weight: 800;
@@ -550,7 +579,9 @@
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
-.sm-summary .card.acc .v { color: var(--color-accent); }
+.sm-summary .card.acc .v {
+  color: var(--color-accent);
+}
 .sm-summary .card .sub {
   font-size: 10px;
   color: var(--color-fg-4);
@@ -579,8 +610,12 @@
   color: var(--color-fg-3);
   font-weight: 700;
 }
-.sm-foot .right { text-align: right; }
-.sm-foot b { color: var(--color-fg-2); }
+.sm-foot .right {
+  text-align: right;
+}
+.sm-foot b {
+  color: var(--color-fg-2);
+}
 
 .sm-empty {
   padding: 56px 28px;
@@ -590,16 +625,198 @@
   font-family: var(--font-condensed);
 }
 
-/* Responsive */
+/* ── Responsive ─────────────────────────────────────────────────────────────
+   Medium (≤1100): keep the rink + ledger side by side with a narrower ledger
+   and tighter padding. Small (≤720): stack the ledger under the rink, tabs drop
+   under the title, footer wraps. Micro (≤480): phone — full-width tab grid,
+   larger touch targets, single-column bucket list. */
 @media (max-width: 1100px) {
+  .sm-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 20px 24px 14px;
+  }
+  .sm-title {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .sm-title h2 {
+    font-size: 17px;
+  }
+  .sm-tab {
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+
   .sm-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+  .sm-rink-col {
+    padding: 20px 24px;
+    gap: 16px;
+    min-width: 0;
   }
   .sm-ledger {
-    border-left: none;
-    border-top: 1px solid rgba(63, 63, 70, 0.35);
+    padding: 20px;
+    min-width: 0;
+  }
+
+  .sm-bf {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 12px;
+    padding: 11px 12px;
+  }
+  .sm-bf .v,
+  .sm-row .v {
+    min-width: 44px;
+  }
+  .sm-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 12px;
+  }
+  .sm-delta {
+    min-width: 48px;
+  }
+
+  .sm-foot {
+    gap: 16px;
+    padding: 12px 24px;
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+  }
+  .sm-foot .center {
+    letter-spacing: 0.26em;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 720px) {
+  .sm-head {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    padding: 18px 18px 14px;
+  }
+  .sm-title h2 {
+    font-size: 16px;
+  }
+  .sm-tabs {
+    flex-wrap: wrap;
+  }
+
+  .sm-body {
+    grid-template-columns: minmax(0, 1fr);
   }
   .sm-body > * + * {
     border-left: none;
+  }
+  .sm-rink-col {
+    padding: 18px;
+    gap: 14px;
+  }
+  .sm-rink {
+    max-height: 560px;
+  }
+  .sm-ledger {
+    padding: 18px;
+    border-top: 1px solid rgba(63, 63, 70, 0.35);
+  }
+  /* Two buckets per row while there's room; falls back to one column on the
+     narrow end of the tier so label + value + delta never collide. */
+  .sm-bucket-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+  .sm-summary {
+    margin-top: 0;
+  }
+
+  /* Footer wraps: Updated + Sheet share the first row, the centre caption
+     takes its own full-width row underneath. */
+  .sm-foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 6px 16px;
+    padding: 12px 18px;
+  }
+  .sm-foot .center {
+    order: 1;
+    width: 100%;
+    text-align: center;
+    padding-top: 4px;
+  }
+  .sm-foot .right {
+    text-align: left;
+  }
+}
+
+@media (max-width: 480px) {
+  .sm-head {
+    padding: 16px 14px 14px;
+  }
+  .sm-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .sm-title h2 {
+    font-size: 14px;
+    letter-spacing: 0.14em;
+    line-height: 1.25;
+  }
+  .sm-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  /* Goalie labels ("Shots Against") can exceed a third of a phone width —
+     let them wrap to two lines inside the 44px touch target. */
+  .sm-tab {
+    min-height: 44px;
+    padding: 8px 6px;
+    letter-spacing: 0.14em;
+    white-space: normal;
+    line-height: 1.15;
+  }
+
+  .sm-rink-col {
+    padding: 14px;
+    gap: 12px;
+  }
+  .sm-view-toggle button {
+    min-height: 38px;
+    padding: 6px 16px;
+  }
+  .sm-rink {
+    max-height: none;
+  }
+  .sm-rink-legend {
+    gap: 8px 12px;
+    padding: 10px 12px;
+  }
+  .sm-density-legend {
+    gap: 12px;
+  }
+
+  .sm-ledger {
+    padding: 16px 14px;
+    gap: 16px;
+  }
+  .sm-bucket-filters {
+    display: flex;
+    flex-direction: column;
+  }
+  .sm-bf {
+    min-height: 48px;
+    padding: 10px 12px;
+  }
+
+  .sm-foot {
+    gap: 6px 12px;
+    padding: 12px 14px;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+  .sm-foot .center {
+    letter-spacing: 0.18em;
   }
 }
