@@ -70,7 +70,7 @@ strip is restored to 365-229-27 / 621 GP. Detail:
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web at `fafeefb`, worker at `29ee6a2`), web and worker as the non-root
+  and nightly backup (web at `5269fbe`, worker at `29ee6a2`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
@@ -136,7 +136,7 @@ None.
 ## Next 1-3 Actions
 
 1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
-2. Polish: cross-cutting pass + a full by-surface pass are committed, NOT deployed (2026-10-09, `bb8f097`…`e94b4cf`; includes a live UTC-dates fix). Also the operator's four answers: sheet codes removed, Dev filter kept, nothing under 10px, goalie Contribution Wheel. Deploy next. Every backlog entry has an outcome ([`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md), journal 10-09).
+2. Polish: cross-cutting + by-surface passes **deployed 2026-10-09** (`5269fbe`, web only; rollback `eanhl-team-website-web:rollback-he-2026-10-09-pre-polish` = `fafeefb`), incl. the live UTC-dates fix, the operator's four answers and the goalie Contribution Wheel. Every backlog entry has an outcome ([`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md), journal 10-09).
 3. Backup hardening from the Codex review (optional, small): weekly/monthly
    copies after a missed Sunday/1st, and a run lock for manual + scheduled
    overlap. Watch teammates' feedback (including on speed). Video-stats OCR
