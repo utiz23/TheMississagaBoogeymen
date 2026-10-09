@@ -34,6 +34,8 @@ video-stats OCR).
 
 **Responsive sizes are live** (2026-10-09): Medium/Small/Micro layouts below desktop, compact cards on phones, side rail on wide screens. Content the mockups hide on small screens stays hidden (operator, 10-09).
 
+**Member-only player pages are live** (2026-10-09, `fafeefb`; rollback `:rollback-he-2026-10-09-pre-members`): only team members, present and past (EA member list for any title, member archive, pinned, AI goalies — 18 of 92) have a `/roster/[id]` page; guests 404 and show as plain text elsewhere (`PlayerLink` + `MemberLinks`), and the home carousel shows members only.
+
 **Deployed 2026-10-09** (`3d62b8a`, web only, no migration; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-locker-v3` = `4095e49`): stats-table size tiers, Build Locker v3 desktop (persona name from OCR), "Last 10" includes the newest game, Action Map clocks show time elapsed, short-code build names ("Connor McDavid-PLY") map to archetypes, and the switch plan's deferred minors. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
@@ -72,7 +74,7 @@ strip is restored to 365-229-27 / 621 GP. Detail:
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web at `3d62b8a`, worker at `29ee6a2`), web and worker as the non-root
+  and nightly backup (web at `fafeefb`, worker at `29ee6a2`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
