@@ -46,11 +46,7 @@ video-stats OCR).
 
 **2026-10-08 (late night) — Awards + migration 0064 deployed** (`d038b36`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-08-pre-awards`). 0064 adds 12 derived `all_skaters` archive rows (seasons captured only per position); rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`. Detail: [journal 2026-10-08 late night](docs/journal/2026-10.md).
 
-**2026-10-08 (night) — position filter + deeper season table deployed** (`29ee6a2`, also ships `c7b2eab` depth chart top 4 lines / 3 D pairs; migration 0063 `player_position_stats`; rollback images `:rollback-he-2026-10-08-pre-positions`; dump `~/eanhl-backups/pre-positions-2026-10-08-2155.dump`, sha256 `421bc764…4a47`). Position pills (All · C · LW · RW · W · D) on roster, stats and player-season tables; `recompute-aggregates --all` backfilled NHL 26 (no longer ingested). Live: position GP = skater GP for 60/60 + 28/28 players; HenryTheBobJr NHL 26 D 118 of 571. Detail: [journal 2026-10-08 evening](docs/journal/2026-10.md).
-
-**2026-10-08 (later) — featured badges, roster additions, AI goalies, multi-position depth chart deployed** (`d772784`; migrations 0061 + 0062; rollback images `:rollback-he-2026-10-08-pre-ai-goalies`; dump `~/eanhl-backups/pre-ai-goalies-2026-10-08-1127.dump`). AI goalies Matteo Lehmann / Jonas Wagner and pinned Jimmy Cap are players; the worker syncs AI-goalie lines every cycle. Detail: [journal 2026-10-08](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
-
-**2026-10-08 — player cards deployed** (`3ec9dc0`; migration 0060; rollback `:rollback-he-2026-10-08-pre-cards`, dump `~/eanhl-backups/pre-cards-2026-10-08-0957.dump`). Detail: [journal 2026-10-08](docs/journal/2026-10.md).
+**2026-10-08 — player cards, AI goalies, position filter deployed** (`3ec9dc0` → `d772784` → `29ee6a2`; migrations 0060–0063; rollback images `:rollback-he-2026-10-08-pre-{cards,ai-goalies,positions}`; dumps in `~/eanhl-backups/pre-*-2026-10-08-*.dump`). AI goalies Lehmann / Wagner and pinned Jimmy Cap are players (worker syncs AI-goalie lines each cycle). Detail: [journal 2026-10-08](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
 
 **2026-10-06 — NHL 26 contamination cleaned up** (worker `3f35733`; rollback
 image `eanhl-team-website-worker:rollback-2026-10-05-quarantine`; pre-change
