@@ -38,7 +38,7 @@ post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
 ## Latest Verified Checkpoint
 
-**2026-10-09 — responsive sizes, side rail, compact carousel deployed** (`fb40008`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-responsive`). Medium ≤1100 / Small ≤720 / Micro ≤480 tiers for the player, roster and home components; `PlayerCardCompact`; player-page side rail at ≥1680px; Charts & Visuals placeholder removed. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
+**2026-10-09 — responsive sizes, side rail, compact carousel deployed** (`fb40008`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-responsive`). Medium ≤1100 / Small ≤720 / Micro ≤480 tiers for the player, roster and home components; `PlayerCardCompact`; player-page side rail at ≥1680px; Charts & Visuals and Recent Form removed (`4095e49`, rollback `:rollback-he-2026-10-09-pre-no-form`). Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
 **2026-10-08 (late night) — Awards + migration 0064 deployed** (`d038b36`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-08-pre-awards`). 0064 adds 12 derived `all_skaters` archive rows (seasons captured only per position); rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`. Detail: [journal 2026-10-08 late night](docs/journal/2026-10.md).
 
@@ -71,7 +71,7 @@ strip is restored to 365-229-27 / 621 GP. Detail:
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web at `fb40008`, worker at `29ee6a2`), web and worker as the non-root
+  and nightly backup (web at `4095e49`, worker at `29ee6a2`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
