@@ -87,7 +87,7 @@
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-weight: 800;
-  font-size: 9.5px;
+  font-size: 10px;
   color: #6e6b6c;
 }
 .pwm-caption .key b {
@@ -141,7 +141,7 @@
 }
 .pwm-controls .hint {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: none;
   color: #6e6b6c;
@@ -329,7 +329,7 @@
 }
 .pwm-row-label .seat {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 800;
   color: #6e6b6c;
   background: rgba(0, 0, 0, 0.4);
@@ -363,7 +363,7 @@
 }
 .pwm-cell .rec {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: rgba(255, 255, 255, 0.78);
@@ -477,7 +477,7 @@
 }
 .pwm-team-cell .rec {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: rgba(255, 255, 255, 0.78);
@@ -547,7 +547,7 @@
   align-items: center;
   gap: 12px;
   font-family: var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -588,7 +588,7 @@
   display: flex;
   justify-content: space-between;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 9px;
+  font-size: 10px;
   width: 280px;
   color: #6e6b6c;
 }
@@ -596,7 +596,7 @@
   display: flex;
   gap: 16px;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: 0.10em;
   color: #6e6b6c;
   text-transform: uppercase;
@@ -640,7 +640,7 @@
   padding: 10px 24px;
   border-top: 1px solid var(--pwm-line);
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: 0.16em;
   color: #6e6b6c;
   text-transform: uppercase;

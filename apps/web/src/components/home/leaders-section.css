@@ -73,7 +73,7 @@
   border: none;
   padding: 5px 10px;
   font-family: var(--font-condensed);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -124,7 +124,7 @@
 a.sl-spot:hover { filter: brightness(1.08); }
 .sl-spot-eyebrow {
   font-family: var(--font-condensed);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.28em;
@@ -186,7 +186,7 @@ a.sl-spot:hover { filter: brightness(1.08); }
   align-items: center;
   gap: 8px;
   font-family: var(--font-condensed);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -216,7 +216,7 @@ a.sl-spot:hover { filter: brightness(1.08); }
 }
 .sl-spot-stat .l {
   font-family: var(--font-condensed);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -244,7 +244,7 @@ a.sl-spot:hover { filter: brightness(1.08); }
 }
 .sl-list .sub {
   font-family: var(--font-condensed);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -258,7 +258,7 @@ a.sl-spot:hover { filter: brightness(1.08); }
 }
 .sl-list .sub .pip {
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: var(--color-accent);
@@ -350,7 +350,7 @@ a.sl-spot:hover { filter: brightness(1.08); }
   --pos: var(--color-fg-4);
   font-family: var(--font-condensed);
   font-weight: 700;
-  font-size: 8.5px;
+  font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--pos);
@@ -386,7 +386,7 @@ a.sl-spot:hover { filter: brightness(1.08); }
   border-top: 1px solid rgba(73, 71, 72, 0.5);
   background: rgba(0, 0, 0, 0.22);
   font-family: var(--font-condensed);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.22em;
   text-transform: uppercase;

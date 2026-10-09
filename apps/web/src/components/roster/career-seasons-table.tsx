@@ -117,20 +117,20 @@ function SeasonCell({ season }: { season: SeasonLabel }) {
 function SourceBadge({ source }: { source: SeasonLabel['source'] }) {
   if (source === 'tracked') {
     return (
-      <span className="inline-flex items-center border border-zinc-600 bg-zinc-800/80 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-300">
+      <span className="inline-flex items-center border border-zinc-600 bg-zinc-800/80 px-1.5 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-300">
         Tracked
       </span>
     )
   }
   if (source === 'ea') {
     return (
-      <span className="inline-flex items-center border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.18em] text-accent">
+      <span className="inline-flex items-center border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
         EA
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center border border-zinc-700 bg-zinc-800/50 px-1.5 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+    <span className="inline-flex items-center border border-zinc-700 bg-zinc-800/50 px-1.5 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
       Archive
     </span>
   )

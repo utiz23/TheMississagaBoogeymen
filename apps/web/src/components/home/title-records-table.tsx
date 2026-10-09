@@ -126,7 +126,7 @@ export function TitleRecordsTable({ titles }: { titles: TitleRecordData[] }) {
                       {title.name}
                     </span>
                     {title.isLive && (
-                      <span className="ml-2 border border-accent/40 bg-accent/15 px-1 py-0.5 font-condensed text-[9px] font-bold uppercase tracking-wider text-accent/80">
+                      <span className="ml-2 border border-accent/40 bg-accent/15 px-1 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-wider text-accent/80">
                         live
                       </span>
                     )}

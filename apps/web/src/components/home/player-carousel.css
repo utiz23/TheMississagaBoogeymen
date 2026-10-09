@@ -80,7 +80,7 @@
 }
 .hpcr-now-tag .live {
   font-family: var(--font-condensed);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.3em;
   padding: 3px 7px;
@@ -521,7 +521,7 @@
   gap: 2px;
 }
 .hpcr-strip .k {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -542,7 +542,7 @@
   margin-top: 10px;
   text-align: center;
   font-family: var(--font-condensed);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;

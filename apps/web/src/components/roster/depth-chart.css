@@ -221,7 +221,7 @@
 }
 .dc-row-rail .lbl {
   display: block;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.22em;
   color: var(--color-fg-5);
@@ -271,7 +271,7 @@
   transform: translateX(-50%);
   z-index: 2;
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.18em;
   color: #f59e0b;
@@ -425,7 +425,7 @@
     display: none;
   }
   .dc-row-rail .lbl {
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 0.2em;
   }
   .dc-row-rail .num {
@@ -451,7 +451,7 @@
     min-height: calc(var(--card-w) * var(--card-ratio));
     border-radius: calc(var(--card-w) * 0.08);
     gap: 8px;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.16em;
   }
   .dc-empty svg {
@@ -460,7 +460,7 @@
   }
   .dc-foot {
     padding: 12px 24px;
-    font-size: 9px;
+    font-size: 10px;
   }
 }
 
@@ -500,22 +500,22 @@
     font-size: 12px;
   }
   .dc-section-bar .units {
-    font-size: 9px;
+    font-size: 10px;
   }
   .dc-row-rail .lbl {
-    font-size: 7px;
+    font-size: 10px;
     letter-spacing: 0.18em;
   }
   .dc-row-rail .num {
     font-size: 18px;
   }
   .dc-depth-pill {
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 0.14em;
     padding: 1px 5px;
   }
   .dc-empty {
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 0.1em;
   }
   .dc-foot {
@@ -562,7 +562,7 @@
   .dc-head .legend {
     grid-area: legend;
     justify-content: flex-end;
-    font-size: 9px;
+    font-size: 10px;
   }
   .dc-head .legend .pip:not(.dup) {
     display: none;
@@ -586,8 +586,10 @@
   }
   .dc-skaters .col-head,
   .dc-goalies .col-head {
-    font-size: 9px;
-    letter-spacing: 0.16em;
+    font-size: 10px;
+    /* Tighter than above so "3rd String" stays one line at 10px. */
+    letter-spacing: 0.06em;
+    white-space: nowrap;
     padding-bottom: 4px;
     gap: 4px;
   }
@@ -600,7 +602,7 @@
     margin-bottom: -2px;
   }
   .dc-row-rail .lbl {
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.2em;
   }
   .dc-row-rail .num {
@@ -613,7 +615,7 @@
   }
   .dc-depth-pill {
     top: -6px;
-    font-size: 7px;
+    font-size: 10px;
     letter-spacing: 0.1em;
     padding: 0 3px;
   }

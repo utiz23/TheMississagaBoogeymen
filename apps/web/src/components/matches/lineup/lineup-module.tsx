@@ -198,7 +198,7 @@ export function LineupModule({
                     height={20}
                     className="h-5 w-5 object-contain"
                     fallback={
-                      <span aria-hidden className="text-[9px] font-black text-fg-3">
+                      <span aria-hidden className="text-[10px] font-black text-fg-3">
                         {opponentAbbrev.slice(0, 2)}
                       </span>
                     }

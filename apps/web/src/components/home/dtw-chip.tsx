@@ -78,7 +78,7 @@ export function DtwChip({ bgmShare, bgmRaw }: { bgmShare: number; bgmRaw: number
         </svg>
         <span className="flex flex-col leading-none">
           <span className="flex items-center gap-1.5">
-            <span className="font-condensed text-[8.5px] font-bold uppercase tracking-[0.22em] text-fg-3">
+            <span className="font-condensed text-[10px] font-bold uppercase tracking-[0.22em] text-fg-3">
               DtW
             </span>
             <button
@@ -91,7 +91,7 @@ export function DtwChip({ bgmShare, bgmRaw }: { bgmShare: number; bgmRaw: number
                 e.stopPropagation()
                 setOpen((prev) => !prev)
               }}
-              className={`flex h-3.5 w-3.5 items-center justify-center rounded-full border font-condensed text-[9px] font-black leading-none transition-colors ${
+              className={`flex h-3.5 w-3.5 items-center justify-center rounded-full border font-condensed text-[10px] font-black leading-none transition-colors ${
                 open
                   ? 'border-accent/60 bg-accent/[0.10] text-accent'
                   : 'border-fg-4/45 bg-background/40 text-fg-3 hover:border-fg-3 hover:text-fg-1'
@@ -112,7 +112,7 @@ export function DtwChip({ bgmShare, bgmRaw }: { bgmShare: number; bgmRaw: number
       {open && (
         <div
           id="dtw-legend"
-          className="flex flex-wrap items-center justify-center gap-2.5 px-1 pt-0.5 font-condensed text-[8.5px] font-bold uppercase tracking-[0.18em]"
+          className="flex flex-wrap items-center justify-center gap-2.5 px-1 pt-0.5 font-condensed text-[10px] font-bold uppercase tracking-[0.18em]"
         >
           {[...DTW_BANDS].reverse().map((b) => (
             <Swatch key={b.label} color={b.color} label={b.label} />

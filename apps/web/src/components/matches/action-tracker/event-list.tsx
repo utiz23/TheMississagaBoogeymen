@@ -267,11 +267,11 @@ function PeriodDivider({ label, count }: { label: string; count: number }) {
       aria-hidden
       className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-background px-3.5 py-2"
     >
-      <span className="font-condensed text-[9.5px] font-extrabold tracking-[0.22em] uppercase text-accent">
+      <span className="font-condensed text-[10px] font-extrabold tracking-[0.22em] uppercase text-accent">
         {label}
       </span>
       <span className="h-px flex-1 bg-border" aria-hidden />
-      <span className="font-condensed text-[9.5px] font-bold tracking-[0.18em] tabular-nums text-fg-3">
+      <span className="font-condensed text-[10px] font-bold tracking-[0.18em] tabular-nums text-fg-3">
         {String(count)} events
       </span>
     </div>
@@ -382,12 +382,12 @@ function EventCard({
           ink={HOME_INK}
         />
         {noMarker ? (
-          <span className="inline-flex items-center border border-dashed border-border px-1.5 py-[2px] font-condensed text-[9px] font-bold tracking-[0.16em] uppercase text-fg-3">
+          <span className="inline-flex items-center border border-dashed border-border px-1.5 py-[2px] font-condensed text-[10px] font-bold tracking-[0.16em] uppercase text-fg-3">
             No marker
           </span>
         ) : null}
         {lowConf ? (
-          <span className="inline-flex items-center border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.10)] px-1.5 py-[2px] font-condensed text-[9px] font-bold tracking-[0.16em] uppercase text-[var(--color-otl)]">
+          <span className="inline-flex items-center border border-[rgba(245,158,11,0.4)] bg-[rgba(245,158,11,0.10)] px-1.5 py-[2px] font-condensed text-[10px] font-bold tracking-[0.16em] uppercase text-[var(--color-otl)]">
             Approx
           </span>
         ) : null}

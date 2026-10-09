@@ -234,7 +234,7 @@
   text-align: center;
 }
 .cw-center .small-lab {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.32em;
   text-transform: uppercase;
@@ -328,7 +328,7 @@
 .cw-cardinal-label {
   fill: var(--color-fg-5);
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.1em;
 }
@@ -349,7 +349,7 @@
 .cw-callout-name {
   fill: var(--c);
   font-family: var(--font-condensed);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -412,7 +412,7 @@
   right: 8px;
   top: 4px;
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.18em;
   color: var(--c);
@@ -447,7 +447,7 @@
   margin-top: 4px;
   padding-top: 6px;
   font-family: var(--font-condensed);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -464,7 +464,7 @@
   );
 }
 .cw-leg-divider .hint {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: none;
   color: var(--color-fg-5);
@@ -519,7 +519,7 @@
 }
 .cw-leg-row .name .sub {
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--color-fg-4);
   letter-spacing: 0.08em;
@@ -593,7 +593,7 @@
   padding: 9px 24px;
   border-top: 1px solid rgba(73, 71, 72, 0.55);
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-fg-4);
@@ -669,7 +669,7 @@
     gap: 2px;
     border: none;
     background: none;
-    font-size: 9.5px;
+    font-size: 10px;
     letter-spacing: 0.04em;
     color: var(--color-fg-4);
   }
@@ -783,7 +783,7 @@
   .cw-meta {
     flex-wrap: nowrap;
     gap: 6px;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.08em;
   }
 
@@ -839,7 +839,7 @@
     order: 2;
     margin: 0;
     max-width: 72px;
-    font-size: 7.5px;
+    font-size: 10px;
     letter-spacing: 0.16em;
     line-height: 1.2;
   }
@@ -877,7 +877,7 @@
   .cw-leg-row .share {
     display: block;
     font-family: ui-monospace, 'JetBrains Mono', monospace;
-    font-size: 9px;
+    font-size: 10px;
     color: var(--color-fg-4);
     font-variant-numeric: tabular-nums;
   }
@@ -916,7 +916,7 @@
     border-radius: 6px;
     background: rgba(232, 65, 49, 0.04);
     font-family: ui-monospace, 'JetBrains Mono', monospace;
-    font-size: 9.5px;
+    font-size: 10px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--color-fg-4);

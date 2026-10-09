@@ -293,7 +293,7 @@ function StatCell({
 }) {
   return (
     <div className="flex items-center gap-2.5 border-r border-border/40 px-4 py-3 last:border-r-0">
-      <span className="min-w-[44px] font-condensed text-[9.5px] font-semibold uppercase tracking-[0.22em] text-fg-4">
+      <span className="min-w-[44px] font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-4">
         {label}
       </span>
       <span className="flex items-baseline gap-1.5 font-condensed leading-none tabular-nums">

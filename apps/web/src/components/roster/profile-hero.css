@@ -481,7 +481,7 @@
 }
 .ph-ledger-head .src {
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 9.5px;
+  font-size: 10px;
   color: var(--color-fg-5);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -525,7 +525,7 @@
   background: rgba(63, 63, 70, 0.4);
 }
 .ph-ledger-grid .l {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.22em;
   color: var(--color-fg-5);
@@ -567,7 +567,7 @@
   padding: 0 6px;
 }
 .ph-ledger-grid.dense .l {
-  font-size: 8.5px;
+  font-size: 10px;
   letter-spacing: 0.18em;
 }
 .ph-ledger-grid.dense .v {
@@ -676,7 +676,7 @@
   color: var(--color-fg-5);
   font-style: normal;
   margin-left: 4px;
-  font-size: 9.5px;
+  font-size: 10px;
 }
 
 /* Bottom strip — provenance */
@@ -772,7 +772,7 @@
     margin-right: 7px;
   }
   .ph-ledger-head .src {
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.08em;
     white-space: nowrap;
   }
@@ -946,7 +946,7 @@
     display: contents;
   }
   .ph-mini .h {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.16em;
     color: var(--color-fg-5);

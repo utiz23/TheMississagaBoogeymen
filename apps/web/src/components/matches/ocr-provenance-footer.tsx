@@ -57,7 +57,7 @@ export function OcrProvenanceFooter({
       <FootKV k="Sources" v={sourcesValue} />
       <div className="flex flex-col gap-[2px]">
         <span
-          className="cursor-help font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-fg-3"
+          className="cursor-help font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-3"
           title={headlineTooltip}
         >
           Confidence
@@ -80,7 +80,7 @@ export function OcrProvenanceFooter({
 function FootKV({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex flex-col gap-[2px]">
-      <span className="font-condensed text-[9px] font-semibold uppercase tracking-[0.22em] text-fg-3">
+      <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-3">
         {k}
       </span>
       <span className="font-condensed text-[11px] font-bold tracking-[0.04em] text-[var(--color-fg-3)]">
@@ -113,7 +113,7 @@ export function ProvenanceChip({
   return (
     <span
       title={tooltip}
-      className={`inline-flex items-center gap-1.5 border px-2 py-[2px] font-condensed text-[9.5px] font-bold uppercase tracking-[0.18em] ${cls}`}
+      className={`inline-flex items-center gap-1.5 border px-2 py-[2px] font-condensed text-[10px] font-bold uppercase tracking-[0.18em] ${cls}`}
     >
       {label}
     </span>

@@ -112,7 +112,7 @@
 }
 .pr-no {
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 700;
   color: #e84131;
   opacity: 0.55;
@@ -123,7 +123,7 @@
 .pr-code {
   padding-left: 22px;
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.08em;
   color: #4f4c4d;
 }
@@ -132,7 +132,7 @@
   padding-top: 10px;
   border-top: 1px dashed rgba(63, 63, 70, 0.8);
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #4f4c4d;

@@ -347,7 +347,7 @@ export function TeamHistoryTable({ rows: inputs, lockedTitle }: Props) {
                             {group.label}
                           </span>
                           {group.hasLive && group.subtotals.length === 1 ? (
-                            <span className="border border-accent-line bg-accent-soft px-1.5 py-px font-condensed text-[9px] font-bold uppercase tracking-[0.18em] text-accent">
+                            <span className="border border-accent-line bg-accent-soft px-1.5 py-px font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
                               Live
                             </span>
                           ) : null}

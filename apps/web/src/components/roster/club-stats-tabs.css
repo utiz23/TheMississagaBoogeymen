@@ -146,7 +146,7 @@
 }
 .cs-tab .ix {
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   color: rgba(63, 63, 70, 0.9);
   letter-spacing: 0.04em;
@@ -195,7 +195,7 @@
   align-items: center;
   gap: 8px;
   font-family: var(--font-condensed);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.28em;
   text-transform: uppercase;
@@ -363,7 +363,7 @@
 }
 .cs-cell .pct-rank {
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 9.5px;
+  font-size: 10px;
   letter-spacing: 0.06em;
   color: var(--color-fg-5);
   margin-top: 6px;
@@ -524,12 +524,12 @@
     min-width: 0;
   }
   .cs-cell .k {
-    font-size: 9.5px;
+    font-size: 10px;
     letter-spacing: 0.16em;
     line-height: 1.3;
   }
   .cs-delta {
-    font-size: 9.5px;
+    font-size: 10px;
     padding: 1px 5px;
   }
   .cs-cell .v {
@@ -544,7 +544,7 @@
     margin-top: 6px;
   }
   .cs-cell .pct-rank {
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.04em;
     margin-top: 4px;
     gap: 6px;
@@ -648,7 +648,7 @@
     letter-spacing: 0.18em;
   }
   .cs-title .scope {
-    font-size: 9.5px;
+    font-size: 10px;
     letter-spacing: 0.16em;
   }
   .cs-title .scope-full {
@@ -707,12 +707,12 @@
     min-height: 0;
   }
   .cs-cell .k {
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.12em;
     line-height: 1.25;
   }
   .cs-delta {
-    font-size: 9px;
+    font-size: 10px;
     padding: 1px 4px;
     letter-spacing: 0.02em;
   }

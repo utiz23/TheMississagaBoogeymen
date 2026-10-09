@@ -397,7 +397,7 @@
 }
 .sm-goal-svg .gz-lbl {
   font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.2em;
   fill: rgba(244, 244, 245, 0.65);
   text-anchor: middle;
@@ -564,7 +564,7 @@
   background: rgba(15, 13, 14, 0.5);
 }
 .sm-summary .card .k {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.22em;
   color: var(--color-fg-5);
@@ -680,7 +680,7 @@
   .sm-foot {
     gap: 16px;
     padding: 12px 24px;
-    font-size: 9.5px;
+    font-size: 10px;
     letter-spacing: 0.1em;
   }
   .sm-foot .center {
@@ -813,7 +813,7 @@
   .sm-foot {
     gap: 6px 12px;
     padding: 12px 14px;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.08em;
   }
   .sm-foot .center {
