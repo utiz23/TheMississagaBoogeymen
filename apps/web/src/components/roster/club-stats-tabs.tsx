@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
-import { formatDataDay, formatDuration, formatPosition } from '@/lib/format'
+import { formatDataDay, formatDuration, formatPosition, formatRecord } from '@/lib/format'
 import './club-stats-tabs.css'
 
 interface SeasonRow {
@@ -1365,10 +1365,6 @@ const TAB_BUILDERS_GOALIE: Record<GoalieTabKey, TabBuilder> = {
     const brkSaves = s.goalieBrkSaves ?? 0
     const brkSavePct = parsePct(s.goalieBrkSavePct)
 
-    const soShots = s.goalieSoShots ?? 0
-    const soSaves = s.goalieSoSaves ?? 0
-    const soSavePct = parsePct(s.goalieSoSavePct)
-
     return {
       marquee: {
         label: 'Breakaway Saves',
@@ -1376,8 +1372,7 @@ const TAB_BUILDERS_GOALIE: Record<GoalieTabKey, TabBuilder> = {
         desc:
           `${String(brkSaves)} breakaway saves on ${String(brkShots)} attempts ` +
           (brkSavePct != null ? `(${brkSavePct.toFixed(2)}%) ` : '') +
-          `· ${String(penSaves)} of ${String(penShots)} penalty shots stopped` +
-          (soShots > 0 ? ` · ${String(soSaves)}/${String(soShots)} in shootouts.` : '.'),
+          `· ${String(penSaves)} of ${String(penShots)} penalty shots stopped.`,
         rankPick: { rankKey: (r) => r.goalieBrkSaves, rankDir: 'desc' },
       },
       subsections: [
@@ -1428,31 +1423,6 @@ const TAB_BUILDERS_GOALIE: Record<GoalieTabKey, TabBuilder> = {
               bar: penSavePct ?? 0,
               lead: true,
               rankKey: (r) => parsePct(r.goaliePenSavePct),
-            },
-          ],
-        },
-        {
-          title: 'Shootouts',
-          cells: [
-            {
-              label: 'Shootout Shots Faced',
-              value: String(soShots),
-              bar: soShots,
-              rankKey: (r) => r.goalieSoShots,
-            },
-            {
-              label: 'Shootout Saves',
-              value: String(soSaves),
-              bar: soSaves,
-              rankKey: (r) => r.goalieSoSaves,
-            },
-            {
-              label: 'Shootout Save %',
-              value: soSavePct != null ? soSavePct.toFixed(2) : '—',
-              unit: soSavePct != null ? '%' : undefined,
-              bar: soSavePct ?? 0,
-              lead: true,
-              rankKey: (r) => parsePct(r.goalieSoSavePct),
             },
           ],
         },
@@ -1601,10 +1571,6 @@ function formatPlusMinus(v: number): string {
 
 function percentileFromPm(v: number): number {
   return Math.max(0, Math.min(100, ((v + 50) / 100) * 100))
-}
-
-function formatRecord(w: number, l: number, otl: number): string {
-  return `${String(w)}-${String(l)}-${String(otl)}`
 }
 
 function formatThousands(v: number): string {

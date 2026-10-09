@@ -87,7 +87,7 @@ export function ContributionSection({
         <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
           <Panel className="flex flex-col items-center justify-center gap-4 py-6">
             <ContributionDonut metrics={contribution.metrics} />
-            <p className="font-condensed text-[11px] uppercase tracking-wider text-zinc-600">
+            <p className="font-condensed text-[11px] uppercase tracking-wider text-fg-5">
               Based on <span className="tabular-nums">{contribution.sampleSize}</span>{' '}
               {contribution.role} appearances
             </p>
@@ -154,9 +154,8 @@ function ContributionDonut({ metrics }: { metrics: ProfileContributionSummary['m
               strokeDasharray={`${segLen.toString()} ${(circumference - segLen).toString()}`}
               strokeDashoffset={circumference * 0.25 - prevAcc}
             >
-              <title>
-                {metric.label}: {Math.round(metric.value).toString()}
-              </title>
+              {/* One string: React 19 hydrates a multi-node <title> as a mismatch. */}
+              <title>{`${metric.label}: ${Math.round(metric.value).toString()}`}</title>
             </circle>
           )
         })}

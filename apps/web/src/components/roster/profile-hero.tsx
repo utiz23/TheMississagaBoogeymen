@@ -9,7 +9,7 @@ import type { GameMode, PlayerArchetype } from '@eanhl/db'
 import { PLAYER_ARCHETYPES } from '@eanhl/db'
 import { NationalityFlag, PlatformIcon } from '@/components/player-meta-icons'
 import { ArchetypePillFlagship } from '@/components/ui/archetype-pill'
-import { formatPositionFull, formatSavePct, headingName } from '@/lib/format'
+import { formatPositionFull, formatRecord, formatSavePct, headingName } from '@/lib/format'
 import { formatCareerTitleRange } from '@/lib/title-resolver'
 import './profile-hero.css'
 
@@ -240,7 +240,7 @@ export function ProfileHero({
               )}
 
               {showRoleSelector && (
-                <div className="ph-role-tabs" role="tablist" aria-label="Role">
+                <nav className="ph-role-tabs" aria-label="Role">
                   <RoleTab role="skater" active={selectedRole === 'skater'} gameMode={gameMode}>
                     <SkaterIcon />
                     Skater
@@ -249,7 +249,7 @@ export function ProfileHero({
                     <GoalieIcon />
                     Goalie
                   </RoleTab>
-                </div>
+                </nav>
               )}
             </div>
           </div>
@@ -459,8 +459,7 @@ function RoleTab({
       prefetch
       href={`?${params.toString()}`}
       className="ph-role-tab"
-      aria-selected={active}
-      role="tab"
+      aria-current={active ? 'page' : undefined}
     >
       {children}
     </Link>
@@ -532,7 +531,7 @@ function MiniStats({
           ? [season.skaterGp, season.goals, season.assists, season.points].map(String)
           : [
               season.goalieGp.toString(),
-              `${(season.goalieWins ?? 0).toString()}-${(season.goalieLosses ?? 0).toString()}-${(season.goalieOtl ?? 0).toString()}`,
+              formatRecord(season.goalieWins ?? 0, season.goalieLosses ?? 0, season.goalieOtl ?? 0),
               season.goalieSavePct ?? '—',
               season.goalieGaa ?? '—',
             ],
@@ -551,7 +550,11 @@ function MiniStats({
             ].map(String)
           : [
               career.gp.toString(),
-              `${(career as GoalieAggregate).w.toString()}-${(career as GoalieAggregate).l.toString()}-${(career as GoalieAggregate).otl.toString()}`,
+              formatRecord(
+                (career as GoalieAggregate).w,
+                (career as GoalieAggregate).l,
+                (career as GoalieAggregate).otl,
+              ),
               formatSavePct((career as GoalieAggregate).savePct),
               (career as GoalieAggregate).gaa ?? '—',
             ],
@@ -627,7 +630,7 @@ function GoalieLedger({
   gaa: string | null
   so: number
 }) {
-  const record = `${w.toString()}-${l.toString()}-${otl.toString()}`
+  const record = formatRecord(w, l, otl)
   return (
     <div className="ph-ledger-grid cols-5 dense">
       <Stat label="GP" value={gp.toString()} />
@@ -785,5 +788,32 @@ function aggregateCareer(
     }),
     { gp: 0, w: 0, l: 0, otl: 0, so: 0 },
   )
-  return { ...sum, savePct: null, gaa: null }
+  return { ...sum, ...careerGoalieRates(filtered) }
+}
+
+/**
+ * Career SV% and GAA across goalie seasons. SV% is exact (saves ÷ shots) when
+ * every season has the counts, else GP-weighted when every season has a SV%;
+ * GAA is GP-weighted when every season has one. Partial data → "—", never a
+ * number built from some seasons only.
+ */
+function careerGoalieRates(rows: PlayerCareerSeasonRow[]): {
+  savePct: string | null
+  gaa: string | null
+} {
+  const gp = rows.reduce((n, r) => n + r.goalieGp, 0)
+  if (rows.length === 0 || gp === 0) return { savePct: null, gaa: null }
+  const num = (v: string | null) => (v === null ? null : Number.parseFloat(v))
+  let savePct: string | null = null
+  if (rows.every((r) => r.saves !== null && r.shotsAgainst !== null)) {
+    const saves = rows.reduce((n, r) => n + (r.saves ?? 0), 0)
+    const shots = rows.reduce((n, r) => n + (r.shotsAgainst ?? 0), 0)
+    savePct = shots > 0 ? ((saves / shots) * 100).toFixed(2) : null
+  } else if (rows.every((r) => Number.isFinite(num(r.savePct)))) {
+    savePct = (rows.reduce((n, r) => n + (num(r.savePct) ?? 0) * r.goalieGp, 0) / gp).toFixed(2)
+  }
+  const gaa = rows.every((r) => Number.isFinite(num(r.gaa)))
+    ? (rows.reduce((n, r) => n + (num(r.gaa) ?? 0) * r.goalieGp, 0) / gp).toFixed(2)
+    : null
+  return { savePct, gaa }
 }

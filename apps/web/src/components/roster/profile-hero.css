@@ -429,7 +429,7 @@
   height: 16px;
   opacity: 0.7;
 }
-.ph-role-tab[aria-selected='true'] {
+.ph-role-tab[aria-current='page'] {
   border-color: var(--color-accent);
   background: rgba(232, 65, 49, 0.1);
   color: var(--color-fg-1);
@@ -437,7 +437,7 @@
     inset 0 0 0 1px rgba(232, 65, 49, 0.4),
     0 0 16px rgba(232, 65, 49, 0.15);
 }
-.ph-role-tab[aria-selected='true'] .ico {
+.ph-role-tab[aria-current='page'] .ico {
   opacity: 1;
   color: var(--color-accent);
 }

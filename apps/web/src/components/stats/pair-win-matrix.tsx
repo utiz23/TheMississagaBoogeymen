@@ -59,7 +59,7 @@ function tier(p: number): 0 | 1 | 2 | 3 | 4 | 5 {
  *  so the cell label is always W-L. DNF is excluded from both numerator and
  *  denominator (surfaced in the tooltip when present). */
 function recordString(c: { wins: number; losses: number; otl: number }): string {
-  return `${String(c.wins)}-${String(c.losses + c.otl)}`
+  return `${String(c.wins)}–${String(c.losses + c.otl)}`
 }
 
 /**

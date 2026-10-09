@@ -33,7 +33,7 @@ function winPctFraction(wins: number, gp: number): number | null {
  * cell's `title=` tooltip via `recordBreakdown` below).
  */
 function fmtRecord(wins: number, losses: number, otl: number): string {
-  return `${wins.toString()}-${(losses + otl).toString()}`
+  return `${wins.toString()}–${(losses + otl).toString()}`
 }
 
 /** Long-form record breakdown for the cell tooltip — shows the original
