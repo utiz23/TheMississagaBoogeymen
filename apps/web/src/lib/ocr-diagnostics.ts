@@ -19,8 +19,9 @@
  * `NEXT_PUBLIC_`, so it stays server-only and can never be read — or set — from
  * the browser.
  *
- * Restoring the admin branch belongs with the post-launch account feature; see
- * src/deferred/auth/README.md.
+ * Member logins exist since 2026-10 (src/lib/auth.ts), but this stays an env
+ * switch: an admin branch here would read the session on every /games/[id]
+ * request. Revisit with the admin tools (member logins step 3).
  */
 export function showOcrDiagnostics(): Promise<boolean> {
   return Promise.resolve(process.env.OCR_DIAGNOSTICS === '1')

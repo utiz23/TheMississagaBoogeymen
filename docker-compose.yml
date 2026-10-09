@@ -78,6 +78,8 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
     ports:
       # Public traffic arrives through cloudflared over the compose network, not
       # through this published port. Keep it on loopback even on a public host.

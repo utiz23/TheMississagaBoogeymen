@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { listAllGameTitles, type GameTitleListing } from '@eanhl/db/queries'
 import { pickDefaultTitle, switcherTitles } from '@/lib/title-resolver'
+import { NavAccount } from './nav-account'
 import { NavDrawer, NavDrawerFallback } from './nav-drawer'
 import { NavLinks, NavLinksFallback } from './nav-links'
 
@@ -39,15 +40,9 @@ async function fetchTitleSwitcher(): Promise<{
  * and NHL 26) wide viewports have no in-nav way to change title: /games,
  * /stats and /roster carry their own selectors, `/` only an explicit ?title=.
  *
- * NO AUTH CTA. The prototype's SIGN IN box, and the LOGIN link that stood in
- * for it, are both gone: authentication is disabled before launch and /login is
- * a 404, so a CTA here would be a link into a dead route. The bar stays
- * session-agnostic — it does not read `headers()` or construct Better Auth, and
- * the root layout that renders it therefore stays static-friendly.
- *
- * Restoring the CTA is part of re-enabling the account system after launch; see
- * src/deferred/auth/README.md. `src/lib/account-system-disabled.test.ts` fails
- * if a login/account link reappears here or in the drawer.
+ * The CTA is the member control (nav-account.tsx): LOG IN, or the member's
+ * initials once signed in. It reads the session in the browser, so the bar —
+ * and the root layout that renders it — never reads `headers()`.
  */
 export async function TopNav() {
   const { titles, defaultSlug } = await fetchTitleSwitcher()
@@ -82,6 +77,8 @@ export async function TopNav() {
         </Suspense>
 
         <div className="ml-auto flex shrink-0 items-center gap-4">
+          {/* Prototype's SIGN IN CTA box: 9px/20px, 13px/800, 0.15em, 2px radius. */}
+          <NavAccount variant="bar" />
           <Suspense fallback={<NavDrawerFallback />}>
             <NavDrawer titles={titles} defaultSlug={defaultSlug} />
           </Suspense>

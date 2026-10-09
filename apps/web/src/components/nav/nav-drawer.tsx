@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { GameTitle } from '@eanhl/db'
 import { GameTitleSwitcher } from './game-title-switcher'
+import { NavAccount } from './nav-account'
 import { NAV_LINKS, buildHref, isActive } from './nav-links'
 import { NavPendingCue } from './nav-pending-cue'
 
@@ -198,10 +199,9 @@ export function NavDrawer({
           })}
         </nav>
 
-        {/* No auth CTA. The prototype's drawer LOGIN box is gone for the same
-            reason as the bar's: authentication is disabled before launch and
-            /login is a 404. See src/deferred/auth/README.md. */}
+        {/* Prototype's drawer CTA box (13px padding, 14px/800, 0.15em): LOG IN or YOUR ACCOUNT. */}
         <div className="mt-auto flex flex-col gap-3.5">
+          <NavAccount variant="drawer" onNavigate={() => setOpen(false)} />
           <GameTitleSwitcher titles={titles} defaultSlug={defaultSlug} />
         </div>
       </div>
