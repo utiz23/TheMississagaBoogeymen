@@ -23,7 +23,6 @@ import { GAME_MODE } from '@eanhl/db'
 import { PlayerGameLogSection } from '@/components/roster/player-game-log-section'
 import { ClubStatsTabs } from '@/components/roster/club-stats-tabs'
 import { ContributionSection } from '@/components/roster/contribution-section'
-import { TrendChart } from '@/components/roster/trend-chart'
 import { ProfileHero } from '@/components/roster/profile-hero'
 import { CareerSeasonsTable } from '@/components/roster/career-seasons-table'
 import { buildSeasonTable } from '@/components/roster/career-season-rows'
@@ -245,12 +244,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
   const awards = buildPlayerAwards(clubLines, id, CLUB_AWARDS)
 
-  // Trend: role-filtered, oldest first, max 15
-  const trendGames = [...overview.trendGames]
-    .filter((g) => g.isGoalie === (selectedRole === 'goalie'))
-    .slice(0, 15)
-    .reverse()
-
   // Case-file rail: one entry per section that actually renders below, in page order.
   const showShotMap = focalEaRow !== undefined
   const showActionMap = shouldShowActionMap(careerActions)
@@ -265,7 +258,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     ...(showActionMap ? [{ id: 'sheet-action-map', code: 'CAM', title: 'Action Map' }] : []),
     ...(showShotMap ? [{ id: 'sheet-shot-map', code: 'SHM', title: 'Zone Map' }] : []),
     { id: 'sheet-badges', code: 'BDG', title: 'Badges' },
-    ...(trendGames.length > 0 ? [{ id: 'sheet-form', code: 'FRM', title: 'Recent Form' }] : []),
     ...(awards.items.length > 0 ? [{ id: 'sheet-awards', code: 'AWD', title: 'Awards' }] : []),
   ]
   const fileNo =
@@ -414,12 +406,6 @@ export default async function PlayerPage({ params, searchParams }: Props) {
           />
         </LazyMount>
       </div>
-
-      {trendGames.length > 0 && (
-        <div id="sheet-form" className="scroll-mt-24">
-          <TrendChart trendGames={trendGames} selectedRole={selectedRole} />
-        </div>
-      )}
 
       {awards.items.length > 0 && (
         <div id="sheet-awards" className="scroll-mt-24">
