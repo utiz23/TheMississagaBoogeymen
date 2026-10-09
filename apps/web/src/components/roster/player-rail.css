@@ -1,0 +1,139 @@
+/* ============================================================================
+   PLAYER RAIL — case-file index in the left margin of the player page.
+   Absolutely positioned outside the page column, so the content never narrows.
+   Hidden until the margin can hold it: the column is max-w-screen-xl (1280px)
+   centred, so at 1680px the left margin is 200px + the 16px page gutter.
+   ============================================================================ */
+
+.pr-rail {
+  display: none;
+}
+
+@media (min-width: 1680px) {
+  .pr-rail {
+    display: block;
+    position: absolute;
+    top: 0;
+    right: calc(100% + 24px);
+    width: 168px;
+    height: 100%;
+    /* The page root uses space-y; keep the rail out of that rhythm. */
+    margin: 0 !important;
+  }
+}
+
+.pr-inner {
+  position: sticky;
+  /* 64px sticky top nav + breathing room */
+  top: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 0 14px 14px;
+  border-left: 1px solid rgba(63, 63, 70, 0.7);
+  font-family: var(--font-condensed);
+}
+
+.pr-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pr-kicker {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--color-fg-1);
+}
+.pr-who {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8e8b8c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pr-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 0 5px 10px;
+  color: #6b6869;
+  text-decoration: none;
+  transition: color 120ms;
+}
+.pr-item:hover {
+  color: #d4d2d3;
+}
+.pr-item::before {
+  content: '';
+  position: absolute;
+  /* sits on the rail's border line */
+  left: -15px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: transparent;
+  transition: background 120ms;
+}
+.pr-item.is-active {
+  color: var(--color-fg-1);
+}
+.pr-item.is-active::before {
+  background: #e84131;
+  box-shadow: 0 0 8px rgba(232, 65, 49, 0.5);
+}
+
+.pr-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pr-no {
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #e84131;
+  opacity: 0.55;
+}
+.pr-item.is-active .pr-no {
+  opacity: 1;
+}
+.pr-code {
+  padding-left: 22px;
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: #4f4c4d;
+}
+
+.pr-stamp {
+  padding-top: 10px;
+  border-top: 1px dashed rgba(63, 63, 70, 0.8);
+  font-family: ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #4f4c4d;
+}

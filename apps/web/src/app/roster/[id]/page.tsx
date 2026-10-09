@@ -44,6 +44,7 @@ import { HeroCard } from '@/components/cards/hero-card'
 import { buildLockerView } from '@/components/cards/locker-model'
 import { cardFromProfile } from '@/components/cards/card-adapters'
 import { Panel } from '@/components/ui/panel'
+import { PlayerRail, type RailSheet } from '@/components/roster/player-rail'
 
 export const revalidate = 3600
 
@@ -252,8 +253,32 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     .slice(0, 15)
     .reverse()
 
+  // Case-file rail: one entry per section that actually renders below, in page order.
+  const showShotMap = focalEaRow !== undefined
+  const showActionMap = shouldShowActionMap(careerActions)
+  const railSheets: RailSheet[] = [
+    { id: 'sheet-hero', code: 'PRO', title: 'Roster Card' },
+    { id: 'sheet-record', code: 'REC', title: 'Service Record' },
+    ...(eaStats[0] !== undefined
+      ? [{ id: 'sheet-club-stats', code: 'CST', title: 'Club Stats' }]
+      : []),
+    { id: 'sheet-contribution', code: 'CTW', title: 'Contribution' },
+    ...(builds !== null ? [{ id: 'sheet-builds', code: 'LDT', title: 'Build Locker' }] : []),
+    ...(showActionMap ? [{ id: 'sheet-action-map', code: 'CAM', title: 'Action Map' }] : []),
+    ...(showShotMap ? [{ id: 'sheet-shot-map', code: 'SHM', title: 'Zone Map' }] : []),
+    { id: 'sheet-badges', code: 'BDG', title: 'Badges' },
+    { id: 'sheet-form', code: 'FRM', title: 'Recent Form' },
+    ...(awards.items.length > 0 ? [{ id: 'sheet-awards', code: 'AWD', title: 'Awards' }] : []),
+  ]
+  const fileNo =
+    overview.player.jerseyNumber !== null
+      ? overview.player.jerseyNumber.toString().padStart(4, '0')
+      : null
+
   return (
-    <div className="space-y-8">
+    <div className="relative space-y-8">
+      <PlayerRail sheets={railSheets} gamertag={overview.player.gamertag} fileNo={fileNo} />
+
       <Link
         prefetch
         href="/roster"
@@ -262,16 +287,18 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         <span aria-hidden>←</span> Roster
       </Link>
 
-      <ProfileHero
-        overview={overview}
-        career={careerSeasons}
-        history={history}
-        selectedRole={selectedRole}
-        hasSkaterData={hasSkaterData}
-        hasGoalieData={hasGoalieData}
-        gameMode={gameMode}
-        portrait={<HeroCard card={heroCard} locker={lockerView} />}
-      />
+      <div id="sheet-hero" className="scroll-mt-24">
+        <ProfileHero
+          overview={overview}
+          career={careerSeasons}
+          history={history}
+          selectedRole={selectedRole}
+          hasSkaterData={hasSkaterData}
+          hasGoalieData={hasGoalieData}
+          gameMode={gameMode}
+          portrait={<HeroCard card={heroCard} locker={lockerView} />}
+        />
+      </div>
 
       {hasNoLocalData && (
         <Panel className="px-4 py-3">
@@ -285,108 +312,130 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         </Panel>
       )}
 
-      <StatsRecordCard
-        seasonTable={
-          <CareerSeasonsTable
-            table={buildSeasonTable(
-              careerSeasons,
-              eaStats,
-              archiveDetail,
-              selectedRole,
-              positionSeasons,
-            )}
-          />
-        }
-        gameLog={
-          <PlayerGameLogSection
-            playerId={id}
-            gameMode={gameMode}
-            rows={gameLog}
-            total={gameLogTotal}
-            logPage={logPage}
-            totalPages={Math.ceil(gameLogTotal / LOG_PAGE_SIZE)}
-            showMode={gameMode === null}
-          />
-        }
-      />
+      <div id="sheet-record" className="scroll-mt-24">
+        <StatsRecordCard
+          seasonTable={
+            <CareerSeasonsTable
+              table={buildSeasonTable(
+                careerSeasons,
+                eaStats,
+                archiveDetail,
+                selectedRole,
+                positionSeasons,
+              )}
+            />
+          }
+          gameLog={
+            <PlayerGameLogSection
+              playerId={id}
+              gameMode={gameMode}
+              rows={gameLog}
+              total={gameLogTotal}
+              logPage={logPage}
+              totalPages={Math.ceil(gameLogTotal / LOG_PAGE_SIZE)}
+              showMode={gameMode === null}
+            />
+          }
+        />
+      </div>
 
       {eaStats[0] !== undefined && (
-        <ClubStatsTabs
-          season={eaStats[0]}
-          gamertag={overview.player.gamertag}
+        <div id="sheet-club-stats" className="scroll-mt-24">
+          <ClubStatsTabs
+            season={eaStats[0]}
+            gamertag={overview.player.gamertag}
+            teammates={teammates}
+            role={selectedRole}
+          />
+        </div>
+      )}
+
+      <div id="sheet-contribution" className="scroll-mt-24">
+        <ContributionSection
+          contribution={selectedContribution}
+          selectedRole={selectedRole}
+          skaterSeason={eaStats[0] ?? null}
           teammates={teammates}
-          role={selectedRole}
-        />
-      )}
-
-      <ContributionSection
-        contribution={selectedContribution}
-        selectedRole={selectedRole}
-        skaterSeason={eaStats[0] ?? null}
-        teammates={teammates}
-        playerId={overview.player.id}
-        gamertag={overview.player.gamertag}
-        gameTitleName={eaStats[0]?.gameTitleName}
-        updatedAt={eaStats[0]?.lastFetchedAt}
-      />
-
-      {builds !== null && <BuildLocker view={toBuildLockerView(builds)} />}
-
-      {shouldShowActionMap(careerActions) && (
-        <LazyMount minHeight={760} label="Career Action Map">
-          <CareerActionMap events={careerActions} gamertag={overview.player.gamertag} />
-        </LazyMount>
-      )}
-
-      {selectedRole === 'skater' && focalEaRow !== undefined && (
-        <ShotMap
-          role="skater"
-          player={focalEaRow.shotLocations}
-          teamAverage={teamAverage ?? emptyShotLocations()}
-          hasData={teamAverage !== null && focalEaRow.shotLocations !== null}
-          titleName={focalEaRow.gameTitleName}
+          playerId={overview.player.id}
           gamertag={overview.player.gamertag}
-          playerGp={focalEaRow.skaterGp}
-          updatedDate={new Date().toISOString().slice(0, 10)}
+          gameTitleName={eaStats[0]?.gameTitleName}
+          updatedAt={eaStats[0]?.lastFetchedAt}
         />
-      )}
-      {selectedRole === 'goalie' && focalEaRow !== undefined && (
-        <ShotMap
-          role="goalie"
-          player={focalEaRow.goalieShotLocations}
-          teamAverage={teamGoalieAverage ?? emptyShotLocations()}
-          hasData={teamGoalieAverage !== null && focalEaRow.goalieShotLocations !== null}
-          titleName={focalEaRow.gameTitleName}
-          gamertag={overview.player.gamertag}
-          playerGp={focalEaRow.goalieGp}
-          updatedDate={new Date().toISOString().slice(0, 10)}
-        />
+      </div>
+
+      {builds !== null && (
+        <div id="sheet-builds" className="scroll-mt-24">
+          <BuildLocker view={toBuildLockerView(builds)} />
+        </div>
       )}
 
-      <LazyMount minHeight={720} label="Badges">
-        <PlayerBadges
-          gamertag={overview.player.gamertag}
-          seasonName={cardProgress?.gameTitle?.name ?? null}
-          aiGoalie={cardProgress?.aiGoalie ?? false}
-          rows={cardProgress?.badges ?? []}
-        />
-      </LazyMount>
+      {showActionMap && (
+        <div id="sheet-action-map" className="scroll-mt-24">
+          <LazyMount minHeight={760} label="Career Action Map">
+            <CareerActionMap events={careerActions} gamertag={overview.player.gamertag} />
+          </LazyMount>
+        </div>
+      )}
 
-      <ChartsVisualsSection
-        trendChart={
-          trendGames.length > 0 ? (
-            <TrendChart trendGames={trendGames} selectedRole={selectedRole} />
-          ) : (
-            <ComingSoonCard
-              title="Recent Form Trend"
-              description="Per-game performance bars for the last 15 appearances. Will populate once enough game data is available."
+      {showShotMap && (
+        <div id="sheet-shot-map" className="scroll-mt-24">
+          {selectedRole === 'skater' && focalEaRow !== undefined && (
+            <ShotMap
+              role="skater"
+              player={focalEaRow.shotLocations}
+              teamAverage={teamAverage ?? emptyShotLocations()}
+              hasData={teamAverage !== null && focalEaRow.shotLocations !== null}
+              titleName={focalEaRow.gameTitleName}
+              gamertag={overview.player.gamertag}
+              playerGp={focalEaRow.skaterGp}
+              updatedDate={new Date().toISOString().slice(0, 10)}
             />
-          )
-        }
-      />
+          )}
+          {selectedRole === 'goalie' && focalEaRow !== undefined && (
+            <ShotMap
+              role="goalie"
+              player={focalEaRow.goalieShotLocations}
+              teamAverage={teamGoalieAverage ?? emptyShotLocations()}
+              hasData={teamGoalieAverage !== null && focalEaRow.goalieShotLocations !== null}
+              titleName={focalEaRow.gameTitleName}
+              gamertag={overview.player.gamertag}
+              playerGp={focalEaRow.goalieGp}
+              updatedDate={new Date().toISOString().slice(0, 10)}
+            />
+          )}
+        </div>
+      )}
+
+      <div id="sheet-badges" className="scroll-mt-24">
+        <LazyMount minHeight={720} label="Badges">
+          <PlayerBadges
+            gamertag={overview.player.gamertag}
+            seasonName={cardProgress?.gameTitle?.name ?? null}
+            aiGoalie={cardProgress?.aiGoalie ?? false}
+            rows={cardProgress?.badges ?? []}
+          />
+        </LazyMount>
+      </div>
+
+      <div id="sheet-form" className="scroll-mt-24">
+        <ChartsVisualsSection
+          trendChart={
+            trendGames.length > 0 ? (
+              <TrendChart trendGames={trendGames} selectedRole={selectedRole} />
+            ) : (
+              <ComingSoonCard
+                title="Recent Form Trend"
+                description="Per-game performance bars for the last 15 appearances. Will populate once enough game data is available."
+              />
+            )
+          }
+        />
+      </div>
 
       {awards.items.length > 0 && (
-        <PlayerAwards gamertag={overview.player.gamertag} awards={awards} />
+        <div id="sheet-awards" className="scroll-mt-24">
+          <PlayerAwards gamertag={overview.player.gamertag} awards={awards} />
+        </div>
       )}
     </div>
   )
