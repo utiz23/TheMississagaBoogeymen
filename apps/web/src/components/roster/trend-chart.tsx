@@ -22,7 +22,8 @@ export function TrendChart({ trendGames, selectedRole }: Props) {
 
   const chartW = 280
   const chartH = 64
-  const barW = Math.max(4, Math.floor((chartW - trendGames.length) / trendGames.length))
+  // 1-unit gaps between bars; the bars split the rest of the width exactly.
+  const barW = Math.max(4, (chartW - (trendGames.length - 1)) / trendGames.length)
 
   const avgY = chartH - Math.max(2, (avg / maxStat) * (chartH - 4))
 
@@ -41,6 +42,8 @@ export function TrendChart({ trendGames, selectedRole }: Props) {
           viewBox={`0 0 ${chartW.toString()} ${chartH.toString()}`}
           className="w-full"
           style={{ height: `${chartH.toString()}px` }}
+          // Bars only, so the chart stretches to the panel's full width.
+          preserveAspectRatio="none"
           aria-hidden
         >
           {/* Average reference line */}
@@ -52,6 +55,7 @@ export function TrendChart({ trendGames, selectedRole }: Props) {
             stroke="rgba(255,255,255,0.07)"
             strokeWidth="1"
             strokeDasharray="4 3"
+            vectorEffect="non-scaling-stroke"
           />
           {trendGames.map((g, i) => {
             const stat = stats[i] ?? 0

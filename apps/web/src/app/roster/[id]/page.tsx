@@ -28,8 +28,6 @@ import { ProfileHero } from '@/components/roster/profile-hero'
 import { CareerSeasonsTable } from '@/components/roster/career-seasons-table'
 import { buildSeasonTable } from '@/components/roster/career-season-rows'
 import { StatsRecordCard } from '@/components/roster/stats-record-card'
-import { ChartsVisualsSection } from '@/components/roster/charts-visuals-section'
-import { ComingSoonCard } from '@/components/roster/coming-soon-card'
 import { ShotMap } from '@/components/roster/shot-map'
 import { BuildLocker } from '@/components/roster/build-locker'
 import { toBuildLockerView } from '@/components/roster/build-locker-model'
@@ -267,7 +265,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     ...(showActionMap ? [{ id: 'sheet-action-map', code: 'CAM', title: 'Action Map' }] : []),
     ...(showShotMap ? [{ id: 'sheet-shot-map', code: 'SHM', title: 'Zone Map' }] : []),
     { id: 'sheet-badges', code: 'BDG', title: 'Badges' },
-    { id: 'sheet-form', code: 'FRM', title: 'Recent Form' },
+    ...(trendGames.length > 0 ? [{ id: 'sheet-form', code: 'FRM', title: 'Recent Form' }] : []),
     ...(awards.items.length > 0 ? [{ id: 'sheet-awards', code: 'AWD', title: 'Awards' }] : []),
   ]
   const fileNo =
@@ -417,20 +415,11 @@ export default async function PlayerPage({ params, searchParams }: Props) {
         </LazyMount>
       </div>
 
-      <div id="sheet-form" className="scroll-mt-24">
-        <ChartsVisualsSection
-          trendChart={
-            trendGames.length > 0 ? (
-              <TrendChart trendGames={trendGames} selectedRole={selectedRole} />
-            ) : (
-              <ComingSoonCard
-                title="Recent Form Trend"
-                description="Per-game performance bars for the last 15 appearances. Will populate once enough game data is available."
-              />
-            )
-          }
-        />
-      </div>
+      {trendGames.length > 0 && (
+        <div id="sheet-form" className="scroll-mt-24">
+          <TrendChart trendGames={trendGames} selectedRole={selectedRole} />
+        </div>
+      )}
 
       {awards.items.length > 0 && (
         <div id="sheet-awards" className="scroll-mt-24">
