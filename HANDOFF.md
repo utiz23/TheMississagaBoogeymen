@@ -50,7 +50,7 @@ video-stats OCR).
 
 **2026-10-09 — responsive sizes, side rail, compact carousel deployed** (`fb40008`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-responsive`). Medium ≤1100 / Small ≤720 / Micro ≤480 tiers for the player, roster and home components; `PlayerCardCompact`; player-page side rail at ≥1680px; Charts & Visuals and Recent Form removed (`4095e49`, rollback `:rollback-he-2026-10-09-pre-no-form`). Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
-**2026-10-08 (late night) — Awards + migration 0064 deployed** (`d038b36`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-08-pre-awards`). 0064 adds 12 derived `all_skaters` archive rows (seasons captured only per position); rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`. Detail: [journal 2026-10-08 late night](docs/journal/2026-10.md).
+**2026-10-08 — Awards + migration 0064** (`d038b36`; rollback `:rollback-he-2026-10-08-pre-awards`; 0064 rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`). [Journal](docs/journal/2026-10.md).
 
 **2026-10-08 — player cards, AI goalies, position filter deployed** (`29ee6a2`; migrations 0060–0063; rollbacks `:rollback-he-2026-10-08-pre-{cards,ai-goalies,positions}`, dumps `~/eanhl-backups/pre-*-2026-10-08-*.dump`). Lehmann / Wagner (AI goalies) and pinned Jimmy Cap are players. [Journal](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
 
