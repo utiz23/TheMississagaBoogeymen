@@ -31,6 +31,9 @@ expected to be.
 
 ## Snapshots
 
+- [`handoff-history-2026-10-09.md`](handoff-history-2026-10-09.md) —
+  `HANDOFF.md` before the 2026-10-09 condense: holds the full 2026-10-05
+  launch / security-polish checkpoint and public-check list.
 - [`handoff-history-2026-10-05.md`](handoff-history-2026-10-05.md) —
   `HANDOFF.md` as it stood before the 2026-10-05 workflow reset. Holds the
   full Proton/E3 backup state (parked) and the E3J9C–E3J9E checkpoints.

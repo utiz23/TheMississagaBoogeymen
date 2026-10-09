@@ -7,10 +7,8 @@ documents, not here.
 - **Launch plan** (the active checklist):
   [`docs/planning/operational-v1-roadmap.md`](docs/planning/operational-v1-roadmap.md)
 - Work diary: [`docs/journal/2026-10.md`](docs/journal/2026-10.md)
-- Previous handoffs, archived unchanged: full Proton/E3 backup state in
-  [`handoff-history-2026-10-05.md`](docs/archive/handoff-history-2026-10-05.md);
-  the full 10-05 launch checkpoint in
-  [`handoff-history-2026-10-09.md`](docs/archive/handoff-history-2026-10-09.md)
+- Previous handoff, with the full Proton/E3 backup state, archived unchanged:
+  [`docs/archive/handoff-history-2026-10-05.md`](docs/archive/handoff-history-2026-10-05.md)
   (archive links resolve from the repo root — see
   [`docs/archive/README.md`](docs/archive/README.md)).
 
@@ -32,13 +30,9 @@ post-launch work (rulebook rewrite, Codex review owed, video-stats OCR).
 
 **Awards trophy case is live** (2026-10-08): records, season leaders, milestones, plus hand-entered trophies/banners in `apps/web/src/components/awards/club-awards.ts` (add new results there). Awards rank player-card ALL SKATERS totals, not the Stats page's club archive (operator choice).
 
-**Responsive sizes are live** (2026-10-09): Medium/Small/Micro layouts below desktop, compact cards on phones, side rail on wide screens. Open for the operator: finish the Roster Stats table tiers (or delete the orphan `stats-table-shell.css`), Build Locker v3 desktop redesign, and whether to restore any content the mockups hide on small screens (list in the journal).
-
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
 ## Latest Verified Checkpoint
-
-**2026-10-09 — responsive sizes, side rail, compact carousel deployed** (`fb40008`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-responsive`). Medium ≤1100 / Small ≤720 / Micro ≤480 tiers for the player, roster and home components; `PlayerCardCompact`; player-page side rail at ≥1680px; Charts & Visuals placeholder removed. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
 **2026-10-08 (late night) — Awards + migration 0064 deployed** (`d038b36`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-08-pre-awards`). 0064 adds 12 derived `all_skaters` archive rows (seasons captured only per position); rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`. Detail: [journal 2026-10-08 late night](docs/journal/2026-10.md).
 
@@ -59,8 +53,27 @@ strip is restored to 365-229-27 / 621 GP. Detail:
 
 **2026-10-06 — performance pass deployed** (`351354d`; rollback `:rollback-he-2026-10-06-pre-perf`). Detail: [journal 2026-10-06](docs/journal/2026-10.md).
 
-**2026-10-05 — launched; security update + polish deployed** (`67ff9c4`; public checks all passed). Full checkpoint: [archive 2026-10-09](docs/archive/handoff-history-2026-10-09.md), [journal 2026-10-05](docs/journal/2026-10.md).
+**2026-10-05 — launched; security update + polish deployed.** Detail:
+[journal 2026-10-05](docs/journal/2026-10.md).
 
+- Evening deploy to Hotel-Echo at `67ff9c4` (web + worker rebuilt with
+  `--no-deps`; db, backup, cloudflared untouched): web and worker run as
+  `node`; Next 15.5.27; all 7 security headers present once; image optimizer
+  200 `image/webp` and writes its cache as `node`; no `EACCES`/`EPERM`; no
+  `.env*` in the web image; worker cycle succeeded for both titles, `/health`
+  200, heartbeat URL set. Polish fixes live (NHL 27 zone maps, goalie rank).
+
+- Public checks via `https://boogeymen.app`: core and legal pages 200
+  (~0.5 s); `/preview/*`, `/login`, `/admin`, `/api/auth/session`, `/health`
+  and unknown paths 404 (branded scoreboard 404, no internals); `www` 200;
+  `http://` → 301 `https://` (Always Use HTTPS on); `X-Robots-Tag: noindex,
+nofollow` and robots meta; no `X-Powered-By`, no cookies, no Cloudflare
+  analytics beacon (Web Analytics RUM set to Disable).
+- Same day, before launch: backups automated and moved to Hotel-Echo; NHL
+  26/27 title separation (migration 0057); public-surface hardening; legal
+  pages published with current facts; production moved to Hotel-Echo with a
+  merged 449-match database (main PC 435 + 14 games only Hotel-Echo had);
+  log caps and a collector heartbeat (test alert received); repo tidied.
 - **Codex review of the nightly backup is still owed** (four tooling
   failures). To run it: check out `feat/nightly-backup`, then
   `/codex:review --wait --base 0ec6989`.
@@ -71,7 +84,7 @@ strip is restored to 365-229-27 / 621 GP. Detail:
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web at `fb40008`, worker at `29ee6a2`), web and worker as the non-root
+  and nightly backup (web at `d038b36`, worker at `29ee6a2`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
