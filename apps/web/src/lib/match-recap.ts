@@ -12,7 +12,7 @@ import type {
   getOpponentPlayerMatchStats,
   getPlayerMatchStats,
 } from '@eanhl/db/queries'
-import { eaPositionToSlot, type LineupPositionKey } from './lineup-shape.ts'
+import { eaPositionToSlot, rekeyLineupToLadder, type LineupPositionKey } from './lineup-shape.ts'
 
 type PlayerStatBase = Awaited<ReturnType<typeof getPlayerMatchStats>>[number]
 type OpponentPlayerStatBase = Awaited<ReturnType<typeof getOpponentPlayerMatchStats>>[number]
@@ -516,6 +516,32 @@ export function starsForMatch(
     applyLoadoutOverrides(bgm, lineups.bgm),
     applyLoadoutOverrides(opponent, lineups.opponent),
   )
+}
+
+/**
+ * The match page's lineup, both sides: OCR lobby slots when any OCR lineup
+ * exists (re-keyed onto the ladder for 3s), else box-score positions. The
+ * page and the Discord lineup image both call this.
+ */
+export function lineupsForMatch(
+  match: Pick<Match, 'playedAt' | 'gameMode'>,
+  bgmStats: PlayerStat[],
+  oppStats: OpponentPlayerStat[],
+  lineups: { bgm: LineupRow[]; opponent: LineupRow[] },
+): { variant: 'ocr' | 'boxScore'; bgm: LineupRow[]; opponent: LineupRow[] } {
+  const hasOcr = lineups.bgm.length > 0 || lineups.opponent.length > 0
+  if (hasOcr) {
+    return {
+      variant: 'ocr',
+      bgm: rekeyLineupToLadder(lineups.bgm, bgmStats, match.gameMode, 'bgm'),
+      opponent: rekeyLineupToLadder(lineups.opponent, oppStats, match.gameMode, 'opp'),
+    }
+  }
+  return {
+    variant: 'boxScore',
+    bgm: buildLineupFromStats(bgmStats, 'bgm', match.playedAt, match.gameMode),
+    opponent: buildLineupFromStats(oppStats, 'opp', match.playedAt, match.gameMode),
+  }
 }
 
 // ─── Season-to-date average composite score (for "vs season avg" delta) ──────

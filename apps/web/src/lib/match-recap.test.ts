@@ -8,6 +8,7 @@ import {
   buildClassToArchetype,
   buildPossessionEdge,
   possessionEdgeWithShots,
+  lineupsForMatch,
   starsForMatch,
 } from './match-recap.ts'
 
@@ -86,4 +87,13 @@ void test('starsForMatch: no players, no stars', () => {
     }),
     [],
   )
+})
+
+void test('lineupsForMatch: no OCR rows ⇒ box-score lineup', () => {
+  const r = lineupsForMatch({ playedAt: new Date(0), gameMode: '6s' }, [], [], {
+    bgm: [],
+    opponent: [],
+  })
+  assert.equal(r.variant, 'boxScore')
+  assert.deepEqual(r.bgm, [])
 })

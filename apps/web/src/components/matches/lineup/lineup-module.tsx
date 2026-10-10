@@ -12,6 +12,7 @@ import { resolvePlatform } from '@/components/ui/platform-badge'
 import { splitBuild, type HeadToHeadStatLine } from '@/lib/head-to-head'
 import { delayVar, durationVar } from '@/lib/motion'
 import { formatSavePct } from '@/lib/format'
+import { bucketByPosition, findStat } from '@/lib/lineup-slots'
 import { DrawerLoadout } from './drawer-loadout'
 import { DrawerStats } from './drawer-stats'
 import {
@@ -742,66 +743,6 @@ function goalieTiles(stat: LineupModuleStatRow | null): LineupStatTile[] {
     },
     { label: 'SV%', value: formatSavePct(savePct), tone: savePct === null ? 'muted' : 'lead' },
   ]
-}
-
-// ─── Lookups ─────────────────────────────────────────────────────────────────
-
-/**
- * Gamertag join key: lowercase, whitespace stripped. OCR loses spaces in
- * tags ("RAIDERS G7" is snapshotted as "RAIDERSG7"), so an exact-lower match
- * would strand real players without stats.
- */
-function normalizeTag(tag: string): string {
-  return tag.toLowerCase().replace(/\s+/g, '')
-}
-
-function findStat(
-  stats: LineupModuleStatRow[],
-  team: TeamKey,
-  row: LineupRow,
-): LineupModuleStatRow | null {
-  if (team === 'bgm' && row.player) {
-    const byId = stats.find((s) => s.playerId === row.player?.id)
-    if (byId) return byId
-  }
-  const tag = normalizeTag(row.gamertagSnapshot ?? row.player?.gamertag ?? '')
-  if (!tag) return null
-  return stats.find((s) => normalizeTag(s.gamertag) === tag) ?? null
-}
-
-// ─── Helpers lifted from the donor lineup-section (deleted in Phase 11) ──────
-
-const JUNK_GAMERTAG_TOKENS = new Set(['away', 'home', 'cpu', '?', '(unknown)'])
-
-/**
- * OCR-noise guard: a row with no build, no jersey AND no X-Factors is almost
- * certainly noise — treat the slot as CPU. Box-score rows are authoritative
- * (they came from the final stats) and bypass the guard.
- */
-function isRenderable(row: LineupRow): boolean {
-  const tag = (row.gamertagSnapshot ?? '').trim()
-  if (!tag || JUNK_GAMERTAG_TOKENS.has(tag.toLowerCase())) return false
-  return (
-    row.buildClass !== null ||
-    row.buildClassCanonical !== null ||
-    row.playerNumber !== null ||
-    row.xFactors.length > 0
-  )
-}
-
-function bucketByPosition(
-  rows: LineupRow[],
-  variant: 'ocr' | 'boxScore',
-  ladder: readonly LineupPositionKey[],
-): Map<LineupPositionKey, LineupRow> {
-  const map = new Map<LineupPositionKey, LineupRow>()
-  for (const r of rows) {
-    if (!r.position) continue
-    if (variant === 'ocr' && !isRenderable(r)) continue
-    const pos = r.position as LineupPositionKey
-    if (ladder.includes(pos) && !map.has(pos)) map.set(pos, r)
-  }
-  return map
 }
 
 function buildToArchetype(build: string): PlayerArchetype | null {

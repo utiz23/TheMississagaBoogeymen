@@ -40,14 +40,14 @@ import {
   buildAllTeamScores,
   applyLoadoutOverrides,
   buildBoxScore,
-  buildLineupFromStats,
+  lineupsForMatch,
   buildPossessionEdge,
   starsForMatch,
   computeSeasonAvgs,
   attachSeasonAvgs,
   wentToOvertime,
 } from '@/lib/match-recap'
-import { ladderFor, rekeyLineupToLadder } from '@/lib/lineup-shape'
+import { ladderFor } from '@/lib/lineup-shape'
 import { resolveOpponentColors } from '@/lib/opponent-colors'
 import { abbreviateTeamName } from '@/lib/format'
 import { showOcrDiagnostics } from '@/lib/ocr-diagnostics'
@@ -174,17 +174,10 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
   // pre-game lobby parser's fixed six-row geometry mislabels a three-row lobby
   // and leaks opponent players into the bottom BGM slots. See `lineup-shape.ts`.
   const ladder = ladderFor(m.gameMode)
-  const hasOcrLineups = lineups.bgm.length > 0 || lineups.opponent.length > 0
-  const lineupVariant: 'ocr' | 'boxScore' = hasOcrLineups ? 'ocr' : 'boxScore'
-  const lineupData = hasOcrLineups
-    ? {
-        bgm: rekeyLineupToLadder(lineups.bgm, playerStats, m.gameMode, 'bgm'),
-        opponent: rekeyLineupToLadder(lineups.opponent, opponentPlayerStats, m.gameMode, 'opp'),
-      }
-    : {
-        bgm: buildLineupFromStats(playerStats, 'bgm', m.playedAt, m.gameMode),
-        opponent: buildLineupFromStats(opponentPlayerStats, 'opp', m.playedAt, m.gameMode),
-      }
+  const lineupResult = lineupsForMatch(m, playerStats, opponentPlayerStats, lineups)
+  const hasOcrLineups = lineupResult.variant === 'ocr'
+  const lineupVariant = lineupResult.variant
+  const lineupData = { bgm: lineupResult.bgm, opponent: lineupResult.opponent }
 
   const topPerformers = attachSeasonAvgs(
     starsForMatch(match, playerStats, opponentPlayerStats, lineups),
