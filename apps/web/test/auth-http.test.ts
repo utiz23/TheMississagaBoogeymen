@@ -98,7 +98,6 @@ void test('control: the server really is serving this app', { skip }, async () =
 void test('routes the site never offers are ordinary 404s', { skip }, async () => {
   for (const urlPath of [
     '/me',
-    '/admin',
     '/admin/anything-else',
     '/account/settings',
     '/login/callback',
@@ -128,7 +127,7 @@ void test('a login error code is shown from the dictionary, never echoed', { ski
 })
 
 void test('member and admin pages send a signed-out visitor to sign in', { skip }, async () => {
-  for (const urlPath of ['/account', '/admin/accounts']) {
+  for (const urlPath of ['/account', '/admin', '/admin/accounts', '/admin/titles']) {
     const response = await fetch(`${BASE}${urlPath}`, { redirect: 'manual' })
     assert.ok(
       [303, 307, 308].includes(response.status),

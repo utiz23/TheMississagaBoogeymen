@@ -45,8 +45,8 @@ export default async function AccountPage({
           </Link>
         )}
         {viewer.role === 'admin' && (
-          <Link prefetch href="/admin/accounts" className={AUTH_BUTTON_SECONDARY}>
-            Member accounts
+          <Link prefetch href="/admin" className={AUTH_BUTTON_SECONDARY}>
+            Admin tools
           </Link>
         )}
         <SignOutButton />

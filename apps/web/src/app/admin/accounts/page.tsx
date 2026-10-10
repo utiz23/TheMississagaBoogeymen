@@ -1,7 +1,12 @@
 import type { Metadata } from 'next'
-import type { ReactNode } from 'react'
 import { listAccountInvites, listAccountUsers, listInvitablePlayers } from '@eanhl/db/queries'
-import { AUTH_BUTTON_SECONDARY } from '@/components/auth/auth-panel'
+import {
+  ADMIN_SMALL_BUTTON,
+  ADMIN_TD,
+  ADMIN_TH,
+  AdminHeading,
+  AdminSection,
+} from '@/components/admin/admin-section'
 import { CreateInviteForm } from '@/components/auth/create-invite-form'
 import { requireAdmin } from '@/lib/auth'
 import { formatClubDateTime } from '@/lib/format'
@@ -10,24 +15,10 @@ import { revokeInviteAction, setUserDisabledAction } from './actions'
 export const metadata: Metadata = { title: 'Member accounts' }
 export const dynamic = 'force-dynamic'
 
-const TH =
-  'px-3 py-2 text-left font-condensed text-xs font-semibold uppercase tracking-[0.18em] text-fg-4'
-const TD = 'border-t border-border-subtle px-3 py-2 text-sm text-fg-2'
-const SMALL_BUTTON = `${AUTH_BUTTON_SECONDARY} px-3 py-1.5`
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="broadcast-panel-strong">
-      <span aria-hidden="true" className="ticker-strip ticker-strip-thin block" />
-      <div className="flex flex-col gap-4 px-5 py-5">
-        <h2 className="font-condensed text-lg font-black uppercase tracking-[0.06em] text-fg-1">
-          {title}
-        </h2>
-        {children}
-      </div>
-    </section>
-  )
-}
+const TH = ADMIN_TH
+const TD = ADMIN_TD
+const SMALL_BUTTON = ADMIN_SMALL_BUTTON
+const Section = AdminSection
 
 function inviteStatus(invite: {
   acceptedAt: Date | null
@@ -52,14 +43,7 @@ export default async function AdminAccountsPage() {
 
   return (
     <div className="mx-auto flex max-w-[960px] flex-col gap-6">
-      <div className="flex flex-col gap-1.5">
-        <p className="font-condensed text-[11px] font-semibold uppercase tracking-[0.22em] text-fg-4">
-          Admin
-        </p>
-        <h1 className="font-condensed text-3xl font-black uppercase leading-none tracking-[0.04em] text-fg-1">
-          Member accounts
-        </h1>
-      </div>
+      <AdminHeading title="Member accounts" />
 
       <Section title="Invite a teammate">
         <p className="text-sm text-fg-3">

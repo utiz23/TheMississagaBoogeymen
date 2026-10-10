@@ -205,6 +205,12 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   return user
 })
 
+/** The current request's session id (for "sign everyone else out"), or null. */
+export async function getCurrentSessionId(): Promise<string | null> {
+  const session = await getAuth().api.getSession({ headers: await headers() })
+  return session?.session.id ?? null
+}
+
 export async function requireUser(): Promise<Viewer> {
   const user = await getViewer()
   if (!user) redirect('/login')
