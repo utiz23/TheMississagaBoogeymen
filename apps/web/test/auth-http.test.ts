@@ -127,7 +127,13 @@ void test('a login error code is shown from the dictionary, never echoed', { ski
 })
 
 void test('member and admin pages send a signed-out visitor to sign in', { skip }, async () => {
-  for (const urlPath of ['/account', '/admin', '/admin/accounts', '/admin/titles']) {
+  for (const urlPath of [
+    '/account',
+    '/admin',
+    '/admin/accounts',
+    '/admin/titles',
+    '/admin/cards',
+  ]) {
     const response = await fetch(`${BASE}${urlPath}`, { redirect: 'manual' })
     assert.ok(
       [303, 307, 308].includes(response.status),

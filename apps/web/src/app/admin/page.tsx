@@ -26,6 +26,11 @@ const TOOLS = [
     note: 'Invite teammates, disable accounts.',
   },
   {
+    href: '/admin/cards',
+    label: 'Mythic cards',
+    note: 'Award or clear Tier 6 mythic themes.',
+  },
+  {
     href: '/admin/titles',
     label: 'Game titles',
     note: 'Collection, default and order (view only).',

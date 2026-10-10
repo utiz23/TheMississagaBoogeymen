@@ -6,10 +6,10 @@
  * --clear returns that card to its stats standing. The worker's recompute never
  * overwrites a manual (tier 6) row.
  */
-import { and, eq, sql } from 'drizzle-orm'
-import { db, sql as dbSql, playerCardEvents, playerCardProgress } from '@eanhl/db'
-import { computeStanding, emptyBadgeValues, laddersFor } from '@eanhl/db/cards'
-import { currentDatabase, loadCardTitles, loadSeasonTotals } from './card-progression.js'
+import { sql } from 'drizzle-orm'
+import { db, sql as dbSql } from '@eanhl/db'
+import { awardMythic, clearMythic, loadCardTitles } from '@eanhl/db/queries'
+import { currentDatabase } from './card-progression.js'
 import { parseMythicArgs } from './lib/card-mythic-args.js'
 
 async function main(): Promise<void> {
@@ -17,8 +17,8 @@ async function main(): Promise<void> {
   console.log(`[card-mythic] database=${await currentDatabase()}`)
 
   const found = (await db.execute(
-    sql`SELECT id, gamertag, ai_goalie_side IS NOT NULL AS "aiGoalie" FROM players WHERE lower(gamertag) = lower(${cmd.player})`,
-  )) as unknown as { id: number; gamertag: string; aiGoalie: boolean }[]
+    sql`SELECT id, gamertag FROM players WHERE lower(gamertag) = lower(${cmd.player})`,
+  )) as unknown as { id: number; gamertag: string }[]
   const player = found[0]
   if (player === undefined || found.length !== 1) {
     throw new Error(
@@ -39,72 +39,19 @@ async function main(): Promise<void> {
   }
   console.log(`[card-mythic] title=${title.slug}`)
 
-  const statsStanding =
-    cmd.action === 'clear'
-      ? computeStanding(
-          (await loadSeasonTotals([title.id])).get(title.id)?.get(player.id) ?? emptyBadgeValues(),
-          laddersFor(player.aiGoalie),
-        )
-      : null
-  const thisCard = and(
-    eq(playerCardProgress.playerId, player.id),
-    eq(playerCardProgress.gameTitleId, title.id),
-  )
-
-  await db.transaction(async (tx) => {
-    const [prev] = await tx.select().from(playerCardProgress).where(thisCard)
-    const now = new Date()
-    if (cmd.action === 'award') {
-      const row = {
-        tier: 6 as const,
-        level: 10,
-        tierPool: 'manual' as const,
-        mythicTheme: cmd.theme,
-        updatedAt: now,
-      }
-      await tx
-        .insert(playerCardProgress)
-        .values({ playerId: player.id, gameTitleId: title.id, ...row, computedAt: now })
-        .onConflictDoUpdate({
-          target: [playerCardProgress.playerId, playerCardProgress.gameTitleId],
-          set: row,
-        })
-      await tx.insert(playerCardEvents).values({
-        playerId: player.id,
-        gameTitleId: title.id,
-        kind: 'mythic_awarded',
-        familyId: null,
-        fromValue: prev?.tier ?? 1,
-        toValue: 6,
-        occurredAt: now,
-      })
-      console.log(`[card-mythic] ${player.gamertag}: T${String(prev?.tier ?? 1)} → T6 ${cmd.theme}`)
-      return
-    }
-    if (prev?.tierPool !== 'manual' || statsStanding === null) {
-      throw new Error(`${player.gamertag} has no hand-awarded mythic to clear`)
-    }
-    await tx
-      .update(playerCardProgress)
-      .set({
-        tier: statsStanding.tier,
-        level: statsStanding.level,
-        tierPool: statsStanding.pool,
-        mythicTheme: null,
-        updatedAt: now,
-      })
-      .where(thisCard)
-    await tx.insert(playerCardEvents).values({
+  // The award/clear transaction is shared with the admin page (@eanhl/db).
+  if (cmd.action === 'award') {
+    const { fromTier } = await awardMythic({
       playerId: player.id,
       gameTitleId: title.id,
-      kind: 'mythic_cleared',
-      familyId: null,
-      fromValue: 6,
-      toValue: statsStanding.tier,
-      occurredAt: now,
+      theme: cmd.theme,
     })
-    console.log(`[card-mythic] ${player.gamertag}: T6 → T${String(statsStanding.tier)} (stats)`)
-  })
+    console.log(`[card-mythic] ${player.gamertag}: T${String(fromTier)} → T6 ${cmd.theme}`)
+    return
+  }
+  const cleared = await clearMythic({ playerId: player.id, gameTitleId: title.id })
+  if (cleared === null) throw new Error(`${player.gamertag} has no hand-awarded mythic to clear`)
+  console.log(`[card-mythic] ${player.gamertag}: T6 → T${String(cleared.toTier)} (stats)`)
 }
 
 main()

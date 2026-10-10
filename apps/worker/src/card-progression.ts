@@ -9,19 +9,14 @@ import { sql, type SQL } from 'drizzle-orm'
 import { db, playerBadgeLevels, playerCardEvents, playerCardProgress } from '@eanhl/db'
 import {
   BADGE_FAMILIES,
-  FIRST_CARD_RELEASE_ORDER,
   laddersFor,
   computeStanding,
-  mergeSeasonTotals,
   pickFeaturedBadges,
   planCardRecompute,
   type BadgeFamilyId,
   type CardStanding,
-  type EaTitleTotals,
-  type RecordedModeGames,
-  type RecordedSixesWithGoalie,
-  type SeasonTotals,
 } from '@eanhl/db/cards'
+import { loadCardTitles, loadSeasonTotals } from '@eanhl/db/queries'
 
 async function rows<T>(query: SQL): Promise<T[]> {
   return (await db.execute(query)) as unknown as T[]
@@ -32,61 +27,9 @@ export async function currentDatabase(): Promise<string> {
   return row?.name ?? '?'
 }
 
-export interface CardTitle {
-  id: number
-  slug: string
-  name: string
-}
-
-/** Titles that get a card per player (NHL 27 on), oldest first. */
-export async function loadCardTitles(): Promise<CardTitle[]> {
-  return rows<CardTitle>(sql`
-    SELECT id, slug, name FROM game_titles
-    WHERE release_order >= ${FIRST_CARD_RELEASE_ORDER}
-    ORDER BY release_order, id`)
-}
-
-/** Season totals for the given titles: title id → player id → badge values. */
-export async function loadSeasonTotals(titleIds: readonly number[]): Promise<SeasonTotals> {
-  if (titleIds.length === 0) return new Map()
-  const ids = sql.join(
-    titleIds.map((id) => sql`${id}`),
-    sql`, `,
-  )
-  const [ea, recordedModes, recordedSixesWithGoalie] = await Promise.all([
-    rows<EaTitleTotals>(sql`
-      SELECT player_id AS "playerId", game_title_id AS "gameTitleId",
-        COALESCE(skater_wins, 0) AS "skaterWins", COALESCE(goalie_wins, 0) AS "goalieWins",
-        COALESCE(goals, 0) AS "goals", COALESCE(assists, 0) AS "assists", COALESCE(shots, 0) AS "shots",
-        COALESCE(dekes_made, 0) AS "dekesMade", COALESCE(hat_tricks, 0) AS "hatTricks",
-        COALESCE(breakaways, 0) AS "breakaways", COALESCE(hits, 0) AS "hits",
-        COALESCE(faceoff_wins, 0) AS "faceoffWins", COALESCE(takeaways, 0) AS "takeaways",
-        COALESCE(blocked_shots, 0) AS "blockedShots", COALESCE(fights_won, 0) AS "fightsWon",
-        COALESCE(goalie_games_completed, 0) AS "goalieGamesCompleted",
-        COALESCE(goalie_saves, 0) AS "goalieSaves",
-        COALESCE(goalie_desperation_saves, 0) AS "goalieDesperationSaves",
-        COALESCE(goalie_poke_checks, 0) AS "goaliePokeChecks",
-        COALESCE(goalie_shutouts, 0) AS "goalieShutouts"
-      FROM ea_member_season_stats
-      WHERE game_title_id IN (${ids})`),
-    rows<RecordedModeGames>(sql`
-      SELECT player_id AS "playerId", game_title_id AS "gameTitleId", game_mode AS "gameMode",
-        SUM(games_played)::int AS "gamesPlayed"
-      FROM player_game_title_stats
-      WHERE game_mode IN ('3s', '6s') AND game_title_id IN (${ids})
-      GROUP BY player_id, game_title_id, game_mode`),
-    rows<RecordedSixesWithGoalie>(sql`
-      SELECT p.player_id AS "playerId", m.game_title_id AS "gameTitleId",
-        COUNT(DISTINCT p.match_id)::int AS "games"
-      FROM player_match_stats p
-      JOIN matches m ON m.id = p.match_id
-      WHERE m.game_mode = '6s' AND m.game_title_id IN (${ids})
-        AND EXISTS (SELECT 1 FROM player_match_stats g JOIN players gp ON gp.id = g.player_id
-          WHERE g.match_id = p.match_id AND g.is_goalie AND gp.ai_goalie_side IS NULL)
-      GROUP BY p.player_id, m.game_title_id`),
-  ])
-  return mergeSeasonTotals({ ea, recordedModes, recordedSixesWithGoalie })
-}
+// The card season loaders live in @eanhl/db (shared with the admin page's
+// mythic awards); re-exported here for the worker's existing callers.
+export { loadCardTitles, loadSeasonTotals, type CardTitle } from '@eanhl/db/queries'
 
 export interface RecomputeResult {
   gameTitleId: number
