@@ -8,6 +8,7 @@ import {
   buildClassToArchetype,
   buildPossessionEdge,
   possessionEdgeWithShots,
+  starsForMatch,
 } from './match-recap.ts'
 
 void test('hyphenated build names stay whole; only a spaced " - " marks a reference player', () => {
@@ -75,4 +76,14 @@ void test('possession edge from pre-summed OCR shots matches the period-summary 
   const a = possessionEdgeWithShots(edgeMatch, { for: 15, against: 5 })
   assert.equal(a?.bgmRaw, 67.5)
   assert.deepEqual(possessionEdgeWithShots(edgeMatch, null)?.inputs.shots.source, 'ea')
+})
+
+void test('starsForMatch: no players, no stars', () => {
+  assert.deepEqual(
+    starsForMatch({ result: 'WIN', scoreFor: 1, scoreAgainst: 0 }, [], [], {
+      bgm: [],
+      opponent: [],
+    }),
+    [],
+  )
 })

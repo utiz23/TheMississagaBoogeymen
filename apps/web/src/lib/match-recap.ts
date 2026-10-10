@@ -500,6 +500,24 @@ export function buildTopPerformers(
     }))
 }
 
+/**
+ * The three stars exactly as /games/[id] ranks them: loadout OCR overrides
+ * applied first, then the shared score ladder. The match page and the Discord
+ * post both call this, so they can never disagree.
+ */
+export function starsForMatch(
+  match: Pick<Match, 'result' | 'scoreFor' | 'scoreAgainst'>,
+  bgm: PlayerStat[],
+  opponent: OpponentPlayerStat[],
+  lineups: { bgm: LineupRow[]; opponent: LineupRow[] },
+): TopPerformer[] {
+  return buildTopPerformers(
+    match,
+    applyLoadoutOverrides(bgm, lineups.bgm),
+    applyLoadoutOverrides(opponent, lineups.opponent),
+  )
+}
+
 // ─── Season-to-date average composite score (for "vs season avg" delta) ──────
 //
 // The DB query returns raw player_match_stats rows for the BGM players plus

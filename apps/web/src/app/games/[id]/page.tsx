@@ -42,7 +42,7 @@ import {
   buildBoxScore,
   buildLineupFromStats,
   buildPossessionEdge,
-  buildTopPerformers,
+  starsForMatch,
   computeSeasonAvgs,
   attachSeasonAvgs,
   wentToOvertime,
@@ -187,7 +187,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       }
 
   const topPerformers = attachSeasonAvgs(
-    buildTopPerformers(match, playerStatsForStars, opponentStatsForStars),
+    starsForMatch(match, playerStats, opponentPlayerStats, lineups),
     seasonAvgs,
   )
   const allTeamScores = buildAllTeamScores(match, playerStatsForStars, opponentStatsForStars)
