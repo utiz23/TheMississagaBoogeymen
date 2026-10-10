@@ -11,21 +11,34 @@ import {
   getRosterCarryOvers,
   listAllGameTitles,
 } from '@eanhl/db/queries'
-import { cardFromRosterRow } from '@/components/cards/card-adapters'
-import { starsForMatch, wentToOvertime } from '@/lib/match-recap'
+import type { CardViewModel } from '@/components/cards/card-model'
+import {
+  applyLoadoutOverrides,
+  buildAllTeamScores,
+  lineupsForMatch,
+  starsForMatch,
+  wentToOvertime,
+} from '@/lib/match-recap'
+import { ladderFor, type LineupPositionKey } from '@/lib/lineup-shape'
+import { discordDisplayOrder, lineupSlots, normalizeLineupTag } from '@/lib/lineup-slots'
 import { buildDiscordGameResult } from './game-result'
+import { cardForGame, emptySlotLabel } from './game-card'
 
-type CardViewModel = ReturnType<typeof cardFromRosterRow>
+export interface LineupImageSlot {
+  position: LineupPositionKey
+  card: CardViewModel | null
+  label: string
+}
 
 /**
- * Everything the Discord post needs for one game. Stars come from the same
- * starsForMatch the match page uses; cards are built exactly like the home
- * carousel's (EA roster + carry-overs, newest season card, equipped theme).
- * Throws on a DB failure — the caller (the discord service) retries.
+ * Everything the Discord post needs for one game. Stars and lineup come from
+ * the same functions the match page uses; each lineup card is the player's
+ * normal card carrying this game's numbers (cardForGame). Throws on a DB
+ * failure — the discord service retries.
  */
 export async function loadDiscordGameResult(
   matchId: number,
-): Promise<{ result: DiscordGameResult; cards: CardViewModel[] } | null> {
+): Promise<{ result: DiscordGameResult; lineup: LineupImageSlot[]; columns: 2 | 3 } | null> {
   const match = await getMatchById(matchId)
   if (!match) return null
 
@@ -46,46 +59,80 @@ export async function loadDiscordGameResult(
     [...playerStats, ...opponentPlayerStats].map((p) => p.toiSeconds),
   )
   const memberIds = new Set(memberIdList)
-  const memberStarIds =
+
+  // Game scores for every BGM player, exactly as the match page ranks them.
+  const scores = buildAllTeamScores(
+    match,
+    applyLoadoutOverrides(playerStats, lineups.bgm),
+    applyLoadoutOverrides(opponentPlayerStats, lineups.opponent),
+  ).filter((e) => e.side === 'bgm')
+  const scoreFor = (playerId: number | null, gamertag: string) =>
+    scores.find((e) =>
+      playerId !== null
+        ? e.playerId === playerId
+        : normalizeLineupTag(e.gamertag) === normalizeLineupTag(gamertag),
+    )?.score ?? null
+  const starRankFor = (playerId: number | null, gamertag: string) => {
+    const i = stars.findIndex(
+      (s) =>
+        s.side === 'bgm' &&
+        (playerId !== null
+          ? s.playerId === playerId
+          : normalizeLineupTag(s.gamertag) === normalizeLineupTag(gamertag)),
+    )
+    return i === -1 ? null : i + 1
+  }
+
+  const { variant, bgm } = lineupsForMatch(match, playerStats, opponentPlayerStats, lineups)
+  const slots = lineupSlots(bgm, variant, ladderFor(match.gameMode), playerStats)
+  const memberSlotIds = slots.flatMap((s) =>
+    s.stat?.playerId != null && memberIds.has(s.stat.playerId) ? [s.stat.playerId] : [],
+  )
+  const [roster, carryOvers, summaries] =
+    memberSlotIds.length === 0
+      ? [[], [], new Map()]
+      : await Promise.all([
+          getEARoster(match.gameTitleId),
+          getRosterCarryOvers(match.gameTitleId),
+          getCardProgressForPlayers(memberSlotIds),
+        ])
+  const rosterById = new Map([...roster, ...carryOvers].map((r) => [r.playerId, r]))
+
+  const byPosition = new Map(slots.map((s) => [s.position, s]))
+  const lineup: LineupImageSlot[] =
     match.result === 'DNF'
       ? []
-      : stars.flatMap((s) =>
-          s.side === 'bgm' && s.playerId !== null && memberIds.has(s.playerId) ? [s.playerId] : [],
-        )
+      : discordDisplayOrder(match.gameMode).map((position) => {
+          const slot = byPosition.get(position)
+          const stat = slot?.stat ?? null
+          if (!stat) {
+            return {
+              position,
+              card: null,
+              label: emptySlotLabel(position, slot?.row?.gamertagSnapshot ?? null),
+            }
+          }
+          const isMember = stat.playerId !== null && memberIds.has(stat.playerId)
+          const card = cardForGame({
+            position,
+            stat,
+            identity: isMember ? (rosterById.get(stat.playerId!) ?? null) : null,
+            summary: isMember ? summaries.get(stat.playerId!) : undefined,
+            jerseyNumber: slot?.row?.playerNumber ?? null,
+            score: scoreFor(stat.playerId, stat.gamertag),
+            starRank: starRankFor(stat.playerId, stat.gamertag),
+          })
+          return { position, card, label: position }
+        })
 
-  const cards = await loadCards(match.gameTitleId, memberStarIds)
-  const cardIds = new Set(cards.map((c) => c.front.playerId))
   const title = titles.find((t) => t.id === match.gameTitleId)
-
   const result = buildDiscordGameResult({
     match,
     gameTitleName: title?.name ?? '',
     overtime,
     stars,
     memberIds,
-    cardPlayerIds: cardIds,
+    lineupCardCount: lineup.filter((s) => s.card !== null).length,
   })
-  // Cards in star order (result.cardPlayerIds is already ordered).
-  const byId = new Map(cards.map((c) => [c.front.playerId, c]))
-  return {
-    result,
-    cards: result.cardPlayerIds.flatMap((id) => {
-      const c = byId.get(id)
-      return c ? [c] : []
-    }),
-  }
-}
-
-async function loadCards(gameTitleId: number, playerIds: number[]): Promise<CardViewModel[]> {
-  if (playerIds.length === 0) return []
-  const [roster, carryOvers, summaries] = await Promise.all([
-    getEARoster(gameTitleId),
-    getRosterCarryOvers(gameTitleId),
-    getCardProgressForPlayers(playerIds),
-  ])
-  const rows = new Map([...roster, ...carryOvers].map((r) => [r.playerId, r]))
-  return playerIds.flatMap((id) => {
-    const row = rows.get(id)
-    return row ? [cardFromRosterRow(row, summaries.get(id))] : []
-  })
+  return { result, lineup, columns: match.gameMode === '3s' ? 2 : 3 }
 }

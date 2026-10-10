@@ -20,7 +20,7 @@ const base: DiscordGameResultInput = {
     { side: 'bgm', playerId: 50, gamertag: 'Guesty', score: 5.3, statLine: '1A' },
   ],
   memberIds: new Set([7, 8]),
-  cardPlayerIds: new Set([7]),
+  lineupCardCount: 6,
 }
 
 void test('classifies member, opponent and guest stars in star order', () => {
@@ -33,7 +33,7 @@ void test('classifies member, opponent and guest stars in star order', () => {
       [3, 'guest', 50, null],
     ],
   )
-  assert.deepEqual(r.cardPlayerIds, [7])
+  assert.equal(r.lineupCardCount, 6)
   assert.equal(r.playedAt, '2026-10-10T03:42:00.000Z')
 })
 
@@ -43,31 +43,12 @@ void test('a BGM star with no player id is a guest, never a member', () => {
     stars: [{ side: 'bgm', playerId: null, gamertag: 'Unresolved', score: 3, statLine: '' }],
   })
   assert.equal(r.stars[0]?.kind, 'guest')
-  assert.deepEqual(r.cardPlayerIds, [])
-})
-
-void test('a member whose card did not load gets no card but stays a member line', () => {
-  const r = buildDiscordGameResult({ ...base, cardPlayerIds: new Set() })
-  assert.equal(r.stars[0]?.kind, 'member')
-  assert.deepEqual(r.cardPlayerIds, [])
-})
-
-void test('cards follow star order, not id order', () => {
-  const r = buildDiscordGameResult({
-    ...base,
-    stars: [
-      { side: 'bgm', playerId: 8, gamertag: 'B', score: 9, statLine: '' },
-      { side: 'bgm', playerId: 7, gamertag: 'A', score: 8, statLine: '' },
-    ],
-    cardPlayerIds: new Set([7, 8]),
-  })
-  assert.deepEqual(r.cardPlayerIds, [8, 7])
 })
 
 void test('DNF drops stars and cards', () => {
   const r = buildDiscordGameResult({ ...base, match: { ...base.match, result: 'DNF' } })
   assert.deepEqual(r.stars, [])
-  assert.deepEqual(r.cardPlayerIds, [])
+  assert.equal(r.lineupCardCount, 0)
 })
 
 void test('zero stars is a valid result', () => {

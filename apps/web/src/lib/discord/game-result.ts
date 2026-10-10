@@ -17,8 +17,8 @@ export interface DiscordGameResultInput {
   stars: Pick<TopPerformer, 'side' | 'playerId' | 'gamertag' | 'score' | 'statLine'>[]
   /** Team members, present and past (getClubMemberIds). */
   memberIds: ReadonlySet<number>
-  /** Members whose card loaded and can be drawn. */
-  cardPlayerIds: ReadonlySet<number>
+  /** Cards in the lineup image. */
+  lineupCardCount: number
 }
 
 /** Pure: the Discord post's data for one game. DNF carries no stars. */
@@ -45,11 +45,6 @@ export function buildDiscordGameResult(input: DiscordGameResultInput): DiscordGa
             teamAbbrev: s.side === 'opp' ? teamAbbrev : null,
           }
         })
-  const cardPlayerIds = stars.flatMap((s) =>
-    s.kind === 'member' && s.playerId !== null && input.cardPlayerIds.has(s.playerId)
-      ? [s.playerId]
-      : [],
-  )
   return {
     matchId: match.id,
     result: match.result,
@@ -61,6 +56,6 @@ export function buildDiscordGameResult(input: DiscordGameResultInput): DiscordGa
     gameMode: match.gameMode,
     playedAt: match.playedAt.toISOString(),
     stars,
-    cardPlayerIds,
+    lineupCardCount: match.result === 'DNF' ? 0 : input.lineupCardCount,
   }
 }
