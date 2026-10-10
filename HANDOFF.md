@@ -32,6 +32,8 @@ video-stats OCR).
 
 **Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. **Live for members:** Card Locker EQUIP (own card; admin any), Discord picture in the nav, and **EDIT PROFILE** on the player page (`7aa6599`: member edits name, jersey, nationality, bio; admin also position, archetype, club role, on any player). **Admin tools are live** (`/admin`, [plan](docs/superpowers/plans/2026-10-09-admin-tools.md)): accounts, roster pins, sign-everyone-out, titles (view only), mythic cards, and the trophy case editor — **trophies/banners now live in the database** (migration 0066), not `club-awards.ts`. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
+**Discord game-result poster: built, not deployed** (2026-10-10, branch `feat/discord-game-results`, migration 0067): opt-in `discord` service, dry-run by default. Rollout = plan Task 10 ([plan](docs/superpowers/plans/2026-10-10-discord-game-results.md)).
+
 **Awards trophy case is live** (2026-10-08); add trophies/banners (3s/6s/arcade) on `/admin/awards`. Awards rank ALL SKATERS totals (operator choice).
 
 **Responsive sizes are live** (2026-10-09): Medium/Small/Micro tiers, compact cards on phones, side rail on wide screens.
@@ -117,11 +119,7 @@ video-stats OCR).
   touches video-stats code (rule: [`ops/README.md`](ops/README.md)). For
   video-stats work in files without "ocr" in the path, push with
   `EANHL_PRE_PUSH_FULL=1`.
-- **Proton/E3 cloud backup is parked.** Hotel-Echo keeps E3's installed
-  credential tooling; its Proton session was logged out locally on
-  2026-10-05 (`auth-logout`, entry proven absent) and revoked by the
-  operator in Proton's session settings. Nothing is scheduled. Full E3 state: the archived handoff and the
-  [credential memo](docs/planning/proton-drive-hotel-echo-credential-design.md).
+- **Proton/E3 cloud backup is parked** (HE session logged out + revoked 10-05; nothing scheduled). State: the archived handoff and the [credential memo](docs/planning/proton-drive-hotel-echo-credential-design.md).
 - Main-PC secrets were rotated 2026-09-03; the dead old value remains in git
   history.
 
@@ -131,9 +129,8 @@ None.
 
 ## Next 1-3 Actions
 
-0. Member logins + admin tools done (step 1, B, C). Watch teammates' use.
-   Open choices: show club role somewhere; more nationality flags; a
-   distinct 6v6 banner design (it reuses the 3v3 art).
+0. Discord poster rollout on Hotel-Echo (plan Task 10, each step operator-gated).
+   Logins/admin open choices: club role display, more flags, a 6v6 banner.
 1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
 2. Polish: cross-cutting + by-surface passes **deployed 2026-10-09** (`5269fbe`, web only; rollback `eanhl-team-website-web:rollback-he-2026-10-09-pre-polish` = `fafeefb`), incl. the live UTC-dates fix, the operator's four answers and the goalie Contribution Wheel. Every backlog entry has an outcome ([`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md), journal 10-09).
 3. Backup hardening from the Codex review (optional, small): weekly/monthly

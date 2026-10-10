@@ -59,6 +59,8 @@ pnpm --filter worker run-quality --match-id N --json      # Convenience: resolve
 pnpm --filter worker run-quality --all-runs --emit-row    # Backfill content-only reports for every run
 docker compose up         # Start all services (web + worker + postgres)
 docker compose up db      # Start only PostgreSQL
+docker compose --profile discord up -d discord   # Discord game-result poster (opt-in; DRY RUN unless DISCORD_DRY_RUN=0)
+pnpm --filter @eanhl/discord preview --match-id N # Render one game's Discord post to ./discord-preview (no DB, no posting)
 pnpm --filter worker test:safety   # Verification-DB isolation suite (no Docker/DB needed)
 pnpm verify:ocr                    # Full OCR verification harness (needs the verify env file)
 docker compose --env-file "$HOME/.config/eanhl/verify.env" -f docker-compose.test.yml up -d   # Disposable VERIFICATION cluster
