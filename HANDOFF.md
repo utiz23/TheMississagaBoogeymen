@@ -32,7 +32,7 @@ video-stats OCR).
 
 **Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. **Live for members:** Card Locker EQUIP (own card; admin any), Discord picture in the nav, and **EDIT PROFILE** on the player page (`7aa6599`: member edits name, jersey, nationality, bio; admin also position, archetype, club role, on any player). **Admin tools are live** (`/admin`, [plan](docs/superpowers/plans/2026-10-09-admin-tools.md)): accounts, roster pins, sign-everyone-out, titles (view only), mythic cards, and the trophy case editor — **trophies/banners now live in the database** (migration 0066), not `club-awards.ts`. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
-**Discord game-result poster: deployed in DRY RUN** (2026-10-10, `df27251`, migration 0067; web rollback `:rollback-he-2026-10-10-pre-discord`): `discord` service on Hotel-Echo (`COMPOSE_PROFILES` += `discord`); posts nothing until `DISCORD_WEBHOOK_URL` + `DISCORD_DRY_RUN=0`. Off: `docker compose stop discord`. [Plan](docs/superpowers/plans/2026-10-10-discord-game-results.md) Task 10.
+**Discord poster: live in DRY RUN** (2026-10-10, `df27251`, 0067; web rollback `:rollback-he-2026-10-10-pre-discord`). Posts nothing until `DISCORD_WEBHOOK_URL` + `DISCORD_DRY_RUN=0`; off = `docker compose stop discord`. [Journal](docs/journal/2026-10.md).
 
 **Awards trophy case is live** (2026-10-08); add trophies/banners (3s/6s/arcade) on `/admin/awards`. Awards rank ALL SKATERS totals (operator choice).
 
