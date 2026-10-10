@@ -30,7 +30,7 @@ tunnel. **The launch plan is closed** (all 8 items ✅ 2026-10-09; four green
 unattended backup nights 10-06 → 10-09). Next: post-launch work (polish,
 video-stats OCR).
 
-**Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. **Card Locker EQUIP is live** (`f24507f`): a member equips a theme on their own card (admin: any card) or AUTO. Plan: [member-logins step 1](docs/superpowers/plans/2026-10-09-member-logins-step-1.md); profile self-edit (B) and admin tools (C) are later steps. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
+**Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. **Live for members:** Card Locker EQUIP (own card; admin any), Discord picture in the nav, and **EDIT PROFILE** on the player page (`7aa6599`: member edits name, jersey, nationality, bio; admin also position, archetype, club role, on any player). Plan: [member-logins step 1](docs/superpowers/plans/2026-10-09-member-logins-step-1.md); admin tools (C) next. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
 **Awards trophy case is live** (2026-10-08); add new trophies/banners in `apps/web/src/components/awards/club-awards.ts`. Awards rank ALL SKATERS totals (operator choice).
 
@@ -44,7 +44,7 @@ video-stats OCR).
 
 ## Latest Verified Checkpoint
 
-**2026-10-09 — Card Locker EQUIP + Discord picture in the nav deployed** (`f24507f`, then `354f2da`; web only; rollbacks `:rollback-he-2026-10-09-pre-equip`, `:rollback-he-2026-10-09-pre-avatar`). Operator-verified on localhost.
+**2026-10-09 — EQUIP, Discord picture, profile self-edit deployed** (`f24507f`, `354f2da`, `7aa6599`; web only; rollbacks `:rollback-he-2026-10-09-pre-{equip,avatar,profile-edit}`). Operator-verified on localhost.
 
 **2026-10-09 — member logins deployed** (`7b76804`, web + worker; migration 0065 applied to live/test/preview; rollback images `:rollback-he-2026-10-09-pre-logins`, server `.env` backup `.env.bak-2026-10-09`). Live checks passed; operator signed in as admin. Security review: no findings. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
@@ -69,7 +69,7 @@ video-stats OCR).
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web at `354f2da`, worker at `7b76804`), web and worker as the non-root
+  and nightly backup (web at `7aa6599`, worker at `7b76804`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
@@ -139,8 +139,9 @@ None.
 
 ## Next 1-3 Actions
 
-0. Member logins: watch the first teammate invite + equip. Next steps B
-   (profile self-edit) and C (admin tools), each its own plan.
+0. Member logins: watch the first teammate invite + equip/profile edits.
+   Next: step C (admin tools), its own plan. Club role is stored but not
+   shown yet; only Canada/USA flags exist.
 1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
 2. Polish: cross-cutting + by-surface passes **deployed 2026-10-09** (`5269fbe`, web only; rollback `eanhl-team-website-web:rollback-he-2026-10-09-pre-polish` = `fafeefb`), incl. the live UTC-dates fix, the operator's four answers and the goalie Contribution Wheel. Every backlog entry has an outcome ([`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md), journal 10-09).
 3. Backup hardening from the Codex review (optional, small): weekly/monthly
