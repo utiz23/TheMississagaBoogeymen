@@ -70,13 +70,7 @@ video-stats OCR).
   and nightly backup (web at `86a902b`, worker at `3616aab`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
-  check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277
-  matches (449-match union minus the 172 quarantined). Rollback: images
-  `:rollback-he-2026-10-05-pre-sec-polish` (web + worker at `225a4e9`; retag
-  as `:latest`, `up -d --no-deps web worker`) /
-  `:rollback-he-2026-10-05-pre-logs` / `:rollback-he-2026-09-04` and the old
-  Hotel-Echo database kept as
-  `eanhl_he_old`; the main-PC fallback below.
+  check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277 matches (449-match union minus the 172 quarantined). Older rollback images (`:rollback-he-2026-10-05-*`, `:rollback-he-2026-09-04`) and the old Hotel-Echo DB `eanhl_he_old` are kept; the main-PC fallback below.
 - **Main PC = stopped fallback + video-OCR box.** Its web, worker and backup
   are stopped and its `COMPOSE_PROFILES=backup` line is commented out; its db
   still runs, frozen at 435 matches. **Do not `docker compose up -d` there**
