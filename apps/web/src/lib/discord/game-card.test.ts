@@ -24,12 +24,7 @@ const skater: GameCardInput = {
     shotsAgainst: null,
   },
   identity,
-  summary: {
-    tier: 2,
-    level: 4,
-    theme: 'home',
-    bestBadge: { familyId: 'goals', level: 2 },
-  } as GameCardInput['summary'],
+  summary: { tier: 2, level: 4, theme: 'home', bestBadge: { familyId: 'p6g', level: 2 } },
   jerseyNumber: null,
   score: 17.534,
   starRank: 2,
