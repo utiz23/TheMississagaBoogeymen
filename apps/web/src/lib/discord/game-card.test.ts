@@ -39,7 +39,7 @@ void test('skater: game score, star tag, G · A · +/- · PTS, identity and them
   assert.equal(c.position, 'LW')
   assert.equal(c.role, 'skater')
   assert.equal(c.record, 'GS 17.53')
-  assert.equal(c.winPct, '⭐ 2nd star')
+  assert.equal(c.winPct, '⭐ 2nd')
   assert.deepEqual(c.stats, [
     { label: 'G', value: '1' },
     { label: 'A', value: '3' },
@@ -63,7 +63,7 @@ void test('positive plus-minus is signed; zero is plain; non-star has no tag', (
   )
 })
 
-void test('goalie: SA · SV · GA · SV%', () => {
+void test('goalie: SV · SV% · GA · SA (the compact card highlights the 2nd stat)', () => {
   const c = cardForGame({
     ...skater,
     position: 'G',
@@ -71,10 +71,10 @@ void test('goalie: SA · SV · GA · SV%', () => {
   }).front
   assert.equal(c.role, 'goalie')
   assert.deepEqual(c.stats, [
-    { label: 'SA', value: '33' },
     { label: 'SV', value: '31' },
-    { label: 'GA', value: '2' },
     { label: 'SV%', value: '.939' },
+    { label: 'GA', value: '2' },
+    { label: 'SA', value: '33' },
   ])
 })
 
@@ -84,7 +84,7 @@ void test('goalie with no shots against: SV% is a dash', () => {
     position: 'G',
     stat: { ...skater.stat, saves: 0, shotsAgainst: 0 },
   }).front
-  assert.equal(c.stats[3]?.value, '—')
+  assert.equal(c.stats[1]?.value, '—')
   const n = cardForGame({
     ...skater,
     position: 'G',

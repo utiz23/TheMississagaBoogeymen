@@ -82,7 +82,7 @@ void test('happy path: claim, render, send with image, mark posted', async () =>
   assert.deepEqual(s, { posted: 1, failed: 0, dryRun: 0 })
   assert.ok(h.events.includes('posted:1:msg-1'))
   assert.equal(h.sent[0]?.image?.length, 3)
-  assert.ok(h.sent[0]?.payload.embeds[0]?.image)
+  assert.deepEqual(h.sent[0]?.payload.attachments, [{ id: 0, filename: 'cards.png' }])
 })
 
 void test('render failure ⇒ text-only post, still posted', async () => {
@@ -94,7 +94,7 @@ void test('render failure ⇒ text-only post, still posted', async () => {
   const s = await runPosterCycle(h.deps, OPTS)
   assert.equal(s.posted, 1)
   assert.equal(h.sent[0]?.image, null)
-  assert.equal(h.sent[0]?.payload.embeds[0]?.image, undefined)
+  assert.equal(h.sent[0]?.payload.attachments, undefined)
 })
 
 void test('no member cards ⇒ no render call, no image', async () => {

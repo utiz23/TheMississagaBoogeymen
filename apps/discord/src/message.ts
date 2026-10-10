@@ -77,8 +77,8 @@ export function buildGameResultPayload(
     )
 
   const embed: WebhookEmbed = { title, url: gameUrl, color: COLORS[r.result], description }
-  if (opts.hasImage) embed.image = { url: `attachment://${CARDS_FILENAME}` }
   const payload: WebhookPayload = { allowed_mentions: { parse: [] }, embeds: [embed] }
+  // A plain attachment, not embed.image: Discord shows it under the box, larger.
   if (opts.hasImage) payload.attachments = [{ id: 0, filename: CARDS_FILENAME }]
   return payload
 }

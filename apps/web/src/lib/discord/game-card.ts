@@ -48,12 +48,13 @@ function gameStats(position: LineupPositionKey, s: GameStatLine): CardStat[] {
       saves !== null && shotsAgainst !== null && shotsAgainst > 0
         ? ((saves / shotsAgainst) * 100).toFixed(1)
         : null
+    // SV% second: the compact card highlights a goalie's 2nd stat.
     return [
-      { label: 'SA', value: dash(shotsAgainst) },
       { label: 'SV', value: dash(saves) },
-      { label: 'GA', value: dash(goalsAgainst) },
       // The site's formatter takes a percentage string ("93.9" → ".939").
       { label: 'SV%', value: formatSavePct(savePct) },
+      { label: 'GA', value: dash(goalsAgainst) },
+      { label: 'SA', value: dash(shotsAgainst) },
     ]
   }
   return [
@@ -82,7 +83,7 @@ export function cardForGame(input: GameCardInput): CardViewModel {
       role: input.position === 'G' ? 'goalie' : 'skater',
       position: input.positionLabel ?? input.position,
       record: input.score === null ? '' : `GS ${input.score.toFixed(2)}`,
-      winPct: ordinal === undefined ? '' : `⭐ ${ordinal} star`,
+      winPct: ordinal === undefined ? '' : `⭐ ${ordinal}`,
       stats: gameStats(input.position, stat),
       platform: identity?.clientPlatform ?? null,
       nationality: identity?.nationality ?? null,

@@ -75,7 +75,8 @@ void test('win post: colour, title link, timestamp, three star lines, image, nob
   assert.match(e.description, /⭐ \*\*3rd\*\* · @everyone · \*\*5\.25\*\*/)
   assert.ok(!e.description.includes('/roster/50'))
   assert.match(e.description, /\[Full box score →\]\(https:\/\/boogeymen\.app\/games\/900\)/)
-  assert.deepEqual(e.image, { url: 'attachment://cards.png' })
+  // The image goes under the box (a plain attachment), where Discord shows it larger.
+  assert.equal(e.image, undefined)
   assert.deepEqual(p.attachments, [{ id: 0, filename: 'cards.png' }])
 })
 
