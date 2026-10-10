@@ -82,6 +82,7 @@ services:
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      DISCORD_INTERNAL_TOKEN: ${DISCORD_INTERNAL_TOKEN:-}
     ports:
       # Public traffic arrives through cloudflared over the compose network, not
       # through this published port. Keep it on loopback even on a public host.
@@ -89,6 +90,33 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # OPT-IN (like cloudflared). Posts game results to Discord. A host that
+  # doesn't pass `--profile discord` never runs it — the stopped fallback stack
+  # on the main PC can never post. Defaults to DRY RUN: set
+  # DISCORD_DRY_RUN=0 in .env to post for real.
+  discord:
+    profiles: ['discord']
+    build:
+      context: .
+      dockerfile: apps/discord/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 1g
+    environment:
+      DATABASE_URL: postgresql://eanhl:${POSTGRES_PASSWORD}@db:5432/eanhl
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      DISCORD_INTERNAL_TOKEN: ${DISCORD_INTERNAL_TOKEN:-}
+      DISCORD_DRY_RUN: ${DISCORD_DRY_RUN:-1}
+      DISCORD_SITE_URL: ${DISCORD_SITE_URL:-https://boogeymen.app}
+      DISCORD_POLL_INTERVAL_MS: ${DISCORD_POLL_INTERVAL_MS:-60000}
+      DISCORD_OUT_DIR: /tmp/discord-out
+      WEB_INTERNAL_URL: http://web:3000
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
 
   # OPT-IN. Not part of the default stack: a host with no tunnel configured runs
   # `docker compose up -d` and gets db/worker/web exactly as before, with no

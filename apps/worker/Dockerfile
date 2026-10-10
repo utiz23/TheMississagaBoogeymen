@@ -11,6 +11,7 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web/package.json apps/web/
 COPY apps/worker/package.json apps/worker/
+COPY apps/discord/package.json apps/discord/
 COPY packages/db/package.json packages/db/
 COPY packages/ea-client/package.json packages/ea-client/
 
