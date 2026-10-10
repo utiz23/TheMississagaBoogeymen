@@ -19,6 +19,7 @@ export type AwardSymbolKind =
   | 'defense'
   | 'rookie'
   | 'banner-3s'
+  | 'banner-6s'
   | 'banner-arcade'
   | 'record'
   | 'alltime'
@@ -117,6 +118,7 @@ const VOTED_SHORT: Record<VotedTrophy, string> = {
 }
 const BANNER = {
   '3s': { symbol: 'banner-3s', name: '3v3 Champions', mode: '3v3' },
+  '6s': { symbol: 'banner-6s', name: '6v6 Champions', mode: '6v6' },
   arcade: { symbol: 'banner-arcade', name: 'Arcade Champions', mode: 'Arcade' },
 } as const
 
@@ -187,6 +189,7 @@ const SYMBOL_ORDER: readonly AwardSymbolKind[] = [
   'defense',
   'rookie',
   'banner-3s',
+  'banner-6s',
   'banner-arcade',
 ]
 const KIND_ORDER: Record<AwardKind, number> = {

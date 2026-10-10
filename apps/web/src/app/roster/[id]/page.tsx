@@ -15,6 +15,7 @@ import {
   getPlayerBuilds,
   getPlayerCareerActions,
   getPlayerCardProgress,
+  listClubAwards,
   getPlayerArchiveSeasonDetail,
   getPlayerPositionSeasons,
   getClubSeasonLines,
@@ -36,7 +37,7 @@ import { shouldShowActionMap } from '@/components/roster/action-map-model'
 import { PlayerBadges } from '@/components/badges/player-badges'
 import { PlayerAwards } from '@/components/awards/player-awards'
 import { buildPlayerAwards } from '@/components/awards/awards-model'
-import { CLUB_AWARDS } from '@/components/awards/club-awards'
+import { toClubAward } from '@/components/awards/club-awards'
 import { LazyMount } from '@/components/ui/lazy-mount'
 import { HeroCard } from '@/components/cards/hero-card'
 import { buildLockerView } from '@/components/cards/locker-model'
@@ -192,6 +193,14 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     clubLines = []
   }
 
+  // Hand-entered trophies and banners (migration 0066). A failure only hides them.
+  let clubAwardRecords: Awaited<ReturnType<typeof listClubAwards>> = []
+  try {
+    clubAwardRecords = await listClubAwards()
+  } catch {
+    clubAwardRecords = []
+  }
+
   // Club Stats and both zone maps describe the player's newest EA title, so
   // the teammate pool and team baselines come from that same title.
   const focalEaRow = eaStats[0]
@@ -267,7 +276,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
     seasonName: cardProgress?.gameTitle?.name ?? null,
   })
 
-  const awards = buildPlayerAwards(clubLines, id, CLUB_AWARDS)
+  const awards = buildPlayerAwards(clubLines, id, clubAwardRecords.map(toClubAward))
 
   // Case-file rail: one entry per section that actually renders below, in page order.
   const showShotMap = focalEaRow !== undefined

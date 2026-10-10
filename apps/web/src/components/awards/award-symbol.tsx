@@ -127,12 +127,12 @@ export function AwardSymbol({ symbol, glyph, stat, tier }: AwardSymbolProps) {
           <Base stem={8} foot={14} label="ROY" thin />
         </div>
       )}
-      {symbol === 'banner-3s' && (
+      {(symbol === 'banner-3s' || symbol === 'banner-6s') && (
         <div className="as-b3">
           <div className="as-b3-rod" />
           <div className="as-b3-edge">
             <div className="as-b3-face">
-              <span className="as-b3-mode">3V3</span>
+              <span className="as-b3-mode">{symbol === 'banner-6s' ? '6V6' : '3V3'}</span>
               <span className="as-b3-glyph">{glyph}</span>
               <span className="as-b3-word">CHAMPS</span>
             </div>

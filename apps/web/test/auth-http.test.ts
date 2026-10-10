@@ -133,6 +133,7 @@ void test('member and admin pages send a signed-out visitor to sign in', { skip 
     '/admin/accounts',
     '/admin/titles',
     '/admin/cards',
+    '/admin/awards',
   ]) {
     const response = await fetch(`${BASE}${urlPath}`, { redirect: 'manual' })
     assert.ok(

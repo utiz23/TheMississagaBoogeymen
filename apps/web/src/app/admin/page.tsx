@@ -31,6 +31,11 @@ const TOOLS = [
     note: 'Award or clear Tier 6 mythic themes.',
   },
   {
+    href: '/admin/awards',
+    label: 'Trophy case',
+    note: 'Club-vote trophies and championship banners.',
+  },
+  {
     href: '/admin/titles',
     label: 'Game titles',
     note: 'Collection, default and order (view only).',

@@ -238,3 +238,51 @@ void test('physical and hat-trick records, season and all-time', () => {
   assert.ok(p2.some((i) => i.id === 'record-BLK-NHL 26'))
   assert.equal(p2.find((i) => i.id === 'alltime-BLK')?.glyph, '443')
 })
+
+void test('stored awards map to the awards-model shape', async () => {
+  const { toClubAward } = await import('./club-awards.ts')
+  assert.deepEqual(
+    toClubAward({
+      id: 1,
+      kind: 'trophy',
+      trophy: 'mvp',
+      gameTitleId: 2,
+      titleName: 'NHL 25',
+      source: 'vote',
+      reason: null,
+      playerIds: [3],
+    }),
+    { kind: 'trophy', trophy: 'mvp', title: 'NHL 25', playerIds: [3], from: 'vote' },
+  )
+  assert.deepEqual(
+    toClubAward({
+      id: 2,
+      kind: 'trophy',
+      trophy: 'defense',
+      gameTitleId: 3,
+      titleName: 'NHL 24',
+      source: 'stats',
+      reason: 'Most blocks.',
+      playerIds: [5],
+    }),
+    {
+      kind: 'trophy',
+      trophy: 'defense',
+      title: 'NHL 24',
+      playerIds: [5],
+      from: 'stats',
+      reason: 'Most blocks.',
+    },
+  )
+  assert.deepEqual(
+    toClubAward({
+      id: 3,
+      kind: 'banner',
+      mode: '3s',
+      gameTitleId: 3,
+      titleName: 'NHL 24',
+      playerIds: [2, 5],
+    }),
+    { kind: 'banner', mode: '3s', title: 'NHL 24', playerIds: [2, 5] },
+  )
+})
