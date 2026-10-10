@@ -5,7 +5,7 @@
  */
 import { buildGameResultPayload } from './message.ts'
 import { fetchGameResult } from './web-client.ts'
-import { renderStarCards } from './render.ts'
+import { renderLineup } from './render.ts'
 import { writeDryRunFiles } from './dry-run.ts'
 
 function arg(name: string): string | undefined {
@@ -26,8 +26,8 @@ if (!Number.isSafeInteger(matchId) || matchId <= 0 || token.length < 16) {
 
 const result = await fetchGameResult({ webBaseUrl, token, matchId })
 const image =
-  result.cardPlayerIds.length > 0
-    ? await renderStarCards({ webBaseUrl, token, matchId, timeoutMs: 30_000 })
+  result.lineupCardCount > 0
+    ? await renderLineup({ webBaseUrl, token, matchId, timeoutMs: 30_000 })
     : null
 const payload = buildGameResultPayload(result, { siteUrl, hasImage: image !== null })
 console.log(`wrote ${await writeDryRunFiles(outDir, matchId, payload, image)}`)

@@ -2,11 +2,11 @@ import { chromium } from 'playwright'
 import { INTERNAL_TOKEN_HEADER } from './web-client.ts'
 
 /**
- * Screenshot the member stars' real cards. Reduced motion + disabled
- * animations ⇒ each card's still variant. A fresh browser per render, always
+ * Screenshot BGM's lineup (every player on their card with this game's
+ * stats). Reduced motion + disabled animations ⇒ each card's still variant. A fresh browser per render, always
  * closed; a hard timeout kills it if anything hangs.
  */
-export async function renderStarCards(opts: {
+export async function renderLineup(opts: {
   webBaseUrl: string
   token: string
   matchId: number
@@ -18,16 +18,17 @@ export async function renderStarCards(opts: {
     const context = await browser.newContext({
       reducedMotion: 'reduce',
       deviceScaleFactor: 2,
-      viewport: { width: 1000, height: 700 },
+      // Two rows of ~421 px cards must fit: a fixed element can't be scrolled into view.
+      viewport: { width: 1000, height: 1100 },
       extraHTTPHeaders: { [INTERNAL_TOKEN_HEADER]: opts.token },
     })
     const page = await context.newPage()
     const res = await page.goto(
-      `${opts.webBaseUrl}/internal/discord/stars/${String(opts.matchId)}`,
+      `${opts.webBaseUrl}/internal/discord/lineup/${String(opts.matchId)}`,
       { waitUntil: 'networkidle', timeout: opts.timeoutMs },
     )
     if (res === null || !res.ok()) throw new Error(`card page HTTP ${String(res?.status() ?? 0)}`)
-    const strip = page.locator('#discord-stars')
+    const strip = page.locator('#discord-lineup')
     await strip.waitFor({ state: 'visible', timeout: opts.timeoutMs })
     await page.evaluate(async () => {
       await document.fonts.ready

@@ -25,7 +25,7 @@ const result = (id: number, cards: number[]): DiscordGameResult => ({
     statLine: '',
     teamAbbrev: null,
   })),
-  cardPlayerIds: cards,
+  lineupCardCount: cards.length,
 })
 
 function harness(over: Partial<PosterDeps> = {}, candidates = [1]) {

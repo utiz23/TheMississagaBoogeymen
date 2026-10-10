@@ -70,7 +70,7 @@ export async function runPosterCycle(deps: PosterDeps, opts: CycleOptions): Prom
     let payload: WebhookPayload
     let image: Uint8Array | null = null
     try {
-      if (result.cardPlayerIds.length > 0) {
+      if (result.lineupCardCount > 0) {
         try {
           image = await deps.renderCards(matchId)
         } catch (err: unknown) {

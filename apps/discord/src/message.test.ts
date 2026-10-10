@@ -43,7 +43,7 @@ const r: DiscordGameResult = {
       teamAbbrev: null,
     },
   ],
-  cardPlayerIds: [7],
+  lineupCardCount: 6,
 }
 
 void test('labels', () => {
@@ -105,7 +105,7 @@ void test('loss / OT loss / OT win colours and titles', () => {
 
 void test('DNF: grey, no stars, says it ended early', () => {
   const p = buildGameResultPayload(
-    { ...r, result: 'DNF', stars: [], cardPlayerIds: [] },
+    { ...r, result: 'DNF', stars: [], lineupCardCount: 0 },
     { siteUrl: SITE, hasImage: false },
   )
   const e = p.embeds[0]!

@@ -25,7 +25,7 @@ async function main(): Promise<void> {
   const { dbStore } = await import('./store.ts')
   const { runPosterCycle, WINDOW_MS, BATCH_LIMIT } = await import('./cycle.ts')
   const { fetchGameResult } = await import('./web-client.ts')
-  const { renderStarCards } = await import('./render.ts')
+  const { renderLineup } = await import('./render.ts')
   const { sendWebhook } = await import('./webhook.ts')
   const { writeDryRunFiles } = await import('./dry-run.ts')
 
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
           store: dbStore,
           fetchGameResult: (matchId) => fetchGameResult({ ...web, matchId }),
           renderCards: (matchId) =>
-            renderStarCards({ ...web, matchId, timeoutMs: config.renderTimeoutMs }),
+            renderLineup({ ...web, matchId, timeoutMs: config.renderTimeoutMs }),
           send: (payload, image) => {
             if (config.webhookUrl === null) throw new Error('no webhook configured')
             return sendWebhook(config.webhookUrl, payload, image)
