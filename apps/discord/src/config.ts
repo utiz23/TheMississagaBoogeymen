@@ -29,13 +29,14 @@ function intOr(value: string | undefined, fallback: number): number {
  */
 export function loadConfig(env: Record<string, string | undefined>): ConfigResult {
   const problems: string[] = []
-  const dryRun = env['DISCORD_DRY_RUN'] === '1'
+  // Fail closed: anything but an explicit 0 (unset, 1, true, yes…) is a dry run.
+  const dryRun = env['DISCORD_DRY_RUN']?.trim() !== '0'
   const webhook = env['DISCORD_WEBHOOK_URL']?.trim() || null
   const token = env['DISCORD_INTERNAL_TOKEN'] ?? ''
   const web = env['WEB_INTERNAL_URL']?.trim() ?? ''
 
   if (webhook === null && !dryRun)
-    problems.push('DISCORD_WEBHOOK_URL is unset and DISCORD_DRY_RUN is not 1')
+    problems.push('DISCORD_WEBHOOK_URL is unset and DISCORD_DRY_RUN is 0')
   if (webhook !== null && !WEBHOOK_PREFIXES.some((p) => webhook.startsWith(p))) {
     problems.push('DISCORD_WEBHOOK_URL is not a Discord webhook URL')
   }

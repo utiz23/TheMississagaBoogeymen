@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { sendWebhook } from './webhook.ts'
+import { sendWebhook, WebhookOutcomeUnknownError } from './webhook.ts'
 import type { WebhookPayload } from './message.ts'
 
 const HOOK = 'https://discord.com/api/webhooks/123/SECRET-TOKEN-VALUE'
@@ -51,6 +51,23 @@ void test('a network failure never leaks the webhook URL', async () => {
   }) as typeof fetch
   await assert.rejects(sendWebhook(HOOK, payload, null, fake), (err: Error) => {
     assert.ok(!err.message.includes('SECRET-TOKEN-VALUE'))
+    return true
+  })
+})
+
+void test('a timeout is an unknown outcome (Discord may have posted)', async () => {
+  const fake = (async () => {
+    throw new DOMException('timed out', 'TimeoutError')
+  }) as typeof fetch
+  await assert.rejects(sendWebhook(HOOK, payload, null, fake), WebhookOutcomeUnknownError)
+})
+
+void test('connection refused is a definite failure (nothing was sent)', async () => {
+  const fake = (async () => {
+    throw new TypeError('fetch failed', { cause: { code: 'ECONNREFUSED' } })
+  }) as typeof fetch
+  await assert.rejects(sendWebhook(HOOK, payload, null, fake), (err: Error) => {
+    assert.ok(!(err instanceof WebhookOutcomeUnknownError))
     return true
   })
 })

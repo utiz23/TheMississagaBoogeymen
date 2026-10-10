@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import type { DiscordGameResult } from '@eanhl/db/discord'
 import { runPosterCycle, type PosterDeps, type PosterStore } from './cycle.ts'
 import type { WebhookPayload } from './message.ts'
+import { WebhookOutcomeUnknownError } from './webhook.ts'
 
 const NOW = new Date('2026-10-10T12:00:00Z')
 const result = (id: number, cards: number[]): DiscordGameResult => ({
@@ -121,15 +122,38 @@ void test('send failure ⇒ marked failed, not posted', async () => {
   assert.ok(h.events.includes('failed:1:Discord webhook HTTP 429'))
 })
 
-void test('game data failure ⇒ marked failed, nothing sent', async () => {
+void test('web unreachable ⇒ nothing claimed or marked, retried next cycle', async () => {
   const h = harness({
     fetchGameResult: async () => {
-      throw new Error('game data HTTP 500')
+      throw new Error('game data HTTP 502')
     },
   })
   await runPosterCycle(h.deps, OPTS)
   assert.equal(h.sent.length, 0)
-  assert.ok(h.events.includes('failed:1:game data HTTP 500'))
+  assert.ok(!h.events.some((e) => e.startsWith('claim:') || e.startsWith('failed:')))
+})
+
+void test('markPosted failing after a successful send never marks failed (no re-post)', async () => {
+  const h = harness()
+  h.deps.store.markPosted = async () => {
+    throw new Error('connection reset')
+  }
+  const s = await runPosterCycle(h.deps, OPTS)
+  assert.equal(h.sent.length, 1)
+  assert.equal(s.posted, 1)
+  assert.ok(!h.events.some((e) => e.startsWith('failed:')))
+  assert.ok(h.events.some((e) => e.includes('not recorded')))
+})
+
+void test('a send with an unknown outcome stays pending (never retried)', async () => {
+  const h = harness({
+    send: async () => {
+      throw new WebhookOutcomeUnknownError('Discord webhook request outcome unknown (TimeoutError)')
+    },
+  })
+  await runPosterCycle(h.deps, OPTS)
+  assert.ok(!h.events.some((e) => e.startsWith('failed:')))
+  assert.ok(h.events.some((e) => e.includes('left pending')))
 })
 
 void test('a game the store will not let us claim is never sent', async () => {

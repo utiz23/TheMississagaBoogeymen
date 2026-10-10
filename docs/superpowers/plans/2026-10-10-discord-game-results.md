@@ -29,11 +29,14 @@
 
 ## Spec deltas (implementation detail, same behaviour)
 
-1. The service gets the message data from a JSON route (`/internal/discord/game/[matchId]`) rather than computing stars itself — the stars code lives in the web app, so this keeps one source of truth. The JSON shape is a shared contract in `@eanhl/db/discord`.
+1. The service gets the message data from a JSON route (`/internal/discord/game/[matchId]`) rather than computing stars itself — the stars code lives in the web app, so this keeps one source of truth. The JSON shape is a shared contract in `@eanhl/db/discord`. (Behaviour differs when web is down — see delta 6.)
 2. Absolute links are built by the service from `DISCORD_SITE_URL` (default `https://boogeymen.app`).
 3. Dry-run marks the row `skipped` with `last_error = 'dry run'`, so each game is rendered once, not every minute.
 4. A row left `pending` (crash mid-post) is never retried automatically — that is what guarantees no double post. Startup logs any such rows.
 5. The service is a Compose **profile** (opt-in) and defaults to dry-run, so the stopped fallback stack on the main PC can never post.
+6. **(Final review)** Web unreachable ⇒ the game is skipped _without_ claiming and retried next cycle (inside the 24 h window), instead of spec §5's text-only post — the text needs the web data, and a delay beats a lost post.
+7. **(Final review)** A game is offered only after the worker cycle that ingested it has finished (the same title + match type has a later `ingestion_log` row; unlogged payloads wait 15 min), so AI goalies, new members and card levels are settled before posting.
+8. **(Final review)** Once a send succeeded or might have (timeout / reset), the row is never marked failed — posted, or left `pending`. Dry run is fail-closed: anything but `DISCORD_DRY_RUN=0` is a dry run.
 
 ## Review Focus
 
@@ -2497,7 +2500,7 @@ Use the `docker-redeploy` skill for every rebuild. Each step needs the operator'
 - [ ] **Step 1:** On HE, append to `~/eanhl-team-website/.env`: `DISCORD_INTERNAL_TOKEN=$(openssl rand -hex 32)` and `DISCORD_DRY_RUN=1`. (No webhook yet.)
 - [ ] **Step 2:** Apply `0067` to the live DB (HE container `eanhl-team-website-db-1`, `-d eanhl`) with the header command; confirm `discord_posts_rows = matches`. Also apply to the verification seed DB per `ops/README.md` (missing migrations there cause false verify-ocr failures).
 - [ ] **Step 3:** Redeploy `web` (new internal routes + token env). From HE: `curl -s -o /dev/null -w '%{http_code}' https://boogeymen.app/internal/discord/game/1` → `404`.
-- [ ] **Step 4:** Start the poster: `docker compose --profile public --profile discord up -d --build discord`. Logs show `started (DRY RUN)`. After the next real game: `docker compose exec discord ls /tmp/discord-out/<id>`; `docker compose cp discord:/tmp/discord-out ./discord-out` and show the operator `cards.png` + `payload.json`.
+- [ ] **Step 4:** Start the poster: `docker compose --profile public --profile discord up -d --no-deps --build discord`. Logs show `started (DRY RUN)`. After the next real game: `docker compose exec discord ls /tmp/discord-out/<id>`; `docker compose cp discord:/tmp/discord-out ./discord-out` and show the operator `cards.png` + `payload.json`.
 - [ ] **Step 5:** Operator creates a private `#bot-test` channel + webhook. Put it in `.env` as `DISCORD_WEBHOOK_URL`, set `DISCORD_DRY_RUN=0`, `docker compose --profile public --profile discord up -d discord`. Verify the next game posts there.
 - [ ] **Step 6:** Operator approves → replace `DISCORD_WEBHOOK_URL` with the real channel's webhook, restart `discord`. Note in the journal + handoff.
 

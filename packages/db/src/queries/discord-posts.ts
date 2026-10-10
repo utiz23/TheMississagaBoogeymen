@@ -1,17 +1,48 @@
 import { and, asc, eq, gt, isNull, lt, or, sql } from 'drizzle-orm'
 import { db } from '../client.js'
-import { discordPosts, gameTitles, matches } from '../schema/index.js'
+import {
+  discordPosts,
+  gameTitles,
+  ingestionLog,
+  matches,
+  rawMatchPayloads,
+} from '../schema/index.js'
 
 /** A failed post is retried until it has been attempted this many times. */
 export const DISCORD_MAX_ATTEMPTS = 3
+
+/** A match whose raw payload has no ingestion_log row waits this long instead. */
+export const DISCORD_UNLOGGED_SETTLE_MS = 15 * 60_000
 
 /**
  * Games the discord service may post: active title, ended after `since`, and
  * either never touched or failed under the attempt cap. `pending`, `posted`
  * and `skipped` rows are never returned. Joined select, so Drizzle qualifies
  * every column (see feedback: unqualified columns in single-table selects).
+ *
+ * Settled only: the worker commits a match mid-cycle and then still adds AI
+ * goalies, resolves members and recomputes cards. Its loop never overlaps, so
+ * once the same title + match type has a later ingestion_log row, the cycle
+ * that ingested this match has finished. A payload with no log row (manual
+ * insert) waits until `unloggedBefore` instead.
  */
-export function discordPostCandidatesQuery(args: { since: Date; limit: number }) {
+export function discordPostCandidatesQuery(args: {
+  since: Date
+  limit: number
+  unloggedBefore: Date
+}) {
+  const settled = sql`exists (
+    select 1 from ${rawMatchPayloads} r
+    left join ${ingestionLog} l1 on l1.id = r.ingestion_log_id
+    where r.game_title_id = ${matches.gameTitleId} and r.ea_match_id = ${matches.eaMatchId}
+      and (
+        (l1.id is not null and exists (
+          select 1 from ${ingestionLog} l2
+          where l2.id > l1.id and l2.game_title_id = l1.game_title_id and l2.match_type = l1.match_type
+        ))
+        or (l1.id is null and r.ingested_at < ${args.unloggedBefore.toISOString()}::timestamptz)
+      )
+  )`
   return db
     .select({ matchId: matches.id })
     .from(matches)
@@ -25,6 +56,7 @@ export function discordPostCandidatesQuery(args: { since: Date; limit: number })
           isNull(discordPosts.matchId),
           and(eq(discordPosts.status, 'failed'), lt(discordPosts.attempts, DISCORD_MAX_ATTEMPTS)),
         ),
+        settled,
       ),
     )
     .orderBy(asc(matches.playedAt))
@@ -35,7 +67,10 @@ export async function listDiscordPostCandidates(args: {
   since: Date
   limit: number
 }): Promise<number[]> {
-  const rows = await discordPostCandidatesQuery(args)
+  const rows = await discordPostCandidatesQuery({
+    ...args,
+    unloggedBefore: new Date(Date.now() - DISCORD_UNLOGGED_SETTLE_MS),
+  })
   return rows.map((r) => r.matchId)
 }
 
