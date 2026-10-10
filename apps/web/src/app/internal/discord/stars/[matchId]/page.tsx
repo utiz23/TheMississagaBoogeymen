@@ -28,23 +28,22 @@ export default async function DiscordStarsPage({
   const loaded = await loadDiscordGameResult(id)
   if (!loaded || loaded.cards.length === 0) notFound()
 
+  // A full-viewport backdrop over the site chrome: the footer sits right
+  // under the strip, and without it the screenshot caught its top edge.
   return (
     <div
-      id="discord-stars"
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
+        inset: 0,
         zIndex: 2147483647,
-        display: 'inline-flex',
-        gap: 16,
-        padding: 16,
         background: 'var(--color-background)',
       }}
     >
-      {loaded.cards.map((card) => (
-        <PlayerCard key={card.front.playerId} card={card} context="list" />
-      ))}
+      <div id="discord-stars" style={{ display: 'inline-flex', gap: 16, padding: 16 }}>
+        {loaded.cards.map((card) => (
+          <PlayerCard key={card.front.playerId} card={card} context="list" />
+        ))}
+      </div>
     </div>
   )
 }
