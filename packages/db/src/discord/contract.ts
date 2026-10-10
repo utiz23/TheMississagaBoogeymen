@@ -34,8 +34,8 @@ export interface DiscordGameResult {
   playedAt: string
   /** Empty for DNF. */
   stars: DiscordStar[]
-  /** Member stars with a renderable card, in star order. */
-  cardPlayerIds: number[]
+  /** Cards in the lineup image (BGM players placed in a slot). 0 ⇒ no image. */
+  lineupCardCount: number
 }
 
 function fail(path: string, why: string): never {
@@ -90,12 +90,8 @@ export function parseDiscordGameResult(value: unknown): DiscordGameResult {
   const starsRaw = o['stars']
   if (!Array.isArray(starsRaw)) fail('stars', 'is not an array')
   const stars = starsRaw.map((s, i) => parseStar(s, `stars[${String(i)}]`))
-  const cardsRaw = o['cardPlayerIds']
-  if (!Array.isArray(cardsRaw)) fail('cardPlayerIds', 'is not an array')
-  const cardPlayerIds = cardsRaw.map((c, i) => int(c, `cardPlayerIds[${String(i)}]`))
-  const memberIds = new Set(stars.filter((s) => s.kind === 'member').map((s) => s.playerId))
-  if (cardPlayerIds.some((id) => !memberIds.has(id)))
-    fail('cardPlayerIds', 'names a non-member star')
+  const lineupCardCount = int(o['lineupCardCount'], 'lineupCardCount')
+  if (lineupCardCount < 0) fail('lineupCardCount', 'is negative')
   return {
     matchId: int(o['matchId'], 'matchId'),
     result: result as DiscordResult,
@@ -107,6 +103,6 @@ export function parseDiscordGameResult(value: unknown): DiscordGameResult {
     gameMode,
     playedAt: str(o['playedAt'], 'playedAt'),
     stars,
-    cardPlayerIds,
+    lineupCardCount,
   }
 }

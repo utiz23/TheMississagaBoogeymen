@@ -32,7 +32,7 @@ const valid: DiscordGameResult = {
       teamAbbrev: 'XYZ',
     },
   ],
-  cardPlayerIds: [7],
+  lineupCardCount: 6,
 }
 
 void test('a valid payload round-trips through JSON', () => {
@@ -48,8 +48,9 @@ void test('rejects a star with a non-numeric score', () => {
   assert.throws(() => parseDiscordGameResult(bad), /stars\[0\]\.score/)
 })
 
-void test('rejects a card id that is not one of the member stars', () => {
-  assert.throws(() => parseDiscordGameResult({ ...valid, cardPlayerIds: [99] }), /cardPlayerIds/)
+void test('rejects a negative or fractional lineupCardCount', () => {
+  assert.throws(() => parseDiscordGameResult({ ...valid, lineupCardCount: -1 }), /lineupCardCount/)
+  assert.throws(() => parseDiscordGameResult({ ...valid, lineupCardCount: 1.5 }), /lineupCardCount/)
 })
 
 void test('rejects non-objects', () => {
