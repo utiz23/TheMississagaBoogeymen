@@ -93,6 +93,8 @@ interface Props {
   gameMode: GameMode | null
   /** The left column: the player card with its EDIT button (spec D9). */
   portrait: ReactNode
+  /** EDIT PROFILE, for the player's own member or an admin; null for everyone else. */
+  editor?: ReactNode
 }
 
 export function ProfileHero({
@@ -104,6 +106,7 @@ export function ProfileHero({
   hasGoalieData,
   gameMode,
   portrait,
+  editor = null,
 }: Props) {
   const { player, currentEaSeason } = overview
   const positionEntries = buildPositionEntries(currentEaSeason)
@@ -169,6 +172,7 @@ export function ProfileHero({
                 Player · {selectedRole === 'goalie' ? 'Goalie' : 'Skater'}
               </span>
               <span className="rule" aria-hidden />
+              {editor}
             </div>
 
             <div className="ph-nameplate">

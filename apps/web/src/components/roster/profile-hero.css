@@ -397,6 +397,8 @@
   font-weight: 400;
   max-width: 50ch;
   text-wrap: pretty;
+  /* Members write the bio themselves; keep their line breaks. */
+  white-space: pre-line;
 }
 
 /* Role tabs */

@@ -46,6 +46,7 @@ import { PlayerRail, type RailSheet } from '@/components/roster/player-rail'
 import { formatDataDay } from '@/lib/format'
 import { getViewer } from '@/lib/auth'
 import { canEditPlayerCard } from '@/lib/card-permissions'
+import { ProfileEditor } from '@/components/roster/profile-editor'
 
 export const revalidate = 3600
 
@@ -174,12 +175,13 @@ export default async function PlayerPage({ params, searchParams }: Props) {
 
   // Who is looking: the card's own member (or an admin) may equip a theme.
   // Auth trouble must never take the player page down, so it reads as signed out.
-  let canEditCard = false
+  let viewer: Awaited<ReturnType<typeof getViewer>> = null
   try {
-    canEditCard = canEditPlayerCard(await getViewer(), id)
+    viewer = await getViewer()
   } catch {
-    canEditCard = false
+    viewer = null
   }
+  const canEditCard = canEditPlayerCard(viewer, id)
 
   // Awards trophy case: club records and career milestones, ranked against
   // every player's season lines. A failure only hides the section.
@@ -310,6 +312,24 @@ export default async function PlayerPage({ params, searchParams }: Props) {
           hasGoalieData={hasGoalieData}
           gameMode={gameMode}
           portrait={<HeroCard card={heroCard} locker={lockerView} />}
+          editor={
+            canEditCard ? (
+              <ProfileEditor
+                playerId={id}
+                gamertag={overview.player.gamertag}
+                isAdmin={viewer?.role === 'admin'}
+                values={{
+                  playerName: overview.player.playerName,
+                  jerseyNumber: overview.player.jerseyNumber,
+                  nationality: overview.player.nationality,
+                  bio: overview.player.bio,
+                  preferredPosition: overview.player.preferredPosition,
+                  archetype: overview.player.archetype,
+                  clubRoleLabel: overview.player.clubRoleLabel,
+                }}
+              />
+            ) : null
+          }
         />
       </div>
 
