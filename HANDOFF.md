@@ -44,11 +44,7 @@ video-stats OCR).
 
 ## Latest Verified Checkpoint
 
-**2026-10-09 — admin tools C1–C3 deployed** (`7984070`, `3616aab` web+worker, `86a902b` + migration 0066 on live/test/preview; rollbacks `:rollback-he-2026-10-09-pre-{admin-hub,mythics,awards-db}`; 0066 rollback = drop the two tables). Trophy text on winners' pages identical before/after.
-
-**2026-10-09 — EQUIP, Discord picture, profile self-edit deployed** (`f24507f`, `354f2da`, `7aa6599`; web only; rollbacks `:rollback-he-2026-10-09-pre-{equip,avatar,profile-edit}`). Operator-verified on localhost.
-
-**2026-10-09 — member logins deployed** (`7b76804`, web + worker; migration 0065 applied to live/test/preview; rollback images `:rollback-he-2026-10-09-pre-logins`, server `.env` backup `.env.bak-2026-10-09`). Live checks passed; operator signed in as admin. Security review: no findings. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
+**2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
 **2026-10-09 — responsive sizes, side rail, compact carousel deployed** (`fb40008`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-responsive`). Medium ≤1100 / Small ≤720 / Micro ≤480 tiers for the player, roster and home components; `PlayerCardCompact`; player-page side rail at ≥1680px; Charts & Visuals and Recent Form removed (`4095e49`, rollback `:rollback-he-2026-10-09-pre-no-form`). Detail: [journal 2026-10-09](docs/journal/2026-10.md).
 
