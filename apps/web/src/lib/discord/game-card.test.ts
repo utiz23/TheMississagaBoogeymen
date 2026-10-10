@@ -22,12 +22,14 @@ const skater: GameCardInput = {
     plusMinus: -1,
     saves: null,
     shotsAgainst: null,
+    goalsAgainst: null,
   },
   identity,
   summary: { tier: 2, level: 4, theme: 'home', bestBadge: { familyId: 'p6g', level: 2 } },
   jerseyNumber: null,
   score: 17.534,
   starRank: 2,
+  positionLabel: null,
 }
 
 void test('skater: game score, star tag, G · A · +/- · PTS, identity and theme kept', () => {
@@ -65,7 +67,7 @@ void test('goalie: SA · SV · GA · SV%', () => {
   const c = cardForGame({
     ...skater,
     position: 'G',
-    stat: { ...skater.stat, saves: 31, shotsAgainst: 33 },
+    stat: { ...skater.stat, saves: 31, shotsAgainst: 33, goalsAgainst: 2 },
   }).front
   assert.equal(c.role, 'goalie')
   assert.deepEqual(c.stats, [
@@ -88,10 +90,26 @@ void test('goalie with no shots against: SV% is a dash', () => {
     position: 'G',
     stat: { ...skater.stat, saves: null, shotsAgainst: null },
   }).front
+  // — = not captured, never a fake 0 (the match page's rule).
   assert.deepEqual(
     n.stats.map((s) => s.value),
-    ['0', '0', '0', '—'],
+    ['—', '—', '—', '—'],
   )
+})
+
+void test('goalie GA is the stored goals-against, not SA − SV (AI goalies differ)', () => {
+  const c = cardForGame({
+    ...skater,
+    position: 'G',
+    stat: { ...skater.stat, saves: 0, shotsAgainst: 3, goalsAgainst: 5 },
+  }).front
+  assert.equal(c.stats[2]?.value, '5')
+})
+
+void test('positionLabel overrides the slot tag (box-score defence shows D)', () => {
+  const c = cardForGame({ ...skater, position: 'LD', positionLabel: 'D' }).front
+  assert.equal(c.position, 'D')
+  assert.equal(c.role, 'skater')
 })
 
 void test('guest: gamertag, Away theme, tier 1, no badge/flag/platform, lineup jersey', () => {

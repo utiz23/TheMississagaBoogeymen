@@ -103,13 +103,16 @@ export async function loadDiscordGameResult(
     match.result === 'DNF'
       ? []
       : discordDisplayOrder(match.gameMode).map((position) => {
+          // EA's box score doesn't split defence into left/right; the page shows D.
+          const shown =
+            variant === 'boxScore' && (position === 'LD' || position === 'RD') ? 'D' : position
           const slot = byPosition.get(position)
           const stat = slot?.stat ?? null
           if (!stat) {
             return {
               position,
               card: null,
-              label: emptySlotLabel(position, slot?.row?.gamertagSnapshot ?? null),
+              label: emptySlotLabel(shown, slot?.row?.gamertagSnapshot ?? null),
             }
           }
           const isMember = stat.playerId !== null && memberIds.has(stat.playerId)
@@ -121,6 +124,7 @@ export async function loadDiscordGameResult(
             jerseyNumber: slot?.row?.playerNumber ?? null,
             score: scoreFor(stat.playerId, stat.gamertag),
             starRank: starRankFor(stat.playerId, stat.gamertag),
+            positionLabel: shown === position ? null : shown,
           })
           return { position, card, label: position }
         })
