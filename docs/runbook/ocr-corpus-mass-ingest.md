@@ -76,7 +76,7 @@ fresh machine with no cache yet.
 
 ```bash
 cd tools/video_ingest && source .venv/bin/activate
-video-ingest batch --video-root /mnt/k/NHL/NHL26 --jobs 3 --limit <N>
+video-ingest batch --video-root /mnt/k/NHL/NHL26/Games --jobs 3 --limit <N>
 ```
 
 - **`--jobs 3`** is the measured sweet spot (N=2 scales perfectly, N=3 costs
@@ -118,7 +118,7 @@ Review rules (all validated 2026-07-25):
   (America/Edmonton, DST-correct)** — add 6 h for UTC in summer. File mtime =
   recording end.
 - **Spot-check with a frame** when in doubt — 10 seconds of work:
-  `ffmpeg -ss <t> -i /mnt/k/NHL/NHL26/<file>.mkv -frames:v 1 -q:v 2 /tmp/f.jpg`
+  `ffmpeg -ss <t> -i /mnt/k/NHL/NHL26/Games/<file>.mkv -frames:v 1 -q:v 2 /tmp/f.jpg`
   The HUD score banner names the opponent (e.g. "716" = Fear the Buffalo) and
   the score bounds which match it can be (a team that won 4-0 never trails).
 - **Lobby-only reels** (has_lobby, no game screens) → reject. Precedent:
@@ -135,8 +135,8 @@ Review rules (all validated 2026-07-25):
 
 ```bash
 cd tools/video_ingest && source .venv/bin/activate
-video-ingest batch-promote --video-root /mnt/k/NHL/NHL26 --dry-run   # check the plan
-video-ingest batch-promote --video-root /mnt/k/NHL/NHL26 [--limit <N>]
+video-ingest batch-promote --video-root /mnt/k/NHL/NHL26/Games --dry-run   # check the plan
+video-ingest batch-promote --video-root /mnt/k/NHL/NHL26/Games [--limit <N>]
 
 # ALWAYS after a dispatch chunk — deferred dispatch writes run-less batch rows
 set -a && source .env && set +a

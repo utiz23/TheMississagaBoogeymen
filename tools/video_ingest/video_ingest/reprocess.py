@@ -32,8 +32,8 @@ from video_ingest.cache_root import preflight_cache_root
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # Per-match video root on this machine. Phase-A convention: each match
-# has its own subdir under K:\NHL\NHL26 (WSL: /mnt/k/NHL/NHL26).
-DEFAULT_VIDEO_ROOT = Path("/mnt/k/NHL/NHL26")
+# has its own subdir under K:\NHL\NHL26\Games (WSL: /mnt/k/NHL/NHL26/Games).
+DEFAULT_VIDEO_ROOT = Path("/mnt/k/NHL/NHL26/Games")
 
 # Where Pass-2 PNGs land during ingest. Re-used across reprocess runs;
 # inside, the run_id-scoped subdir (pass2-run-<N>) keeps concurrent
