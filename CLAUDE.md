@@ -4,7 +4,7 @@
 
 EASHL team stats website for club #19224 (platform: common-gen5). Monorepo that ingests data from EA's undocumented Pro Clubs API, archives it, and serves a stats/analytics frontend.
 
-Self-hosted via Docker Compose on **Hotel-Echo** (home server; `ssh hotel-echo`, repo `~/eanhl-team-website`) since 2026-10-05. The main PC (this dev machine) keeps a stopped fallback copy and runs video-OCR. Audience is a handful of team members.
+Self-hosted via Docker Compose on **Hotel-Echo** (home server; `ssh hotel-echo`, repo `~/eanhl-team-website`) since 2026-10-05. The main PC (this dev machine) keeps a stopped fallback copy. Audience is a handful of team members.
 
 ## Architecture
 
@@ -12,6 +12,14 @@ Self-hosted via Docker Compose on **Hotel-Echo** (home server; `ssh hotel-echo`,
 - `apps/worker` — Standalone Node.js ingestion worker (polling, transform, aggregation)
 - `packages/db` — Drizzle ORM schema, migrations, shared query functions
 - `packages/ea-client` — EA Pro Clubs API client with retry/backoff/throttle
+
+### OCR / video stats: sister repo only
+
+Since 2026-10-21 all OCR and video-stats work happens in the sister repo
+`eanhl-live-engine` (`~/projects/eanhl-live-engine`). Do not start new OCR work
+here. The OCR code in this repo (`tools/game_ocr/`, `tools/video_ingest/`, the
+worker's OCR scripts and the `verify:ocr` harness) stays as it is, for reference.
+The website still reads the OCR results that are already in the database.
 
 ## Tech Stack
 
@@ -115,6 +123,9 @@ approved database namespace, and the attestation contract are in `ops/README.md`
 the enforcement lives in `apps/worker/scripts/lib/test-db-guard.mjs`. The
 pre-push hook blocks (it does not skip) when that configuration is absent; bypass
 with `git push --no-verify`.
+
+Docker Desktop is not installed on the main PC (since 2026-10-21), so this
+harness cannot run there. A push that touches OCR paths fails the hook.
 
 ### Querying the live database
 

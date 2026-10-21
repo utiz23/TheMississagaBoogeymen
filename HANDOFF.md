@@ -27,8 +27,8 @@ commit/push rules in `CLAUDE.md`.
 teammates, by link — unlisted (`noindex` everywhere), no analytics.
 Served from Hotel-Echo through the `hotel-echo-web` Cloudflare
 tunnel. **The launch plan is closed** (all 8 items ✅ 2026-10-09; four green
-unattended backup nights 10-06 → 10-09). Next: post-launch work (polish,
-video-stats OCR).
+unattended backup nights 10-06 → 10-09). Next: post-launch polish.
+**All OCR work is in the sister repo** `eanhl-live-engine` (operator, 10-21).
 
 **Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. **Live for members:** Card Locker EQUIP (own card; admin any), Discord picture in the nav, and **EDIT PROFILE** on the player page (`7aa6599`: member edits name, jersey, nationality, bio; admin also position, archetype, club role, on any player). **Admin tools are live** (`/admin`, [plan](docs/superpowers/plans/2026-10-09-admin-tools.md)): accounts, roster pins, sign-everyone-out, titles (view only), mythic cards, and the trophy case editor — **trophies/banners now live in the database** (migration 0066), not `club-awards.ts`.
 
@@ -75,7 +75,7 @@ video-stats OCR).
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277 matches (449-match union minus the 172 quarantined). Older rollback images (`:rollback-he-2026-10-05-*`, `:rollback-he-2026-09-04`) and the old Hotel-Echo DB `eanhl_he_old` are kept; the main-PC fallback below.
-- **Main PC = stopped fallback + video-OCR box.** Its web, worker and backup
+- **Main PC = stopped fallback.** Its web, worker and backup
   are stopped and its `COMPOSE_PROFILES=backup` line is commented out; its db
   still runs, frozen at 435 matches. **Do not `docker compose up -d` there**
   — it would restart a second collector. Restart it only as a deliberate
@@ -120,7 +120,8 @@ video-stats OCR).
 - `git push` runs the ~20-minute verification suite only when the push
   touches video-stats code (rule: [`ops/README.md`](ops/README.md)). For
   video-stats work in files without "ocr" in the path, push with
-  `EANHL_PRE_PUSH_FULL=1`.
+  `EANHL_PRE_PUSH_FULL=1`. The main PC has no Docker (10-21), so that suite
+  cannot run; OCR changes belong in the sister repo.
 - **Proton/E3 cloud backup is parked** (HE session logged out + revoked 10-05; nothing scheduled). State: the archived handoff and the [credential memo](docs/planning/proton-drive-hotel-echo-credential-design.md).
 - Main-PC secrets were rotated 2026-09-03; the dead old value remains in git
   history.
@@ -134,8 +135,8 @@ None.
 0. Discord poster: once `#bot-test` looks right, swap in the real channel's webhook on HE and `up -d --no-deps discord`.
    Logins/admin open choices: club role display, more flags, a 6v6 banner.
 1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
-2. Polish: cross-cutting + by-surface passes **deployed 2026-10-09** (`5269fbe`, web only; rollback `eanhl-team-website-web:rollback-he-2026-10-09-pre-polish` = `fafeefb`), incl. the live UTC-dates fix, the operator's four answers and the goalie Contribution Wheel. Every backlog entry has an outcome ([`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md), journal 10-09).
+2. Polish passes deployed 2026-10-09 (`5269fbe`); every backlog entry has an outcome ([`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md), journal 10-09).
 3. Backup hardening from the Codex review (optional, small): weekly/monthly
    copies after a missed Sunday/1st, and a run lock for manual + scheduled
-   overlap. Watch teammates' feedback (including on speed). Video-stats OCR
-   writing to Hotel-Echo's database is on hold (operator, 10-09).
+   overlap. Watch teammates' feedback (including on speed). OCR writing to
+   Hotel-Echo's database is on hold (operator, 10-09); a sister-repo question.
