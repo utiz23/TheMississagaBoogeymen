@@ -335,9 +335,11 @@
    sideways scroll), as the mockups do by zooming their whole grid.
    --card-w is solved from the scroll wrapper's width (100cqw minus padding,
    rails and gaps, ÷ 5, capped at the compact card's own --card-nat width) and
-   --card-zoom is that width ÷ --card-nat — tan(atan2(a, b)) is CSS's a ÷ b
-   for two lengths. Both use cqw, so they resolve on the element that reads
-   them, against the nearest scroll wrapper. The "Pair N" rail collapses into
+   --card-zoom is that width ÷ --card-nat: calc(a / b) where the browser can
+   divide two lengths, else tan(atan2(a, b)). Safari/WebKit miscomputes
+   atan2() with cqw (zoom ≈ 0.34 for 1.0, cards a third of their column), so
+   division must win wherever it parses. Both use cqw, so they resolve on the
+   element that reads them, against the nearest scroll wrapper. The "Pair N" rail collapses into
    a 1px divider (same number as the line beside it). */
 .dc-module .short {
   display: none;
@@ -355,6 +357,11 @@
     /* 2 × pad-x + rail + 1px divider + 6 column gaps */
     --card-w: min(var(--card-nat), calc((100cqw - 117px) / 5));
     --card-zoom: tan(atan2(var(--card-w), var(--card-nat)));
+  }
+  @supports (width: calc(1px * (1px / 1px))) {
+    .dc-module {
+      --card-zoom: calc(var(--card-w) / var(--card-nat));
+    }
   }
   .dc-full {
     display: none;
