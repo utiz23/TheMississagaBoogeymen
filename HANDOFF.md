@@ -30,7 +30,7 @@ tunnel. **The launch plan is closed** (all 8 items ✅ 2026-10-09; four green
 unattended backup nights 10-06 → 10-09). Next: post-launch work (polish,
 video-stats OCR).
 
-**Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. **Live for members:** Card Locker EQUIP (own card; admin any), Discord picture in the nav, and **EDIT PROFILE** on the player page (`7aa6599`: member edits name, jersey, nationality, bio; admin also position, archetype, club role, on any player). **Admin tools are live** (`/admin`, [plan](docs/superpowers/plans/2026-10-09-admin-tools.md)): accounts, roster pins, sign-everyone-out, titles (view only), mythic cards, and the trophy case editor — **trophies/banners now live in the database** (migration 0066), not `club-awards.ts`. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
+**Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. **Live for members:** Card Locker EQUIP (own card; admin any), Discord picture in the nav, and **EDIT PROFILE** on the player page (`7aa6599`: member edits name, jersey, nationality, bio; admin also position, archetype, club role, on any player). **Admin tools are live** (`/admin`, [plan](docs/superpowers/plans/2026-10-09-admin-tools.md)): accounts, roster pins, sign-everyone-out, titles (view only), mythic cards, and the trophy case editor — **trophies/banners now live in the database** (migration 0066), not `club-awards.ts`.
 
 **Discord poster: live to `#bot-test`** (2026-10-10, `38a9d06`: compact lineup image with per-game cards; rollbacks `:rollback-he-2026-10-10-pre-compact`). Real channel = swap `DISCORD_WEBHOOK_URL` on HE. Off = `docker compose stop discord`. [Journal](docs/journal/2026-10.md).
 
@@ -40,15 +40,17 @@ video-stats OCR).
 
 **Member-only player pages are live** (2026-10-09, `fafeefb`; rollback `:rollback-he-2026-10-09-pre-members`): only team members, present and past (EA member list for any title, member archive, pinned, AI goalies — 18 of 92) have a `/roster/[id]` page; guests 404 and show as plain text elsewhere (`PlayerLink` + `MemberLinks`), and the home carousel shows members only.
 
-**Also live 2026-10-09** (`3d62b8a`; rollback `:rollback-he-2026-10-09-pre-locker-v3`): stats-table size tiers, Build Locker v3 (persona name from OCR), Action Map clocks, short-code build names. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
+**Also live 2026-10-09** (`3d62b8a`; rollback `:rollback-he-2026-10-09-pre-locker-v3`): stats-table size tiers, Build Locker v3 (persona name from OCR), Action Map clocks, short-code build names.
 
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
 ## Latest Verified Checkpoint
 
-**2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean. Detail: [journal 2026-10-09](docs/journal/2026-10.md).
+**2026-10-21 — Next.js 15.5.28 security upgrade deployed** (web `b366d19`, with the Safari depth-chart fix `e8f27d3`; rollback `:rollback-he-2026-10-21-pre-next-sec`). Fixes the Server Actions DoS (GHSA-p3m5-59mp-jv5r). PHP2Shell does not apply (no PHP anywhere). [Journal 2026-10-21](docs/journal/2026-10.md).
 
-**2026-10-09 — responsive sizes, side rail, compact carousel deployed** (`fb40008`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-responsive`). Medium ≤1100 / Small ≤720 / Micro ≤480 tiers for the player, roster and home components; `PlayerCardCompact`; player-page side rail at ≥1680px; Charts & Visuals and Recent Form removed (`4095e49`, rollback `:rollback-he-2026-10-09-pre-no-form`). Detail: [journal 2026-10-09](docs/journal/2026-10.md).
+**2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean.
+
+**2026-10-09 — responsive sizes, side rail, compact carousel deployed** (`fb40008`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-responsive`). Medium ≤1100 / Small ≤720 / Micro ≤480 tiers for the player, roster and home components; `PlayerCardCompact`; player-page side rail at ≥1680px; Charts & Visuals and Recent Form removed (`4095e49`, rollback `:rollback-he-2026-10-09-pre-no-form`).
 
 **2026-10-08 — Awards + migration 0064** (`d038b36`; rollback `:rollback-he-2026-10-08-pre-awards`; 0064 rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`). [Journal](docs/journal/2026-10.md).
 
@@ -56,7 +58,7 @@ video-stats OCR).
 
 **2026-10-06 — NHL 26 contamination cleaned up** (worker `3f35733`; rollback `:rollback-2026-10-05-quarantine`; dump `~/eanhl-backups/pre-quarantine-2026-10-05/`): club 19224 is "Chipstuttar" since 2026-09-07; its 172 matches are out. [Plan](docs/planning/2026-10-05-nhl26-club-19224-quarantine.md), [journal](docs/journal/2026-10.md).
 
-**2026-10-06 — performance pass deployed** (`351354d`; rollback `:rollback-he-2026-10-06-pre-perf`). Detail: [journal 2026-10-06](docs/journal/2026-10.md).
+**2026-10-06 — performance pass** (`351354d`; rollback `:rollback-he-2026-10-06-pre-perf`).
 
 **2026-10-05 — launched; security update + polish deployed** (`67ff9c4`; public checks all passed). Full checkpoint: [archive 2026-10-09](docs/archive/handoff-history-2026-10-09.md), [journal 2026-10-05](docs/journal/2026-10.md).
 
@@ -69,7 +71,7 @@ video-stats OCR).
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web at `86a902b`, worker at `3616aab`), web and worker as the non-root
+  and nightly backup (web at `b366d19`, worker at `3616aab`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277 matches (449-match union minus the 172 quarantined). Older rollback images (`:rollback-he-2026-10-05-*`, `:rollback-he-2026-09-04`) and the old Hotel-Echo DB `eanhl_he_old` are kept; the main-PC fallback below.
