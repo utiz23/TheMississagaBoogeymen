@@ -13,9 +13,14 @@ import type { GameMode, MatchResult } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import type { GameTitle } from '@eanhl/db'
 import { ScoreCard } from '@/components/matches/score-card'
+import {
+  GamesFilterPanel,
+  LastTenStrip,
+  type FilterGroup,
+  type FilterTone,
+} from '@/components/matches/games-filter'
 import { Panel } from '@/components/ui/panel'
 import { SectionHeader } from '@/components/ui/section-header'
-import { ResultPill } from '@/components/ui/result-pill'
 import { formatDataDay, formatMatchDate } from '@/lib/format'
 import { resolveTitleFromSlug, switcherTitles } from '@/lib/title-resolver'
 
@@ -137,8 +142,9 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   let formMatches: Awaited<ReturnType<typeof getRecentMatches>> = []
   let total = 0
   let opponentClubs: Awaited<ReturnType<typeof getOpponentClubs>> = []
+  let counts: FilterCounts = { titles: [], modes: [], results: [] }
   try {
-    ;[pageMatches, total, formMatches] = await Promise.all([
+    ;[pageMatches, total, formMatches, counts] = await Promise.all([
       getRecentMatches({
         gameTitleId: gameTitle.id,
         limit: PAGE_SIZE,
@@ -164,6 +170,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
         opponent,
         matchIds,
       }),
+      getFilterCounts(titles, gameTitle.id, filters),
     ])
     opponentClubs = await getOpponentClubs(
       Array.from(new Set(pageMatches.map((match) => match.opponentClubId))),
@@ -202,39 +209,38 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-baseline gap-3">
-          <h1 className="font-condensed text-2xl font-semibold uppercase tracking-widest text-zinc-50">
-            Scores
-          </h1>
-          <span className="font-condensed text-sm uppercase tracking-wider text-zinc-500">
-            {gameTitle.name}
-          </span>
-          {total > 0 && (
-            <span className="font-condensed text-sm uppercase tracking-wider text-zinc-600">
+      <header className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5">
+        <h1 className="font-condensed text-xl font-extrabold uppercase tracking-[0.08em] text-zinc-50 sm:text-[26px]">
+          Scores
+        </h1>
+        <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.18em] text-fg-4">
+          {gameTitle.name}
+          {total > 0 ? (
+            <>
+              {' · '}
               <span className="tabular-nums">{total}</span> matches
-            </span>
-          )}
-        </div>
+            </>
+          ) : null}
+        </span>
+      </header>
+
+      <div className="space-y-2">
+        <GamesToolbar
+          titles={titles}
+          gameTitle={gameTitle}
+          filters={filters}
+          counts={counts}
+          total={total}
+          showingStart={showingStart}
+          showingEnd={showingEnd}
+        />
+
+        {formMatches.length > 0 && (
+          <LastTenStrip matches={formMatches} listContextQuery={listContextQuery} />
+        )}
       </div>
 
-      <GamesToolbar
-        titles={titles}
-        gameTitle={gameTitle}
-        filters={filters}
-        total={total}
-        page={clampedPage}
-        totalPages={totalPages}
-        showingStart={showingStart}
-        showingEnd={showingEnd}
-      />
-
-      {formMatches.length > 0 && (
-        <div className="space-y-2">
-          <FormStrip matches={formMatches} />
-          <TrendBullets matches={formMatches} />
-        </div>
-      )}
+      {formMatches.length > 0 && <TrendBullets matches={formMatches} />}
 
       {total === 0 ? (
         <EmptyState message={emptyMessage} clearHref={clearFiltersHref(filters)} />
@@ -326,164 +332,184 @@ function gamesHref(filters: GamesFilters, page?: number): string {
   return `/games${qs ? `?${qs}` : ''}`
 }
 
-const MODE_LABELS: { mode: GamesModeFilter; label: string }[] = [
-  { mode: null, label: 'All' },
-  { mode: '6s', label: '6s' },
-  { mode: '3s', label: '3s' },
-  { mode: 'dev', label: 'Dev' },
+const MODE_LABELS: { mode: GamesModeFilter; label: string; tone: FilterTone }[] = [
+  { mode: null, label: 'All', tone: 'accent' },
+  { mode: '6s', label: '6s', tone: 's6' },
+  { mode: '3s', label: '3s', tone: 's3' },
+  { mode: 'dev', label: 'Dev', tone: 'dev' },
 ]
 
-const RESULT_LABELS: { value: ResultFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'WIN', label: 'Wins' },
-  { value: 'LOSS', label: 'Losses' },
-  { value: 'OTL_DNF', label: 'OTL / DNF' },
+const RESULT_LABELS: { value: ResultFilter; label: string; tone: FilterTone }[] = [
+  { value: 'all', label: 'All', tone: 'accent' },
+  { value: 'WIN', label: 'Wins', tone: 'win' },
+  { value: 'LOSS', label: 'Losses', tone: 'loss' },
+  { value: 'OTL_DNF', label: 'OTL/DNF', tone: 'otl' },
 ]
+
+/** Per-tile match counts, in the order of `titles`, MODE_LABELS and RESULT_LABELS. */
+interface FilterCounts {
+  titles: number[]
+  modes: number[]
+  results: number[]
+}
+
+/**
+ * Each tile's count is what that option would show with the OTHER current
+ * filters kept (a Mode tile keeps the title, result and opponent). Small
+ * count queries, run in parallel.
+ */
+async function getFilterCounts(
+  titles: GameTitle[],
+  gameTitleId: number,
+  filters: GamesFilters,
+): Promise<FilterCounts> {
+  const { gameMode, resultFilter, opponent } = filters
+  const [titleCounts, modeCounts, resultCounts] = await Promise.all([
+    Promise.all(
+      titles.map((title) =>
+        countMatches({
+          gameTitleId: title.id,
+          gameMode: dbGameMode(gameMode),
+          result: resultValues(resultFilter),
+          opponent,
+          matchIds: devMatchIds(gameMode),
+        }),
+      ),
+    ),
+    Promise.all(
+      MODE_LABELS.map(({ mode }) =>
+        countMatches({
+          gameTitleId,
+          gameMode: dbGameMode(mode),
+          result: resultValues(resultFilter),
+          opponent,
+          matchIds: devMatchIds(mode),
+        }),
+      ),
+    ),
+    Promise.all(
+      RESULT_LABELS.map(({ value }) =>
+        countMatches({
+          gameTitleId,
+          gameMode: dbGameMode(gameMode),
+          result: resultValues(value),
+          opponent,
+          matchIds: devMatchIds(gameMode),
+        }),
+      ),
+    ),
+  ])
+  return { titles: titleCounts, modes: modeCounts, results: resultCounts }
+}
 
 function GamesToolbar({
   titles,
   gameTitle,
   filters,
+  counts,
   total,
-  page,
-  totalPages,
   showingStart,
   showingEnd,
 }: {
   titles: GameTitle[]
   gameTitle: GameTitle
   filters: GamesFilters
+  counts: FilterCounts
   total: number
-  page: number
-  totalPages: number
   showingStart: number
   showingEnd: number
 }) {
   const hasFilters =
     filters.gameMode !== null || filters.resultFilter !== 'all' || filters.opponent.length > 0
 
+  const groups: FilterGroup[] = [
+    {
+      key: 'title',
+      legend: 'Title',
+      tiles: titles.map((title, i) => ({
+        key: title.slug,
+        label: title.name,
+        count: counts.titles[i] ?? 0,
+        href: gamesHref({ ...filters, titleSlug: title.slug }),
+        active: title.id === gameTitle.id,
+        tone: 'accent',
+      })),
+    },
+    {
+      key: 'mode',
+      legend: 'Mode',
+      tiles: MODE_LABELS.map(({ mode, label, tone }, i) => ({
+        key: label,
+        label,
+        count: counts.modes[i] ?? 0,
+        href: gamesHref({ ...filters, gameMode: mode }),
+        active: mode === filters.gameMode,
+        tone,
+        dot: true,
+      })),
+    },
+    {
+      key: 'result',
+      legend: 'Result',
+      tiles: RESULT_LABELS.map(({ value, label, tone }, i) => ({
+        key: value,
+        label,
+        count: counts.results[i] ?? 0,
+        href: gamesHref({ ...filters, resultFilter: value }),
+        active: value === filters.resultFilter,
+        tone,
+        dot: true,
+      })),
+    },
+  ]
+
   return (
-    <Panel className="space-y-4 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <SegmentedLinks
-            label="Title"
-            items={titles.map((title) => ({
-              key: title.slug,
-              label: title.name,
-              href: gamesHref({ ...filters, titleSlug: title.slug }),
-              active: title.id === gameTitle.id,
-            }))}
+    <GamesFilterPanel groups={groups}>
+      <form action="/games" className="flex w-full min-w-0 flex-col gap-1.5 sm:max-w-md">
+        {filters.titleSlug ? <input type="hidden" name="title" value={filters.titleSlug} /> : null}
+        {filters.gameMode !== null ? (
+          <input type="hidden" name="mode" value={filters.gameMode} />
+        ) : null}
+        {filters.resultFilter !== 'all' ? (
+          <input type="hidden" name="result" value={filters.resultFilter} />
+        ) : null}
+        <label htmlFor="games-opponent" className="gf-lbl">
+          Opponent
+        </label>
+        <div className="flex">
+          <input
+            id="games-opponent"
+            name="opponent"
+            defaultValue={filters.opponent}
+            placeholder="Search opponent"
+            className="min-w-0 flex-1 border border-border bg-[#1c1a1b] px-3 py-2 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-zinc-500"
           />
-          <SegmentedLinks
-            label="Mode"
-            items={MODE_LABELS.map(({ mode, label }) => ({
-              key: label,
-              label,
-              href: gamesHref({ ...filters, gameMode: mode }),
-              active: mode === filters.gameMode,
-            }))}
-          />
-          <SegmentedLinks
-            label="Result"
-            items={RESULT_LABELS.map(({ value, label }) => ({
-              key: value,
-              label,
-              href: gamesHref({ ...filters, resultFilter: value }),
-              active: value === filters.resultFilter,
-            }))}
-          />
-        </div>
-
-        <div className="font-condensed text-xs font-semibold uppercase tracking-widest tabular-nums text-zinc-500">
-          {total > 0
-            ? `Showing ${showingStart.toString()}–${showingEnd.toString()} of ${total.toString()}`
-            : 'No matches'}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 border-t border-zinc-800 pt-4 sm:flex-row sm:items-end sm:justify-between">
-        <form action="/games" className="flex flex-1 flex-col gap-1.5 sm:max-w-md">
-          {filters.titleSlug ? (
-            <input type="hidden" name="title" value={filters.titleSlug} />
-          ) : null}
-          {filters.gameMode !== null ? (
-            <input type="hidden" name="mode" value={filters.gameMode} />
-          ) : null}
-          {filters.resultFilter !== 'all' ? (
-            <input type="hidden" name="result" value={filters.resultFilter} />
-          ) : null}
-          <label
-            htmlFor="games-opponent"
-            className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500"
+          <button
+            type="submit"
+            className="border border-l-0 border-border bg-surface px-4 py-2 font-condensed text-xs font-bold uppercase tracking-widest text-zinc-300 transition-colors hover:bg-surface-raised hover:text-zinc-50"
           >
-            Opponent
-          </label>
-          <div className="flex">
-            <input
-              id="games-opponent"
-              name="opponent"
-              defaultValue={filters.opponent}
-              placeholder="Search opponent"
-              className="min-w-0 flex-1 border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-zinc-500"
-            />
-            <button
-              type="submit"
-              className="border border-l-0 border-zinc-700 bg-zinc-900 px-4 py-2 font-condensed text-xs font-bold uppercase tracking-widest text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-50"
-            >
-              Apply
-            </button>
-          </div>
-        </form>
+            Apply
+          </button>
+        </div>
+      </form>
 
+      <div className="flex items-center gap-4">
         {hasFilters ? (
           <Link
             prefetch
             href={clearFiltersHref(filters)}
-            className="font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-500 transition-colors hover:text-zinc-200"
+            className="font-condensed text-xs font-semibold uppercase tracking-widest text-accent-readable transition-colors hover:text-zinc-50"
           >
             Clear filters
           </Link>
         ) : null}
+        <span className="font-condensed text-xs font-semibold uppercase tracking-widest tabular-nums text-fg-5">
+          {total > 0
+            ? `Showing ${showingStart.toString()}–${showingEnd.toString()} of ${total.toString()}`
+            : 'No matches'}
+        </span>
       </div>
-    </Panel>
-  )
-}
-
-function SegmentedLinks({
-  label,
-  items,
-}: {
-  label: string
-  items: { key: string; label: string; href: string; active: boolean }[]
-}) {
-  return (
-    <div className="flex items-center gap-2" role="group" aria-label={label}>
-      <span
-        aria-hidden
-        className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-fg-5"
-      >
-        {label}
-      </span>
-      <div className="flex overflow-hidden border border-zinc-700">
-        {items.map((item) => (
-          <Link
-            prefetch
-            key={item.key}
-            href={item.href}
-            aria-current={item.active ? 'true' : undefined}
-            className={[
-              'border-r border-zinc-700 px-3 py-1.5 font-condensed text-xs font-bold uppercase tracking-widest transition-colors last:border-r-0',
-              item.active
-                ? 'bg-accent text-white'
-                : 'bg-zinc-950 text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200',
-            ].join(' ')}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </div>
-    </div>
+    </GamesFilterPanel>
   )
 }
 
@@ -624,29 +650,6 @@ interface FormMatch {
   shotsFor: number
   shotsAgainst: number
   scoreAgainst: number
-}
-
-function FormStrip({ matches }: { matches: FormMatch[] }) {
-  const wins = matches.filter((m) => m.result === 'WIN').length
-  const losses = matches.filter((m) => m.result === 'LOSS' || m.result === 'DNF').length
-  const otl = matches.filter((m) => m.result === 'OTL').length
-  const n = matches.length
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      <span className="font-condensed text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-        Last <span className="tabular-nums">{n}</span>
-      </span>
-      <div className="flex items-center gap-1">
-        {matches.map((m, i) => (
-          <ResultPill key={i} result={m.result} size="sm" />
-        ))}
-      </div>
-      <span className="font-condensed text-sm font-bold tabular-nums text-zinc-400">
-        {wins}-{losses}-{otl}
-      </span>
-    </div>
-  )
 }
 
 function TrendBullets({ matches }: { matches: FormMatch[] }) {
