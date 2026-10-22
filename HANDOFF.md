@@ -46,7 +46,7 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 ## Latest Verified Checkpoint
 
-**2026-10-21 — Next.js 15.5.28 security upgrade deployed** (web `b366d19`, with the Safari depth-chart fix `e8f27d3`; rollback `:rollback-he-2026-10-21-pre-next-sec`). Fixes the Server Actions DoS (GHSA-p3m5-59mp-jv5r). PHP2Shell does not apply (no PHP anywhere). [Journal 2026-10-21](docs/journal/2026-10.md).
+**2026-10-21 — design imports deployed** (web `6745609`: Scores filter, phone layouts, hero pills; rollback `:rollback-he-2026-10-21-pre-redesigns`). Also Next.js 15.5.28 (`b366d19`, `:rollback-he-2026-10-21-pre-next-sec`). [Journal 2026-10-21](docs/journal/2026-10.md).
 
 **2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean.
 
@@ -71,7 +71,7 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 - **Production is Hotel-Echo** since 2026-10-05 14:25 (`ssh hotel-echo`,
   Tailscale `100.98.29.119`, repo `~/eanhl-team-website`): web, worker, db
-  and nightly backup (web at `b366d19`, worker at `3616aab`), web and worker as the non-root
+  and nightly backup (web at `6745609`, worker at `3616aab`), web and worker as the non-root
   `node` user (container logs capped at
   3 × 10 MB; worker heartbeat pinging the "eanhl collector" Healthchecks
   check via `HC_WORKER_PING_URL` in its `.env`). Its live DB holds 277 matches (449-match union minus the 172 quarantined). Older rollback images (`:rollback-he-2026-10-05-*`, `:rollback-he-2026-09-04`) and the old Hotel-Echo DB `eanhl_he_old` are kept; the main-PC fallback below.
