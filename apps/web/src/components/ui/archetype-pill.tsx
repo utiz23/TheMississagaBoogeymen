@@ -159,15 +159,22 @@ export function ArchetypePillCompact({ archetype }: { archetype: PlayerArchetype
 
 /**
  * Flagship 38px pill — primary archetype display, used in player cards
- * and any context that wants the full name + role line.
+ * and any context that wants the full name + role line. `showRole={false}`
+ * drops the role line (the profile hero: one-line labels across its pills).
  */
-export function ArchetypePillFlagship({ archetype }: { archetype: PlayerArchetype }) {
+export function ArchetypePillFlagship({
+  archetype,
+  showRole = true,
+}: {
+  archetype: PlayerArchetype
+  showRole?: boolean
+}) {
   const meta = META[archetype]
   const [prefix, accent] = meta.name
   const roleLine = `${meta.category === 'Forward' ? 'FWD' : 'DEF'} · ${meta.id}`
   const stamp = meta.id.replace('A·', '')
   return (
-    <span className="arc" style={styleVars(meta)}>
+    <span className="arc" style={styleVars(meta)} title={`${prefix}${accent} · ${roleLine}`}>
       <span className="ico">
         <ArchetypeIcon archetype={archetype} />
       </span>
@@ -176,7 +183,7 @@ export function ArchetypePillFlagship({ archetype }: { archetype: PlayerArchetyp
           {prefix}
           <b>{accent}</b>
         </span>
-        <span className="role">{roleLine}</span>
+        {showRole && <span className="role">{roleLine}</span>}
       </span>
       <span className="stamp">{stamp}</span>
     </span>

@@ -40,17 +40,19 @@ export type ShortPositionKey = 'C' | 'LW' | 'RW' | 'LD' | 'RD' | 'G' | 'W' | 'D'
 interface PositionMeta {
   tag: string
   colorVar: string
+  /** Same colour as a bare `r, g, b` triplet var, for `rgba(var(...), a)` tints. */
+  rgbVar: string
 }
 
 export const POSITION_META: Readonly<Record<LongPositionKey, PositionMeta>> = {
-  center: { tag: 'C', colorVar: 'var(--pos-c)' },
-  leftWing: { tag: 'LW', colorVar: 'var(--pos-lw)' },
-  rightWing: { tag: 'RW', colorVar: 'var(--pos-rw)' },
-  wing: { tag: 'W', colorVar: 'var(--pos-w)' },
-  defenseMen: { tag: 'D', colorVar: 'var(--pos-d)' },
-  leftDefenseMen: { tag: 'LD', colorVar: 'var(--pos-ld)' },
-  rightDefenseMen: { tag: 'RD', colorVar: 'var(--pos-rd)' },
-  goalie: { tag: 'G', colorVar: 'var(--pos-g)' },
+  center: { tag: 'C', colorVar: 'var(--pos-c)', rgbVar: 'var(--pos-c-rgb)' },
+  leftWing: { tag: 'LW', colorVar: 'var(--pos-lw)', rgbVar: 'var(--pos-lw-rgb)' },
+  rightWing: { tag: 'RW', colorVar: 'var(--pos-rw)', rgbVar: 'var(--pos-rw-rgb)' },
+  wing: { tag: 'W', colorVar: 'var(--pos-w)', rgbVar: 'var(--pos-w-rgb)' },
+  defenseMen: { tag: 'D', colorVar: 'var(--pos-d)', rgbVar: 'var(--pos-d-rgb)' },
+  leftDefenseMen: { tag: 'LD', colorVar: 'var(--pos-ld)', rgbVar: 'var(--pos-ld-rgb)' },
+  rightDefenseMen: { tag: 'RD', colorVar: 'var(--pos-rd)', rgbVar: 'var(--pos-rd-rgb)' },
+  goalie: { tag: 'G', colorVar: 'var(--pos-g)', rgbVar: 'var(--pos-g-rgb)' },
 }
 
 const SHORT_TO_LONG: Readonly<Record<ShortPositionKey, LongPositionKey>> = {
@@ -82,4 +84,17 @@ export function colorForPosition(pos: string | null | undefined): string {
   // Long-form: 'center' | 'leftWing' | ...
   if (pos in POSITION_META) return POSITION_META[pos as LongPositionKey].colorVar
   return 'var(--color-fg-5)'
+}
+
+/**
+ * Lookup the position's colour as an `r, g, b` triplet var (e.g.
+ * `var(--pos-c-rgb)`), for `rgba()` tints. Same keys and neutral fallback as
+ * `colorForPosition`.
+ */
+export function rgbForPosition(pos: string | null | undefined): string {
+  const neutral = '154, 151, 152'
+  if (!pos) return neutral
+  if (pos in SHORT_TO_LONG) return POSITION_META[SHORT_TO_LONG[pos as ShortPositionKey]].rgbVar
+  if (pos in POSITION_META) return POSITION_META[pos as LongPositionKey].rgbVar
+  return neutral
 }

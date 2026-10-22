@@ -7,7 +7,12 @@ import type {
 } from '@eanhl/db/queries'
 import type { GameMode, PlayerArchetype } from '@eanhl/db'
 import { PLAYER_ARCHETYPES } from '@eanhl/db'
-import { NationalityFlag, PlatformIcon } from '@/components/player-meta-icons'
+import {
+  DerivedRolePill,
+  NationalityPill,
+  PlatformPill,
+  PositionPill,
+} from '@/components/roster/hero-pills'
 import { ArchetypePillFlagship } from '@/components/ui/archetype-pill'
 import { formatPositionFull, formatRecord, formatSavePct, headingName } from '@/lib/format'
 import { formatCareerTitleRange } from '@/lib/title-resolver'
@@ -29,7 +34,7 @@ interface PositionEntry {
   gp: number
 }
 
-import { POSITION_META as POSITION_META_SHARED, colorForPosition } from '@/lib/position-colors'
+import { POSITION_META as POSITION_META_SHARED } from '@/lib/position-colors'
 
 // Roster profile renders a per-position table; pick the relevant subset of
 // the shared palette and expose the same `POSITION_META` shape this file
@@ -117,7 +122,6 @@ export function ProfileHero({
   const displayPosition =
     player.preferredPosition ?? currentEaSeason?.favoritePosition ?? player.position
   const positionFull = displayPosition ? formatPositionFull(displayPosition) : null
-  const positionColor = colorForPosition(displayPosition)
 
   // Manually-assigned archetype always wins over the stat-derived heuristic.
   const manualArchetype = asArchetype(player.archetype)
@@ -190,33 +194,20 @@ export function ProfileHero({
             </div>
 
             <div className="ph-pills">
-              {positionFull !== null && (
-                <span className="ph-pill pos" style={{ '--pos': positionColor } as CSSProperties}>
-                  <span className="swatch" style={{ background: positionColor }} aria-hidden />
-                  {positionFull}
-                </span>
+              {displayPosition && positionFull !== null && (
+                <PositionPill position={displayPosition} fallbackLabel={positionFull} />
               )}
               {manualArchetype === null && archetypeLabel !== null && (
-                <span className="ph-pill role">
-                  <span className="dot" aria-hidden />
-                  {archetypeLabel}
-                </span>
+                <DerivedRolePill label={archetypeLabel} />
               )}
-              {manualArchetype !== null && <ArchetypePillFlagship archetype={manualArchetype} />}
-              {player.nationality !== null && (
-                <span className="ph-pill flag">
-                  <span className="flag-icon" aria-hidden>
-                    <NationalityFlag code={player.nationality} />
-                  </span>
-                  {player.nationality}
-                </span>
+              {manualArchetype !== null && (
+                <ArchetypePillFlagship archetype={manualArchetype} showRole={false} />
               )}
-              <span className="ph-pill gt">
-                <span className="gt-icon" aria-hidden>
-                  <PlatformIcon platform={currentEaSeason?.clientPlatform ?? null} />
-                </span>
-                {player.gamertag}
-              </span>
+              {player.nationality !== null && <NationalityPill nationality={player.nationality} />}
+              <PlatformPill
+                platform={currentEaSeason?.clientPlatform ?? null}
+                gamertag={player.gamertag}
+              />
             </div>
 
             {/* Micro tier only: the ledger column is hidden there, so this

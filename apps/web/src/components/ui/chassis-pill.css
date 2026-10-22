@@ -1,0 +1,57 @@
+/* ============================================================
+   Chassis pill — the `.arc` flagship chassis (archetype-pill.css)
+   reused for position / nationality / platform pills. Only the
+   differences live here: icon modes and label truncation.
+   ============================================================ */
+
+.chp {
+  max-width: 100%;
+}
+.chp .ico {
+  overflow: hidden;
+}
+.chp .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Wrapper for glyphs that mirror (position wings / shields) */
+.chp .ico .pos-glyph {
+  display: flex;
+}
+.chp .ico .pos-glyph.flip {
+  transform: scaleX(-1);
+}
+
+.chp.ico-glyph-lg .ico svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Flag covers the slot edge to edge — no tint, no glow */
+.chp.ico-fill .ico svg {
+  width: 100%;
+  height: 100%;
+  filter: none;
+}
+
+/* Brand mark in white with a glow in the pill's tint */
+.chp.ico-white .ico svg {
+  color: #ffffff;
+  filter: drop-shadow(0 0 6px rgba(var(--c-rgb), 0.9));
+}
+
+/* Placeholder glyph (unknown flag / platform) — quiet, untinted */
+.chp.ico-muted .ico svg {
+  color: rgb(var(--c-rgb));
+  filter: none;
+}
+
+/* Dot glyph for pills without a mark (derived role, unknown position) */
+.chp .ico .pos-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 8px rgba(var(--c-rgb), 0.8);
+}

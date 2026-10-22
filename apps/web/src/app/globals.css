@@ -65,6 +65,16 @@
   --pos-d: var(--pos-ld); /* Generic D fallback when L/R is unknown */
   --pos-w: var(--pos-lw); /* Generic W fallback when L/R is unknown (3s ladder) */
   --pos-g: #6f00a5;
+  /* Same palette as bare RGB triplets, for `rgba(var(--pos-*-rgb), a)` tints
+     (hero pill chassis). Keep in step with the hex values above. */
+  --pos-c-rgb: 192, 6, 28;
+  --pos-lw-rgb: 35, 207, 29;
+  --pos-rw-rgb: 38, 89, 207;
+  --pos-ld-rgb: 19, 223, 200;
+  --pos-rd-rgb: 236, 227, 53;
+  --pos-d-rgb: var(--pos-ld-rgb);
+  --pos-w-rgb: var(--pos-lw-rgb);
+  --pos-g-rgb: 111, 0, 165;
 
   /* Game-sheet lineup POS cell — the prototype's de-rainbowed single neutral
      (`POS_COLOR = '#8B93A7'`). The six-hue palette above still drives the

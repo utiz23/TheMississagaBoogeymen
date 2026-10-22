@@ -276,93 +276,8 @@
   gap: 8px;
   align-items: center;
 }
-.ph-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  border: 1px solid rgba(63, 63, 70, 0.6);
-  background: rgba(20, 18, 19, 0.6);
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--color-fg-2);
-}
-.ph-pill .swatch {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.ph-pill.num {
-  border-color: rgba(232, 65, 49, 0.5);
-  background: rgba(232, 65, 49, 0.12);
-  color: var(--color-accent);
-  font-family: ui-monospace, 'JetBrains Mono', monospace;
-  letter-spacing: 0.04em;
-  font-size: 12px;
-}
-.ph-pill.role {
-  border-color: rgba(232, 65, 49, 0.5);
-  background: rgba(232, 65, 49, 0.1);
-  color: #ff8a7a;
-}
-.ph-pill.role .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  box-shadow: 0 0 8px rgba(232, 65, 49, 0.8);
-}
-.ph-pill.flag {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.ph-pill.flag .flag-icon {
-  width: 16px;
-  height: 11px;
-  border-radius: 1px;
-  overflow: hidden;
-  display: inline-flex;
-}
-.ph-pill.flag .flag-icon svg {
-  width: 100%;
-  height: 100%;
-}
-/* Gamertag pill — platform glyph + EA gamertag (e.g. "silkyjoker85") */
-.ph-pill.gt {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  text-transform: none;
-  letter-spacing: 0.04em;
-  font-family: ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: var(--color-fg-2);
-}
-.ph-pill.gt .gt-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-}
-.ph-pill.gt .gt-icon svg {
-  width: 14px;
-  height: 14px;
-}
-.ph-pill.pos {
-  /* pos color is set inline via --pos.
-     Spec formula (docs/specs/position-colors.md):
-       text = base hex (full opacity)
-       border = base @ 40%
-       bg = base @ 10% */
-  border-color: color-mix(in srgb, var(--pos, var(--color-border)) 40%, transparent);
-  background: color-mix(in srgb, var(--pos, var(--color-fg-5)) 10%, transparent);
-  color: var(--pos, var(--color-fg-2));
-}
+/* The pills themselves are the shared chassis (ui/chassis-pill.css,
+   ui/archetype-pill.css); see roster/hero-pills.tsx. */
 
 /* Bottom cluster — bio + role tabs anchored to the bottom of col-id */
 .ph-bottom {
@@ -906,15 +821,6 @@
   }
   .ph-nameplate .gamertag {
     font-size: 28px;
-  }
-  .ph-pill.pos {
-    gap: 6px;
-    padding: 4px 9px;
-    font-size: 10px;
-  }
-  .ph-pill.pos .swatch {
-    width: 7px;
-    height: 7px;
   }
   /* The mini table takes the bottom anchor; the bio is dropped at this size. */
   .ph-bottom {

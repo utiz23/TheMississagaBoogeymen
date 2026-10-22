@@ -1,17 +1,39 @@
 // ─── Nationality flag ─────────────────────────────────────────────────────────
 // Twemoji-style emoji flags (viewBox 0 0 36 36). Rendered at ~h-5 w-5.
+// `fill` crops the transparent margin off and covers the parent box edge to
+// edge (the hero nationality pill's icon slot).
 
-export function NationalityFlag({ code }: { code: string | null }) {
+/** Normalise a free-text nationality to the flags we draw; null for the rest. */
+export function nationalityKey(code: string | null): 'ca' | 'us' | null {
   const normalized = code?.toLowerCase() ?? ''
-  if (normalized === 'ca' || normalized === 'can' || normalized === 'canada') return <CanadaFlag />
-  if (normalized === 'us' || normalized === 'usa' || normalized === 'united states')
-    return <UsFlag />
+  if (normalized === 'ca' || normalized === 'can' || normalized === 'canada') return 'ca'
+  if (normalized === 'us' || normalized === 'usa' || normalized === 'united states') return 'us'
+  return null
+}
+
+export function NationalityFlag({ code, fill = false }: { code: string | null; fill?: boolean }) {
+  const key = nationalityKey(code)
+  const box = fill ? FILL_BOX : ICON_BOX
+  if (key === 'ca') return <CanadaFlag box={box} />
+  if (key === 'us') return <UsFlag box={box} />
   return <PlaceholderFlag />
 }
 
-function CanadaFlag() {
+interface FlagBox {
+  viewBox: string
+  preserveAspectRatio?: string
+  className: string
+}
+const ICON_BOX: FlagBox = { viewBox: '0 0 36 36', className: 'h-[38px] w-[38px]' }
+const FILL_BOX: FlagBox = {
+  viewBox: '0 5 36 26',
+  preserveAspectRatio: 'xMidYMid slice',
+  className: 'block h-full w-full',
+}
+
+function CanadaFlag({ box }: { box: FlagBox }) {
   return (
-    <svg viewBox="0 0 36 36" className="h-[38px] w-[38px]" aria-label="Canada" role="img">
+    <svg {...box} aria-label="Canada" role="img">
       <path
         fill="#D52B1E"
         d="M4 5a4 4 0 0 0-4 4v18a4 4 0 0 0 4 4h6V5H4zm28 0h-6v26h6a4 4 0 0 0 4-4V9a4 4 0 0 0-4-4z"
@@ -25,9 +47,9 @@ function CanadaFlag() {
   )
 }
 
-function UsFlag() {
+function UsFlag({ box }: { box: FlagBox }) {
   return (
-    <svg viewBox="0 0 36 36" className="h-[38px] w-[38px]" aria-label="United States" role="img">
+    <svg {...box} aria-label="United States" role="img">
       <path
         fill="#B22334"
         d="M35.445 7C34.752 5.809 33.477 5 32 5H18v2h17.445zM0 25h36v2H0zm18-8h18v2H18zm0-4h18v2H18zM0 21h36v2H0zm4 10h28c1.477 0 2.752-.809 3.445-2H.555c.693 1.191 1.968 2 3.445 2zM18 9h18v2H18z"
@@ -57,30 +79,45 @@ function PlaceholderFlag() {
 
 // ─── Platform icon ─────────────────────────────────────────────────────────────
 // Xbox: green sphere logo. PlayStation: blue PS wordmark shape.
+// `mono` paints the logo in currentColor (the hero platform pill draws it white).
 
-export function PlatformIcon({ platform }: { platform: string | null }) {
-  if (platform === null) return <PlaceholderPlatform />
-  if (platform.startsWith('xb')) return <XboxIcon />
-  if (platform.startsWith('ps')) return <PlayStationIcon />
+/** Normalise an EA client platform string; null when unknown. */
+export function platformKey(platform: string | null): 'xbox' | 'playstation' | null {
+  if (platform === null) return null
+  if (platform.startsWith('xb')) return 'xbox'
+  if (platform.startsWith('ps')) return 'playstation'
+  return null
+}
+
+export function PlatformIcon({
+  platform,
+  mono = false,
+}: {
+  platform: string | null
+  mono?: boolean
+}) {
+  const key = platformKey(platform)
+  if (key === 'xbox') return <XboxIcon mono={mono} />
+  if (key === 'playstation') return <PlayStationIcon mono={mono} />
   return <PlaceholderPlatform />
 }
 
-function XboxIcon() {
+function XboxIcon({ mono }: { mono: boolean }) {
   return (
     <svg viewBox="0 0 32 32" className="h-4 w-4" aria-label="Xbox" role="img">
       <path
-        fill="#107C10"
+        fill={mono ? 'currentColor' : '#107C10'}
         d="M16 5.425c-1.888-1.125-4.106-1.922-6.473-2.249l-.092-.01a1.72 1.72 0 0 0-.234-.008c-.613 0-1.188.16-1.687.441l.017-.009C9.888 1.956 12.808.98 15.957.98h.024c.005 0 .011 0 .018 0 3.157 0 6.086.976 8.501 2.642l-.05-.033a2.68 2.68 0 0 0-1.662-.433c-.085 0-.169.003-.252.009l.011-.001c-2.459.336-4.677 1.13-6.648 2.297l.082-.045zM5.554 5.268a.38.38 0 0 0-.11.054l.002-.001C2.688 8.044.98 11.825.98 16.005c0 3.584 1.256 6.875 3.353 9.457l-.022-.028C2.557 22.173 8.791 12.98 11.921 9.275 8.391 5.754 6.644 5.213 5.906 5.213c-.01 0-.021-.001-.032-.001-.115 0-.225.021-.326.06l.006-.002zm14.529 4.007c3.129 3.706 9.367 12.908 7.605 16.161C29.763 22.882 31.02 19.59 31.02 16c0-4.181-1.709-7.962-4.467-10.684l-.002-.002a.38.38 0 0 0-.1-.052l-.003-.001c-.1-.036-.216-.056-.336-.056-.005 0-.011 0-.016 0h.001c-.741 0-2.485.543-6.014 4.063zM6.114 27.306c2.627 2.306 6.093 3.714 9.888 3.714s7.261-1.407 9.905-3.728l-.017.015C28.239 24.914 20.488 16.407 16 13.017c-4.483 3.39-12.24 11.897-9.886 14.29z"
       />
     </svg>
   )
 }
 
-function PlayStationIcon() {
+function PlayStationIcon({ mono }: { mono: boolean }) {
   return (
     <svg viewBox="0 0 32 32" className="h-4 w-4" aria-label="PlayStation" role="img">
       <path
-        fill="#0070D1"
+        fill={mono ? 'currentColor' : '#0070D1'}
         d="M3.262 24.248c-2.374-.681-2.767-2.084-1.69-2.899.776-.51 1.668-.954 2.612-1.288l.087-.027 7.017-2.516v2.89l-5.03 1.839c-.881.339-1.031.79-.299 1.032.365.093.783.147 1.214.147.615 0 1.204-.109 1.749-.308l-.035.011 2.422-.882v2.592c-.15.037-.32.055-.487.091-.775.136-1.667.214-2.577.214-1.778 0-3.486-.298-5.078-.846l.11.033zm14.787.296l7.868-2.843c.893-.322 1.032-.781.307-1.022a3.65 3.65 0 0 0-1.208-.14c-.622 0-1.22.108-1.774.305l.037-.011-5.255 1.874v-2.983l.3-.106c1.05-.349 2.284-.62 3.557-.761l.083-.008c.468-.05 1.01-.078 1.559-.078 1.877 0 3.677.331 5.343.939l-.108-.035c2.309.751 2.549 1.839 1.969 2.589-.559.557-1.235.998-1.988 1.282l-.039.013-10.677 3.883v-2.869zM12.231 4.248v21.927l4.892 1.576V9.361c0-.862.38-1.438.992-1.238.795.225.95 1.017.95 1.881v7.342c3.05 1.491 5.451-.003 5.451-3.939 0-4.045-1.407-5.842-5.546-7.282-1.785-.648-4.04-1.294-6.347-1.805l-.389-.072z"
       />
     </svg>
