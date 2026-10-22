@@ -37,7 +37,20 @@ interface ScoringLeadersPanelProps {
 }
 
 type View = 'skaters' | 'goalies'
+/** Which of the two columns the phone tab bar shows (0 = left, 1 = right). */
+type Tab = 0 | 1
 const ROWS_VISIBLE = 6
+
+interface ColumnSpec {
+  eyebrow: string
+  listLabel: string
+  listPip: string
+  spotlightStats: (r: ScoringLeaderRow) => SpotlightStat[]
+  rows: ScoringLeaderRow[]
+  valueOf: (r: ScoringLeaderRow) => number | string
+  /** Numeric value for the phone list's bar (value / leader value). */
+  barOf: (r: ScoringLeaderRow) => number
+}
 
 /**
  * Scoring Leaders frame — broadcast-style "▌ Scoring · Points" module with
@@ -46,6 +59,9 @@ const ROWS_VISIBLE = 6
  *
  * In skaters mode: Points leader column + Goals leader column.
  * In goalies mode: Wins leader column + Save % leader column.
+ *
+ * Phones (≤720px) show one column at a time: a Points/Goals (or Wins/Save %)
+ * tab bar picks it. Above 720px the tab bar is hidden and both columns show.
  */
 export function ScoringLeadersPanel({
   pointsLeaders,
@@ -56,6 +72,7 @@ export function ScoringLeadersPanel({
   teamGp,
 }: ScoringLeadersPanelProps) {
   const [view, setView] = useState<View>('skaters')
+  const [tab, setTab] = useState<Tab>(0)
 
   const hasGoalies = goalieLeaders.length > 0
   const hasSkaters = pointsLeaders.length > 0 || goalsLeaders.length > 0
@@ -68,8 +85,71 @@ export function ScoringLeadersPanel({
     .sort((a, b) => parseFloat(b.savePct ?? '0') - parseFloat(a.savePct ?? '0'))
     .slice(0, ROWS_VISIBLE)
 
+  const columns: [ColumnSpec, ColumnSpec] =
+    view === 'skaters'
+      ? [
+          {
+            eyebrow: 'Points Leader',
+            listLabel: 'Points',
+            listPip: 'PTS',
+            spotlightStats: (r) => [
+              { label: 'PTS', value: r.points, lead: true },
+              { label: 'G', value: r.goals },
+              { label: 'A', value: r.assists },
+            ],
+            rows: pointsLeaders.slice(0, ROWS_VISIBLE),
+            valueOf: (r) => r.points,
+            barOf: (r) => r.points,
+          },
+          {
+            eyebrow: 'Goals Leader',
+            listLabel: 'Goals',
+            listPip: 'G',
+            spotlightStats: (r) => [
+              { label: 'G', value: r.goals, lead: true },
+              { label: 'A', value: r.assists },
+              { label: 'PTS', value: r.points },
+            ],
+            rows: goalsLeaders.slice(0, ROWS_VISIBLE),
+            valueOf: (r) => r.goals,
+            barOf: (r) => r.goals,
+          },
+        ]
+      : [
+          {
+            eyebrow: 'Wins Leader',
+            listLabel: 'Wins',
+            listPip: 'W',
+            spotlightStats: (r) => [
+              { label: 'W', value: r.goalieWins ?? 0, lead: true },
+              { label: 'GP', value: r.goalieGp },
+              { label: 'SV%', value: formatSavePct(r.savePct) },
+            ],
+            rows: winsBoard,
+            valueOf: (r) => r.goalieWins ?? 0,
+            barOf: (r) => r.goalieWins ?? 0,
+          },
+          {
+            eyebrow: 'Save % Leader',
+            listLabel: 'Save %',
+            listPip: 'SV%',
+            spotlightStats: (r) => [
+              { label: 'SV%', value: formatSavePct(r.savePct), lead: true },
+              { label: 'W', value: r.goalieWins ?? 0 },
+              { label: 'GP', value: r.goalieGp },
+            ],
+            rows: savePctBoard,
+            valueOf: (r) => formatSavePct(r.savePct),
+            barOf: (r) => parseFloat(r.savePct ?? '0'),
+          },
+        ]
+
   const titleWord = view === 'skaters' ? 'Scoring' : 'Goaltending'
-  const titleMetric = view === 'skaters' ? 'Points' : 'Wins'
+  // "Goaltending · Save %" does not fit beside the toggle on a phone.
+  const titleWordShort = view === 'skaters' ? 'Scoring' : 'Goalies'
+  // Desktop never changes `tab` (its tab bar is hidden), so it keeps the
+  // first column's metric; phones name the tab they show.
+  const titleMetric = columns[tab].listLabel
 
   const ctaHref = gameMode != null ? `/stats?mode=${gameMode}` : '/stats'
   const modeLabel = gameMode ?? 'All Modes'
@@ -81,7 +161,8 @@ export function ScoringLeadersPanel({
       <header className="sl-head">
         <span className="sl-title">
           <span className="accent">▌</span>
-          {titleWord}
+          <span className="word-long">{titleWord}</span>
+          <span className="word-short">{titleWordShort}</span>
           <span className="sep">·</span>
           <span className="metric">{titleMetric}</span>
         </span>
@@ -110,62 +191,26 @@ export function ScoringLeadersPanel({
         </div>
       </header>
 
+      <div className="sl-tabs" role="tablist" aria-label="Metric">
+        {columns.map((c, i) => (
+          <button
+            key={c.listLabel}
+            type="button"
+            role="tab"
+            aria-selected={tab === i}
+            onClick={() => {
+              setTab(i as Tab)
+            }}
+          >
+            {c.listLabel} <span className="pip">{c.listPip}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="sl-body">
-        {view === 'skaters' ? (
-          <>
-            <LeaderColumn
-              eyebrow="Points Leader"
-              listLabel="Points"
-              listPip="PTS"
-              spotlightStats={(r) => [
-                { label: 'PTS', value: r.points, lead: true },
-                { label: 'G', value: r.goals },
-                { label: 'A', value: r.assists },
-              ]}
-              rows={pointsLeaders.slice(0, ROWS_VISIBLE)}
-              valueOf={(r) => r.points}
-            />
-            <LeaderColumn
-              eyebrow="Goals Leader"
-              listLabel="Goals"
-              listPip="G"
-              spotlightStats={(r) => [
-                { label: 'G', value: r.goals, lead: true },
-                { label: 'A', value: r.assists },
-                { label: 'PTS', value: r.points },
-              ]}
-              rows={goalsLeaders.slice(0, ROWS_VISIBLE)}
-              valueOf={(r) => r.goals}
-            />
-          </>
-        ) : (
-          <>
-            <LeaderColumn
-              eyebrow="Wins Leader"
-              listLabel="Wins"
-              listPip="W"
-              spotlightStats={(r) => [
-                { label: 'W', value: r.goalieWins ?? 0, lead: true },
-                { label: 'GP', value: r.goalieGp },
-                { label: 'SV%', value: formatSavePct(r.savePct) },
-              ]}
-              rows={winsBoard}
-              valueOf={(r) => r.goalieWins ?? 0}
-            />
-            <LeaderColumn
-              eyebrow="Save % Leader"
-              listLabel="Save %"
-              listPip="SV%"
-              spotlightStats={(r) => [
-                { label: 'SV%', value: formatSavePct(r.savePct), lead: true },
-                { label: 'W', value: r.goalieWins ?? 0 },
-                { label: 'GP', value: r.goalieGp },
-              ]}
-              rows={savePctBoard}
-              valueOf={(r) => formatSavePct(r.savePct)}
-            />
-          </>
-        )}
+        {columns.map((c, i) => (
+          <LeaderColumn key={`${view}-${c.listLabel}`} active={tab === i} {...c} />
+        ))}
       </div>
 
       <footer className="sl-foot">
@@ -202,25 +247,24 @@ interface SpotlightStat {
 }
 
 function LeaderColumn({
+  active,
   eyebrow,
   listLabel,
   listPip,
   spotlightStats,
   rows,
   valueOf,
-}: {
-  eyebrow: string
-  listLabel: string
-  listPip: string
-  spotlightStats: (r: ScoringLeaderRow) => SpotlightStat[]
-  rows: ScoringLeaderRow[]
-  valueOf: (r: ScoringLeaderRow) => number | string
+  barOf,
+}: ColumnSpec & {
+  /** Selected in the phone tab bar; phones hide the inactive column. */
+  active: boolean
 }) {
   // Local hover state — each column tracks its own focused row so hovering
   // one column's list doesn't change the other column's spotlight.
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
   const leader = rows[0]
+  const leaderBar = leader ? barOf(leader) : 0
   const focusedIndex = hoveredIndex ?? 0
   const focused = rows[focusedIndex] ?? leader
 
@@ -232,7 +276,7 @@ function LeaderColumn({
       : eyebrow
 
   return (
-    <div className="sl-col">
+    <div className={active ? 'sl-col is-active' : 'sl-col'}>
       {focused ? (
         <PlayerLink playerId={focused.playerId} className="sl-spot" aria-live="polite">
           <span className="sl-spot-eyebrow">{focusedEyebrow}</span>
@@ -279,7 +323,11 @@ function LeaderColumn({
         }}
       >
         <span className="sub">
-          {listLabel} <span className="pip">{listPip}</span>
+          <span>
+            <span className="sub-top">Top {String(rows.length)} · </span>
+            {listLabel}
+          </span>{' '}
+          <span className="pip">{listPip}</span>
         </span>
         {rows.length === 0 ? (
           <p className="sl-list-empty">No qualifying players yet.</p>
@@ -304,16 +352,25 @@ function LeaderColumn({
                 <span className="sl-dot">
                   <SilhouetteIcon />
                 </span>
-                <span className="sl-name">{r.gamertag}</span>
-                <span
-                  className="sl-pos-tag"
-                  style={
-                    positionVar(r) !== undefined
-                      ? ({ ['--pos' as string]: positionVar(r) } as React.CSSProperties)
-                      : undefined
-                  }
-                >
-                  {positionLabel(r)}
+                {/* `display: contents` above 720px; the phone layout stacks
+                    the name line over a thin value bar. */}
+                <span className="sl-name-stack">
+                  <span className="sl-name-line">
+                    <span className="sl-name">{r.gamertag}</span>
+                    <span
+                      className="sl-pos-tag"
+                      style={
+                        positionVar(r) !== undefined
+                          ? ({ ['--pos' as string]: positionVar(r) } as React.CSSProperties)
+                          : undefined
+                      }
+                    >
+                      {positionLabel(r)}
+                    </span>
+                  </span>
+                  <span className={i === 0 ? 'sl-bar lead' : 'sl-bar'} aria-hidden>
+                    <span style={{ width: `${String(barWidth(barOf(r), leaderBar))}%` }} />
+                  </span>
                 </span>
               </span>
               <span className="sl-val">{String(valueOf(r))}</span>
@@ -334,6 +391,12 @@ function SilhouetteIcon() {
       <path d="M22 96 C22 72, 32 60, 50 60 C68 60, 78 72, 78 96 Z" />
     </svg>
   )
+}
+
+/** Bar width in percent of the leader's value, clamped to 0–100. */
+function barWidth(value: number, leaderValue: number): number {
+  if (!(leaderValue > 0) || !(value > 0)) return 0
+  return Math.min(100, Math.round((value / leaderValue) * 100))
 }
 
 function positionLabel(r: ScoringLeaderRow): string {
