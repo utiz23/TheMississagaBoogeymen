@@ -8,6 +8,8 @@ type TabId = 'with-without' | 'best-pairs' | 'matrix'
 interface Tab {
   id: TabId
   label: string
+  /** Tab text on phones (≤720px), where the long label wraps to 3 lines. */
+  short: string
   description: string
 }
 
@@ -15,16 +17,19 @@ const TABS: Tab[] = [
   {
     id: 'matrix',
     label: 'Pair Win Matrix',
-    description: 'Heatmap of pairwise win % when each duo appeared together',
+    short: 'Matrix',
+    description: 'Pairwise win % when each duo appeared together',
   },
   {
     id: 'best-pairs',
     label: 'Best Pairs',
+    short: 'Best pairs',
     description: 'Pair records ranked by goal differential',
   },
   {
     id: 'with-without',
     label: 'Team With / Without',
+    short: 'With / w/o',
     description: 'Per-player team-record split — games with vs without each player',
   },
 ]
@@ -56,6 +61,7 @@ export function ChemistrySection({ withWithout, bestPairs, matrix }: Props) {
   const activeTab: Tab = TABS.find((t) => t.id === active) ?? {
     id: 'matrix',
     label: 'Pair Win Matrix',
+    short: 'Matrix',
     description: '',
   }
 
@@ -85,13 +91,19 @@ export function ChemistrySection({ withWithout, bestPairs, matrix }: Props) {
               }}
               className={[
                 'flex-1 px-4 py-3 font-condensed text-sm font-bold uppercase tracking-[0.20em] transition-colors',
+                // Phone (≤720px — Tailwind's max-[721px] means width < 721):
+                // single-line short labels at 44px tap height, hairline
+                // separators (design pair-win-matrix-mobile).
+                'max-[721px]:min-h-11 max-[721px]:px-1.5 max-[721px]:py-0 max-[721px]:text-xs max-[721px]:tracking-[0.14em]',
+                'max-[721px]:border-r max-[721px]:border-r-zinc-700 max-[721px]:last:border-r-0',
                 'border-b-2 -mb-px',
                 isActive
                   ? 'border-accent bg-[rgba(232,65,49,0.12)] text-zinc-50'
                   : 'border-transparent text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200',
               ].join(' ')}
             >
-              {t.label}
+              <span className="max-[721px]:hidden">{t.label}</span>
+              <span className="min-[721px]:hidden">{t.short}</span>
             </button>
           )
         })}
