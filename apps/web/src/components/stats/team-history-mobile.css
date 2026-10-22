@@ -1,0 +1,523 @@
+/* ============================================================
+   Career Team Stats — phone layout (≤720px). Port of the design
+   "Career Team Stats — Mobile". The desktop table (.th-desktop) and this
+   card list (.thm) render from the same state; CSS picks one per width.
+   ============================================================ */
+
+.thm {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .th-desktop {
+    display: none;
+  }
+  .thm {
+    display: flex;
+  }
+}
+
+.thm {
+  flex-direction: column;
+  gap: 12px;
+  font-family: var(--font-condensed);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+
+.thm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.thm-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.thm-head h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--color-fg-2);
+}
+.thm-scope {
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-fg-3);
+}
+
+.thm-nowrap {
+  white-space: nowrap;
+}
+
+.thm-seg {
+  display: flex;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.thm-seg button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--color-fg-3);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+.thm-seg button[aria-pressed='true'] {
+  background: var(--color-surface-raised);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+  color: var(--color-fg-1);
+}
+
+/* ── Filter chips (horizontal scroll, bleeds to the page gutter) ── */
+
+.thm-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 0 16px;
+  scrollbar-width: none;
+}
+.thm-chips::-webkit-scrollbar {
+  display: none;
+}
+.thm-chip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.thm-chip span {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-fg-3);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+}
+.thm-chip[aria-pressed='true'] span {
+  border-color: rgba(232, 65, 49, 0.85);
+  background: var(--color-accent-soft);
+  color: var(--color-loss);
+}
+
+/* Focus rings: the visible pill / segment carries the outline. */
+.thm button:focus-visible,
+.thm summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.thm-chip:focus-visible {
+  outline: none !important;
+}
+.thm-chip:focus-visible span {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ── Totals card ────────────────────────────────────────────── */
+
+.thm-totals {
+  position: relative;
+  border: 1px solid var(--color-border);
+  background:
+    radial-gradient(circle at top, rgba(232, 65, 49, 0.07), transparent 42%),
+    linear-gradient(180deg, rgba(50, 48, 49, 0.92), rgba(26, 24, 25, 0.98));
+}
+.thm-totals::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(120, 30, 22, 1) 0%,
+    rgba(232, 65, 49, 0.95) 50%,
+    rgba(120, 30, 22, 1) 100%
+  );
+}
+.thm-totals table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.thm-totals thead tr {
+  border-bottom: 1px solid var(--color-border);
+}
+.thm-totals thead th {
+  padding: 12px 12px 8px;
+  vertical-align: bottom;
+  text-align: right;
+}
+.thm-totals thead th:first-child {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--color-fg-3);
+}
+.thm-src {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--color-fg-1);
+}
+.thm-src-count {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-fg-3);
+}
+.thm-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  background: var(--color-fg-4);
+}
+.thm-dot[data-source='live'] {
+  background: var(--color-accent);
+}
+.thm-totals tbody th {
+  padding: 5px 12px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--color-fg-3);
+}
+.thm-totals tbody td {
+  padding: 5px 12px;
+  text-align: right;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-fg-2);
+  white-space: nowrap;
+}
+.thm-totals tbody tr:first-child > * {
+  padding-top: 10px;
+  padding-bottom: 6px;
+}
+.thm-totals tbody tr:last-child > * {
+  padding-bottom: 12px;
+}
+.thm-totals td.thm-big {
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--color-accent);
+}
+.thm-totals td.thm-gp {
+  color: var(--color-fg-1);
+}
+
+/* ── Group cards ────────────────────────────────────────────── */
+
+.thm-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.thm-group {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.thm-group > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.thm-group > summary::-webkit-details-marker {
+  display: none;
+}
+.thm-group[open] > summary {
+  background: var(--color-surface-raised);
+}
+.thm-g-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.thm-g-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.thm-g-name {
+  font-size: 16px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-fg-1);
+  white-space: nowrap;
+}
+.thm-live {
+  padding: 1px 6px;
+  border: 1px solid var(--color-accent-line);
+  background: var(--color-accent-soft);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--color-loss);
+}
+.thm-g-meta,
+.thm-g-note {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thm-g-agg {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-fg-3);
+  white-space: nowrap;
+}
+.thm-g-win {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.thm-g-win > span:first-child {
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--color-fg-1);
+}
+.thm-chev {
+  flex-shrink: 0;
+  color: var(--color-fg-3);
+  transition: transform 150ms;
+}
+.thm-group[open] .thm-chev {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .thm-chev {
+    transition: none;
+  }
+}
+
+/* Win% bar: fill = win%, tick = 50%. */
+.thm-bar {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  width: 40px;
+  height: 3px;
+  background: var(--color-border);
+}
+.thm-g-win .thm-bar {
+  width: 56px;
+}
+.thm-bar > span:first-child {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--color-accent);
+}
+.thm-bar > span:last-child {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--color-fg-4);
+}
+
+/* ── Rows inside a card ─────────────────────────────────────── */
+
+.thm-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.thm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--color-border);
+}
+.thm-row[data-subtotal] {
+  background: rgba(42, 40, 41, 0.5);
+}
+.thm-r-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.thm-r-id {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.thm-r-name {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-fg-1);
+  white-space: nowrap;
+}
+.thm-r-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thm-r-sub .thm-dot {
+  width: 5px;
+  height: 5px;
+}
+.thm-r-win {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-fg-1);
+  white-space: nowrap;
+}
+.thm-grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.thm-grid dt {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-fg-3);
+}
+.thm-grid dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-fg-2);
+  white-space: nowrap;
+}
+
+.thm-missing {
+  color: var(--color-fg-4);
+}
+.thm-win {
+  color: var(--color-win) !important;
+}
+.thm-loss {
+  color: var(--color-loss) !important;
+}
+
+/* ── Empty state ────────────────────────────────────────────── */
+
+.thm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  text-align: center;
+}
+.thm-empty p {
+  margin: 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-fg-3);
+}
+.thm-empty button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-fg-2);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+}
+
+/* ── How totals are calculated ──────────────────────────────── */
+
+.thm-how {
+  border-top: 1px solid var(--color-border);
+}
+.thm-how summary {
+  padding: 14px 0;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--color-fg-3);
+}
+.thm-how ul {
+  margin: 0;
+  padding: 0 0 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-fg-3);
+}

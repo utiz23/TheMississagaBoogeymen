@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Toggle, ToggleGroup } from '@/components/ui/pill-toggle'
 import { BroadcastPanel } from '@/components/ui/broadcast-panel'
 import { SectionHeader } from '@/components/ui/section-header'
+import { TeamHistoryMobile } from './team-history-mobile'
 import {
   MISSING,
   SOURCE_LABEL,
@@ -128,6 +129,9 @@ export function TeamHistoryTable({ rows: inputs, lockedTitle }: Props) {
   const groups = useMemo(() => buildGroups(filtered, groupBy, sort), [filtered, groupBy, sort])
   const summary = useMemo(() => aggregateBySource(filtered), [filtered])
   const columns = useMemo(() => columnsFor(groupBy), [groupBy])
+  // The phone card list has no sort controls, so it always uses natural order.
+  const mobileGroups = useMemo(() => buildGroups(filtered, groupBy, null), [filtered, groupBy])
+  const allSources = useMemo(() => new Set(rows.map((r) => r.source)), [rows])
 
   if (rows.length === 0) {
     return (
@@ -170,244 +174,268 @@ export function TeamHistoryTable({ rows: inputs, lockedTitle }: Props) {
     setFamily(null)
   }
 
+  function pickGroupBy(next: GroupBy) {
+    setGroupBy(next)
+    setSort(null)
+  }
+
   return (
-    <section className="space-y-3" aria-labelledby="career-team-stats-heading">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <h2
-            id="career-team-stats-heading"
-            className="font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-500 sm:text-sm"
-          >
-            Career Team Stats
-          </h2>
-          <p className="font-condensed text-[11px] uppercase tracking-wider text-fg-4">
-            {scope} · {String(filtered.length)} {filtered.length === 1 ? 'row' : 'rows'}
-          </p>
-        </div>
-        <ToggleGroup label="Group rows by">
-          <Toggle
-            pressed={groupBy === 'title'}
-            onClick={() => {
-              setGroupBy('title')
-              setSort(null)
-            }}
-          >
-            By Title
-          </Toggle>
-          <Toggle
-            pressed={groupBy === 'playlist'}
-            onClick={() => {
-              setGroupBy('playlist')
-              setSort(null)
-            }}
-          >
-            By Playlist
-          </Toggle>
-        </ToggleGroup>
-      </div>
-
-      <SourceLegend sources={visibleSources} />
-
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        {lockedTitle === undefined ? (
-          <ToggleGroup label="Filter by title" pill>
+    <>
+      <section className="th-desktop space-y-3" aria-labelledby="career-team-stats-heading">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-col gap-0.5">
+            <h2
+              id="career-team-stats-heading"
+              className="font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-500 sm:text-sm"
+            >
+              Career Team Stats
+            </h2>
+            <p className="font-condensed text-[11px] uppercase tracking-wider text-fg-4">
+              {scope} · {String(filtered.length)} {filtered.length === 1 ? 'row' : 'rows'}
+            </p>
+          </div>
+          <ToggleGroup label="Group rows by">
             <Toggle
-              pill
-              pressed={selectedTitle === null}
+              pressed={groupBy === 'title'}
               onClick={() => {
-                setSelectedTitle(null)
+                pickGroupBy('title')
               }}
             >
-              All Titles
+              By Title
             </Toggle>
-            {titles.map((t) => (
+            <Toggle
+              pressed={groupBy === 'playlist'}
+              onClick={() => {
+                pickGroupBy('playlist')
+              }}
+            >
+              By Playlist
+            </Toggle>
+          </ToggleGroup>
+        </div>
+
+        <SourceLegend sources={visibleSources} />
+
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+          {lockedTitle === undefined ? (
+            <ToggleGroup label="Filter by title" pill>
               <Toggle
                 pill
-                key={t}
-                pressed={selectedTitle === t}
+                pressed={selectedTitle === null}
                 onClick={() => {
-                  setSelectedTitle(t)
+                  setSelectedTitle(null)
                 }}
               >
-                {t}
+                All Titles
+              </Toggle>
+              {titles.map((t) => (
+                <Toggle
+                  pill
+                  key={t}
+                  pressed={selectedTitle === t}
+                  onClick={() => {
+                    setSelectedTitle(t)
+                  }}
+                >
+                  {t}
+                </Toggle>
+              ))}
+            </ToggleGroup>
+          ) : null}
+          <ToggleGroup label="Filter by playlist" pill>
+            <Toggle
+              pill
+              pressed={family === null}
+              onClick={() => {
+                setFamily(null)
+              }}
+            >
+              All
+            </Toggle>
+            {families.map((f) => (
+              <Toggle
+                pill
+                key={f.key}
+                pressed={family === f.key}
+                onClick={() => {
+                  setFamily(f.key)
+                }}
+              >
+                {f.label}
               </Toggle>
             ))}
           </ToggleGroup>
-        ) : null}
-        <ToggleGroup label="Filter by playlist" pill>
-          <Toggle
-            pill
-            pressed={family === null}
-            onClick={() => {
-              setFamily(null)
-            }}
-          >
-            All
-          </Toggle>
-          {families.map((f) => (
-            <Toggle
-              pill
-              key={f.key}
-              pressed={family === f.key}
-              onClick={() => {
-                setFamily(f.key)
-              }}
-            >
-              {f.label}
-            </Toggle>
-          ))}
-        </ToggleGroup>
-      </div>
-
-      {summary.length > 0 ? (
-        <div className="space-y-2">
-          {summary.map((s) => (
-            <SummaryStrip
-              key={s.source}
-              entry={s}
-              labelled={summary.length > 1 || visibleSources.size > 1}
-            />
-          ))}
         </div>
-      ) : null}
 
-      <BroadcastPanel intensity="soft" ticker={false}>
-        {groups.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
-            <p className="font-condensed text-sm uppercase tracking-wider text-fg-4">
-              No rows match this filter.
-            </p>
-            <button
-              type="button"
-              onClick={resetFilters}
-              className={`rounded-none border border-zinc-700 px-3 py-1.5 font-condensed text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition-colors motion-reduce:transition-none hover:bg-zinc-800 ${FOCUS_RING}`}
+        {summary.length > 0 ? (
+          <div className="space-y-2">
+            {summary.map((s) => (
+              <SummaryStrip
+                key={s.source}
+                entry={s}
+                labelled={summary.length > 1 || visibleSources.size > 1}
+              />
+            ))}
+          </div>
+        ) : null}
+
+        <BroadcastPanel intensity="soft" ticker={false}>
+          {groups.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
+              <p className="font-condensed text-sm uppercase tracking-wider text-fg-4">
+                No rows match this filter.
+              </p>
+              <button
+                type="button"
+                onClick={resetFilters}
+                className={`rounded-none border border-zinc-700 px-3 py-1.5 font-condensed text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-300 transition-colors motion-reduce:transition-none hover:bg-zinc-800 ${FOCUS_RING}`}
+              >
+                Reset filters
+              </button>
+            </div>
+          ) : (
+            <div
+              role="region"
+              aria-label="Career team stats table — scrolls horizontally on narrow screens"
+              tabIndex={0}
+              className={`overflow-x-auto ${FOCUS_RING}`}
             >
-              Reset filters
-            </button>
-          </div>
-        ) : (
-          <div
-            role="region"
-            aria-label="Career team stats table — scrolls horizontally on narrow screens"
-            tabIndex={0}
-            className={`overflow-x-auto ${FOCUS_RING}`}
-          >
-            <table className="w-full min-w-[920px] border-collapse tabular-nums">
-              <caption className="sr-only">
-                Career team stats by {groupBy === 'title' ? 'title' : 'playlist'}. Local rows are
-                derived from matches; import rows come from reviewed screenshots.
-              </caption>
-              <thead>
-                <tr className="border-b border-zinc-800 bg-surface-raised font-condensed text-[10px] font-semibold uppercase tracking-widest text-fg-4">
-                  {columns.map((col, i) => {
-                    const active = sort?.key === col.key
-                    return (
-                      <th
-                        key={col.key}
-                        scope="col"
-                        aria-sort={
-                          active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'
-                        }
-                        className={`p-0 ${col.align === 'left' ? 'text-left' : 'text-right'} ${
-                          i === 0 ? 'sticky left-0 z-20 bg-surface-raised' : ''
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onSort(col)
-                          }}
-                          aria-label={`${col.label}: sort by ${col.sortName}`}
-                          className={`flex w-full min-h-9 items-center gap-1 px-3 py-2 uppercase tracking-widest transition-colors motion-reduce:transition-none hover:text-zinc-100 ${FOCUS_RING} ${
-                            col.align === 'left' ? 'justify-start' : 'justify-end'
-                          } ${active ? 'text-zinc-50' : ''}`}
+              <table className="w-full min-w-[920px] border-collapse tabular-nums">
+                <caption className="sr-only">
+                  Career team stats by {groupBy === 'title' ? 'title' : 'playlist'}. Local rows are
+                  derived from matches; import rows come from reviewed screenshots.
+                </caption>
+                <thead>
+                  <tr className="border-b border-zinc-800 bg-surface-raised font-condensed text-[10px] font-semibold uppercase tracking-widest text-fg-4">
+                    {columns.map((col, i) => {
+                      const active = sort?.key === col.key
+                      return (
+                        <th
+                          key={col.key}
+                          scope="col"
+                          aria-sort={
+                            active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'
+                          }
+                          className={`p-0 ${col.align === 'left' ? 'text-left' : 'text-right'} ${
+                            i === 0 ? 'sticky left-0 z-20 bg-surface-raised' : ''
+                          }`}
                         >
-                          {col.label}
-                          <span aria-hidden className="w-2 text-accent">
-                            {active ? (sort.dir === 'asc' ? '↑' : '↓') : ''}
-                          </span>
-                        </button>
-                      </th>
-                    )
-                  })}
-                </tr>
-              </thead>
-              {groups.map((group) => {
-                const mixed = group.subtotals.length > 1
-                const single = group.subtotals[0]
-                return (
-                  <tbody key={group.key} className="border-t-2 border-zinc-800">
-                    <tr className="bg-surface-raised">
-                      <th
-                        scope="rowgroup"
-                        className="sticky left-0 z-10 whitespace-nowrap bg-surface-raised px-3 py-2.5 text-left"
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className="font-condensed text-[15px] font-black uppercase tracking-wider text-zinc-50">
-                            {group.label}
-                          </span>
-                          {group.hasLive && group.subtotals.length === 1 ? (
-                            <span className="border border-accent-line bg-accent-soft px-1.5 py-px font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
-                              Live
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSort(col)
+                            }}
+                            aria-label={`${col.label}: sort by ${col.sortName}`}
+                            className={`flex w-full min-h-9 items-center gap-1 px-3 py-2 uppercase tracking-widest transition-colors motion-reduce:transition-none hover:text-zinc-100 ${FOCUS_RING} ${
+                              col.align === 'left' ? 'justify-start' : 'justify-end'
+                            } ${active ? 'text-zinc-50' : ''}`}
+                          >
+                            {col.label}
+                            <span aria-hidden className="w-2 text-accent">
+                              {active ? (sort.dir === 'asc' ? '↑' : '↓') : ''}
                             </span>
-                          ) : null}
-                          <span className="font-condensed text-[11px] font-normal uppercase tracking-wider text-fg-5">
-                            {String(group.rows.length)}{' '}
-                            {groupBy === 'title'
-                              ? group.rows.length === 1
-                                ? 'playlist'
-                                : 'playlists'
-                              : group.rows.length === 1
-                                ? 'title'
-                                : 'titles'}
-                          </span>
-                        </span>
-                      </th>
-                      {mixed || single === undefined ? (
-                        <td
-                          colSpan={COLUMN_COUNT - 1}
-                          className="px-3 py-2.5 text-left font-condensed text-[11px] uppercase tracking-wider text-fg-5"
+                          </button>
+                        </th>
+                      )
+                    })}
+                  </tr>
+                </thead>
+                {groups.map((group) => {
+                  const mixed = group.subtotals.length > 1
+                  const single = group.subtotals[0]
+                  return (
+                    <tbody key={group.key} className="border-t-2 border-zinc-800">
+                      <tr className="bg-surface-raised">
+                        <th
+                          scope="rowgroup"
+                          className="sticky left-0 z-10 whitespace-nowrap bg-surface-raised px-3 py-2.5 text-left"
                         >
-                          Mixed sources — totals shown separately below
-                        </td>
-                      ) : (
-                        <AggregateCells agg={single.aggregate} strong />
-                      )}
-                    </tr>
-                    {mixed
-                      ? group.subtotals.map((s) => (
-                          <tr key={s.source} className="border-t border-zinc-800/60 bg-surface">
-                            <th
-                              scope="row"
-                              className="sticky left-0 z-10 whitespace-nowrap bg-surface py-2 pl-7 pr-3 text-left font-condensed text-[11px] font-semibold uppercase tracking-wider text-fg-3"
-                            >
-                              {SOURCE_SHORT[s.source]} total
-                            </th>
-                            <AggregateCells agg={s.aggregate} />
-                          </tr>
-                        ))
-                      : null}
-                    {group.rows.map((row) => (
-                      <DataRow key={row.key} row={row} groupBy={groupBy} />
-                    ))}
-                  </tbody>
-                )
-              })}
-            </table>
-          </div>
-        )}
-      </BroadcastPanel>
+                          <span className="flex items-center gap-2">
+                            <span className="font-condensed text-[15px] font-black uppercase tracking-wider text-zinc-50">
+                              {group.label}
+                            </span>
+                            {group.hasLive && group.subtotals.length === 1 ? (
+                              <span className="border border-accent-line bg-accent-soft px-1.5 py-px font-condensed text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+                                Live
+                              </span>
+                            ) : null}
+                            <span className="font-condensed text-[11px] font-normal uppercase tracking-wider text-fg-5">
+                              {String(group.rows.length)}{' '}
+                              {groupBy === 'title'
+                                ? group.rows.length === 1
+                                  ? 'playlist'
+                                  : 'playlists'
+                                : group.rows.length === 1
+                                  ? 'title'
+                                  : 'titles'}
+                            </span>
+                          </span>
+                        </th>
+                        {mixed || single === undefined ? (
+                          <td
+                            colSpan={COLUMN_COUNT - 1}
+                            className="px-3 py-2.5 text-left font-condensed text-[11px] uppercase tracking-wider text-fg-5"
+                          >
+                            Mixed sources — totals shown separately below
+                          </td>
+                        ) : (
+                          <AggregateCells agg={single.aggregate} strong />
+                        )}
+                      </tr>
+                      {mixed
+                        ? group.subtotals.map((s) => (
+                            <tr key={s.source} className="border-t border-zinc-800/60 bg-surface">
+                              <th
+                                scope="row"
+                                className="sticky left-0 z-10 whitespace-nowrap bg-surface py-2 pl-7 pr-3 text-left font-condensed text-[11px] font-semibold uppercase tracking-wider text-fg-3"
+                              >
+                                {SOURCE_SHORT[s.source]} total
+                              </th>
+                              <AggregateCells agg={s.aggregate} />
+                            </tr>
+                          ))
+                        : null}
+                      {group.rows.map((row) => (
+                        <DataRow key={row.key} row={row} groupBy={groupBy} />
+                      ))}
+                    </tbody>
+                  )
+                })}
+              </table>
+            </div>
+          )}
+        </BroadcastPanel>
 
-      <p role="status" aria-live="polite" className="sr-only">
-        {announcement}
-      </p>
+        <p role="status" aria-live="polite" className="sr-only">
+          {announcement}
+        </p>
 
-      <Footnote
-        showLive={visibleSources.has('live')}
-        showArchive={visibleSources.has('archive')}
+        <Footnote
+          showLive={visibleSources.has('live')}
+          showArchive={visibleSources.has('archive')}
+          anyApproximate={anyApproximate}
+        />
+      </section>
+      <TeamHistoryMobile
+        allSources={allSources}
+        titles={titles}
+        families={families}
+        groups={mobileGroups}
+        summary={summary}
+        rowCount={filtered.length}
+        scope={scope}
+        lockedTitle={lockedTitle}
+        selectedTitle={selectedTitle}
+        family={family}
+        groupBy={groupBy}
+        visibleSources={visibleSources}
         anyApproximate={anyApproximate}
+        onTitle={setSelectedTitle}
+        onFamily={setFamily}
+        onGroupBy={pickGroupBy}
+        onReset={resetFilters}
       />
-    </section>
+    </>
   )
 }
 
