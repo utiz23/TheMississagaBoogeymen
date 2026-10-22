@@ -1,0 +1,465 @@
+/* ============================================================================
+   RECORD STRIP — phone layout ("Team Record · Mobile D · Compact").
+   Small tier (≤720px) only. Hides the broadcast strip (.rs-head / .rs-strip)
+   and shows the compact face: identity + record, composition bar, three KPIs,
+   last-10 form, and a native <details> expander with the remaining detail.
+   Desktop/tablet styles live in record-strip.css and are untouched.
+   ============================================================================ */
+
+.rs-m-head,
+.rs-m {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .rs-head,
+  .rs-strip,
+  .rs-foot-ctx {
+    display: none;
+  }
+  .rs-m {
+    display: block;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Header */
+  .rs-m-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 48px;
+    padding: 0 14px;
+    position: relative;
+    z-index: 2;
+  }
+  .rs-m-head h2 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-fg-1);
+  }
+  .rs-m-head h2 .accent {
+    color: var(--color-accent);
+  }
+  .rs-m-live {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-fg-3);
+  }
+  .rs-m-live b {
+    color: var(--color-fg-2);
+  }
+  .rs-m-live .sep {
+    color: #514e4f;
+  }
+  .rs-m-live .pulse {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--color-win);
+  }
+  .rs-m-live .pulse i {
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--color-win);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+  }
+
+  /* Identity + record */
+  .rs-m-id {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 14px 12px;
+  }
+  .rs-m-crest {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--color-border);
+    border-radius: 9999px;
+    background: var(--color-background);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 16px;
+    color: var(--color-fg-1);
+  }
+  .rs-m-crest img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+  }
+  .rs-m-id-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .rs-m-id-text .name {
+    font-size: 20px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-fg-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rs-m-id-text .sub {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-fg-3);
+  }
+  .rs-m-id-text .sub b {
+    color: var(--color-fg-1);
+    font-variant-numeric: tabular-nums;
+  }
+  .rs-m-rec {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .rs-m-rec .nums {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    font-size: 32px;
+    font-weight: 900;
+    line-height: 0.9;
+    font-variant-numeric: tabular-nums;
+  }
+  .rs-m-rec .w {
+    color: var(--color-win);
+  }
+  .rs-m-rec .l {
+    color: var(--color-loss);
+  }
+  .rs-m-rec .o {
+    color: var(--color-otl);
+  }
+  .rs-m-rec .dash {
+    font-size: 20px;
+    color: #514e4f;
+  }
+  .rs-m-rec .cap {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    color: var(--color-fg-3);
+  }
+
+  /* Composition bar */
+  .rs-m-comp-wrap {
+    padding: 0 14px 14px;
+  }
+  .rs-m-comp {
+    display: grid;
+    gap: 2px;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.4);
+  }
+  .rs-m-comp i {
+    display: block;
+  }
+  .rs-m-comp .b1 {
+    background: var(--color-win);
+  }
+  .rs-m-comp .b2 {
+    background: var(--color-loss);
+  }
+  .rs-m-comp .b3 {
+    background: var(--color-otl);
+  }
+
+  /* KPI row */
+  .rs-m-kpis {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid var(--color-border-subtle);
+  }
+  .rs-m-kpis .kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    min-width: 0;
+  }
+  .rs-m-kpis .kpi + .kpi {
+    border-left: 1px solid var(--color-border-subtle);
+  }
+  .rs-m-kpis .k,
+  .rs-m-details .k,
+  .rs-m-form .top {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-fg-3);
+  }
+  .rs-m-kpis .v {
+    font-size: 24px;
+    font-weight: 900;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-fg-1);
+  }
+  .rs-m-kpis .v.pos {
+    color: var(--color-win);
+  }
+  .rs-m-kpis .v.neg {
+    color: var(--color-loss);
+  }
+  .rs-m-kpis .v.otl {
+    color: var(--color-otl);
+  }
+
+  /* Form · last 10 */
+  .rs-m-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--color-border-subtle);
+  }
+  .rs-m-form .top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .rs-m-form .top b {
+    color: var(--color-fg-1);
+    font-variant-numeric: tabular-nums;
+  }
+  .rs-m-form .tiles {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 3px;
+  }
+  .rs-m-form .t {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    border-radius: 2px;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .rs-m-form .t.w {
+    border: 1px solid rgba(16, 185, 129, 0.45);
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--color-win);
+  }
+  .rs-m-form .t.l {
+    border: 1px solid rgba(232, 65, 49, 0.5);
+    background: rgba(232, 65, 49, 0.12);
+    color: var(--color-loss);
+  }
+  .rs-m-form .t.o {
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--color-otl);
+  }
+  /* DNF — counted as a loss, drawn "ghosted" (same convention as desktop). */
+  .rs-m-form .t.dnf {
+    border: 1px solid rgba(232, 65, 49, 0.5);
+    background: rgba(58, 56, 57, 0.5);
+    color: var(--color-dnf);
+  }
+  .rs-m-form .t.empty {
+    border: 1px dashed rgba(113, 113, 122, 0.45);
+  }
+  /* Most recent game (leftmost) — outlined in its own result colour. */
+  .rs-m-form .t:first-child:not(.empty) {
+    box-shadow: 0 0 0 1px currentColor;
+  }
+  .rs-m-form .meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-fg-3);
+  }
+
+  /* Details expander */
+  .rs-m-details {
+    border-top: 1px solid var(--color-border-subtle);
+  }
+  .rs-m-details summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    padding: 0 14px;
+    cursor: pointer;
+    list-style: none;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-fg-2);
+  }
+  .rs-m-details summary::-webkit-details-marker {
+    display: none;
+  }
+  .rs-m-details summary:focus-visible {
+    outline: 1px solid var(--color-accent);
+    outline-offset: -2px;
+  }
+  .rs-m-details summary svg {
+    transition: transform 150ms;
+  }
+  .rs-m-details[open] summary svg {
+    transform: rotate(180deg);
+  }
+  .rs-m-details .when-open,
+  .rs-m-details[open] .when-closed {
+    display: none;
+  }
+  .rs-m-details[open] .when-open {
+    display: inline;
+  }
+  .rs-m-details .body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 4px 14px 16px;
+  }
+  .rs-m-details .gauge-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .rs-m-details .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .rs-m-details .v {
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-fg-2);
+  }
+  .rs-m-details .bar {
+    position: relative;
+    height: 4px;
+    background: var(--color-border-subtle);
+  }
+  .rs-m-details .bar .fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: var(--color-accent);
+  }
+  .rs-m-details .bar .mid {
+    position: absolute;
+    left: 50%;
+    top: -3px;
+    width: 1px;
+    height: 10px;
+    background: var(--color-fg-6);
+  }
+  .rs-m-details .bar .marker {
+    position: absolute;
+    top: -4px;
+    width: 4px;
+    height: 12px;
+    margin-left: -2px;
+    background: var(--color-fg-2);
+  }
+  .rs-m-details .bar .marker.pos {
+    background: var(--color-win);
+  }
+  .rs-m-details .bar .marker.neg {
+    background: var(--color-loss);
+  }
+  .rs-m-details .scale {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-fg-3);
+  }
+  .rs-m-details .facts {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-border-subtle);
+  }
+  .rs-m-details .chip {
+    padding: 2px 7px;
+    border: 1px solid rgba(232, 65, 49, 0.45);
+    background: rgba(232, 65, 49, 0.08);
+    color: var(--color-accent);
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* Footer — compact variant ("● Source EA Official"). */
+  .rs-foot {
+    min-height: 40px;
+    padding: 0 14px;
+    border-top-color: var(--color-border-subtle);
+    font-family: var(--font-condensed);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--color-fg-3);
+    background: transparent;
+  }
+  .rs-foot b {
+    color: var(--color-fg-2);
+  }
+  .rs-foot .src .dot {
+    width: 6px;
+    height: 6px;
+    background: var(--color-win);
+    box-shadow: none;
+  }
+}
+
+/* Very narrow phones — keep the team name from truncating next to the record. */
+@media (max-width: 370px) {
+  .rs-m-id {
+    gap: 10px;
+  }
+  .rs-m-id-text .name {
+    font-size: 18px;
+    letter-spacing: 0.04em;
+  }
+  .rs-m-rec .nums {
+    font-size: 26px;
+  }
+}
