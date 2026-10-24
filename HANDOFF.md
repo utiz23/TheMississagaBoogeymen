@@ -46,7 +46,7 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 ## Latest Verified Checkpoint
 
-**2026-10-21 — design imports deployed** (web `6745609`: Scores filter, phone layouts, hero pills; rollback `:rollback-he-2026-10-21-pre-redesigns`). Also Next.js 15.5.28 (`b366d19`, `:rollback-he-2026-10-21-pre-next-sec`). [Journal 2026-10-21](docs/journal/2026-10.md).
+**Latest web 2026-10-24: nav drop-downs** (`d2627da`, `:rollback-he-2026-10-24-pre-nav-menus`). Before: design imports `6745609` (`:rollback-he-2026-10-21-pre-redesigns`), Next.js 15.5.28 `b366d19` (`:rollback-he-2026-10-21-pre-next-sec`). [Journal](docs/journal/2026-10.md).
 
 **2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean.
 
@@ -57,8 +57,6 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 **2026-10-08 — player cards, AI goalies, position filter deployed** (`29ee6a2`; migrations 0060–0063; rollbacks `:rollback-he-2026-10-08-pre-{cards,ai-goalies,positions}`, dumps `~/eanhl-backups/pre-*-2026-10-08-*.dump`). Lehmann / Wagner (AI goalies) and pinned Jimmy Cap are players. [Journal](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
 
 **2026-10-06 — NHL 26 contamination cleaned up** (worker `3f35733`; rollback `:rollback-2026-10-05-quarantine`; dump `~/eanhl-backups/pre-quarantine-2026-10-05/`): club 19224 is "Chipstuttar" since 2026-09-07; its 172 matches are out. [Plan](docs/planning/2026-10-05-nhl26-club-19224-quarantine.md), [journal](docs/journal/2026-10.md).
-
-**2026-10-06 — performance pass** (`351354d`; rollback `:rollback-he-2026-10-06-pre-perf`).
 
 **2026-10-05 — launched; security update + polish deployed** (`67ff9c4`; public checks all passed). Full checkpoint: [archive 2026-10-09](docs/archive/handoff-history-2026-10-09.md), [journal 2026-10-05](docs/journal/2026-10.md).
 
