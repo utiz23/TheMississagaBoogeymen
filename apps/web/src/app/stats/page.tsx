@@ -258,13 +258,15 @@ async function ActiveStats({
           gauge, goal differential, last-10 form ribbon). Shared component with
           the home page; renders cleanly even when officialRecord/seasonRank
           haven't been fetched yet (the EA endpoints lag the local aggregate). */}
-        <RecordStrip
-          officialRecord={officialRecord}
-          localStats={clubStats}
-          seasonRank={seasonRank}
-          recentResults={recentMatches}
-          gameTitleName={gameTitle.name}
-        />
+        <div id="stats-record" className="scroll-mt-24">
+          <RecordStrip
+            officialRecord={officialRecord}
+            localStats={clubStats}
+            seasonRank={seasonRank}
+            recentResults={recentMatches}
+            gameTitleName={gameTitle.name}
+          />
+        </div>
 
         {/* Selectors — page-level context, sit just under the record strip. */}
         <div className="flex flex-wrap items-center gap-3">
@@ -293,25 +295,33 @@ async function ActiveStats({
         ) : null}
 
         {hasGames && (
-          <TeamShotMap
-            offense={teamShotAggregates ?? emptyShotLocations()}
-            offenseHasData={offenseHasData}
-            defense={teamGoalieAggregates ?? emptyShotLocations()}
-            defenseHasData={defenseHasData}
-            titleName={gameTitle.name}
-            {...(clubStats !== null && clubStats.gamesPlayed > 0
-              ? { teamGp: clubStats.gamesPlayed }
-              : {})}
-            {...(recentMatches[0] ? { updatedDate: formatDataDay(recentMatches[0].playedAt) } : {})}
-          />
+          <div id="stats-shot-map" className="scroll-mt-24">
+            <TeamShotMap
+              offense={teamShotAggregates ?? emptyShotLocations()}
+              offenseHasData={offenseHasData}
+              defense={teamGoalieAggregates ?? emptyShotLocations()}
+              defenseHasData={defenseHasData}
+              titleName={gameTitle.name}
+              {...(clubStats !== null && clubStats.gamesPlayed > 0
+                ? { teamGp: clubStats.gamesPlayed }
+                : {})}
+              {...(recentMatches[0]
+                ? { updatedDate: formatDataDay(recentMatches[0].playedAt) }
+                : {})}
+            />
+          </div>
         )}
 
         {/* Career team stats — live NHL rows for every active title plus
           reviewed archive imports; sources stay separate in the table. */}
         {teamHistory.status === 'unavailable' ? (
-          <TeamHistoryUnavailable />
+          <div id="stats-team-history" className="scroll-mt-24">
+            <TeamHistoryUnavailable />
+          </div>
         ) : teamHistory.rows.length > 0 ? (
-          <TeamHistoryTable rows={teamHistory.rows} />
+          <div id="stats-team-history" className="scroll-mt-24">
+            <TeamHistoryTable rows={teamHistory.rows} />
+          </div>
         ) : null}
 
         {/* Skater + Goalie stats — wrapped together in a shared module-frame
@@ -322,56 +332,62 @@ async function ActiveStats({
           — can hide the other, or hide its own All Time dataset. */}
         {showPlayerModule ? (
           <section className="module-frame divide-y divide-zinc-800/60">
-            <SkaterStatsTable
-              rows={skaterRows}
-              title="Skaters"
-              source={liveSource(gameMode)}
-              allTimeRows={allTimeSkaterRows}
-              allTimeSource={careerSource('Career totals across all titles · all clubs')}
-              allTimeUnavailable={allTimeSkaters.status === 'error'}
-              playerMeta={playerMeta}
-              state={skaters.status}
-              emptyMessage={`No ${emptyModeLabel}skater stats recorded yet.`}
-              positions={positions}
-            />
-            <GoalieStatsTable
-              rows={goalieRows}
-              title="Goalies"
-              source={liveSource(gameMode)}
-              allTimeRows={allTimeGoalieRows}
-              allTimeSource={careerSource('Career totals across all titles · all clubs')}
-              allTimeUnavailable={allTimeGoalies.status === 'error'}
-              playerMeta={playerMeta}
-              state={goalies.status}
-              emptyMessage={`No ${emptyModeLabel}goalie stats recorded yet.`}
-            />
+            <div id="stats-skaters" className="scroll-mt-24">
+              <SkaterStatsTable
+                rows={skaterRows}
+                title="Skaters"
+                source={liveSource(gameMode)}
+                allTimeRows={allTimeSkaterRows}
+                allTimeSource={careerSource('Career totals across all titles · all clubs')}
+                allTimeUnavailable={allTimeSkaters.status === 'error'}
+                playerMeta={playerMeta}
+                state={skaters.status}
+                emptyMessage={`No ${emptyModeLabel}skater stats recorded yet.`}
+                positions={positions}
+              />
+            </div>
+            <div id="stats-goalies" className="scroll-mt-24">
+              <GoalieStatsTable
+                rows={goalieRows}
+                title="Goalies"
+                source={liveSource(gameMode)}
+                allTimeRows={allTimeGoalieRows}
+                allTimeSource={careerSource('Career totals across all titles · all clubs')}
+                allTimeUnavailable={allTimeGoalies.status === 'error'}
+                playerMeta={playerMeta}
+                state={goalies.status}
+                emptyMessage={`No ${emptyModeLabel}goalie stats recorded yet.`}
+              />
+            </div>
           </section>
         ) : null}
 
         {hasGames && (
-          <ChemistrySection
-            withWithout={<WithWithoutTable rows={withWithoutRows} />}
-            bestPairs={<BestPairsTable rows={pairRows} />}
-            matrix={
-              <PairWinMatrix
-                data={pairWinMatrix}
-                titleName={gameTitle.name}
-                clubName="Boogeymen"
-                updatedLabel={
-                  recentMatches[0] ? formatDataDay(recentMatches[0].playedAt) : undefined
-                }
-                scope={
-                  gameMode !== null
-                    ? `Pairwise win % when both players appeared · ${gameMode} mode · ${String(pairWinMatrix.players.length)} skaters`
-                    : undefined
-                }
-              />
-            }
-          />
+          <div id="stats-chemistry" className="scroll-mt-24">
+            <ChemistrySection
+              withWithout={<WithWithoutTable rows={withWithoutRows} />}
+              bestPairs={<BestPairsTable rows={pairRows} />}
+              matrix={
+                <PairWinMatrix
+                  data={pairWinMatrix}
+                  titleName={gameTitle.name}
+                  clubName="Boogeymen"
+                  updatedLabel={
+                    recentMatches[0] ? formatDataDay(recentMatches[0].playedAt) : undefined
+                  }
+                  scope={
+                    gameMode !== null
+                      ? `Pairwise win % when both players appeared · ${gameMode} mode · ${String(pairWinMatrix.players.length)} skaters`
+                      : undefined
+                  }
+                />
+              }
+            />
+          </div>
         )}
 
         {recentMatches.length > 0 && (
-          <section className="space-y-3">
+          <section id="stats-recent" className="scroll-mt-24 space-y-3">
             <div className="flex items-baseline justify-between gap-3">
               <SectionHeader label="Recent Games" />
               <Link
@@ -475,106 +491,113 @@ async function ArchiveStats({
           reviewed, mode-filtered archive query above (settled independently
           of every other section); error/empty/rows stay three distinct
           outcomes, none silently dropped. */}
-      {teamRowsP.kind === 'error' ? (
-        <TeamHistoryUnavailable />
-      ) : teamRowsP.kind === 'empty' ? (
-        <TeamHistoryTable rows={[]} lockedTitle={gameTitle.name} />
-      ) : (
-        <TeamHistoryTable
-          rows={teamRowsP.rows.map((row) =>
-            archiveRowToTeamHistoryInput(row, { id: gameTitle.id, name: gameTitle.name }),
-          )}
-          lockedTitle={gameTitle.name}
-        />
-      )}
+      <div id="stats-team-history" className="scroll-mt-24">
+        {teamRowsP.kind === 'error' ? (
+          <TeamHistoryUnavailable />
+        ) : teamRowsP.kind === 'empty' ? (
+          <TeamHistoryTable rows={[]} lockedTitle={gameTitle.name} />
+        ) : (
+          <TeamHistoryTable
+            rows={teamRowsP.rows.map((row) =>
+              archiveRowToTeamHistoryInput(row, { id: gameTitle.id, name: gameTitle.name }),
+            )}
+            lockedTitle={gameTitle.name}
+          />
+        )}
+      </div>
 
-      <CareerStatsSection
-        titleName={gameTitle.name}
-        clubScoped={
-          <>
-            {clubSkatersP.kind === 'rows' || (clubSkatersP.kind !== 'error' && hasPositionRows) ? (
-              <SkaterStatsTable
-                rows={clubSkatersP.kind === 'rows' ? clubSkatersP.rows : []}
-                title="Skaters"
-                source={ARCHIVE_CLUB_MEMBER_SOURCE}
-                positions={positions}
-                emptyMessage={`No club-scoped ${modeLabel} skater totals captured for ${gameTitle.name}. Pick a position for player-card totals.`}
-              />
-            ) : clubSkatersP.kind === 'error' ? (
-              <SkaterStatsTable
-                rows={[]}
-                title="Skaters"
-                source={ARCHIVE_CLUB_MEMBER_SOURCE}
-                state="error"
-              />
-            ) : (
-              <EmptyState
-                message={`No club-scoped ${modeLabel} skater totals captured for ${gameTitle.name}.`}
-              />
-            )}
-            {clubGoaliesP.kind === 'rows' ? (
-              <GoalieStatsTable
-                rows={clubGoaliesP.rows}
-                title="Goalies"
-                source={ARCHIVE_CLUB_MEMBER_SOURCE}
-              />
-            ) : clubGoaliesP.kind === 'error' ? (
-              <GoalieStatsTable
-                rows={[]}
-                title="Goalies"
-                source={ARCHIVE_CLUB_MEMBER_SOURCE}
-                state="error"
-              />
-            ) : (
-              <EmptyState
-                message={`No club-scoped ${modeLabel} goalie totals captured for ${gameTitle.name}.`}
-              />
-            )}
-          </>
-        }
-        playerCard={
-          <>
-            {cardSkatersP.kind === 'rows' || (cardSkatersP.kind !== 'error' && hasPositionRows) ? (
-              <SkaterStatsTable
-                rows={cardSkatersP.kind === 'rows' ? cardSkatersP.rows : []}
-                title="Skaters"
-                source={ARCHIVE_PLAYER_CARD_SOURCE}
-                positions={positions}
-                emptyMessage={`No all-skater ${modeLabel} player-card totals for ${gameTitle.name}. Pick a position.`}
-              />
-            ) : cardSkatersP.kind === 'error' ? (
-              <SkaterStatsTable
-                rows={[]}
-                title="Skaters"
-                source={ARCHIVE_PLAYER_CARD_SOURCE}
-                state="error"
-              />
-            ) : (
-              <EmptyState
-                message={`No player-card ${modeLabel} skater totals for ${gameTitle.name}.`}
-              />
-            )}
-            {cardGoaliesP.kind === 'rows' ? (
-              <GoalieStatsTable
-                rows={cardGoaliesP.rows}
-                title="Goalies"
-                source={ARCHIVE_PLAYER_CARD_SOURCE}
-              />
-            ) : cardGoaliesP.kind === 'error' ? (
-              <GoalieStatsTable
-                rows={[]}
-                title="Goalies"
-                source={ARCHIVE_PLAYER_CARD_SOURCE}
-                state="error"
-              />
-            ) : (
-              <EmptyState
-                message={`No player-card ${modeLabel} goalie totals for ${gameTitle.name}.`}
-              />
-            )}
-          </>
-        }
-      />
+      {/* Nav Stats menu's Skaters target on archive titles: the skater tables lead this block. */}
+      <div id="stats-skaters" className="scroll-mt-24">
+        <CareerStatsSection
+          titleName={gameTitle.name}
+          clubScoped={
+            <>
+              {clubSkatersP.kind === 'rows' ||
+              (clubSkatersP.kind !== 'error' && hasPositionRows) ? (
+                <SkaterStatsTable
+                  rows={clubSkatersP.kind === 'rows' ? clubSkatersP.rows : []}
+                  title="Skaters"
+                  source={ARCHIVE_CLUB_MEMBER_SOURCE}
+                  positions={positions}
+                  emptyMessage={`No club-scoped ${modeLabel} skater totals captured for ${gameTitle.name}. Pick a position for player-card totals.`}
+                />
+              ) : clubSkatersP.kind === 'error' ? (
+                <SkaterStatsTable
+                  rows={[]}
+                  title="Skaters"
+                  source={ARCHIVE_CLUB_MEMBER_SOURCE}
+                  state="error"
+                />
+              ) : (
+                <EmptyState
+                  message={`No club-scoped ${modeLabel} skater totals captured for ${gameTitle.name}.`}
+                />
+              )}
+              {clubGoaliesP.kind === 'rows' ? (
+                <GoalieStatsTable
+                  rows={clubGoaliesP.rows}
+                  title="Goalies"
+                  source={ARCHIVE_CLUB_MEMBER_SOURCE}
+                />
+              ) : clubGoaliesP.kind === 'error' ? (
+                <GoalieStatsTable
+                  rows={[]}
+                  title="Goalies"
+                  source={ARCHIVE_CLUB_MEMBER_SOURCE}
+                  state="error"
+                />
+              ) : (
+                <EmptyState
+                  message={`No club-scoped ${modeLabel} goalie totals captured for ${gameTitle.name}.`}
+                />
+              )}
+            </>
+          }
+          playerCard={
+            <>
+              {cardSkatersP.kind === 'rows' ||
+              (cardSkatersP.kind !== 'error' && hasPositionRows) ? (
+                <SkaterStatsTable
+                  rows={cardSkatersP.kind === 'rows' ? cardSkatersP.rows : []}
+                  title="Skaters"
+                  source={ARCHIVE_PLAYER_CARD_SOURCE}
+                  positions={positions}
+                  emptyMessage={`No all-skater ${modeLabel} player-card totals for ${gameTitle.name}. Pick a position.`}
+                />
+              ) : cardSkatersP.kind === 'error' ? (
+                <SkaterStatsTable
+                  rows={[]}
+                  title="Skaters"
+                  source={ARCHIVE_PLAYER_CARD_SOURCE}
+                  state="error"
+                />
+              ) : (
+                <EmptyState
+                  message={`No player-card ${modeLabel} skater totals for ${gameTitle.name}.`}
+                />
+              )}
+              {cardGoaliesP.kind === 'rows' ? (
+                <GoalieStatsTable
+                  rows={cardGoaliesP.rows}
+                  title="Goalies"
+                  source={ARCHIVE_PLAYER_CARD_SOURCE}
+                />
+              ) : cardGoaliesP.kind === 'error' ? (
+                <GoalieStatsTable
+                  rows={[]}
+                  title="Goalies"
+                  source={ARCHIVE_PLAYER_CARD_SOURCE}
+                  state="error"
+                />
+              ) : (
+                <EmptyState
+                  message={`No player-card ${modeLabel} goalie totals for ${gameTitle.name}.`}
+                />
+              )}
+            </>
+          }
+        />
+      </div>
     </PageShell>
   )
 }

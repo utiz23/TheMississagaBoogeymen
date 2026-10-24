@@ -1,7 +1,12 @@
 import { Suspense } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { listAllGameTitles, type GameTitleListing } from '@eanhl/db/queries'
+import {
+  listAllGameTitles,
+  listRosterMenuMembers,
+  type GameTitleListing,
+  type RosterMenuMember,
+} from '@eanhl/db/queries'
 import { pickDefaultTitle, switcherTitles } from '@/lib/title-resolver'
 import { NavAccount } from './nav-account'
 import { NavDrawer, NavDrawerFallback } from './nav-drawer'
@@ -16,13 +21,30 @@ import { NavLinks, NavLinksFallback } from './nav-links'
 async function fetchTitleSwitcher(): Promise<{
   titles: GameTitleListing[]
   defaultSlug: string | null
+  defaultId: number | null
 }> {
   try {
     const all = await listAllGameTitles()
-    return { titles: switcherTitles(all), defaultSlug: pickDefaultTitle(all)?.slug ?? null }
+    const defaultTitle = pickDefaultTitle(all)
+    return {
+      titles: switcherTitles(all),
+      defaultSlug: defaultTitle?.slug ?? null,
+      defaultId: defaultTitle?.id ?? null,
+    }
   } catch {
     // DB unavailable — drawer renders without its switcher
-    return { titles: [], defaultSlug: null }
+    return { titles: [], defaultSlug: null, defaultId: null }
+  }
+}
+
+/** The Roster menu's team list (the default title's members); empty on failure. */
+async function fetchRosterMenu(defaultId: number | null): Promise<RosterMenuMember[]> {
+  if (defaultId === null) return []
+  try {
+    return await listRosterMenuMembers(defaultId)
+  } catch {
+    // The menu still offers Full roster.
+    return []
   }
 }
 
@@ -33,7 +55,8 @@ async function fetchTitleSwitcher(): Promise<{
  * (1)/Game Sheet copy.dc.html`): accent rail above the bar, brand left, links
  * centred as accent-filled pills, one CTA right, and a burger + slide-in drawer
  * below the `nav` breakpoint. Box metrics follow the prototype's — nav pills
- * 8px/16px, CTA 9px/20px, burger 44px, all at 2px radius.
+ * 8px/16px, CTA 9px/20px, burger 44px, all at 2px radius. Stats and Roster
+ * pills carry drop-downs (nav-links.tsx); the drawer keeps plain links.
  *
  * No game-title switcher in the bar, matching the prototype — it sits in the
  * drawer footer instead, i.e. under 960px only. With two live titles (NHL 27
@@ -46,7 +69,8 @@ async function fetchTitleSwitcher(): Promise<{
  * `headers()`.
  */
 export async function TopNav() {
-  const { titles, defaultSlug } = await fetchTitleSwitcher()
+  const { titles, defaultSlug, defaultId } = await fetchTitleSwitcher()
+  const members = await fetchRosterMenu(defaultId)
 
   return (
     <header className="sticky top-0 z-50 border-b border-accent/40 bg-surface/95 backdrop-blur-sm">
@@ -74,7 +98,7 @@ export async function TopNav() {
         </Link>
 
         <Suspense fallback={<NavLinksFallback />}>
-          <NavLinks />
+          <NavLinks members={members} />
         </Suspense>
 
         <div className="ml-auto flex shrink-0 items-center gap-4">

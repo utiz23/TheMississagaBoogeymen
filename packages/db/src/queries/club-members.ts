@@ -29,6 +29,39 @@ export async function isClubMember(playerId: number): Promise<boolean> {
   return rows.length > 0
 }
 
+export interface RosterMenuMember {
+  id: number
+  gamertag: string
+  jerseyNumber: number | null
+}
+
+/**
+ * The current team, for the nav's Roster menu: human players on EA's
+ * club-member list for `gameTitleId` (the default title), plus anyone pinned to
+ * the roster. Past members and the AI goalies are left out. A–Z by gamertag.
+ */
+export async function listRosterMenuMembers(gameTitleId: number): Promise<RosterMenuMember[]> {
+  const rows = await db.execute<{ id: number; gamertag: string; jersey_number: number | null }>(
+    sql`select p.id, p.gamertag, pp.jersey_number
+        from players p
+        left join player_profiles pp on pp.player_id = p.id
+        where p.ai_goalie_side is null
+          and (
+            p.pinned_to_roster
+            or exists (
+              select 1 from ea_member_season_stats e
+              where e.player_id = p.id and e.game_title_id = ${gameTitleId}
+            )
+          )
+        order by lower(p.gamertag)`,
+  )
+  return rows.map((r) => ({
+    id: Number(r.id),
+    gamertag: r.gamertag,
+    jerseyNumber: r.jersey_number === null ? null : Number(r.jersey_number),
+  }))
+}
+
 export interface InvitablePlayer {
   id: number
   gamertag: string
