@@ -112,16 +112,3 @@ export function navMenuItemClass(active: boolean): string {
       : 'border-transparent text-fg-3 hover:bg-surface-raised hover:text-fg-1',
   ].join(' ')
 }
-
-/** The ▾ on a `NavMenu` button. */
-export function NavMenuChevron() {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 10 6"
-      className="h-[6px] w-[10px] shrink-0 fill-current text-fg-4"
-    >
-      <path d="M0 0h10L5 6z" />
-    </svg>
-  )
-}
