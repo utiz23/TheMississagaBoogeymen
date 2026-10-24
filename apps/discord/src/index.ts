@@ -22,10 +22,11 @@ async function main(): Promise<void> {
   const config = loaded.config
   // Imported after the config check so a misconfigured host never opens a DB pool.
   const { listStuckDiscordPosts } = await import('@eanhl/db/queries')
-  const { dbStore } = await import('./store.ts')
+  const { dbStore, dbCardStore } = await import('./store.ts')
   const { runPosterCycle, WINDOW_MS, BATCH_LIMIT } = await import('./cycle.ts')
-  const { fetchGameResult } = await import('./web-client.ts')
-  const { renderLineup } = await import('./render.ts')
+  const { runCardUpdatesCycle } = await import('./cycle-cards.ts')
+  const { fetchCardUpdates, fetchGameResult } = await import('./web-client.ts')
+  const { renderCardUpdates, renderLineup } = await import('./render.ts')
   const { sendWebhook } = await import('./webhook.ts')
   const { writeDryRunFiles } = await import('./dry-run.ts')
 
@@ -61,6 +62,31 @@ async function main(): Promise<void> {
         },
       )
       if (s.posted + s.failed + s.dryRun > 0) log(`cycle: ${JSON.stringify(s)}`)
+      // Card updates after games: a game's post always comes before its card changes.
+      const c = await runCardUpdatesCycle(
+        {
+          store: dbCardStore,
+          fetchCardUpdates: (batchEventId) => fetchCardUpdates({ ...web, batchEventId }),
+          renderCards: (batchEventId) =>
+            renderCardUpdates({ ...web, batchEventId, timeoutMs: config.renderTimeoutMs }),
+          send: (payload, image) => {
+            if (config.webhookUrl === null) throw new Error('no webhook configured')
+            return sendWebhook(config.webhookUrl, payload, image)
+          },
+          writeDryRun: async (key, payload, image) => {
+            log(`dry run → ${await writeDryRunFiles(config.outDir, key, payload, image)}`)
+          },
+          log,
+          now: () => new Date(),
+        },
+        {
+          dryRun: config.dryRun,
+          siteUrl: config.siteUrl,
+          windowMs: WINDOW_MS,
+          batchLimit: BATCH_LIMIT,
+        },
+      )
+      if (c.posted + c.failed + c.dryRun > 0) log(`card cycle: ${JSON.stringify(c)}`)
     } catch (err: unknown) {
       log(`cycle error: ${err instanceof Error ? err.message : String(err)}`)
     }

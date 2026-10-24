@@ -1,4 +1,9 @@
-import type { DiscordGameResult, DiscordResult, DiscordStar } from '@eanhl/db/discord'
+import type {
+  DiscordCardUpdates,
+  DiscordGameResult,
+  DiscordResult,
+  DiscordStar,
+} from '@eanhl/db/discord'
 
 export const CARDS_FILENAME = 'cards.png'
 
@@ -79,6 +84,25 @@ export function buildGameResultPayload(
   const embed: WebhookEmbed = { title, url: gameUrl, color: COLORS[r.result], description }
   const payload: WebhookPayload = { allowed_mentions: { parse: [] }, embeds: [embed] }
   // A plain attachment, not embed.image: Discord shows it under the box, larger.
+  if (opts.hasImage) payload.attachments = [{ id: 0, filename: CARDS_FILENAME }]
+  return payload
+}
+
+/** One "Card updates" post: one linked line per player, the image under the box. */
+export function buildCardUpdatesPayload(
+  d: DiscordCardUpdates,
+  opts: { siteUrl: string; hasImage: boolean },
+): WebhookPayload {
+  const description = d.players
+    .map(
+      (p) =>
+        `[${escapeMarkdown(p.name)}](${opts.siteUrl}/roster/${String(p.playerId)}) — ${p.changes.map(escapeMarkdown).join(' · ')}`,
+    )
+    .join('\n')
+  const payload: WebhookPayload = {
+    allowed_mentions: { parse: [] },
+    embeds: [{ title: 'CARD UPDATES', url: opts.siteUrl, color: 0xe84131, description }],
+  }
   if (opts.hasImage) payload.attachments = [{ id: 0, filename: CARDS_FILENAME }]
   return payload
 }

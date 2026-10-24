@@ -1,7 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { DiscordGameResult } from '@eanhl/db/discord'
-import { buildGameResultPayload, escapeMarkdown, resultLabel } from './message.ts'
+import {
+  buildCardUpdatesPayload,
+  buildGameResultPayload,
+  escapeMarkdown,
+  resultLabel,
+} from './message.ts'
 
 const SITE = 'https://boogeymen.app'
 const r: DiscordGameResult = {
@@ -118,4 +123,29 @@ void test('DNF: grey, no stars, says it ended early', () => {
 void test('missing game mode is omitted, not printed as null', () => {
   const p = buildGameResultPayload({ ...r, gameMode: null }, { siteUrl: SITE, hasImage: false })
   assert.match(p.embeds[0]!.description, /^NHL 26 · <t:/)
+})
+
+void test('card updates: red CARD UPDATES box, one linked line per player, image under the box, all players in text', () => {
+  const d = {
+    batchEventId: 500,
+    gameTitleName: 'NHL 27',
+    players: Array.from({ length: 12 }, (_, i) => ({
+      playerId: i + 1,
+      name: i === 0 ? 'x_Sniper_x' : `P${String(i + 1)}`,
+      changes: ['New badge: Goals I', 'Card level 4 → 5'],
+    })),
+    cardCount: 9,
+  }
+  const p = buildCardUpdatesPayload(d, { siteUrl: 'https://boogeymen.app', hasImage: true })
+  const e = p.embeds[0]!
+  assert.equal(e.title, 'CARD UPDATES')
+  assert.equal(e.color, 0xe84131)
+  assert.equal(e.image, undefined)
+  assert.deepEqual(p.attachments, [{ id: 0, filename: 'cards.png' }])
+  assert.deepEqual(p.allowed_mentions, { parse: [] })
+  assert.equal(e.description.split('\n').length, 12)
+  assert.match(
+    e.description,
+    /^\[x\\_Sniper\\_x\]\(https:\/\/boogeymen\.app\/roster\/1\) — New badge\\: Goals I · Card level 4 → 5$/m,
+  )
 })
