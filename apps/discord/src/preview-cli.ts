@@ -30,6 +30,10 @@ if ((!valid(matchId) && !valid(unlockId)) || token.length < 16) {
 
 if (valid(unlockId)) {
   const u = await fetchUnlock({ webBaseUrl, token, eventId: unlockId })
+  if ('skip' in u) {
+    console.log(`unlock ${String(unlockId)}: skip (${u.skip})`)
+    process.exit(0)
+  }
   const image =
     u.graphic === 'none'
       ? null

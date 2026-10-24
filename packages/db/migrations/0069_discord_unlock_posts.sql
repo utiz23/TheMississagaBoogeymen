@@ -12,7 +12,13 @@
 --   docker exec -i -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=30s" \
 --     eanhl-team-website-db-1 psql -U eanhl -d <database> -v ON_ERROR_STOP=1 -f - \
 --     < packages/db/migrations/0069_discord_unlock_posts.sql
--- Apply BEFORE deploying the code that reads it. Idempotent. Adds only.
+-- Apply BEFORE deploying the code that reads it. Idempotent in schema; adds only.
+-- WARNING: re-running it AFTER launch marks every not-yet-posted unlock as
+-- 'skipped' (the back-fill covers every event without a row). Re-run only
+-- right before the first launch.
+-- ROLLING BACK to the card-batch poster (0068) re-posts recent unlocks as
+-- batches: first back-fill discord_card_posts with 'skipped' for the batches
+-- of the last 24 h (same INSERT … SELECT min(id) … GROUP BY as 0068).
 -- ROLLBACK:
 --   DROP TABLE IF EXISTS "discord_unlock_posts";
 

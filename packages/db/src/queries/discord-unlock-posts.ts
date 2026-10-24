@@ -54,7 +54,8 @@ export async function listDiscordUnlockCandidates(args: {
 
 export function claimDiscordUnlockSql(eventId: number): SQL {
   return sql`
-    insert into discord_unlock_posts (event_id, status, attempts) values (${eventId}, 'pending', 1)
+    insert into discord_unlock_posts (event_id, status, attempts)
+    select ev.id, 'pending', 1 from player_card_events ev where ev.id = ${eventId}
     on conflict (event_id) do update
       set status = 'pending', attempts = discord_unlock_posts.attempts + 1, updated_at = now()
       where discord_unlock_posts.status = 'failed' and discord_unlock_posts.attempts < ${MAX}

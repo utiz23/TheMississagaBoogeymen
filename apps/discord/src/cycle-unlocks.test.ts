@@ -64,15 +64,34 @@ void test('posts each unlock in candidate order, one message each, paused betwee
   assert.equal(h.events.filter((e) => e.startsWith('pause:')).length, 2)
 })
 
-void test('not counted any more (404 from web) ⇒ claimed and skipped, never sent', async () => {
+void test('web says skip ⇒ claimed, skipped with its reason, logged, never sent', async () => {
+  const h = harness([5], { fetchUnlock: async () => ({ skip: 'nothing to show' }) })
+  await runUnlockCycle(h.deps, OPTS)
+  assert.equal(h.sent.length, 0)
+  assert.ok(h.events.includes('skipped:5:nothing to show'))
+  assert.ok(h.events.some((e) => e.startsWith('log:unlock 5: skipped')))
+})
+
+void test('a 404 (old web image, bad token) is a retry, never a skip', async () => {
   const h = harness([5], {
     fetchUnlock: async () => {
       throw new Error('unlock data HTTP 404')
     },
   })
   await runUnlockCycle(h.deps, OPTS)
-  assert.equal(h.sent.length, 0)
-  assert.ok(h.events.includes('skipped:5:nothing to show'))
+  assert.ok(!h.events.some((e) => e.startsWith('claim:') || e.startsWith('skipped:')))
+})
+
+void test('Discord rate limit (429) ⇒ that unlock failed, the pass stops for this cycle', async () => {
+  const h = harness([5, 6, 7], {
+    send: async () => {
+      throw new Error('Discord webhook HTTP 429')
+    },
+  })
+  const s = await runUnlockCycle(h.deps, OPTS)
+  assert.equal(s.failed, 1)
+  assert.ok(h.events.includes('failed:5:Discord webhook HTTP 429'))
+  assert.ok(!h.events.some((e) => e === 'claim:6' || e === 'claim:7'))
 })
 
 void test('web down (5xx / network) ⇒ nothing claimed, retried next cycle', async () => {

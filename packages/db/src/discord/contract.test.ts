@@ -1,6 +1,21 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseDiscordGameResult, parseDiscordUnlock, type DiscordGameResult } from './contract.js'
+import {
+  parseDiscordGameResult,
+  parseDiscordUnlock,
+  parseDiscordUnlockResponse,
+  type DiscordGameResult,
+} from './contract.js'
+
+void test('unlock response: an explicit skip, or an unlock; anything else rejected', () => {
+  assert.deepEqual(parseDiscordUnlockResponse({ skip: 'nothing to show' }), {
+    skip: 'nothing to show',
+  })
+  const u = { eventId: 9, playerId: 2, name: 'A', kind: 'tier', subject: 'STUD', graphic: 'card' }
+  assert.deepEqual(parseDiscordUnlockResponse(u), u)
+  assert.throws(() => parseDiscordUnlockResponse({ skip: 3 }), /skip/)
+  assert.throws(() => parseDiscordUnlockResponse({}), /discord contract/)
+})
 
 const valid: DiscordGameResult = {
   matchId: 1234,

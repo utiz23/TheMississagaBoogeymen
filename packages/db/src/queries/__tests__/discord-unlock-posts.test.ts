@@ -38,9 +38,10 @@ void test('candidates: counted kinds (every badge level), members only, settled,
 
 void test('claim: insert pending, or flip only a failed row under the cap', () => {
   const s = flat(dialect.sqlToQuery(claimDiscordUnlockSql(42)).sql)
+  // Only for an event that still exists: a deleted event claims nothing (no FK error).
   assert.match(
     s,
-    /insert into discord_unlock_posts \(event_id, status, attempts\) values \(\$1, 'pending', 1\)/,
+    /insert into discord_unlock_posts \(event_id, status, attempts\) select ev\.id, 'pending', 1 from player_card_events ev where ev\.id = \$1/,
   )
   assert.match(
     s,

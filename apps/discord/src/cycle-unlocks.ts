@@ -1,4 +1,4 @@
-import type { DiscordUnlock } from '@eanhl/db/discord'
+import type { DiscordUnlock, DiscordUnlockSkip } from '@eanhl/db/discord'
 import type { CycleOptions, CycleSummary } from './cycle.ts'
 import { buildUnlockPayload, type MessagePayload } from './message.ts'
 import { WebhookOutcomeUnknownError } from './webhook.ts'
@@ -17,7 +17,7 @@ export interface UnlockStore {
 
 export interface UnlockDeps {
   store: UnlockStore
-  fetchUnlock(eventId: number): Promise<DiscordUnlock>
+  fetchUnlock(eventId: number): Promise<DiscordUnlock | DiscordUnlockSkip>
   render(eventId: number, graphic: 'badge' | 'card'): Promise<Uint8Array>
   send(payload: MessagePayload, image: Uint8Array | null): Promise<string | null>
   writeDryRun(key: string, payload: MessagePayload, image: Uint8Array | null): Promise<void>
@@ -27,13 +27,14 @@ export interface UnlockDeps {
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
-/** The web route answers 404 when an unlock doesn't count any more. */
-const gone = (err: unknown) => /HTTP 404\b/.test(message(err))
+/** Discord's rate limit: stop this pass instead of sending into it. */
+const rateLimited = (err: unknown) => /HTTP 429\b/.test(message(err))
 
 /**
  * One pass over unlocks, one Discord message each, in candidate order and
- * UNLOCK_GAP_MS apart. Same rules as the game pass: fetch before claiming (web
- * down ⇒ retry later; 404 ⇒ claim and skip), render (failure ⇒ text only),
+ * UNLOCK_GAP_MS apart. Same rules as the game pass: fetch before claiming (any
+ * error, 404 included ⇒ retry later; an explicit { skip } ⇒ claim, skip, log),
+ * render (failure ⇒ text only),
  * send; once a send succeeded or might have, the row is never marked failed.
  * Each unlock is its own row, so a crash mid-run never re-sends earlier ones.
  */
@@ -43,17 +44,22 @@ export async function runUnlockCycle(deps: UnlockDeps, opts: CycleOptions): Prom
   let sentBefore = false
   for (const id of await deps.store.candidates(since, opts.batchLimit)) {
     const tag = `unlock ${String(id)}`
-    let u: DiscordUnlock
+    let fetched: DiscordUnlock | DiscordUnlockSkip
     try {
-      u = await deps.fetchUnlock(id)
+      fetched = await deps.fetchUnlock(id)
     } catch (err: unknown) {
-      if (gone(err) && (await deps.store.claim(id))) {
-        await deps.store.markSkipped(id, 'nothing to show')
-      } else if (!gone(err)) {
-        deps.log(`${tag}: data unavailable, will retry (${message(err)})`)
+      // Any error, a 404 included (old web image, bad token), is a retry.
+      deps.log(`${tag}: data unavailable, will retry (${message(err)})`)
+      continue
+    }
+    if ('skip' in fetched) {
+      if (await deps.store.claim(id)) {
+        await deps.store.markSkipped(id, fetched.skip)
+        deps.log(`${tag}: skipped (${fetched.skip})`)
       }
       continue
     }
+    const u = fetched
     if (!(await deps.store.claim(id))) continue
     let image: Uint8Array | null = null
     if (u.graphic !== 'none') {
@@ -87,6 +93,10 @@ export async function runUnlockCycle(deps: UnlockDeps, opts: CycleOptions): Prom
         }
       }
       summary.failed++
+      if (rateLimited(err)) {
+        deps.log('Discord rate limit — unlock pass stopped until the next cycle')
+        break
+      }
       continue
     }
     sentBefore = true

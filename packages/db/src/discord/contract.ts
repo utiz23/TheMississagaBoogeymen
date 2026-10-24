@@ -136,3 +136,18 @@ export function parseDiscordUnlock(value: unknown): DiscordUnlock {
     graphic,
   }
 }
+
+/**
+ * The web route's answer when an unlock doesn't count any more (membership
+ * ended, mythic cleared, event gone). Explicit, so a 404 (old web image, bad
+ * token) is never mistaken for "skip" — the poster retries a 404.
+ */
+export interface DiscordUnlockSkip {
+  skip: string
+}
+
+export function parseDiscordUnlockResponse(value: unknown): DiscordUnlock | DiscordUnlockSkip {
+  const o = obj(value, 'root')
+  if ('skip' in o) return { skip: str(o['skip'], 'skip') }
+  return parseDiscordUnlock(value)
+}

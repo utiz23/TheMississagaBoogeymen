@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic'
 const notFound = () => new NextResponse('Not Found', { status: 404 })
 
 /**
- * Discord message data for one unlock. 404 without the service token, and
- * when the unlock doesn't count any more (the poster then skips it).
+ * Discord message data for one unlock. 404 without the service token; when
+ * the unlock doesn't count any more, 200 { skip } — explicit, so the poster
+ * never mistakes a 404 (old image, bad token) for a skip.
  */
 export async function GET(
   request: Request,
@@ -26,6 +27,11 @@ export async function GET(
   const id = Number.parseInt(eventId, 10)
   if (!Number.isSafeInteger(id) || id <= 0) return notFound()
   const loaded = await loadDiscordUnlock(id)
-  if (!loaded) return notFound()
+  if (!loaded) {
+    return NextResponse.json(
+      { skip: 'nothing to show' },
+      { headers: { 'cache-control': 'no-store' } },
+    )
+  }
   return NextResponse.json(loaded.data, { headers: { 'cache-control': 'no-store' } })
 }
