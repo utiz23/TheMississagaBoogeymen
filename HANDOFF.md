@@ -32,7 +32,7 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 **Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. **Live for members:** Card Locker EQUIP (own card; admin any), Discord picture in the nav, and **EDIT PROFILE** on the player page (`7aa6599`: member edits name, jersey, nationality, bio; admin also position, archetype, club role, on any player). **Admin tools are live** (`/admin`, [plan](docs/superpowers/plans/2026-10-09-admin-tools.md)): accounts, roster pins, sign-everyone-out, titles (view only), mythic cards, and the trophy case editor — **trophies/banners now live in the database** (migration 0066), not `club-awards.ts`.
 
-**Discord poster: live to `#bot-test`** (2026-10-24, `ab031e7`; card-update batches). Unlock posts (one message per unlock, migration 0069) built on `worktree-discord-unlocks`, not deployed. Off = `docker compose stop discord`. [Journal](docs/journal/2026-10.md).
+**Discord poster: live to `#bot-test`** (2026-10-24, `ab031e7`; card-update batches; rollbacks `:rollback-he-2026-10-24-pre-card-updates`). Unlock posts (migration 0069) built on `worktree-discord-unlocks`, not deployed — deploy `web` before `discord`, roll back both together. Real channel = swap `DISCORD_WEBHOOK_URL` on HE. Off = `docker compose stop discord`. [Journal](docs/journal/2026-10.md).
 
 **Awards trophy case is live** (2026-10-08); add trophies/banners (3s/6s/arcade) on `/admin/awards`. Awards rank ALL SKATERS totals (operator choice).
 
