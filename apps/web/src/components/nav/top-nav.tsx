@@ -6,6 +6,7 @@ import { pickDefaultTitle, switcherTitles } from '@/lib/title-resolver'
 import { NavAccount } from './nav-account'
 import { NavDrawer, NavDrawerFallback } from './nav-drawer'
 import { NavLinks, NavLinksFallback } from './nav-links'
+import { NavTitleMenu, NavTitleMenuFallback } from './nav-title-menu'
 
 /**
  * Switcher titles (live titles plus the explicit default, newest first) and the
@@ -16,13 +17,19 @@ import { NavLinks, NavLinksFallback } from './nav-links'
 async function fetchTitleSwitcher(): Promise<{
   titles: GameTitleListing[]
   defaultSlug: string | null
+  /** slug → name for every title, so the bar's menu can name an archive title too. */
+  titleNames: Record<string, string>
 }> {
   try {
     const all = await listAllGameTitles()
-    return { titles: switcherTitles(all), defaultSlug: pickDefaultTitle(all)?.slug ?? null }
+    return {
+      titles: switcherTitles(all),
+      defaultSlug: pickDefaultTitle(all)?.slug ?? null,
+      titleNames: Object.fromEntries(all.map((t) => [t.slug, t.name])),
+    }
   } catch {
-    // DB unavailable — drawer renders without its switcher
-    return { titles: [], defaultSlug: null }
+    // DB unavailable — bar and drawer render without their switchers
+    return { titles: [], defaultSlug: null, titleNames: {} }
   }
 }
 
@@ -35,17 +42,19 @@ async function fetchTitleSwitcher(): Promise<{
  * below the `nav` breakpoint. Box metrics follow the prototype's — nav pills
  * 8px/16px, CTA 9px/20px, burger 44px, all at 2px radius.
  *
- * No game-title switcher in the bar, matching the prototype — it sits in the
- * drawer footer instead, i.e. under 960px only. With two live titles (NHL 27
- * and NHL 26) wide viewports have no in-nav way to change title: /games,
- * /stats and /roster carry their own selectors, `/` only an explicit ?title=.
+ * The game-title switcher: a drop-down left of the CTA from 960px up
+ * (nav-title-menu.tsx), and the drawer footer's pills below that. The
+ * prototype had it in the drawer only, which left wide viewports no in-nav way
+ * to change title.
  *
  * The CTA is the member control (nav-account.tsx): LOG IN, or the member's
- * initials once signed in. It reads the session in the browser, so the bar —
- * and the root layout that renders it — never reads `headers()`.
+ * picture once signed in, which opens the account menu. It reads the member in
+ * the browser, so the bar — and the root layout that renders it — never reads
+ * `headers()`.
  */
 export async function TopNav() {
-  const { titles, defaultSlug } = await fetchTitleSwitcher()
+  const { titles, defaultSlug, titleNames } = await fetchTitleSwitcher()
+  const defaultName = defaultSlug === null ? null : (titleNames[defaultSlug] ?? null)
 
   return (
     <header className="sticky top-0 z-50 border-b border-accent/40 bg-surface/95 backdrop-blur-sm">
@@ -77,6 +86,11 @@ export async function TopNav() {
         </Suspense>
 
         <div className="ml-auto flex shrink-0 items-center gap-4">
+          <Suspense
+            fallback={<NavTitleMenuFallback label={defaultName} menu={titles.length > 1} />}
+          >
+            <NavTitleMenu titles={titles} defaultSlug={defaultSlug} titleNames={titleNames} />
+          </Suspense>
           {/* Prototype's SIGN IN CTA box: 9px/20px, 13px/800, 0.15em, 2px radius. */}
           <NavAccount variant="bar" />
           <Suspense fallback={<NavDrawerFallback />}>

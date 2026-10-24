@@ -2,18 +2,50 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { signOutAndReload } from '@/components/auth/sign-out-button'
+import { NavMenu, navMenuItemClass } from './nav-menu'
+import { isActive } from './nav-links'
+
+/** What `/api/me` answers (app/api/me/route.ts). */
+type MeBody = {
+  name: string
+  image: string | null
+  role: 'user' | 'admin'
+  playerId: number
+} | null
 
 type SessionState =
   | { status: 'loading' }
   | { status: 'out' }
-  | { status: 'in'; name: string; image: string | null }
+  | ({ status: 'in' } & NonNullable<MeBody>)
+
+function parseMe(body: unknown): SessionState {
+  if (body === null || typeof body !== 'object') return { status: 'out' }
+  const me = body as Record<string, unknown>
+  if (typeof me.name !== 'string' || typeof me.playerId !== 'number') {
+    return { status: 'out' }
+  }
+  return {
+    status: 'in',
+    name: me.name,
+    image: typeof me.image === 'string' ? me.image : null,
+    role: me.role === 'admin' ? 'admin' : 'user',
+    playerId: me.playerId,
+  }
+}
 
 /**
  * The nav's member control: LOG IN when signed out, the member's Discord
  * picture when signed in (the card silhouette when they have none, or it
- * won't load). Only the signed-in member's own picture is ever loaded. It reads the session from the browser after load, so the root
- * layout never touches `headers()` and every page stays as cacheable as before.
- * The box keeps its size while loading, so nothing shifts.
+ * won't load). Only the signed-in member's own picture is ever loaded. It reads
+ * the member from `/api/me` in the browser after load, so the root layout never
+ * touches `headers()` and every page stays as cacheable as before. The box
+ * keeps its size while loading, so nothing shifts.
+ *
+ * In the bar the picture opens the account menu: your account, your player
+ * card, admin tools (admins only) and sign out. In the drawer it stays one
+ * YOUR ACCOUNT button — the drawer has no room for a second menu.
  */
 export function NavAccount({
   variant,
@@ -26,23 +58,10 @@ export function NavAccount({
 
   useEffect(() => {
     let live = true
-    fetch('/api/auth/get-session', { cache: 'no-store' })
+    fetch('/api/me', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((body: unknown) => {
-        if (!live) return
-        const user =
-          body !== null && typeof body === 'object' && 'user' in body
-            ? (body as { user?: { name?: unknown; image?: unknown } }).user
-            : undefined
-        setSession(
-          typeof user?.name === 'string'
-            ? {
-                status: 'in',
-                name: user.name,
-                image: typeof user.image === 'string' ? user.image : null,
-              }
-            : { status: 'out' },
-        )
+        if (live) setSession(parseMe(body))
       })
       .catch(() => {
         if (live) setSession({ status: 'out' })
@@ -70,14 +89,15 @@ export function NavAccount({
 
   if (signedIn) {
     return (
-      <Link
-        href={href}
-        aria-label={`Your account (${session.name})`}
-        title={session.name}
-        className="hidden h-[38px] w-[38px] items-center justify-center overflow-hidden rounded-xs border border-accent-line bg-surface-raised transition-[filter] hover:brightness-110 nav:inline-flex"
+      <NavMenu
+        className="hidden nav:block"
+        buttonLabel={`Account menu (${session.name})`}
+        buttonTitle={session.name}
+        buttonClassName="flex h-[38px] w-[38px] items-center justify-center overflow-hidden rounded-xs border border-accent-line bg-surface-raised transition-[filter] hover:brightness-110 aria-expanded:border-accent"
+        button={<MemberPicture image={session.image} />}
       >
-        <MemberPicture image={session.image} />
-      </Link>
+        <AccountMenuItems session={session} />
+      </NavMenu>
     )
   }
 
@@ -88,6 +108,50 @@ export function NavAccount({
     >
       Log in
     </Link>
+  )
+}
+
+function AccountMenuItems({ session }: { session: Extract<SessionState, { status: 'in' }> }) {
+  const pathname = usePathname()
+  const [signingOut, setSigningOut] = useState(false)
+  const links = [
+    { href: '/account', label: 'Your account' },
+    { href: `/roster/${String(session.playerId)}`, label: 'Your player card' },
+    ...(session.role === 'admin' ? [{ href: '/admin', label: 'Admin tools' }] : []),
+  ]
+
+  return (
+    <>
+      <p className="truncate px-4 pb-2 pt-1.5 text-xs text-fg-4">
+        Signed in as <span className="text-fg-2">{session.name}</span>
+      </p>
+      {links.map(({ href, label }) => {
+        const active = isActive(pathname, href)
+        return (
+          <Link
+            prefetch
+            key={href}
+            href={href}
+            aria-current={active ? 'page' : undefined}
+            className={navMenuItemClass(active)}
+          >
+            {label}
+          </Link>
+        )
+      })}
+      <div aria-hidden className="mx-4 my-1.5 border-t border-border" />
+      <button
+        type="button"
+        disabled={signingOut}
+        onClick={() => {
+          setSigningOut(true)
+          void signOutAndReload()
+        }}
+        className={navMenuItemClass(false)}
+      >
+        {signingOut ? 'Signing out…' : 'Sign out'}
+      </button>
+    </>
   )
 }
 

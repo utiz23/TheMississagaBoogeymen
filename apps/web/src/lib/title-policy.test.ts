@@ -266,4 +266,9 @@ void test('nav takes the default from the shared policy, never from titles[0]', 
 
   const drawer = source('../components/nav/nav-drawer.tsx')
   assert.match(drawer, /<GameTitleSwitcher titles=\{titles\} defaultSlug=\{defaultSlug\} \/>/)
+
+  const barMenu = source('../components/nav/nav-title-menu.tsx')
+  assert.match(barMenu, /const currentSlug = searchParams\.get\('title'\) \?\? defaultSlug\b/)
+  assert.doesNotMatch(barMenu, /titles\[0\]\?\./)
+  assert.match(topNav, /<NavTitleMenu titles=\{titles\} defaultSlug=\{defaultSlug\}/)
 })

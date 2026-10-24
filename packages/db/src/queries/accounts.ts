@@ -175,6 +175,7 @@ export async function getAccountUserById(userId: string) {
       id: users.id,
       email: users.email,
       name: users.name,
+      image: users.image,
       role: users.role,
       disabledAt: users.disabledAt,
       createdAt: users.createdAt,

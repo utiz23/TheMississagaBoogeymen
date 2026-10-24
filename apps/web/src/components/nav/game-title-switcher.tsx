@@ -12,8 +12,22 @@ interface GameTitleSwitcherProps {
 }
 
 /**
- * Game-title switcher. Lives in the mobile drawer's footer only — the desktop
- * bar has no switcher, matching the prototype.
+ * The current page with `?title=` set to `slug`, keeping every other query
+ * param (e.g. `?mode=`). Shared with the desktop title menu (nav-title-menu.tsx).
+ */
+export function titleSwitchHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  slug: string,
+): string {
+  const params = new URLSearchParams(searchParams.toString())
+  params.set('title', slug)
+  return `${pathname}?${params.toString()}`
+}
+
+/**
+ * Game-title switcher for the mobile drawer's footer. The desktop bar has its
+ * own drop-down form of it (nav-title-menu.tsx).
  *
  * Sized to the prototype's `.nav-switch` treatment (12px/10px padding, 12px
  * type, 0.2em tracking, on surface behind a hairline border).
@@ -43,14 +57,12 @@ export function GameTitleSwitcher({ titles, defaultSlug }: GameTitleSwitcherProp
   return (
     <div className="flex flex-wrap gap-1.5">
       {titles.map((t) => {
-        const params = new URLSearchParams(searchParams.toString())
-        params.set('title', t.slug)
         const isActive = t.slug === currentSlug
         return (
           <Link
             prefetch
             key={t.id}
-            href={`${pathname}?${params.toString()}`}
+            href={titleSwitchHref(pathname, searchParams, t.slug)}
             aria-current={isActive ? 'true' : undefined}
             className={[
               box,
