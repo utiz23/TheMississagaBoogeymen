@@ -107,37 +107,32 @@ export function parseDiscordGameResult(value: unknown): DiscordGameResult {
   }
 }
 
-export interface DiscordCardUpdates {
-  /** Smallest player_card_events.id of the batch — its name. */
-  batchEventId: number
-  gameTitleName: string
-  /** Players with counted changes, in first-event order. */
-  players: { playerId: number; name: string; changes: string[] }[]
-  /** Cards in the image (≤ 9). 0 ⇒ no image. */
-  cardCount: number
+export const UNLOCK_KINDS = ['badge', 'card_level', 'tier', 'mythic'] as const
+
+export interface DiscordUnlock {
+  eventId: number
+  playerId: number
+  /** Card name, upper-cased. */
+  name: string
+  kind: (typeof UNLOCK_KINDS)[number]
+  /** Badge board name, tier/mythic name, or the card level. */
+  subject: string
+  /** 'none' ⇒ text-only (e.g. no card this title). */
+  graphic: 'badge' | 'card' | 'none'
 }
 
-export function parseDiscordCardUpdates(value: unknown): DiscordCardUpdates {
+export function parseDiscordUnlock(value: unknown): DiscordUnlock {
   const o = obj(value, 'root')
-  const playersRaw = o['players']
-  if (!Array.isArray(playersRaw)) fail('players', 'is not an array')
-  const players = playersRaw.map((p, i) => {
-    const path = `players[${String(i)}]`
-    const po = obj(p, path)
-    const changes = po['changes']
-    if (!Array.isArray(changes)) fail(`${path}.changes`, 'is not an array')
-    return {
-      playerId: int(po['playerId'], `${path}.playerId`),
-      name: str(po['name'], `${path}.name`),
-      changes: changes.map((c, j) => str(c, `${path}.changes[${String(j)}]`)),
-    }
-  })
-  const cardCount = int(o['cardCount'], 'cardCount')
-  if (cardCount < 0) fail('cardCount', 'is negative')
+  const kind = o['kind']
+  if (!UNLOCK_KINDS.includes(kind as DiscordUnlock['kind'])) fail('kind', 'is invalid')
+  const graphic = o['graphic']
+  if (graphic !== 'badge' && graphic !== 'card' && graphic !== 'none') fail('graphic', 'is invalid')
   return {
-    batchEventId: int(o['batchEventId'], 'batchEventId'),
-    gameTitleName: str(o['gameTitleName'], 'gameTitleName'),
-    players,
-    cardCount,
+    eventId: int(o['eventId'], 'eventId'),
+    playerId: int(o['playerId'], 'playerId'),
+    name: str(o['name'], 'name'),
+    kind: kind as DiscordUnlock['kind'],
+    subject: str(o['subject'], 'subject'),
+    graphic,
   }
 }

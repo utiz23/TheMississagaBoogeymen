@@ -1,2 +1,2 @@
 export * from './contract.js'
-export * from './card-updates.js'
+export * from './unlocks.js'

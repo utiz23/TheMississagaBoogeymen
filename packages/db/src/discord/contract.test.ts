@@ -1,10 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  parseDiscordCardUpdates,
-  parseDiscordGameResult,
-  type DiscordGameResult,
-} from './contract.js'
+import { parseDiscordGameResult, parseDiscordUnlock, type DiscordGameResult } from './contract.js'
 
 const valid: DiscordGameResult = {
   matchId: 1234,
@@ -61,17 +57,16 @@ void test('rejects non-objects', () => {
   assert.throws(() => parseDiscordGameResult(null), /discord contract/)
 })
 
-void test('card updates: valid round-trip; bad shapes rejected', () => {
+void test('unlock: valid round-trip; bad kind/graphic rejected', () => {
   const v = {
-    batchEventId: 500,
-    gameTitleName: 'NHL 27',
-    players: [{ playerId: 2, name: 'Silky', changes: ['Goals II → III'] }],
-    cardCount: 1,
+    eventId: 9,
+    playerId: 2,
+    name: 'SILKY',
+    kind: 'badge',
+    subject: 'Shots · Home II',
+    graphic: 'badge',
   }
-  assert.deepEqual(parseDiscordCardUpdates(JSON.parse(JSON.stringify(v))), v)
-  assert.throws(() => parseDiscordCardUpdates({ ...v, cardCount: -1 }), /cardCount/)
-  assert.throws(
-    () => parseDiscordCardUpdates({ ...v, players: [{ playerId: 2, name: 'x', changes: [1] }] }),
-    /changes/,
-  )
+  assert.deepEqual(parseDiscordUnlock(JSON.parse(JSON.stringify(v))), v)
+  assert.throws(() => parseDiscordUnlock({ ...v, kind: 'x' }), /kind/)
+  assert.throws(() => parseDiscordUnlock({ ...v, graphic: 'gif' }), /graphic/)
 })
