@@ -6,9 +6,9 @@ import { db } from '../client.js'
  * (operator, 2026-10-09). A member is on EA's club-member list for any title,
  * in the historical club-member archive, pinned to the roster (e.g. Jimmy
  * Cap), or one of the worker's AI goalies. Guests who only filled in for a
- * few games are not members.
+ * few games are not members. Uses the alias `p` for `players`.
  */
-const MEMBER_CONDITION = sql`(
+export const MEMBER_CONDITION = sql`(
   p.pinned_to_roster
   or p.ai_goalie_side is not null
   or exists (select 1 from ea_member_season_stats e where e.player_id = p.id)
