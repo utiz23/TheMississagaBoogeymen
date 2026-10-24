@@ -149,3 +149,22 @@ void test('card updates: red CARD UPDATES box, one linked line per player, image
     /^\[x\\_Sniper\\_x\]\(https:\/\/boogeymen\.app\/roster\/1\) — New badge\\: Goals I · Card level 4 → 5$/m,
   )
 })
+
+void test('card updates: text stays under Discord’s 4096 limit, ending with "…and N more"', () => {
+  const d = {
+    batchEventId: 1,
+    gameTitleName: 'NHL 27',
+    players: Array.from({ length: 40 }, (_, i) => ({
+      playerId: i + 1,
+      name: `Player_${String(i + 1)}`,
+      changes: Array.from({ length: 8 }, (_, j) => `New badge: Desperation Saves ${String(j)} I`),
+    })),
+    cardCount: 9,
+  }
+  const desc = buildCardUpdatesPayload(d, { siteUrl: 'https://boogeymen.app', hasImage: true })
+    .embeds[0]!.description
+  assert.ok(desc.length <= 4096, `length ${String(desc.length)}`)
+  assert.match(desc, /\n…and \d+ more$/)
+  const shown = desc.split('\n').length - 1
+  assert.match(desc, new RegExp(`…and ${String(40 - shown)} more$`))
+})

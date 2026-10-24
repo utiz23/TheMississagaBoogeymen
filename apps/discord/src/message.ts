@@ -88,17 +88,40 @@ export function buildGameResultPayload(
   return payload
 }
 
+/** Discord rejects an embed description longer than 4096 characters (HTTP 400). */
+const DESCRIPTION_LIMIT = 4096
+
+/**
+ * Whole lines while they fit, then "…and N more": a long batch (a new
+ * season's first night) still posts instead of failing every retry.
+ */
+function fitLines(lines: string[], limit: number): string {
+  const out: string[] = []
+  let used = 0
+  for (const [i, line] of lines.entries()) {
+    const rest = lines.length - i - 1
+    const tail = rest > 0 ? `\n…and ${String(rest + 1)} more` : ''
+    const add = (out.length > 0 ? 1 : 0) + line.length
+    if (used + add + (rest > 0 ? tail.length : 0) > limit) {
+      out.push(`…and ${String(lines.length - i)} more`)
+      return out.join('\n')
+    }
+    out.push(line)
+    used += add
+  }
+  return out.join('\n')
+}
+
 /** One "Card updates" post: one linked line per player, the image under the box. */
 export function buildCardUpdatesPayload(
   d: DiscordCardUpdates,
   opts: { siteUrl: string; hasImage: boolean },
 ): WebhookPayload {
-  const description = d.players
-    .map(
-      (p) =>
-        `[${escapeMarkdown(p.name)}](${opts.siteUrl}/roster/${String(p.playerId)}) — ${p.changes.map(escapeMarkdown).join(' · ')}`,
-    )
-    .join('\n')
+  const lines = d.players.map(
+    (p) =>
+      `[${escapeMarkdown(p.name)}](${opts.siteUrl}/roster/${String(p.playerId)}) — ${p.changes.map(escapeMarkdown).join(' · ')}`,
+  )
+  const description = fitLines(lines, DESCRIPTION_LIMIT)
   const payload: WebhookPayload = {
     allowed_mentions: { parse: [] },
     embeds: [{ title: 'CARD UPDATES', url: opts.siteUrl, color: 0xe84131, description }],

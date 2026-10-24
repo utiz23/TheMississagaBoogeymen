@@ -9,7 +9,7 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 
 process.env.DATABASE_URL = 'postgresql://discord-card-posts-test:unused@127.0.0.1:1/unused'
 
-const { discordCardBatchCandidatesSql, claimDiscordCardPostSql } =
+const { discordCardBatchCandidatesSql, claimDiscordCardPostSql, cardEventBatchQuery } =
   await import('../discord-card-posts.js')
 const dialect = new PgDialect()
 const flat = (s: string) => s.replace(/\s+/g, ' ')
@@ -24,7 +24,12 @@ void test('candidates: active title, 24 h window passed as text, settled, counte
   assert.ok(q.params.includes('2026-10-24T00:00:00.000Z'))
   assert.ok(q.params.every((p) => !(p instanceof Date)))
   assert.match(s, /d\.batch_event_id is null or \(d\.status = 'failed' and d\.attempts < 3\)/)
-  assert.match(s, /l\.game_title_id = b\.game_title_id and l\.started_at > b\.occurred_at/)
+  // Settled only when EVERY match type was fetched again after the batch, so a
+  // 3s or private game's post (settled per type) always goes first.
+  assert.match(
+    s,
+    /not exists \( select 1 from unnest\(array\['gameType5', 'gameType10', 'club_private'\]::text\[\]\) t\(mt\) where not exists \( select 1 from ingestion_log l where l\.game_title_id = b\.game_title_id and l\.match_type = t\.mt and l\.started_at > b\.occurred_at \) \)/,
+  )
   assert.match(s, /p\.ai_goalie_side is null/)
   assert.match(s, /p\.pinned_to_roster/)
   assert.match(
@@ -51,4 +56,15 @@ void test('claim: insert pending from the event row, or flip only a failed row u
     /where discord_card_posts\.status = 'failed' and discord_card_posts\.attempts < 3/,
   )
   assert.match(s, /returning batch_event_id/)
+})
+
+void test('batch events: matched to the head event inside SQL, never via a JS timestamp', () => {
+  const { sql, params } = cardEventBatchQuery(42).toSQL()
+  const s = flat(sql)
+  assert.match(
+    s,
+    /\("player_card_events"\."game_title_id", "player_card_events"\."occurred_at"\) = \(select h\.game_title_id, h\.occurred_at from player_card_events h where h\.id = \$1\)/,
+  )
+  assert.deepEqual(params, [42])
+  assert.match(s, /order by "player_card_events"\."id" asc/)
 })

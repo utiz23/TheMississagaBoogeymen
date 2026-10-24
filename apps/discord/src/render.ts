@@ -12,6 +12,8 @@ export async function renderElement(opts: {
   path: string
   selector: string
   timeoutMs: number
+  /** Taller pages (3 rows of captioned cards) need more; a fixed element can't scroll. */
+  viewportHeight?: number
 }): Promise<Uint8Array> {
   const browser = await chromium.launch()
   const killer = setTimeout(() => void browser.close(), opts.timeoutMs + 5_000)
@@ -20,7 +22,7 @@ export async function renderElement(opts: {
       reducedMotion: 'reduce',
       deviceScaleFactor: 2,
       // Two rows of ~421 px cards must fit: a fixed element can't be scrolled into view.
-      viewport: { width: 1000, height: 1100 },
+      viewport: { width: 1000, height: opts.viewportHeight ?? 1100 },
       extraHTTPHeaders: { [INTERNAL_TOKEN_HEADER]: opts.token },
     })
     const page = await context.newPage()
@@ -80,4 +82,6 @@ export const renderCardUpdates = (o: {
     ...o,
     path: `/internal/discord/card-updates/${String(o.batchEventId)}`,
     selector: '#discord-card-updates',
+    // Up to 3 rows of 252 px cards with multi-line captions.
+    viewportHeight: 1800,
   })
