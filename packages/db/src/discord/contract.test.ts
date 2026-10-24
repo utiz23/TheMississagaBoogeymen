@@ -1,6 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseDiscordGameResult, type DiscordGameResult } from './contract.js'
+import {
+  parseDiscordCardUpdates,
+  parseDiscordGameResult,
+  type DiscordGameResult,
+} from './contract.js'
 
 const valid: DiscordGameResult = {
   matchId: 1234,
@@ -55,4 +59,19 @@ void test('rejects a negative or fractional lineupCardCount', () => {
 
 void test('rejects non-objects', () => {
   assert.throws(() => parseDiscordGameResult(null), /discord contract/)
+})
+
+void test('card updates: valid round-trip; bad shapes rejected', () => {
+  const v = {
+    batchEventId: 500,
+    gameTitleName: 'NHL 27',
+    players: [{ playerId: 2, name: 'Silky', changes: ['Goals II → III'] }],
+    cardCount: 1,
+  }
+  assert.deepEqual(parseDiscordCardUpdates(JSON.parse(JSON.stringify(v))), v)
+  assert.throws(() => parseDiscordCardUpdates({ ...v, cardCount: -1 }), /cardCount/)
+  assert.throws(
+    () => parseDiscordCardUpdates({ ...v, players: [{ playerId: 2, name: 'x', changes: [1] }] }),
+    /changes/,
+  )
 })

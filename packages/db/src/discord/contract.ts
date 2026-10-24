@@ -106,3 +106,38 @@ export function parseDiscordGameResult(value: unknown): DiscordGameResult {
     lineupCardCount,
   }
 }
+
+export interface DiscordCardUpdates {
+  /** Smallest player_card_events.id of the batch — its name. */
+  batchEventId: number
+  gameTitleName: string
+  /** Players with counted changes, in first-event order. */
+  players: { playerId: number; name: string; changes: string[] }[]
+  /** Cards in the image (≤ 9). 0 ⇒ no image. */
+  cardCount: number
+}
+
+export function parseDiscordCardUpdates(value: unknown): DiscordCardUpdates {
+  const o = obj(value, 'root')
+  const playersRaw = o['players']
+  if (!Array.isArray(playersRaw)) fail('players', 'is not an array')
+  const players = playersRaw.map((p, i) => {
+    const path = `players[${String(i)}]`
+    const po = obj(p, path)
+    const changes = po['changes']
+    if (!Array.isArray(changes)) fail(`${path}.changes`, 'is not an array')
+    return {
+      playerId: int(po['playerId'], `${path}.playerId`),
+      name: str(po['name'], `${path}.name`),
+      changes: changes.map((c, j) => str(c, `${path}.changes[${String(j)}]`)),
+    }
+  })
+  const cardCount = int(o['cardCount'], 'cardCount')
+  if (cardCount < 0) fail('cardCount', 'is negative')
+  return {
+    batchEventId: int(o['batchEventId'], 'batchEventId'),
+    gameTitleName: str(o['gameTitleName'], 'gameTitleName'),
+    players,
+    cardCount,
+  }
+}
