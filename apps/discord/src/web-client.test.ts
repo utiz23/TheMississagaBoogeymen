@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { fetchCardUpdates, fetchGameResult } from './web-client.ts'
+import { fetchGameResult, fetchUnlock } from './web-client.ts'
 
 void test('sends the token header and parses the contract', async () => {
   let header: string | null = null
@@ -23,18 +23,15 @@ void test('non-2xx is an error naming only the status', async () => {
   )
 })
 
-void test('fetchCardUpdates: token header, data route, contract-parsed', async () => {
+void test('fetchUnlock: token header, data route, contract-parsed', async () => {
   let url = ''
   const fake = (async (u: URL | string) => {
     url = String(u)
     return new Response('{"bad":1}', { status: 200 })
   }) as typeof fetch
   await assert.rejects(
-    fetchCardUpdates(
-      { webBaseUrl: 'http://web:3000', token: 't'.repeat(32), batchEventId: 500 },
-      fake,
-    ),
+    fetchUnlock({ webBaseUrl: 'http://web:3000', token: 't'.repeat(32), eventId: 9 }, fake),
     /discord contract/,
   )
-  assert.equal(url, 'http://web:3000/internal/discord/card-updates/500/data')
+  assert.equal(url, 'http://web:3000/internal/discord/unlock/9/data')
 })

@@ -12,15 +12,19 @@ export async function renderElement(opts: {
   path: string
   selector: string
   timeoutMs: number
-  /** Taller pages (3 rows of captioned cards) need more; a fixed element can't scroll. */
+  /** A fixed element can't scroll, so a tall page needs a tall viewport. */
   viewportHeight?: number
+  /** Transparent PNG (the page must not paint a background behind the element). */
+  omitBackground?: boolean
+  /** Device scale factor (2 by default; 3 for a full card). */
+  scale?: number
 }): Promise<Uint8Array> {
   const browser = await chromium.launch()
   const killer = setTimeout(() => void browser.close(), opts.timeoutMs + 5_000)
   try {
     const context = await browser.newContext({
       reducedMotion: 'reduce',
-      deviceScaleFactor: 2,
+      deviceScaleFactor: opts.scale ?? 2,
       // Two rows of ~421 px cards must fit: a fixed element can't be scrolled into view.
       viewport: { width: 1000, height: opts.viewportHeight ?? 1100 },
       extraHTTPHeaders: { [INTERNAL_TOKEN_HEADER]: opts.token },
@@ -49,6 +53,7 @@ export async function renderElement(opts: {
     const png = await strip.screenshot({
       type: 'png',
       animations: 'disabled',
+      omitBackground: opts.omitBackground ?? false,
       timeout: opts.timeoutMs,
     })
     return new Uint8Array(png)
@@ -71,17 +76,18 @@ export const renderLineup = (o: {
     selector: '#discord-lineup',
   })
 
-/** One batch of card changes (each changed teammate's compact card). */
-export const renderCardUpdates = (o: {
+/** One unlock's graphic: the badge (scale 2) or the full card (scale 3), transparent. */
+export const renderUnlock = (o: {
   webBaseUrl: string
   token: string
-  batchEventId: number
+  eventId: number
+  graphic: 'badge' | 'card'
   timeoutMs: number
 }): Promise<Uint8Array> =>
   renderElement({
     ...o,
-    path: `/internal/discord/card-updates/${String(o.batchEventId)}`,
-    selector: '#discord-card-updates',
-    // Up to 3 rows of 252 px cards with multi-line captions.
-    viewportHeight: 1800,
+    path: `/internal/discord/unlock/${String(o.eventId)}`,
+    selector: '#discord-unlock',
+    omitBackground: true,
+    scale: o.graphic === 'card' ? 3 : 2,
   })

@@ -1,7 +1,7 @@
 /**
  * Discord poster entry point. Non-overlapping loop (async wait, like the
  * worker). Reads match data only through the web app's internal routes and
- * writes only discord_posts. Bad config ⇒ log once and idle (no restart loop,
+ * writes only its discord_* tables. Bad config ⇒ log once and idle (no restart loop,
  * no posts).
  *
  * Env: DATABASE_URL, DISCORD_WEBHOOK_URL, DISCORD_INTERNAL_TOKEN,
@@ -22,11 +22,11 @@ async function main(): Promise<void> {
   const config = loaded.config
   // Imported after the config check so a misconfigured host never opens a DB pool.
   const { listStuckDiscordPosts } = await import('@eanhl/db/queries')
-  const { dbStore, dbCardStore } = await import('./store.ts')
+  const { dbStore, dbUnlockStore } = await import('./store.ts')
   const { runPosterCycle, WINDOW_MS, BATCH_LIMIT } = await import('./cycle.ts')
-  const { runCardUpdatesCycle } = await import('./cycle-cards.ts')
-  const { fetchCardUpdates, fetchGameResult } = await import('./web-client.ts')
-  const { renderCardUpdates, renderLineup } = await import('./render.ts')
+  const { runUnlockCycle, UNLOCK_LIMIT } = await import('./cycle-unlocks.ts')
+  const { fetchGameResult, fetchUnlock } = await import('./web-client.ts')
+  const { renderLineup, renderUnlock } = await import('./render.ts')
   const { sendWebhook } = await import('./webhook.ts')
   const { writeDryRunFiles } = await import('./dry-run.ts')
 
@@ -62,13 +62,13 @@ async function main(): Promise<void> {
         },
       )
       if (s.posted + s.failed + s.dryRun > 0) log(`cycle: ${JSON.stringify(s)}`)
-      // Card updates after games: a game's post always comes before its card changes.
-      const c = await runCardUpdatesCycle(
+      // Unlocks after games: a game's post always comes before its card changes.
+      const u = await runUnlockCycle(
         {
-          store: dbCardStore,
-          fetchCardUpdates: (batchEventId) => fetchCardUpdates({ ...web, batchEventId }),
-          renderCards: (batchEventId) =>
-            renderCardUpdates({ ...web, batchEventId, timeoutMs: config.renderTimeoutMs }),
+          store: dbUnlockStore,
+          fetchUnlock: (eventId) => fetchUnlock({ ...web, eventId }),
+          render: (eventId, graphic) =>
+            renderUnlock({ ...web, eventId, graphic, timeoutMs: config.renderTimeoutMs }),
           send: (payload, image) => {
             if (config.webhookUrl === null) throw new Error('no webhook configured')
             return sendWebhook(config.webhookUrl, payload, image)
@@ -76,6 +76,7 @@ async function main(): Promise<void> {
           writeDryRun: async (key, payload, image) => {
             log(`dry run → ${await writeDryRunFiles(config.outDir, key, payload, image)}`)
           },
+          pause: sleep,
           log,
           now: () => new Date(),
         },
@@ -83,10 +84,10 @@ async function main(): Promise<void> {
           dryRun: config.dryRun,
           siteUrl: config.siteUrl,
           windowMs: WINDOW_MS,
-          batchLimit: BATCH_LIMIT,
+          batchLimit: UNLOCK_LIMIT,
         },
       )
-      if (c.posted + c.failed + c.dryRun > 0) log(`card cycle: ${JSON.stringify(c)}`)
+      if (u.posted + u.failed + u.dryRun > 0) log(`unlock cycle: ${JSON.stringify(u)}`)
     } catch (err: unknown) {
       log(`cycle error: ${err instanceof Error ? err.message : String(err)}`)
     }

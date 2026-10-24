@@ -1,4 +1,4 @@
-import { CARDS_FILENAME, type WebhookPayload } from './message.ts'
+import { CARDS_FILENAME, type MessagePayload, type WebhookPayload } from './message.ts'
 
 /**
  * The request may have reached Discord (timeout, connection reset after the
@@ -21,7 +21,7 @@ const NEVER_SENT = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'])
  */
 export async function sendWebhook(
   webhookUrl: string,
-  payload: WebhookPayload,
+  payload: WebhookPayload | MessagePayload,
   image: Uint8Array | null,
   fetchImpl: typeof fetch = fetch,
 ): Promise<string | null> {
@@ -33,7 +33,7 @@ export async function sendWebhook(
     form.append(
       'files[0]',
       new Blob([new Uint8Array(image)], { type: 'image/png' }),
-      CARDS_FILENAME,
+      payload.attachments?.[0]?.filename ?? CARDS_FILENAME,
     )
   }
   let res: Response

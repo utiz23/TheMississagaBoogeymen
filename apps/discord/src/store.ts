@@ -1,17 +1,17 @@
 import {
-  claimDiscordCardPost,
   claimDiscordPost,
-  listDiscordCardBatchCandidates,
+  claimDiscordUnlock,
   listDiscordPostCandidates,
-  markDiscordCardPostFailed,
-  markDiscordCardPostPosted,
-  markDiscordCardPostSkipped,
+  listDiscordUnlockCandidates,
   markDiscordPostFailed,
   markDiscordPostPosted,
   markDiscordPostSkipped,
+  markDiscordUnlockFailed,
+  markDiscordUnlockPosted,
+  markDiscordUnlockSkipped,
 } from '@eanhl/db/queries'
 import type { PosterStore } from './cycle.ts'
-import type { CardPostStore } from './cycle-cards.ts'
+import type { UnlockStore } from './cycle-unlocks.ts'
 
 export const dbStore: PosterStore = {
   candidates: (since, limit) => listDiscordPostCandidates({ since, limit }),
@@ -21,10 +21,10 @@ export const dbStore: PosterStore = {
   markSkipped: markDiscordPostSkipped,
 }
 
-export const dbCardStore: CardPostStore = {
-  candidates: (since, limit) => listDiscordCardBatchCandidates({ since, limit }),
-  claim: claimDiscordCardPost,
-  markPosted: markDiscordCardPostPosted,
-  markFailed: markDiscordCardPostFailed,
-  markSkipped: markDiscordCardPostSkipped,
+export const dbUnlockStore: UnlockStore = {
+  candidates: (since, limit) => listDiscordUnlockCandidates({ since, limit }),
+  claim: claimDiscordUnlock,
+  markPosted: markDiscordUnlockPosted,
+  markFailed: markDiscordUnlockFailed,
+  markSkipped: markDiscordUnlockSkipped,
 }

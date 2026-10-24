@@ -2,8 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { DiscordGameResult } from '@eanhl/db/discord'
 import {
-  buildCardUpdatesPayload,
   buildGameResultPayload,
+  buildUnlockPayload,
   escapeMarkdown,
   resultLabel,
 } from './message.ts'
@@ -125,46 +125,28 @@ void test('missing game mode is omitted, not printed as null', () => {
   assert.match(p.embeds[0]!.description, /^NHL 26 · <t:/)
 })
 
-void test('card updates: red CARD UPDATES box, one linked line per player, image under the box, all players in text', () => {
-  const d = {
-    batchEventId: 500,
-    gameTitleName: 'NHL 27',
-    players: Array.from({ length: 12 }, (_, i) => ({
-      playerId: i + 1,
-      name: i === 0 ? 'x_Sniper_x' : `P${String(i + 1)}`,
-      changes: ['New badge: Goals I', 'Card level 4 → 5'],
-    })),
-    cardCount: 9,
-  }
-  const p = buildCardUpdatesPayload(d, { siteUrl: 'https://boogeymen.app', hasImage: true })
-  const e = p.embeds[0]!
-  assert.equal(e.title, 'CARD UPDATES')
-  assert.equal(e.color, 0xe84131)
-  assert.equal(e.image, undefined)
-  assert.deepEqual(p.attachments, [{ id: 0, filename: 'cards.png' }])
-  assert.deepEqual(p.allowed_mentions, { parse: [] })
-  assert.equal(e.description.split('\n').length, 12)
-  assert.match(
-    e.description,
-    /^\[x\\_Sniper\\_x\]\(https:\/\/boogeymen\.app\/roster\/1\) — New badge\\: Goals I · Card level 4 → 5$/m,
+void test('unlock texts: bold linked capital name, no link preview, one line per kind, image under', () => {
+  const u = (kind: 'badge' | 'card_level' | 'tier' | 'mythic', subject: string) =>
+    buildUnlockPayload(
+      { eventId: 1, playerId: 2, name: 'X_SNIPER_X', kind, subject, graphic: 'badge' },
+      { siteUrl: 'https://boogeymen.app', hasImage: true },
+    )
+  assert.equal(
+    u('badge', 'Shots · Carbon-Fiber I').content,
+    '**[X\\_SNIPER\\_X](<https://boogeymen.app/roster/2>)** has unlocked **Shots · Carbon\\-Fiber I**!',
   )
-})
-
-void test('card updates: text stays under Discord’s 4096 limit, ending with "…and N more"', () => {
-  const d = {
-    batchEventId: 1,
-    gameTitleName: 'NHL 27',
-    players: Array.from({ length: 40 }, (_, i) => ({
-      playerId: i + 1,
-      name: `Player_${String(i + 1)}`,
-      changes: Array.from({ length: 8 }, (_, j) => `New badge: Desperation Saves ${String(j)} I`),
-    })),
-    cardCount: 9,
-  }
-  const desc = buildCardUpdatesPayload(d, { siteUrl: 'https://boogeymen.app', hasImage: true })
-    .embeds[0]!.description
-  assert.ok(desc.length <= 4096, `length ${String(desc.length)}`)
-  assert.match(desc, /\n…and \d+ more$/)
-  const shown = desc.split('\n').length - 1
-  assert.match(desc, new RegExp(`…and ${String(40 - shown)} more$`))
+  assert.match(u('tier', 'STUD').content, / has unlocked the \*\*STUD\*\* card!$/)
+  assert.match(u('mythic', 'INFERNO').content, / has unlocked the \*\*INFERNO\*\* card!$/)
+  assert.match(u('card_level', '5').content, / has reached \*\*card level 5\*\*!$/)
+  const p = u('badge', 'Goals · Away I')
+  assert.deepEqual(p.allowed_mentions, { parse: [] })
+  assert.deepEqual(p.attachments, [{ id: 0, filename: 'unlock.png' }])
+  assert.equal('embeds' in p, false)
+  assert.equal(
+    buildUnlockPayload(
+      { eventId: 1, playerId: 2, name: 'A', kind: 'tier', subject: 'STUD', graphic: 'none' },
+      { siteUrl: 'https://boogeymen.app', hasImage: false },
+    ).attachments,
+    undefined,
+  )
 })
