@@ -37,10 +37,13 @@ export async function renderElement(opts: {
     if (res === null || !res.ok()) throw new Error(`card page HTTP ${String(res?.status() ?? 0)}`)
     const strip = page.locator(opts.selector)
     await strip.waitFor({ state: 'visible', timeout: opts.timeoutMs })
-    await page.evaluate(async () => {
+    // Only the screenshotted element's images: a lazy image in hidden site
+    // chrome (the unlock page hides the footer) never loads and would hang here.
+    await page.evaluate(async (selector) => {
       await document.fonts.ready
+      const root = document.querySelector(selector)
       await Promise.all(
-        Array.from(document.images).map((img) =>
+        Array.from(root?.querySelectorAll('img') ?? []).map((img) =>
           img.complete
             ? null
             : new Promise((resolve) => {
@@ -49,7 +52,7 @@ export async function renderElement(opts: {
               }),
         ),
       )
-    })
+    }, opts.selector)
     const png = await strip.screenshot({
       type: 'png',
       animations: 'disabled',
