@@ -75,3 +75,8 @@ Where the GM works (site admin page, Discord commands, or both); how long scrums
 stay open; how often interview requests come; how quotes are attributed and
 whether a player can withdraw a quote; dossier field list and visibility; how
 storylines are scheduled into coverage; cost of bot conversations.
+
+## Fan reactions drive buzz (operator, 2026-10-25)
+
+A post that gets many reactions in Discord (e.g. 🔥) gets a follow-up from
+another reporter. Needs the bot (webhooks cannot read reactions).

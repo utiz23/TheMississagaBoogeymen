@@ -552,3 +552,21 @@ for the number of posts; §12.11 still decides who replies to whom).
   record" is detected from data.
 - Score weights and level cut-offs are Claude's call, tuned so the NHL 26 and
   NHL 27 games land near the target shares.
+
+### 12.15 More data-driven news hooks (operator, 2026-10-25)
+
+1. **Player streaks and slumps:** points in N straight games, goals in N
+   straight, no goal in N games (N ≥ 3 for runs, ≥ 8 for slumps — Claude's call).
+   They go on the sheet and raise the buzz (§12.14).
+2. **Rivalries and revenge games:** when the opponent has been played before in
+   this title, the sheet carries the head-to-head record and the last meeting's
+   score; reporters may frame a rematch.
+3. **Debuts and returns:** a member's first game, a member's first game in a new
+   title, or a return after 30+ days without a game is flagged on the sheet and
+   gets a mention.
+4. **Prediction scorecards:** each reporter's running record of judged
+   predictions (hit / miss, decided by the receipt) is kept and may be quoted
+   ("Quill is 4 for 7 this season").
+
+Fan reactions driving buzz (operator's item 7) need the Discord bot and belong to
+the bot project.
