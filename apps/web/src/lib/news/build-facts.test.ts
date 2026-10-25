@@ -6,6 +6,7 @@ import {
   buildGameFacts,
   buildMilestones,
   buildPeople,
+  buildAiGoalieWeek,
   buildGoalTimeline,
   buildRecordAndStreak,
   buildWeekHistory,
@@ -100,15 +101,16 @@ void test('buildPeople: a guest is never named; gamertag and non-blank profile n
   assert.deepEqual([...forbiddenNames].sort(), ['Guest Person', 'GuestOne', 'GuestTwo'])
 })
 
-void test('buildPeople: an AI goalie is not named, even though the club counts it as a member', () => {
+void test('buildPeople: an AI goalie is not a person and not forbidden either (spec 12.8, C1.1)', () => {
   const { people, forbiddenNames } = buildPeople({
-    players: [{ playerId: 20, gamertag: 'Lehmann', aiGoalie: true, position: 'goalie' }],
+    players: [{ playerId: 20, gamertag: 'Matteo Lehmann', aiGoalie: true, position: 'goalie' }],
     memberIds: new Set([20]),
-    profiles: new Map(),
+    profiles: new Map([[20, profile('Some Name')]]),
     outMembers: [],
   })
   assert.deepEqual(people, [])
-  assert.deepEqual(forbiddenNames, ['Lehmann'])
+  // Named by the AI goalie line instead; the fact check allows the name.
+  assert.deepEqual(forbiddenNames, [])
 })
 
 void test('buildPeople: one entry per player across games; forbidden names deduplicated; latest position wins', () => {
@@ -992,6 +994,7 @@ void test('buildFacts: history and weekPlayers default to empty; a week sheet pa
   })
   assert.deepEqual(night.history, [])
   assert.deepEqual(night.weekPlayers, [])
+  assert.deepEqual(night.aiGoalieWeek, [])
   const g = buildGameFacts(gameArgs())
   const week = buildFacts({
     kind: 'week',
@@ -1013,4 +1016,88 @@ void test('buildFacts: history and weekPlayers default to empty; a week sheet pa
   assert.equal(parsed.facts.history.length, 1)
   assert.equal(parsed.facts.history[0]!.weekStart, '2026-10-05')
   assert.equal(parsed.facts.weekPlayers[0]!.titlePoints, 10)
+})
+
+// ── Part C1: AI goalie line (spec 12.8) ──────────────────────────────────────
+
+const aiGoalie = (over: Partial<GamePlayerInput> = {}): GamePlayerInput =>
+  skater({
+    playerId: 5,
+    gamertag: 'Matteo Lehmann',
+    position: 'goalie',
+    isGoalie: true,
+    aiGoalie: true,
+    saves: 19,
+    goalsAgainst: 2,
+    shotsAgainst: 21,
+    ...over,
+  })
+
+void test('buildGameFacts: the AI goalie line, numbers as the match page shows them (C1.1)', () => {
+  const g = buildGameFacts(
+    gameArgs({ players: [skater({ playerId: 1, gamertag: 'Hero', goals: 3 }), aiGoalie()] }),
+  )
+  assert.deepEqual(g.aiGoalie, {
+    name: 'Matteo Lehmann',
+    saves: 19,
+    shotsAgainst: 21,
+    goalsAgainst: 2,
+    savePct: 90.5, // 19 / 21 = 90.476 -> the page's toFixed(1)
+  })
+  assert.equal(g.aiGoalieInNet, true)
+  // Never a player line.
+  assert.deepEqual(
+    g.players.map((p) => p.name),
+    ['Hero Name'],
+  )
+  // No AI goalie: null. No shots against on the row: saves + goals against.
+  assert.equal(
+    buildGameFacts(gameArgs({ players: [skater({ playerId: 1, gamertag: 'Hero' })] })).aiGoalie,
+    null,
+  )
+  const noSa = buildGameFacts(gameArgs({ players: [aiGoalie({ shotsAgainst: null })] }))
+  assert.equal(noSa.aiGoalie?.shotsAgainst, 21)
+  const zero = buildGameFacts(
+    gameArgs({ players: [aiGoalie({ saves: 0, goalsAgainst: 0, shotsAgainst: 0 })] }),
+  )
+  assert.equal(zero.aiGoalie?.savePct, null)
+  // A row without saves is no line (the page shows a dash).
+  assert.equal(buildGameFacts(gameArgs({ players: [aiGoalie({ saves: null })] })).aiGoalie, null)
+})
+
+void test('buildAiGoalieWeek: week totals per AI goalie, most games first (C1.1)', () => {
+  const g1 = buildGameFacts(gameArgs({ players: [aiGoalie()] }))
+  const g2 = buildGameFacts(
+    gameArgs({
+      match: { ...gameArgs().match, id: 901 },
+      players: [aiGoalie({ saves: 10, goalsAgainst: 5, shotsAgainst: 15 })],
+    }),
+  )
+  const g3 = buildGameFacts(
+    gameArgs({
+      match: { ...gameArgs().match, id: 902 },
+      players: [
+        aiGoalie({
+          playerId: 6,
+          gamertag: 'Jonas Wagner',
+          saves: 8,
+          goalsAgainst: 1,
+          shotsAgainst: 9,
+        }),
+      ],
+    }),
+  )
+  const none = buildGameFacts(gameArgs({ players: [skater({ playerId: 1, gamertag: 'Hero' })] }))
+  assert.deepEqual(buildAiGoalieWeek([g3, g1, none, g2]), [
+    {
+      name: 'Matteo Lehmann',
+      games: 2,
+      saves: 29,
+      shotsAgainst: 36,
+      goalsAgainst: 7,
+      savePct: 80.6, // 29 / 36 = 80.56
+    },
+    { name: 'Jonas Wagner', games: 1, saves: 8, shotsAgainst: 9, goalsAgainst: 1, savePct: 88.9 },
+  ])
+  assert.deepEqual(buildAiGoalieWeek([none]), [])
 })

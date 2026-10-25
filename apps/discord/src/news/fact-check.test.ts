@@ -431,3 +431,57 @@ void test('history weekStart dates are not stats; the week key still is allowed 
   // The week's own key stays allowed (12 from 2026-10-12).
   assert.ok(allowed.has(12))
 })
+
+// ── Part C1: AI goalies (spec 12.8) ─────────────────────────────────────────
+
+const LEHMANN = {
+  name: 'Matteo Lehmann',
+  saves: 10,
+  shotsAgainst: 16,
+  goalsAgainst: 6,
+  savePct: 62.5,
+}
+
+void test('AI goalie: the name on the sheet is allowed in text and mentions, never in criticized (C1.1)', () => {
+  const f = oct12Facts('game')
+  f.games[1] = { ...f.games[1]!, aiGoalieInNet: true, aiGoalie: LEHMANN }
+  assert.deepEqual(
+    checkFacts('Matteo Lehmann stopped 10 of 16.', f, FORBIDDEN, {
+      mentions: ['Matteo Lehmann'],
+      clubs: [],
+    }),
+    { ok: true },
+  )
+  // Not a person: no pile-on list, no press level.
+  const harsh = checkFacts('Fine.', f, FORBIDDEN, { ...none, criticized: ['Matteo Lehmann'] })
+  assert.deepEqual(problems(harsh), [
+    '"Matteo Lehmann" in criticized is not a person on the fact sheet.',
+  ])
+  // An AI goalie who is not on this sheet is not allowed.
+  const other = checkFacts('Fine.', f, FORBIDDEN, { mentions: ['Jonas Wagner'], clubs: [] })
+  assert.deepEqual(problems(other), ['"Jonas Wagner" is not a person on the fact sheet.'])
+  // Without the line the name is not allowed either.
+  assert.equal(
+    checkFacts('Fine.', facts, FORBIDDEN, { mentions: ['Matteo Lehmann'], clubs: [] }).ok,
+    false,
+  )
+})
+
+void test('AI goalie: week totals names are allowed in an article (C1.1)', () => {
+  const w = oct12Facts('week')
+  w.aiGoalieWeek = [{ ...LEHMANN, games: 2 }]
+  const r = checkArticleFacts(
+    {
+      headline: 'A week',
+      dek: 'Fine.',
+      paragraphs: [Array.from({ length: 260 }, () => 'word').join(' ')],
+      summary: 'Fine.',
+      mentions: ['Matteo Lehmann'],
+      clubs: [],
+      criticized: [],
+    },
+    w,
+    FORBIDDEN,
+  )
+  assert.deepEqual(r, { ok: true })
+})

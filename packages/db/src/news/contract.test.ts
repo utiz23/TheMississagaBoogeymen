@@ -75,6 +75,7 @@ function sample(): NewsFactsResponse {
             },
           ],
           aiGoalieInNet: false,
+          aiGoalie: null,
           guestCount: 1,
           unnamedTeammates: 1,
           unnamedGoals: 1,
@@ -109,6 +110,13 @@ function sample(): NewsFactsResponse {
           periods: null,
           players: [],
           aiGoalieInNet: true,
+          aiGoalie: {
+            name: 'Matteo Lehmann',
+            saves: 12,
+            shotsAgainst: 16,
+            goalsAgainst: 4,
+            savePct: 75,
+          },
           guestCount: 0,
           unnamedTeammates: 0,
           unnamedGoals: 0,
@@ -136,6 +144,7 @@ function sample(): NewsFactsResponse {
       people: [{ playerId: 2, name: 'Silky', position: 'C', pressLevel: 'full' }],
       history: [],
       weekPlayers: [],
+      aiGoalieWeek: [],
     },
     forbiddenNames: ['Hidden Guy'],
   }
@@ -432,6 +441,16 @@ function weekSample(): NewsFactsResponse {
       titleGames: 80,
     },
   ]
+  s.facts.aiGoalieWeek = [
+    {
+      name: 'Matteo Lehmann',
+      games: 1,
+      saves: 12,
+      shotsAgainst: 16,
+      goalsAgainst: 4,
+      savePct: 75,
+    },
+  ]
   return s
 }
 
@@ -502,4 +521,52 @@ void test('contract: no plus-minus or game score reaches the writer; each line h
   const d = clone(weekSample()) as unknown as L
   d.facts.games[0]!.players[0]!['position'] = 'D'
   assert.equal(parseNewsFactsResponse(d).facts.games[0]!.players[0]!.position, 'D')
+})
+
+void test('contract: the AI goalie line and week totals parse; missing ones read as none (C1.1)', () => {
+  const s = weekSample()
+  const parsed = parseNewsFactsResponse(clone(s))
+  assert.equal(parsed.facts.games[0]!.aiGoalie, null)
+  assert.deepEqual(parsed.facts.games[1]!.aiGoalie, {
+    name: 'Matteo Lehmann',
+    saves: 12,
+    shotsAgainst: 16,
+    goalsAgainst: 4,
+    savePct: 75,
+  })
+  assert.deepEqual(parsed.facts.aiGoalieWeek, s.facts.aiGoalieWeek)
+  // An AI goalie is never a person.
+  assert.equal(
+    parsed.facts.people.some((p) => p.name === 'Matteo Lehmann'),
+    false,
+  )
+  // A sheet from a web app without them (deploy order).
+  const old = clone(s) as unknown as {
+    facts: { games: Record<string, unknown>[] } & Record<string, unknown>
+  }
+  delete old.facts.games[1]!['aiGoalie']
+  delete old.facts['aiGoalieWeek']
+  const o = parseNewsFactsResponse(old)
+  assert.equal(o.facts.games[1]!.aiGoalie, null)
+  assert.deepEqual(o.facts.aiGoalieWeek, [])
+})
+
+void test('contract: rejects a bad AI goalie line or week row (C1.1)', () => {
+  type A = {
+    facts: {
+      games: { aiGoalie: Record<string, unknown> }[]
+      aiGoalieWeek: Record<string, unknown>[]
+    }
+  }
+  const bad = (edit: (s: A) => void, re: RegExp) => {
+    const s = clone(weekSample()) as unknown as A
+    edit(s)
+    assert.throws(() => parseNewsFactsResponse(s), re)
+  }
+  bad((s) => (s.facts.games[1]!.aiGoalie['name'] = 3), /games\[1\]\.aiGoalie\.name/)
+  bad((s) => (s.facts.games[1]!.aiGoalie['saves'] = -1), /aiGoalie\.saves is negative/)
+  bad((s) => (s.facts.games[1]!.aiGoalie['savePct'] = '75'), /aiGoalie\.savePct/)
+  bad((s) => delete s.facts.games[1]!.aiGoalie['shotsAgainst'], /aiGoalie\.shotsAgainst/)
+  bad((s) => (s.facts.aiGoalieWeek[0]!['games'] = 0.5), /aiGoalieWeek\[0\]\.games/)
+  bad((s) => (s.facts.aiGoalieWeek = {} as never), /aiGoalieWeek is not an array/)
 })

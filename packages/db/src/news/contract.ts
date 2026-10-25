@@ -58,6 +58,25 @@ export interface NewsGoal {
   assists: string[]
 }
 
+/**
+ * An AI goalie's game for the club (spec §12.8): "Matteo Lehmann" or "Jonas
+ * Wagner" (players.ai_goalie_side). Not a person: never in `people`, no press
+ * level, no pile-on limit; praise and blame are allowed.
+ */
+export interface NewsAiGoalieLine {
+  name: string
+  saves: number
+  shotsAgainst: number
+  goalsAgainst: number
+  /** Saves / shots against in %, one decimal (the match page's SV%); null without shots. */
+  savePct: number | null
+}
+
+/** An AI goalie's totals over the week sheet's games. */
+export interface NewsAiGoalieWeek extends NewsAiGoalieLine {
+  games: number
+}
+
 export interface NewsGameFacts {
   matchId: number
   night: string
@@ -82,6 +101,8 @@ export interface NewsGameFacts {
   periods: { period: number; goalsFor: number; goalsAgainst: number }[] | null
   players: NewsPlayerLine[]
   aiGoalieInNet: boolean
+  /** The AI goalie's line when one played for the club, else null. */
+  aiGoalie: NewsAiGoalieLine | null
   /** Players in the game who are not club members (AI goalies not counted). */
   guestCount: number
   /** Club members in the game at press level `out`: teammates who must not be named or singled out. */
@@ -177,6 +198,8 @@ export interface NewsFacts {
   history: NewsWeekHistory[]
   /** Week sheets: every named person who played this week. Else []. */
   weekPlayers: NewsWeekPlayer[]
+  /** Week sheets: each AI goalie's week totals, most games first. Else []. */
+  aiGoalieWeek: NewsAiGoalieWeek[]
 }
 
 export interface NewsFactsResponse {
@@ -277,6 +300,25 @@ function parseTeam(v: unknown, path: string): NewsGameFacts['team'] {
   }
 }
 
+function parseAiGoalie(v: unknown, path: string): NewsAiGoalieLine {
+  const o = obj(v, path)
+  return {
+    name: str(o['name'], `${path}.name`),
+    saves: nonNegInt(o['saves'], `${path}.saves`),
+    shotsAgainst: nonNegInt(o['shotsAgainst'], `${path}.shotsAgainst`),
+    goalsAgainst: nonNegInt(o['goalsAgainst'], `${path}.goalsAgainst`),
+    savePct: nullable(o['savePct'], `${path}.savePct`, num),
+  }
+}
+
+function parseAiGoalieWeek(v: unknown, path: string): NewsAiGoalieWeek {
+  const o = obj(v, path)
+  return {
+    ...parseAiGoalie(o, path),
+    games: nonNegInt(o['games'], `${path}.games`),
+  }
+}
+
 function parseGoal(v: unknown, path: string): NewsGoal {
   const o = obj(v, path)
   const clock = str(o['clock'], `${path}.clock`)
@@ -339,6 +381,11 @@ function parseGame(v: unknown, path: string): NewsGameFacts {
     ),
     players: arr(o['players'], `${path}.players`, parsePlayerLine),
     aiGoalieInNet: bool(o['aiGoalieInNet'], `${path}.aiGoalieInNet`),
+    // Missing (an older web app) reads as none.
+    aiGoalie:
+      o['aiGoalie'] === undefined
+        ? null
+        : nullable(o['aiGoalie'], `${path}.aiGoalie`, parseAiGoalie),
     guestCount: int(o['guestCount'], `${path}.guestCount`),
     unnamedTeammates: int(o['unnamedTeammates'], `${path}.unnamedTeammates`),
     unnamedGoals: nonNegInt(o['unnamedGoals'], `${path}.unnamedGoals`),
@@ -453,6 +500,10 @@ function parseFacts(v: unknown, path: string): NewsFacts {
       o['weekPlayers'] === undefined
         ? []
         : arr(o['weekPlayers'], `${path}.weekPlayers`, parseWeekPlayer),
+    aiGoalieWeek:
+      o['aiGoalieWeek'] === undefined
+        ? []
+        : arr(o['aiGoalieWeek'], `${path}.aiGoalieWeek`, parseAiGoalieWeek),
   }
 }
 

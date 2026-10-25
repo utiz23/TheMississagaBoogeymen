@@ -40,6 +40,7 @@ import {
 } from '@/lib/match-recap'
 import { normalizeLineupTag } from '@/lib/lineup-slots'
 import {
+  buildAiGoalieWeek,
   buildFacts,
   buildGameFacts,
   buildMilestones,
@@ -306,6 +307,7 @@ async function loadSheet(
       ? {
           history: buildWeekHistory(await loadHistoryGames(gameTitleId, key), key),
           weekPlayers: buildWeekPlayers(games, people, totals.after),
+          aiGoalieWeek: buildAiGoalieWeek(games),
         }
       : {}
 

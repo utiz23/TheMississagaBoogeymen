@@ -198,6 +198,15 @@ function criticizedProblems(
   return problems
 }
 
+/** The AI goalies on the sheet: game lines and week totals (spec §12.8). */
+export function aiGoalieNames(facts: NewsFacts): string[] {
+  const names = [
+    ...facts.games.flatMap((g) => (g.aiGoalie === null ? [] : [g.aiGoalie.name])),
+    ...facts.aiGoalieWeek.map((a) => a.name),
+  ]
+  return [...new Set(names)]
+}
+
 function check(
   text: string,
   facts: NewsFacts,
@@ -216,9 +225,12 @@ function check(
     problems.push(FORBIDDEN_NAME_PROBLEM)
   }
 
+  // AI goalies on the sheet may be named (spec §12.8); they are not people,
+  // so `criticized` (people only) still rejects them.
   const allowedNames = new Set<string>([
     ...facts.people.map((p) => p.name),
     ...REPORTER_IDS.map((id) => REPORTERS[id].name),
+    ...aiGoalieNames(facts),
   ])
   for (const m of out.mentions) {
     if (allowedNames.has(m)) continue

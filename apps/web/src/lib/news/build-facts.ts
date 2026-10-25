@@ -8,6 +8,8 @@ import {
   nightKey,
   previousWeekStarts,
   weekStart as weekStartOf,
+  type NewsAiGoalieLine,
+  type NewsAiGoalieWeek,
   type NewsFacts,
   type NewsGameFacts,
   type NewsGoal,
@@ -43,7 +45,8 @@ const trimmed = (s: string | null | undefined): string => s?.trim() ?? ''
  * sheet's games, oldest game first (the latest position wins). Named = member,
  * not an AI goalie, press level not `out`; the name is the trimmed profile
  * name or the gamertag. Every other player's gamertag and non-blank profile
- * name is forbidden, AI goalies included (they are not teammates).
+ * name is forbidden. AI goalies are neither (spec §12.8): not people, but
+ * named on their own AI goalie line, so their names must not be forbidden.
  */
 export function buildPeople(args: {
   players: readonly PlayerRef[]
@@ -63,10 +66,10 @@ export function buildPeople(args: {
   }
 
   for (const p of args.players) {
+    if (p.aiGoalie) continue
     const profile = p.playerId === null ? undefined : args.profiles.get(p.playerId)
     const pressLevel = profile?.pressLevel ?? 'full'
-    const named =
-      p.playerId !== null && args.memberIds.has(p.playerId) && !p.aiGoalie && pressLevel !== 'out'
+    const named = p.playerId !== null && args.memberIds.has(p.playerId) && pressLevel !== 'out'
     if (named && p.playerId !== null && (pressLevel === 'full' || pressLevel === 'easy')) {
       const name = trimmed(profile?.name) || trimmed(p.gamertag)
       const prev = people.get(p.playerId)
@@ -308,6 +311,28 @@ export function newsPosition(position: string | null, isGoalie: boolean): NewsPo
   return isGoalie ? 'G' : 'F'
 }
 
+/** Saves over shots against in %, one decimal, as the match page's SV% (`toFixed(1)`); null without shots. */
+function savePctAsShown(saves: number, shotsAgainst: number): number | null {
+  return shotsAgainst > 0 ? Number(((saves / shotsAgainst) * 100).toFixed(1)) : null
+}
+
+/**
+ * The AI goalie's line (spec §12.8), or null when the row has no saves or
+ * goals against (the page shows a dash). Shots against fall back to saves +
+ * goals against. Named by the in-game name (the gamertag).
+ */
+function aiGoalieLine(p: GamePlayerInput): NewsAiGoalieLine | null {
+  if (p.saves === null || p.goalsAgainst === null) return null
+  const shotsAgainst = p.shotsAgainst ?? p.saves + p.goalsAgainst
+  return {
+    name: p.gamertag.replace(/\s+/g, ' ').trim(),
+    saves: p.saves,
+    shotsAgainst,
+    goalsAgainst: p.goalsAgainst,
+    savePct: savePctAsShown(p.saves, shotsAgainst),
+  }
+}
+
 function playerLine(p: GamePlayerInput, person: NewsPerson): NewsPlayerLine {
   let savePct: number | null = null
   if (p.isGoalie && p.saves !== null) {
@@ -351,6 +376,7 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
   let unnamedGoals = 0
   let unnamedAssists = 0
   let aiGoalieInNet = false
+  let aiGoalie: NewsAiGoalieLine | null = null
   for (const p of args.players) {
     const person = p.aiGoalie || p.playerId === null ? undefined : byId.get(p.playerId)
     if (person) {
@@ -361,8 +387,10 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     // as plain numbers, each row clamped at 0 so a bad row cannot make a total negative.
     unnamedGoals += Math.max(0, p.goals)
     unnamedAssists += Math.max(0, p.assists)
-    if (p.aiGoalie) aiGoalieInNet = true
-    else if (p.playerId !== null && args.memberIds.has(p.playerId)) unnamedTeammates += 1
+    if (p.aiGoalie) {
+      aiGoalieInNet = true
+      aiGoalie ??= aiGoalieLine(p)
+    } else if (p.playerId !== null && args.memberIds.has(p.playerId)) unnamedTeammates += 1
     else guestCount += 1
   }
   const namedGoals = players.reduce((n, p) => n + p.goals, 0)
@@ -392,6 +420,7 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     periods: args.periods,
     players,
     aiGoalieInNet,
+    aiGoalie,
     guestCount,
     unnamedTeammates,
     unnamedGoals,
@@ -587,6 +616,35 @@ export function buildWeekPlayers(
   )
 }
 
+/**
+ * The week sheet's `aiGoalieWeek` (spec §12.8): each AI goalie's totals over
+ * the games, save % from the sums as the page shows it. Most games first,
+ * then the order of first appearance.
+ */
+export function buildAiGoalieWeek(games: readonly NewsGameFacts[]): NewsAiGoalieWeek[] {
+  const byName = new Map<string, NewsAiGoalieWeek>()
+  for (const g of games) {
+    const a = g.aiGoalie
+    if (a === null) continue
+    const row = byName.get(a.name) ?? {
+      name: a.name,
+      games: 0,
+      saves: 0,
+      shotsAgainst: 0,
+      goalsAgainst: 0,
+      savePct: null,
+    }
+    row.games += 1
+    row.saves += a.saves
+    row.shotsAgainst += a.shotsAgainst
+    row.goalsAgainst += a.goalsAgainst
+    byName.set(a.name, row)
+  }
+  return [...byName.values()]
+    .map((r) => ({ ...r, savePct: savePctAsShown(r.saves, r.shotsAgainst) }))
+    .sort((a, b) => b.games - a.games)
+}
+
 /** Assemble a sheet; the night totals are summed from the games. */
 export function buildFacts(args: {
   kind: NewsFacts['kind']
@@ -603,6 +661,8 @@ export function buildFacts(args: {
   history?: NewsWeekHistory[]
   /** Week sheets only (default []). */
   weekPlayers?: NewsWeekPlayer[]
+  /** Week sheets only (default []). */
+  aiGoalieWeek?: NewsAiGoalieWeek[]
 }): NewsFacts {
   const nightTotals = {
     goalsFor: 0,
@@ -636,6 +696,7 @@ export function buildFacts(args: {
     people: args.people,
     history: args.history ?? [],
     weekPlayers: args.weekPlayers ?? [],
+    aiGoalieWeek: args.aiGoalieWeek ?? [],
   }
 }
 

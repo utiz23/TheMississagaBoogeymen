@@ -69,6 +69,7 @@ const game1: NewsGameFacts = {
     }),
   ],
   aiGoalieInNet: false,
+  aiGoalie: null,
   guestCount: 0,
   unnamedTeammates: 0,
   unnamedGoals: 0,
@@ -128,6 +129,7 @@ export function oct12Facts(kind: NewsFacts['kind'] = 'game'): NewsFacts {
     ],
     history: [],
     weekPlayers: [],
+    aiGoalieWeek: [],
   }
 }
 
