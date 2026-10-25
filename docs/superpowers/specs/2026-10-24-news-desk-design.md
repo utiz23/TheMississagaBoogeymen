@@ -522,3 +522,33 @@ farm team is the Oregon Outlaws.** Reporters may use a lore fact when it fits an
 invent nothing around it (no Outlaws games, scores, call-ups or players). The
 player storylines (Scoot, JoeyFlopfish, Joseph, Benson) wait for the storyline
 system of the bot project (Claude's call; operator may override).
+
+### 12.14 Buzz: how many reporters post about a game (operator, 2026-10-25)
+
+Not all games are equal. A buzz score per game decides how many posts it gets
+(supersedes §12.1's "one recap + sometimes a reaction" and §12.11's reply chance
+for the number of posts; §12.11 still decides who replies to whom).
+
+- Raises buzz: big margin / many goals; overtime, a comeback or late winner in the
+  timeline; hat tricks and 5+ point nights; milestones; a long win/loss streak
+  starting or ending; an AI goalie meltdown; a shutout; a club record.
+- Lowers buzz: routine result; a game that ended early; patterns that are normal
+  for the club (§12.10).
+- Levels (operator approved the distribution; mean ≈ 2.1 posts per game):
+
+| Level                    | Share of games (target) | Posts             |
+| ------------------------ | ----------------------- | ----------------- |
+| Quiet                    | ~50%                    | 1 (the recap)     |
+| Normal                   | ~30%                    | 2                 |
+| Big                      | ~15%                    | 3–5, with replies |
+| Huge                     | ~4%                     | 6–8               |
+| Historic (a club record) | ~1%                     | all 9 reporters   |
+
+- The count within a level is a seeded weighted random draw (reproducible).
+- Every extra post takes a different angle (recap, a player, a number, a reply,
+  a joke); pile-on, zero call-out and signature-word rules still apply.
+- Records: the sheet carries the club's season records (goals, assists, points
+  per player per title, from all titles incl. historical stats) so "new club
+  record" is detected from data.
+- Score weights and level cut-offs are Claude's call, tuned so the NHL 26 and
+  NHL 27 games land near the target shares.
