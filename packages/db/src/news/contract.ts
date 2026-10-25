@@ -15,21 +15,29 @@ export interface NewsPerson {
   pressLevel: 'full' | 'easy'
 }
 
+/** A player's position in one game: forward, defence, goalie (rev 2, spec §12.12-5). */
+export const NEWS_POSITIONS = ['F', 'D', 'G'] as const
+export type NewsPosition = (typeof NEWS_POSITIONS)[number]
+
+/**
+ * One named player's game. No plus-minus and no game score (spec §12.12-4):
+ * the writer must never cite them; the game score still ranks the stars.
+ */
 export interface NewsPlayerLine {
   playerId: number
   name: string
+  /** The position played in this game, as the match page shows it (loadout over EA). */
+  position: NewsPosition
   isGoalie: boolean
   goals: number
   assists: number
   points: number
   shots: number
   hits: number
-  plusMinus: number
   pim: number
   saves: number | null
   goalsAgainst: number | null
   savePct: number | null
-  gameScore: number | null
   star: 1 | 2 | 3 | null
 }
 
@@ -127,7 +135,6 @@ export interface NewsWeekPlayer {
   points: number
   shots: number
   hits: number
-  plusMinus: number
   titleGoals: number
   titleAssists: number
   titlePoints: number
@@ -241,18 +248,17 @@ function parsePlayerLine(v: unknown, path: string): NewsPlayerLine {
   return {
     playerId: int(o['playerId'], `${path}.playerId`),
     name: str(o['name'], `${path}.name`),
+    position: oneOf(o['position'], `${path}.position`, NEWS_POSITIONS),
     isGoalie: bool(o['isGoalie'], `${path}.isGoalie`),
     goals: int(o['goals'], `${path}.goals`),
     assists: int(o['assists'], `${path}.assists`),
     points: int(o['points'], `${path}.points`),
     shots: int(o['shots'], `${path}.shots`),
     hits: int(o['hits'], `${path}.hits`),
-    plusMinus: int(o['plusMinus'], `${path}.plusMinus`),
     pim: int(o['pim'], `${path}.pim`),
     saves: nullable(o['saves'], `${path}.saves`, int),
     goalsAgainst: nullable(o['goalsAgainst'], `${path}.goalsAgainst`, int),
     savePct: nullable(o['savePct'], `${path}.savePct`, num),
-    gameScore: nullable(o['gameScore'], `${path}.gameScore`, num),
     star,
   }
 }
@@ -385,7 +391,6 @@ function parseWeekPlayer(v: unknown, path: string): NewsWeekPlayer {
     points: int(o['points'], `${path}.points`),
     shots: int(o['shots'], `${path}.shots`),
     hits: int(o['hits'], `${path}.hits`),
-    plusMinus: int(o['plusMinus'], `${path}.plusMinus`),
     titleGoals: int(o['titleGoals'], `${path}.titleGoals`),
     titleAssists: int(o['titleAssists'], `${path}.titleAssists`),
     titlePoints: int(o['titlePoints'], `${path}.titlePoints`),

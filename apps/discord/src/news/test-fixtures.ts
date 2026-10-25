@@ -10,18 +10,17 @@ function line(
   over: Partial<NewsPlayerLine> & Pick<NewsPlayerLine, 'playerId' | 'name'>,
 ): NewsPlayerLine {
   return {
+    position: over.isGoalie === true ? 'G' : 'F',
     isGoalie: false,
     goals: 0,
     assists: 0,
     points: 0,
     shots: 0,
     hits: 0,
-    plusMinus: 0,
     pim: 0,
     saves: null,
     goalsAgainst: null,
     savePct: null,
-    gameScore: null,
     star: null,
     ...over,
   }
@@ -58,9 +57,8 @@ const game1: NewsGameFacts = {
       points: 2,
       shots: 5,
       hits: 2,
-      plusMinus: -2,
     }),
-    line({ playerId: 2, name: 'Skater B', goals: 1, points: 1, shots: 3, hits: 3, plusMinus: -3 }),
+    line({ playerId: 2, name: 'Skater B', goals: 1, points: 1, shots: 3, hits: 3 }),
     line({
       playerId: 3,
       name: 'Goalie G',
@@ -88,8 +86,8 @@ const game2: NewsGameFacts = {
   opponentName: 'WestKent Creamers',
   team: { ...game1.team, shotsFor: 3, shotsAgainst: 16, hitsFor: 6, hitsAgainst: 6 },
   players: [
-    line({ playerId: 1, name: 'Skater A', shots: 1, hits: 3, plusMinus: -2 }),
-    line({ playerId: 2, name: 'Skater B', shots: 2, hits: 3, plusMinus: -3 }),
+    line({ playerId: 1, name: 'Skater A', shots: 1, hits: 3 }),
+    line({ playerId: 2, name: 'Skater B', shots: 2, hits: 3 }),
     line({
       playerId: 3,
       name: 'Goalie G',

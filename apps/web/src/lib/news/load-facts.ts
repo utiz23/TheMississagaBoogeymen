@@ -1,6 +1,6 @@
 // Loads the fact sheets for the news desk. Every number comes from the same
-// functions the match page and the Discord poster use (stars, game scores,
-// overtime, OCR-reviewed shots), so a story can never disagree with the page.
+// functions the match page and the Discord poster use (stars, overtime,
+// OCR-reviewed shots, loadout positions), so a story can never disagree with the page.
 // Active game title only, unless `includeInactive` (the backfill of old
 // nights); DNF games are left out. Throws on a database failure
 // (the news service retries).
@@ -35,7 +35,6 @@ import {
 import {
   aggregateOcrShots,
   applyLoadoutOverrides,
-  buildAllTeamScores,
   starsForMatch,
   wentToOvertime,
 } from '@/lib/match-recap'
@@ -76,8 +75,11 @@ interface LoadedGame {
   periods: GameFactsArgs['periods']
   /** The match page's event rows (its trust filter: EA rows, reviewed OCR and manual rows). */
   goalEvents: GoalEventInput[]
-  /** BGM player rows with this game's score and star rank (AI-goalie flag not set yet). */
-  stats: (BgmStat & { gameScore: number | null; star: 1 | 2 | 3 | null })[]
+  /**
+   * BGM player rows with the position the match page shows (loadout OCR over
+   * EA's) and the star rank (AI-goalie flag not set yet).
+   */
+  stats: (BgmStat & { star: 1 | 2 | 3 | null })[]
 }
 
 function countedResult(result: string): 'WIN' | 'LOSS' | 'OTL' | null {
@@ -103,12 +105,6 @@ async function loadGame(match: Match): Promise<LoadedGame | null> {
     periodSummaries,
     [...playerStats, ...opponentPlayerStats].map((p) => p.toiSeconds),
   )
-  const scores = buildAllTeamScores(
-    match,
-    applyLoadoutOverrides(playerStats, lineups.bgm),
-    applyLoadoutOverrides(opponentPlayerStats, lineups.opponent),
-  ).filter((e) => e.side === 'bgm')
-
   const sameBgmPlayer = (
     e: { playerId: number | null; gamertag: string },
     playerId: number | null,
@@ -118,13 +114,14 @@ async function loadGame(match: Match): Promise<LoadedGame | null> {
       ? e.playerId === playerId
       : normalizeLineupTag(e.gamertag) === normalizeLineupTag(gamertag)
 
-  const stats = playerStats.map((p) => {
+  // The stars are ranked by the match page's game score; the score itself
+  // never goes on the sheet (spec §12.12-4).
+  const stats = applyLoadoutOverrides(playerStats, lineups.bgm).map((p) => {
     const rank = stars.findIndex(
       (s) => s.side === 'bgm' && sameBgmPlayer(s, p.playerId, p.gamertag),
     )
     return {
       ...p,
-      gameScore: scores.find((e) => sameBgmPlayer(e, p.playerId, p.gamertag))?.score ?? null,
       star:
         rank === 0 ? (1 as const) : rank === 1 ? (2 as const) : rank === 2 ? (3 as const) : null,
     }
@@ -257,12 +254,10 @@ async function loadSheet(
           assists: s.assists,
           shots: s.shots,
           hits: s.hits,
-          plusMinus: s.plusMinus,
           pim: s.pim,
           saves: s.saves,
           goalsAgainst: s.goalsAgainst,
           shotsAgainst: s.shotsAgainst,
-          gameScore: s.gameScore,
           star: s.star,
         }),
       ),

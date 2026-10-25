@@ -44,35 +44,33 @@ function sample(): NewsFactsResponse {
             {
               playerId: 2,
               name: 'Silky',
+              position: 'F',
               isGoalie: false,
               goals: 1,
               assists: 0,
               points: 1,
               shots: 4,
               hits: 3,
-              plusMinus: -2,
               pim: 2,
               saves: null,
               goalsAgainst: null,
               savePct: null,
-              gameScore: 6.5,
               star: 3,
             },
             {
               playerId: 9,
               name: 'Wall',
+              position: 'G',
               isGoalie: true,
               goals: 0,
               assists: 0,
               points: 0,
               shots: 0,
               hits: 0,
-              plusMinus: 0,
               pim: 0,
               saves: 23,
               goalsAgainst: 6,
               savePct: 79.31,
-              gameScore: null,
               star: null,
             },
           ],
@@ -428,7 +426,6 @@ function weekSample(): NewsFactsResponse {
       points: 4,
       shots: 9,
       hits: 5,
-      plusMinus: -2,
       titleGoals: 100,
       titleAssists: 40,
       titlePoints: 140,
@@ -466,8 +463,43 @@ void test('contract: rejects a bad history or weekPlayers row (A4)', () => {
   bad((s) => (s.facts.weekPlayers[0]!['titlePoints'] = 1.5), /weekPlayers\[0\]\.titlePoints/)
   bad((s) => (s.facts.weekPlayers[0]!['name'] = 7), /weekPlayers\[0\]\.name/)
   bad((s) => (s.facts.weekPlayers[0]!['games'] = -1), /weekPlayers\[0\]\.games is negative/)
-  // plusMinus may be negative.
-  const ok = clone(weekSample())
-  ok.facts.weekPlayers[0]!.plusMinus = -7
-  assert.equal(parseNewsFactsResponse(ok).facts.weekPlayers[0]!.plusMinus, -7)
+})
+
+void test('contract: no plus-minus or game score reaches the writer; each line has its position (C1.4, C1.5)', () => {
+  type L = {
+    facts: {
+      games: { players: Record<string, unknown>[] }[]
+      weekPlayers: Record<string, unknown>[]
+    }
+  }
+  // A web app that still sends them: the parser drops both fields.
+  const old = clone(weekSample()) as unknown as L
+  old.facts.games[0]!.players[0]!['plusMinus'] = -2
+  old.facts.games[0]!.players[0]!['gameScore'] = 6.5
+  old.facts.weekPlayers[0]!['plusMinus'] = -2
+  const parsed = parseNewsFactsResponse(old)
+  const line = parsed.facts.games[0]!.players[0]! as unknown as Record<string, unknown>
+  assert.equal('plusMinus' in line, false)
+  assert.equal('gameScore' in line, false)
+  assert.equal(
+    'plusMinus' in (parsed.facts.weekPlayers[0]! as unknown as Record<string, unknown>),
+    false,
+  )
+  assert.equal(parsed.facts.games[0]!.players[0]!.star, 3)
+  assert.deepEqual(
+    parsed.facts.games[0]!.players.map((p) => p.position),
+    ['F', 'G'],
+  )
+  // Position is required and one of F, D, G.
+  const bad = (edit: (s: L) => void) => {
+    const s = clone(weekSample()) as unknown as L
+    edit(s)
+    assert.throws(() => parseNewsFactsResponse(s), /players\[0\]\.position/)
+  }
+  bad((s) => delete s.facts.games[0]!.players[0]!['position'])
+  bad((s) => (s.facts.games[0]!.players[0]!['position'] = 'center'))
+  bad((s) => (s.facts.games[0]!.players[0]!['position'] = 'LD'))
+  const d = clone(weekSample()) as unknown as L
+  d.facts.games[0]!.players[0]!['position'] = 'D'
+  assert.equal(parseNewsFactsResponse(d).facts.games[0]!.players[0]!.position, 'D')
 })

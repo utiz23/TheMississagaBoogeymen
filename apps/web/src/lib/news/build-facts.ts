@@ -14,6 +14,7 @@ import {
   type NewsGoalPeriod,
   type NewsPerson,
   type NewsPlayerLine,
+  type NewsPosition,
   type NewsWeekHistory,
   type NewsWeekPlayer,
   type PressLevel,
@@ -95,6 +96,7 @@ export function buildPeople(args: {
 export interface GamePlayerInput {
   playerId: number | null
   gamertag: string
+  /** The position of this game as the match page shows it (loadout OCR over EA's position). */
   position: string | null
   isGoalie: boolean
   aiGoalie: boolean
@@ -102,14 +104,11 @@ export interface GamePlayerInput {
   assists: number
   shots: number
   hits: number
-  plusMinus: number
   pim: number
   saves: number | null
   goalsAgainst: number | null
   shotsAgainst: number | null
-  /** The match page's game score for this player. */
-  gameScore: number | null
-  /** 1-3 when the player is one of the three stars. */
+  /** 1-3 when the player is one of the three stars (ranked by the match page's game score). */
   star: 1 | 2 | 3 | null
 }
 
@@ -297,11 +296,16 @@ export function periodsFromSummaries(
 }
 
 /**
- * A game score as the match page shows it (`score.toFixed(2)` in the
- * performer row), so a story never quotes digits the page does not show.
+ * F, D or G from a game's position string (EA's `center`, `leftWing`,
+ * `rightDefenseMen`, `goalie`, ...; the 3s `wing` / `defenseMen`). Without a
+ * position the goalie flag decides.
  */
-export function gameScoreAsShown(score: number): number {
-  return Number(score.toFixed(2))
+export function newsPosition(position: string | null, isGoalie: boolean): NewsPosition {
+  const p = (position ?? '').trim().toLowerCase()
+  if (p === 'goalie') return 'G'
+  if (p.includes('defense')) return 'D'
+  if (p !== '') return 'F'
+  return isGoalie ? 'G' : 'F'
 }
 
 function playerLine(p: GamePlayerInput, person: NewsPerson): NewsPlayerLine {
@@ -313,18 +317,17 @@ function playerLine(p: GamePlayerInput, person: NewsPerson): NewsPlayerLine {
   return {
     playerId: person.playerId,
     name: person.name,
+    position: newsPosition(p.position, p.isGoalie),
     isGoalie: p.isGoalie,
     goals: p.goals,
     assists: p.assists,
     points: p.goals + p.assists,
     shots: p.shots,
     hits: p.hits,
-    plusMinus: p.plusMinus,
     pim: p.pim,
     saves: p.isGoalie ? p.saves : null,
     goalsAgainst: p.isGoalie ? p.goalsAgainst : null,
     savePct,
-    gameScore: p.gameScore === null ? null : gameScoreAsShown(p.gameScore),
     star: p.star,
   }
 }
@@ -569,7 +572,6 @@ export function buildWeekPlayers(
       points: sum((l) => l.points),
       shots: sum((l) => l.shots),
       hits: sum((l) => l.hits),
-      plusMinus: sum((l) => l.plusMinus),
       titleGoals: t.goals,
       titleAssists: t.assists,
       titlePoints: t.points,

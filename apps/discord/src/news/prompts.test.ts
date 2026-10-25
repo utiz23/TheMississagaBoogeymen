@@ -482,7 +482,6 @@ function weekPlayer(name: string, playerId: number, points: number) {
     points,
     shots: 5,
     hits: 1,
-    plusMinus: 0,
     titleGoals: 10,
     titleAssists: 10,
     titlePoints: 20,

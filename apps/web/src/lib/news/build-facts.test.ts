@@ -10,8 +10,8 @@ import {
   buildRecordAndStreak,
   buildWeekHistory,
   buildWeekPlayers,
-  gameScoreAsShown,
   includeInactiveOption,
+  newsPosition,
   normalizePeriod,
   passPctOf,
   periodsFromSummaries,
@@ -159,12 +159,10 @@ const skater = (over: Partial<GamePlayerInput>): GamePlayerInput => ({
   assists: 0,
   shots: 0,
   hits: 0,
-  plusMinus: 0,
   pim: 0,
   saves: null,
   goalsAgainst: null,
   shotsAgainst: null,
-  gameScore: null,
   star: null,
   ...over,
 })
@@ -197,9 +195,8 @@ const gameArgs = (over: Partial<GameFactsArgs> = {}): GameFactsArgs => ({
       assists: 1,
       shots: 6,
       star: 1,
-      gameScore: 9.1,
     }),
-    skater({ playerId: 2, gamertag: 'OutGuy', goals: 1, shots: 4, star: 2, gameScore: 7.2 }),
+    skater({ playerId: 2, gamertag: 'OutGuy', goals: 1, shots: 4, star: 2 }),
     skater({ playerId: 3, gamertag: 'GuestA', assists: 1 }),
     skater({ playerId: 4, gamertag: 'GuestB' }),
     skater({
@@ -234,7 +231,6 @@ void test('buildGameFacts: an OT win 3-2 is a WIN with overtime true; the out-me
     g.players.map((p) => [p.playerId, p.name, p.goals, p.assists, p.points, p.star]),
     [[1, 'Hero Name', 2, 1, 3, 1]],
   )
-  assert.equal(g.players[0]?.gameScore, 9.1)
 })
 
 void test('buildGameFacts: guestCount counts non-members only; an out-member is an unnamed teammate; AI goalies neither', () => {
@@ -767,22 +763,44 @@ void test('titleAllowed: the active title always; an inactive one only with incl
 
 // ── Revision 2: fact-sheet fixes (A5) ────────────────────────────────────────
 
-void test('gameScoreAsShown: two decimals, exactly as the match page shows it (toFixed(2))', () => {
-  assert.equal(gameScoreAsShown(17.534), 17.53)
-  assert.equal(gameScoreAsShown(9.126), 9.13)
-  assert.equal(gameScoreAsShown(9.1), 9.1)
-  assert.equal(gameScoreAsShown(-1.234), -1.23)
-  // Same float behaviour as the page: 1.005 shows as "1.00".
-  assert.equal(gameScoreAsShown(1.005), Number((1.005).toFixed(2)))
+void test('newsPosition: F, D or G from the position the match page shows (C1.5)', () => {
+  assert.equal(newsPosition('center', false), 'F')
+  assert.equal(newsPosition('leftWing', false), 'F')
+  assert.equal(newsPosition('rightWing', false), 'F')
+  assert.equal(newsPosition('wing', false), 'F')
+  assert.equal(newsPosition('defenseMen', false), 'D')
+  assert.equal(newsPosition('leftDefenseMen', false), 'D')
+  assert.equal(newsPosition('rightDefenseMen', false), 'D')
+  assert.equal(newsPosition('goalie', false), 'G')
+  // No position: the goalie flag decides.
+  assert.equal(newsPosition(null, true), 'G')
+  assert.equal(newsPosition('  ', false), 'F')
 })
 
-void test('buildGameFacts: the game score on the sheet is rounded as the page shows it (A5)', () => {
+void test('buildGameFacts: each line has the game position; no plus-minus or game score (C1.4, C1.5)', () => {
   const g = buildGameFacts(
-    gameArgs({ players: [skater({ playerId: 1, gamertag: 'Hero', gameScore: 12.3456 })] }),
+    gameArgs({
+      players: [
+        skater({ playerId: 1, gamertag: 'Hero', position: 'rightDefenseMen', star: 1 }),
+        skater({ playerId: 2, gamertag: 'Pad', position: 'goalie', isGoalie: true, saves: 9 }),
+      ],
+      people: [
+        { playerId: 1, name: 'Hero Name', position: 'center', pressLevel: 'full' },
+        { playerId: 2, name: 'Pad', position: 'goalie', pressLevel: 'full' },
+      ],
+    }),
   )
-  assert.equal(g.players[0]?.gameScore, 12.35)
-  const none = buildGameFacts(gameArgs({ players: [skater({ playerId: 1, gamertag: 'Hero' })] }))
-  assert.equal(none.players[0]?.gameScore, null)
+  assert.deepEqual(
+    g.players.map((p) => [p.name, p.position, p.star]),
+    [
+      ['Hero Name', 'D', 1],
+      ['Pad', 'G', null],
+    ],
+  )
+  for (const line of g.players) {
+    assert.equal('plusMinus' in line, false)
+    assert.equal('gameScore' in line, false)
+  }
 })
 
 void test('buildGameFacts: goals missing from the player rows count as unnamed goals (A5)', () => {
@@ -887,7 +905,6 @@ void test('buildWeekPlayers: week sums of the named lines plus title totals, bes
           assists: 1,
           shots: 5,
           hits: 2,
-          plusMinus: 1,
         }),
         skater({
           playerId: 2,
@@ -896,7 +913,6 @@ void test('buildWeekPlayers: week sums of the named lines plus title totals, bes
           assists: 1,
           shots: 1,
           hits: 4,
-          plusMinus: -1,
         }),
         skater({ playerId: 3, gamertag: 'GuestA', goals: 1 }),
       ],
@@ -914,7 +930,6 @@ void test('buildWeekPlayers: week sums of the named lines plus title totals, bes
           assists: 2,
           shots: 7,
           hits: 1,
-          plusMinus: 2,
         }),
       ],
       people,
@@ -938,7 +953,6 @@ void test('buildWeekPlayers: week sums of the named lines plus title totals, bes
       points: 6,
       shots: 8,
       hits: 5,
-      plusMinus: 1,
       titleGoals: 10,
       titleAssists: 15,
       titlePoints: 25,
@@ -953,7 +967,6 @@ void test('buildWeekPlayers: week sums of the named lines plus title totals, bes
       points: 3,
       shots: 5,
       hits: 2,
-      plusMinus: 1,
       titleGoals: 40,
       titleAssists: 30,
       titlePoints: 70,
