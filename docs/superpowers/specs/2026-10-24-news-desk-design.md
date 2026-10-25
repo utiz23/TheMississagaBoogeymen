@@ -454,3 +454,17 @@ opponents in about 72–74%, and has more time on attack in about 77–80%.
   identity; focus on what was different.
 - A wider stored fact system (storylines, dossiers, GM facts) belongs to the bot
   project (see docs/planning/2026-10-25-news-desk-bots-notes.md).
+
+### 12.11 Varied reporter interactions (operator, 2026-10-25)
+
+The same reply pairs repeat. Make it weighted random:
+
+- Any reporter may reply to any other. Pairs with a relationship in the
+  character bible weigh about 3× the others; every other pair gets a short
+  generic attitude so the reply has something to work from.
+- A pair used recently weighs less for the next few replies (no repeats in a row).
+- Whether a game gets a reply at all is a weighted chance: higher after overtime
+  games, blowouts and big swings, lower after routine wins; about the agreed
+  amount overall.
+- Seeded from the game (and night), so reruns and tests are reproducible.
+- Weights and the generic attitudes are Claude's call.
