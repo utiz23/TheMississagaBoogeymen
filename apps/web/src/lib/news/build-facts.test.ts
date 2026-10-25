@@ -1215,3 +1215,36 @@ void test('buildFacts: every sheet carries the club lore, copied (C1.7)', () => 
   const parsed = parseNewsFactsResponse(JSON.parse(JSON.stringify({ facts, forbiddenNames: [] })))
   assert.deepEqual(parsed.facts.lore, ["The Boogeymen's farm team is the Oregon Outlaws."])
 })
+
+void test('buildFacts: norms default to null and pass through; game labels start empty (C1.2)', () => {
+  const base = {
+    kind: 'game' as const,
+    key: '2026-10-12',
+    gameTitleName: 'NHL 27',
+    games: [buildGameFacts(gameArgs())],
+    record: { wins: 1, losses: 0, otl: 0 },
+    streak: null,
+    unlocks: [],
+    milestones: [],
+    recentNights: [],
+    people: [],
+  }
+  const plain = buildFacts(base)
+  assert.equal(plain.norms, null)
+  assert.equal(plain.games[0]!.labels, null)
+  assert.deepEqual(plain.games[0]!.patterns, [])
+  const norms = {
+    sampleGames: 12,
+    hits: { ours: 14.2, theirs: 16.8, leadPct: 35.7 },
+    shots: null,
+    timeOnAttack: null,
+    passPct: null,
+    ppPct: null,
+  }
+  const withNorms = buildFacts({ ...base, norms })
+  assert.deepEqual(withNorms.norms, norms)
+  const parsed = parseNewsFactsResponse(
+    JSON.parse(JSON.stringify({ facts: withNorms, forbiddenNames: [] })),
+  )
+  assert.deepEqual(parsed.facts.norms, norms)
+})

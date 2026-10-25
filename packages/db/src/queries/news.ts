@@ -1039,6 +1039,129 @@ export async function listNewsHistoryGames(args: {
 }
 
 /**
+ * One counted game for the team norms (Part C1.2, spec §12.10): the numbers
+ * the match page shows. Shots after the reviewed-OCR override; pass sums of
+ * both sides' player rows (the page's Pass % row); `creditedGoals` = the club
+ * rows' goals (each row at least 0), for the ended-early rule.
+ */
+export interface NewsNormGame {
+  id: number
+  scoreFor: number
+  creditedGoals: number
+  hitsFor: number
+  hitsAgainst: number
+  shotsFor: number
+  shotsAgainst: number
+  timeOnAttack: number | null
+  timeOnAttackAgainst: number | null
+  ppGoals: number | null
+  ppOpportunities: number | null
+  ppGoalsAgainst: number | null
+  ppOpportunitiesAgainst: number | null
+  passAttempts: number
+  passCompletions: number
+  passAttemptsAgainst: number
+  passCompletionsAgainst: number
+}
+
+/**
+ * The title's counted (non-DNF) games strictly before `beforeMatchId` (the
+ * sheet's first game; played_at, then id), oldest first. Shots: the sum of
+ * reviewed OCR period rows (not the -1 total row) over EA's count, exactly
+ * as `aggregateOcrShots`. Raw SQL with aliases: the lateral subqueries must
+ * not bind to the inner tables. No active-title condition (the caller passes
+ * the title of a sheet it already allowed).
+ */
+export function listNewsNormGamesSql(args: { gameTitleId: number; beforeMatchId: number }): SQL {
+  return sql`
+    select m.id, m.score_for, bgm.credited_goals, m.hits_for, m.hits_against,
+      coalesce(ocr.shots_for, m.shots_for) as shots_for,
+      coalesce(ocr.shots_against, m.shots_against) as shots_against,
+      m.time_on_attack, m.time_on_attack_against,
+      m.pp_goals, m.pp_opportunities, m.pp_goals_against, m.pp_opportunities_against,
+      bgm.pass_attempts, bgm.pass_completions,
+      opp.pass_attempts as opp_pass_attempts, opp.pass_completions as opp_pass_completions
+    from matches m
+    join matches l on l.id = ${args.beforeMatchId}
+    left join lateral (
+      select sum(s.shots_for) as shots_for, sum(s.shots_against) as shots_against
+      from match_period_summaries s
+      where s.match_id = m.id
+        and s.source = 'ocr'
+        and s.shots_review_status = 'reviewed'
+        and s.period_number <> -1
+    ) ocr on true
+    left join lateral (
+      select coalesce(sum(p.pass_attempts), 0) as pass_attempts,
+        coalesce(sum(p.pass_completions), 0) as pass_completions,
+        coalesce(sum(greatest(p.goals, 0)), 0) as credited_goals
+      from player_match_stats p
+      where p.match_id = m.id
+    ) bgm on true
+    left join lateral (
+      select coalesce(sum(o.pass_attempts), 0) as pass_attempts,
+        coalesce(sum(o.pass_completions), 0) as pass_completions
+      from opponent_player_match_stats o
+      where o.match_id = m.id
+    ) opp on true
+    where m.game_title_id = ${args.gameTitleId}
+      and m.result <> 'DNF'
+      and (m.played_at, m.id) < (l.played_at, l.id)
+    order by m.played_at, m.id`
+}
+
+type Numeric = string | number
+type RawNormGame = {
+  id: Numeric
+  score_for: Numeric
+  credited_goals: Numeric
+  hits_for: Numeric
+  hits_against: Numeric
+  shots_for: Numeric
+  shots_against: Numeric
+  time_on_attack: Numeric | null
+  time_on_attack_against: Numeric | null
+  pp_goals: Numeric | null
+  pp_opportunities: Numeric | null
+  pp_goals_against: Numeric | null
+  pp_opportunities_against: Numeric | null
+  pass_attempts: Numeric
+  pass_completions: Numeric
+  opp_pass_attempts: Numeric
+  opp_pass_completions: Numeric
+}
+
+export function rowToNormGame(r: RawNormGame): NewsNormGame {
+  return {
+    id: Number(r.id),
+    scoreFor: Number(r.score_for),
+    creditedGoals: Number(r.credited_goals),
+    hitsFor: Number(r.hits_for),
+    hitsAgainst: Number(r.hits_against),
+    shotsFor: Number(r.shots_for),
+    shotsAgainst: Number(r.shots_against),
+    timeOnAttack: num(r.time_on_attack),
+    timeOnAttackAgainst: num(r.time_on_attack_against),
+    ppGoals: num(r.pp_goals),
+    ppOpportunities: num(r.pp_opportunities),
+    ppGoalsAgainst: num(r.pp_goals_against),
+    ppOpportunitiesAgainst: num(r.pp_opportunities_against),
+    passAttempts: Number(r.pass_attempts),
+    passCompletions: Number(r.pass_completions),
+    passAttemptsAgainst: Number(r.opp_pass_attempts),
+    passCompletionsAgainst: Number(r.opp_pass_completions),
+  }
+}
+
+export async function listNewsNormGames(args: {
+  gameTitleId: number
+  beforeMatchId: number
+}): Promise<NewsNormGame[]> {
+  const rows = await db.execute<RawNormGame>(listNewsNormGamesSql(args))
+  return rows.map(rowToNormGame)
+}
+
+/**
  * Counted card events (same rule as the unlock poster) of the given players in
  * a title, from the first game's end to `afterMinutes` after the last game's
  * end. Both bounds come from the matches table so no precision is lost.

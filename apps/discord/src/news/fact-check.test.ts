@@ -501,3 +501,36 @@ void test('lore: the farm team is an allowed club name; lore is never a stat sou
   assert.equal(allowedNumbers(f).has(1987), false)
   assert.equal(checkFacts('Founded in 1987.', f, FORBIDDEN, none).ok, false)
 })
+
+// ── Part C1: team norms (spec 12.10) ────────────────────────────────────────
+
+void test('norms: the averages and lead % may be quoted; labels and the sample size may not (C1.2)', () => {
+  const f = oct12Facts('game') // a post: no word-count rule
+  const before = allowedNumbers(f)
+  for (const n of [42, 13, 16.8, 35.7, 14.2, 312.5]) assert.equal(before.has(n), false, String(n))
+  f.norms = {
+    sampleGames: 42,
+    hits: { ours: 14.2, theirs: 16.8, leadPct: 35.7 },
+    shots: null,
+    timeOnAttack: { ours: 312.5, theirs: 300, leadPct: 60 },
+    passPct: null,
+    ppPct: null,
+  }
+  f.games[0] = {
+    ...f.games[0]!,
+    labels: {
+      hitsFor: 'typical',
+      hitsAgainst: 'unusually low',
+      shotsFor: 'unusually low',
+      shotsAgainst: 'typical',
+      timeOnAttack: null,
+      passPct: null,
+    },
+    patterns: ['out-shot for the first time in 13 games'],
+  }
+  const a = allowedNumbers(f)
+  for (const n of [14.2, 16.8, 35.7, 312.5, 13]) assert.ok(a.has(n), String(n))
+  assert.equal(a.has(42), false, 'sampleGames is not a stat')
+  assert.deepEqual(checkFacts('Out-hit in 35.7% of games.', f, FORBIDDEN, none), { ok: true })
+  assert.equal(checkFacts('Across 42 games.', f, FORBIDDEN, none).ok, false)
+})

@@ -31,6 +31,8 @@ const {
   listNewsCardEventsSql,
   listPlayerTitleTotalsSql,
   listNewsHistoryGamesSql,
+  listNewsNormGamesSql,
+  rowToNormGame,
   recentReporterSummariesSql,
   reporterActivitySql,
   lastFeatureSql,
@@ -650,4 +652,79 @@ void test('week history games: one title, not DNF, night key in [from, to), olde
   // No active-title join: the caller passes the title of the sheet it already allowed.
   assert.doesNotMatch(s, /is_active/)
   assert.deepEqual(q.params, [7, '2026-09-21', '2026-10-19'])
+})
+
+void test("norm games: the title's counted games before the sheet's first game, page shots, pass sums (C1.2)", () => {
+  const q = dialect.sqlToQuery(listNewsNormGamesSql({ gameTitleId: 7, beforeMatchId: 900 }))
+  const s = flat(q.sql)
+  assert.match(s, /from matches m join matches l on l\.id = \$\d+/)
+  assert.match(s, /m\.game_title_id = \$\d+/)
+  assert.match(s, /m\.result <> 'DNF'/)
+  // Strictly before the first game of the sheet (ties on played_at broken by id).
+  assert.match(s, /\(m\.played_at, m\.id\) < \(l\.played_at, l\.id\)/)
+  // Shots as the match page shows them: reviewed OCR period rows over EA's count.
+  assert.match(
+    s,
+    /coalesce\(ocr\.shots_for, m\.shots_for\) as shots_for, coalesce\(ocr\.shots_against, m\.shots_against\) as shots_against/,
+  )
+  assert.match(
+    s,
+    /from match_period_summaries s where s\.match_id = m\.id and s\.source = 'ocr' and s\.shots_review_status = 'reviewed' and s\.period_number <> -1/,
+  )
+  // Pass % from the player rows of both sides (as the page's Pass % row), credited goals from the club rows.
+  assert.match(
+    s,
+    /coalesce\(sum\(p\.pass_attempts\), 0\) as pass_attempts, coalesce\(sum\(p\.pass_completions\), 0\) as pass_completions, coalesce\(sum\(greatest\(p\.goals, 0\)\), 0\) as credited_goals from player_match_stats p where p\.match_id = m\.id/,
+  )
+  assert.match(s, /from opponent_player_match_stats o where o\.match_id = m\.id/)
+  assert.match(
+    s,
+    /m\.time_on_attack, m\.time_on_attack_against, m\.pp_goals, m\.pp_opportunities, m\.pp_goals_against, m\.pp_opportunities_against/,
+  )
+  assert.match(s, /order by m\.played_at, m\.id$/)
+  assert.doesNotMatch(s, /is_active/)
+  assert.deepEqual(q.params, [900, 7])
+})
+
+void test('norm games: raw rows become numbers; nulls stay null (C1.2)', () => {
+  assert.deepEqual(
+    rowToNormGame({
+      id: '12',
+      score_for: 3,
+      credited_goals: '2',
+      hits_for: 9,
+      hits_against: 11,
+      shots_for: '25',
+      shots_against: 20,
+      time_on_attack: 400,
+      time_on_attack_against: null,
+      pp_goals: 1,
+      pp_opportunities: 3,
+      pp_goals_against: null,
+      pp_opportunities_against: '2',
+      pass_attempts: '150',
+      pass_completions: '120',
+      opp_pass_attempts: 0,
+      opp_pass_completions: '0',
+    }),
+    {
+      id: 12,
+      scoreFor: 3,
+      creditedGoals: 2,
+      hitsFor: 9,
+      hitsAgainst: 11,
+      shotsFor: 25,
+      shotsAgainst: 20,
+      timeOnAttack: 400,
+      timeOnAttackAgainst: null,
+      ppGoals: 1,
+      ppOpportunities: 3,
+      ppGoalsAgainst: null,
+      ppOpportunitiesAgainst: 2,
+      passAttempts: 150,
+      passCompletions: 120,
+      passAttemptsAgainst: 0,
+      passCompletionsAgainst: 0,
+    },
+  )
 })

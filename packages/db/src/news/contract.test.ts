@@ -79,6 +79,8 @@ function sample(): NewsFactsResponse {
           aiGoalieInNet: false,
           aiGoalie: null,
           endedEarly: false,
+          labels: null,
+          patterns: [],
           guestCount: 1,
           unnamedTeammates: 1,
           unnamedGoals: 1,
@@ -121,6 +123,8 @@ function sample(): NewsFactsResponse {
             savePct: 75,
           },
           endedEarly: false,
+          labels: null,
+          patterns: [],
           guestCount: 0,
           unnamedTeammates: 0,
           unnamedGoals: 0,
@@ -150,6 +154,7 @@ function sample(): NewsFactsResponse {
       weekPlayers: [],
       aiGoalieWeek: [],
       lore: ["The Boogeymen's farm team is the Oregon Outlaws."],
+      norms: null,
     },
     forbiddenNames: ['Hidden Guy'],
   }
@@ -615,4 +620,69 @@ void test('contract: lore parses; missing reads as empty; non-strings are reject
   const bad = clone(s) as unknown as { facts: Record<string, unknown> }
   bad.facts['lore'] = [3]
   assert.throws(() => parseNewsFactsResponse(bad), /facts\.lore\[0\]/)
+})
+
+// ── Part C1.2: team norms (spec 12.10) ──────────────────────────────────────
+
+const NORM = (ours: number, theirs: number, leadPct: number) => ({ ours, theirs, leadPct })
+
+function normSample(): NewsFactsResponse {
+  const s = sample()
+  s.facts.norms = {
+    sampleGames: 42,
+    hits: NORM(14.2, 16.8, 35.7),
+    shots: NORM(24.5, 19.1, 73.8),
+    timeOnAttack: NORM(402.3, 311.9, 78.6),
+    passPct: NORM(74.1, 70.3, 61.9),
+    ppPct: null,
+  }
+  s.facts.games[0]!.labels = {
+    hitsFor: 'unusually high',
+    hitsAgainst: 'typical',
+    shotsFor: 'unusually low',
+    shotsAgainst: 'typical',
+    timeOnAttack: 'unusually low',
+    passPct: null,
+  }
+  s.facts.games[0]!.patterns = ['out-hit the opponent for the first time in 6 games']
+  return s
+}
+
+void test('contract: norms, labels and patterns round-trip; missing ones read as none (C1.2)', () => {
+  const s = normSample()
+  assert.deepEqual(parseNewsFactsResponse(clone(s)), s)
+  const old = clone(s) as unknown as {
+    facts: { games: Record<string, unknown>[] } & Record<string, unknown>
+  }
+  delete old.facts['norms']
+  delete old.facts.games[0]!['labels']
+  delete old.facts.games[0]!['patterns']
+  const o = parseNewsFactsResponse(old)
+  assert.equal(o.facts.norms, null)
+  assert.equal(o.facts.games[0]!.labels, null)
+  assert.deepEqual(o.facts.games[0]!.patterns, [])
+})
+
+void test('contract: rejects bad norms, labels or patterns (C1.2)', () => {
+  type N = {
+    facts: {
+      norms: Record<string, Record<string, unknown> | number | null>
+      games: { labels: Record<string, unknown>; patterns: unknown }[]
+    }
+  }
+  const bad = (edit: (s: N) => void, re: RegExp) => {
+    const s = clone(normSample()) as unknown as N
+    edit(s)
+    assert.throws(() => parseNewsFactsResponse(s), re)
+  }
+  bad((s) => (s.facts.norms['hits'] = { ours: '14', theirs: 1, leadPct: 1 }), /norms\.hits\.ours/)
+  bad(
+    (s) => delete (s.facts.norms['shots'] as Record<string, unknown>)['leadPct'],
+    /norms\.shots\.leadPct/,
+  )
+  bad((s) => (s.facts.norms['sampleGames'] = 9.5), /norms\.sampleGames/)
+  bad((s) => delete s.facts.norms['ppPct'], /norms\.ppPct/)
+  bad((s) => (s.facts.games[0]!.labels['hitsFor'] = 'normal'), /labels\.hitsFor/)
+  bad((s) => delete s.facts.games[0]!.labels['passPct'], /labels\.passPct/)
+  bad((s) => (s.facts.games[0]!.patterns = 'out-hit'), /patterns is not an array/)
 })

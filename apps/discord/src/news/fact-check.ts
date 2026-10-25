@@ -70,8 +70,11 @@ function parseDigits(run: string): number {
 /**
  * Keys whose numbers are identifiers, clock digits or dates, never stats (R16;
  * `clock` B1; rev 2: `weekStart`, the dates of the week sheet's history, so an
- * invented stat cannot pass on a date digit. The sheet's own `key` stays;
- * Part C1: `lore`, world facts that are never a source of numbers).
+ * invented stat cannot pass on a date digit. The sheet's own `key` stays).
+ * Part C1: `lore` (world facts, never a source of numbers); the team norms'
+ * `sampleGames` and the per-game `labels` (words only, no numbers to quote).
+ * The norms' averages and lead % (`ours`, `theirs`, `leadPct`) and the
+ * `patterns` ("... for the first time in 6 games") stay quotable.
  */
 const NON_STAT_KEYS = new Set([
   'playerId',
@@ -81,6 +84,8 @@ const NON_STAT_KEYS = new Set([
   'clock',
   'weekStart',
   'lore',
+  'sampleGames',
+  'labels',
 ])
 
 /** A game clock in text, such as "3:58" or "03:58". */

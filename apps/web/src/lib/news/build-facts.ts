@@ -17,6 +17,7 @@ import {
   type NewsGameFacts,
   type NewsGoal,
   type NewsGoalPeriod,
+  type NewsNorms,
   type NewsPerson,
   type NewsPlayerLine,
   type NewsPosition,
@@ -455,6 +456,9 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
           timeOnAttackSeconds: match.timeOnAttack,
         },
     endedEarly,
+    // Set by `applyNorms` once the earlier games are known.
+    labels: null,
+    patterns: [],
     periods: args.periods,
     players,
     aiGoalieInNet,
@@ -694,6 +698,8 @@ export function buildFacts(args: {
   weekPlayers?: NewsWeekPlayer[]
   /** Week sheets only (default []). */
   aiGoalieWeek?: NewsAiGoalieWeek[]
+  /** The title's norms before the sheet's first game (`applyNorms`); default null. */
+  norms?: NewsNorms | null
 }): NewsFacts {
   const nightTotals = {
     goalsFor: 0,
@@ -730,6 +736,7 @@ export function buildFacts(args: {
     weekPlayers: args.weekPlayers ?? [],
     aiGoalieWeek: args.aiGoalieWeek ?? [],
     lore: [...CLUB_LORE],
+    norms: args.norms ?? null,
   }
 }
 

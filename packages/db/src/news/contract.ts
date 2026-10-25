@@ -77,6 +77,55 @@ export interface NewsAiGoalieWeek extends NewsAiGoalieLine {
   games: number
 }
 
+/** The stats the team norms cover (spec §12.10). */
+export const NORM_STATS = ['hits', 'shots', 'timeOnAttack', 'passPct', 'ppPct'] as const
+export type NormStat = (typeof NORM_STATS)[number]
+
+/**
+ * One stat's norm: the club's and the opponents' average per game (one
+ * decimal; time on attack in seconds; pass % the mean of the games' Pass %;
+ * power play % = all power-play goals over all opportunities), and `leadPct`
+ * = % of the games (one decimal) in which the club had more.
+ */
+export interface NewsNormStat {
+  ours: number
+  theirs: number
+  leadPct: number
+}
+
+/**
+ * The club's norms in the sheet's title from the counted games before the
+ * sheet's first game (games that ended early left out). Null below 10 games.
+ * A stat is null when fewer than 10 of those games have its numbers.
+ */
+export interface NewsNorms {
+  /** How many games the norms come from. Not a stat to quote. */
+  sampleGames: number
+  hits: NewsNormStat | null
+  shots: NewsNormStat | null
+  timeOnAttack: NewsNormStat | null
+  passPct: NewsNormStat | null
+  ppPct: NewsNormStat | null
+}
+
+/** A game's numbers labelled against the club's own games. */
+export const NORM_LABEL_KEYS = [
+  'hitsFor',
+  'hitsAgainst',
+  'shotsFor',
+  'shotsAgainst',
+  'timeOnAttack',
+  'passPct',
+] as const
+export type NormLabelKey = (typeof NORM_LABEL_KEYS)[number]
+
+/** Outside the club's 20th-80th percentile = unusual (spec §12.10). */
+export const NORM_LABELS = ['typical', 'unusually high', 'unusually low'] as const
+export type NormLabel = (typeof NORM_LABELS)[number]
+
+/** Per key; null when the game or too few earlier games lack that number. */
+export type NewsNormLabels = Record<NormLabelKey, NormLabel | null>
+
 export interface NewsTeamStats {
   shotsFor: number
   shotsAgainst: number
@@ -107,6 +156,14 @@ export interface NewsGameFacts {
    * all. Its team numbers are not on the sheet.
    */
   endedEarly: boolean
+  /** Labels against the club's norms; null without norms or when the game ended early. */
+  labels: NewsNormLabels | null
+  /**
+   * The usual patterns held or broken (out-hit, more shots, more time on
+   * attack), e.g. "out-hit as usual", "out-shot for the first time in 6
+   * games". Empty without norms or when the game ended early.
+   */
+  patterns: string[]
   periods: { period: number; goalsFor: number; goalsAgainst: number }[] | null
   players: NewsPlayerLine[]
   aiGoalieInNet: boolean
@@ -211,6 +268,8 @@ export interface NewsFacts {
   aiGoalieWeek: NewsAiGoalieWeek[]
   /** Club lore (spec §12.13, `CLUB_LORE`), on every sheet. Never a source of stats. */
   lore: string[]
+  /** The club's norms in this title before the sheet's first game (spec §12.10); null below 10 games. */
+  norms: NewsNorms | null
 }
 
 export interface NewsFactsResponse {
@@ -344,6 +403,47 @@ function parseTeamAndEnd(
   return { team: parseTeam(o['team'], `${path}.team`), endedEarly }
 }
 
+function parseNormStat(v: unknown, path: string): NewsNormStat {
+  const o = obj(v, path)
+  return {
+    ours: num(o['ours'], `${path}.ours`),
+    theirs: num(o['theirs'], `${path}.theirs`),
+    leadPct: num(o['leadPct'], `${path}.leadPct`),
+  }
+}
+
+function parseNorms(v: unknown, path: string): NewsNorms {
+  const o = obj(v, path)
+  const stat = (k: NormStat) => {
+    if (o[k] === undefined) fail(`${path}.${k}`, 'is missing')
+    return nullable(o[k], `${path}.${k}`, parseNormStat)
+  }
+  return {
+    sampleGames: nonNegInt(o['sampleGames'], `${path}.sampleGames`),
+    hits: stat('hits'),
+    shots: stat('shots'),
+    timeOnAttack: stat('timeOnAttack'),
+    passPct: stat('passPct'),
+    ppPct: stat('ppPct'),
+  }
+}
+
+function parseLabels(v: unknown, path: string): NewsNormLabels {
+  const o = obj(v, path)
+  const label = (k: NormLabelKey) => {
+    if (o[k] === undefined) fail(`${path}.${k}`, 'is missing')
+    return nullable(o[k], `${path}.${k}`, (x, p) => oneOf(x, p, NORM_LABELS))
+  }
+  return {
+    hitsFor: label('hitsFor'),
+    hitsAgainst: label('hitsAgainst'),
+    shotsFor: label('shotsFor'),
+    shotsAgainst: label('shotsAgainst'),
+    timeOnAttack: label('timeOnAttack'),
+    passPct: label('passPct'),
+  }
+}
+
 function parseGoal(v: unknown, path: string): NewsGoal {
   const o = obj(v, path)
   const clock = str(o['clock'], `${path}.clock`)
@@ -394,6 +494,9 @@ function parseGame(v: unknown, path: string): NewsGameFacts {
     scoreAgainst: int(o['scoreAgainst'], `${path}.scoreAgainst`),
     opponentName: str(o['opponentName'], `${path}.opponentName`),
     ...parseTeamAndEnd(o, path),
+    // Missing (an older web app) reads as none.
+    labels: o['labels'] === undefined ? null : nullable(o['labels'], `${path}.labels`, parseLabels),
+    patterns: o['patterns'] === undefined ? [] : arr(o['patterns'], `${path}.patterns`, str),
     periods: nullable(o['periods'], `${path}.periods`, (x, p) =>
       arr(x, p, (r, rp) => {
         const po = obj(r, rp)
@@ -530,6 +633,7 @@ function parseFacts(v: unknown, path: string): NewsFacts {
         ? []
         : arr(o['aiGoalieWeek'], `${path}.aiGoalieWeek`, parseAiGoalieWeek),
     lore: o['lore'] === undefined ? [] : arr(o['lore'], `${path}.lore`, str),
+    norms: o['norms'] === undefined ? null : nullable(o['norms'], `${path}.norms`, parseNorms),
   }
 }
 

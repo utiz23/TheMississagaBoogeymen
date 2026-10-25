@@ -19,6 +19,7 @@ import {
   listNewsCardEvents,
   listNewsHistoryGames,
   listNewsNightMatches,
+  listNewsNormGames,
   listNewsProfiles,
   listPlayerTitleTotals,
   listRecentNightSummaries,
@@ -59,6 +60,7 @@ import {
   type GoalEventInput,
   type HistoryGameInput,
 } from './build-facts'
+import { applyNorms, normInputFromRow, type NormGameInput } from './norms'
 
 /** An unlock counts when it lands up to this long after the last game of the sheet. */
 const UNLOCK_WINDOW_AFTER_MINUTES = 10
@@ -73,6 +75,8 @@ interface LoadedGame {
   overtime: boolean
   shots: { for: number; against: number }
   passPct: number | null
+  /** The opponents' Pass % (their player rows), for the team norms. */
+  passPctAgainst: number | null
   periods: GameFactsArgs['periods']
   /** The match page's event rows (its trust filter: EA rows, reviewed OCR and manual rows). */
   goalEvents: GoalEventInput[]
@@ -132,6 +136,8 @@ async function loadGame(match: Match): Promise<LoadedGame | null> {
   const ocrShots = aggregateOcrShots(periodSummaries)
   const passAttempts = playerStats.reduce((n, p) => n + p.passAttempts, 0)
   const passCompletions = playerStats.reduce((n, p) => n + p.passCompletions, 0)
+  const oppPassAttempts = opponentPlayerStats.reduce((n, p) => n + p.passAttempts, 0)
+  const oppPassCompletions = opponentPlayerStats.reduce((n, p) => n + p.passCompletions, 0)
 
   return {
     match,
@@ -142,6 +148,7 @@ async function loadGame(match: Match): Promise<LoadedGame | null> {
       against: ocrShots.against ?? match.shotsAgainst,
     },
     passPct: passPctOf(passCompletions, passAttempts),
+    passPctAgainst: passPctOf(oppPassCompletions, oppPassAttempts),
     periods: periodsFromSummaries(periodSummaries, match.scoreFor, match.scoreAgainst),
     goalEvents: events
       .filter((e) => e.eventType === 'goal')
@@ -191,6 +198,25 @@ async function loadHistoryGames(gameTitleId: number, start: string): Promise<His
     })
   }
   return out
+}
+
+/** A sheet game's numbers for the team norms, as the match page shows them. */
+function normInputOf(g: LoadedGame, endedEarly: boolean): NormGameInput {
+  return {
+    endedEarly,
+    hitsFor: g.match.hitsFor,
+    hitsAgainst: g.match.hitsAgainst,
+    shotsFor: g.shots.for,
+    shotsAgainst: g.shots.against,
+    timeOnAttack: g.match.timeOnAttack,
+    timeOnAttackAgainst: g.match.timeOnAttackAgainst,
+    passPct: g.passPct,
+    passPctAgainst: g.passPctAgainst,
+    ppGoals: g.match.ppGoals,
+    ppOpportunities: g.match.ppOpportunities,
+    ppGoalsAgainst: g.match.ppGoalsAgainst,
+    ppOpportunitiesAgainst: g.match.ppOpportunitiesAgainst,
+  }
 }
 
 /** Build one sheet from games (oldest first) of a single title. Null when there is none. */
@@ -270,7 +296,7 @@ async function loadSheet(
 
   const namedIds = people.map((p) => p.playerId)
   const nameById = new Map(people.map((p) => [p.playerId, p.name]))
-  const [results, totals, events, recent] = await Promise.all([
+  const [results, totals, events, recent, normGames] = await Promise.all([
     listTitleResultsUpTo(gameTitleId, last.match.id),
     listPlayerTitleTotals({
       gameTitleId,
@@ -290,7 +316,14 @@ async function loadSheet(
       before: nightKey(first.match.playedAt),
       limit: RECENT_NIGHTS,
     }),
+    // Team norms (spec §12.10): the title's counted games before the sheet's first game.
+    listNewsNormGames({ gameTitleId, beforeMatchId: first.match.id }),
   ])
+  const normed = applyNorms(
+    games,
+    loaded.map((g, i): NormGameInput => normInputOf(g, games[i]?.endedEarly ?? false)),
+    normGames.map(normInputFromRow),
+  )
 
   const unlocks: NewsFacts['unlocks'] = []
   for (const ev of events) {
@@ -315,7 +348,8 @@ async function loadSheet(
     kind,
     key,
     gameTitleName,
-    games,
+    games: normed.games,
+    norms: normed.norms,
     ...buildRecordAndStreak(results),
     unlocks,
     milestones: buildMilestones(totals.before, totals.after, people),
