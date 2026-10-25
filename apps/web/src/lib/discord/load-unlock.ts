@@ -3,6 +3,7 @@ import {
   getCardProgressForPlayers,
   getClubMemberIds,
   getEARoster,
+  getPlayerDiscordUserId,
   getRosterCarryOvers,
   getUnlockEvent,
 } from '@eanhl/db/queries'
@@ -48,9 +49,20 @@ export async function loadDiscordUnlock(eventId: number): Promise<{
             },
           }
   const name = (base?.front.name ?? ev.gamertag).toUpperCase()
+  // Only a new card pings (spec); other kinds never look the ID up.
+  const discordUserId =
+    d.kind === 'tier' || d.kind === 'mythic' ? await getPlayerDiscordUserId(ev.playerId) : null
   const graphic = d.graphic === 'badge' ? 'badge' : card ? 'card' : 'none'
   return {
-    data: { eventId, playerId: ev.playerId, name, kind: d.kind, subject: d.subject, graphic },
+    data: {
+      eventId,
+      playerId: ev.playerId,
+      name,
+      kind: d.kind,
+      subject: d.subject,
+      graphic,
+      discordUserId,
+    },
     badge: d.badge ?? null,
     card: graphic === 'card' ? card : null,
   }

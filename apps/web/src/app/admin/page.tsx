@@ -1,7 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { playerPath } from '@eanhl/db/lib/player-slug'
-import { listPinCandidates, listPinnedPlayers } from '@eanhl/db/queries'
+import {
+  listAllGameTitles,
+  listDiscordPingRows,
+  listPinCandidates,
+  listPinnedPlayers,
+} from '@eanhl/db/queries'
 import {
   AUTH_BUTTON_PRIMARY,
   AUTH_BUTTON_SECONDARY,
@@ -15,7 +20,13 @@ import {
   AdminSection,
 } from '@/components/admin/admin-section'
 import { requireAdmin } from '@/lib/auth'
-import { pinPlayerAction, signOutEveryoneAction, unpinPlayerAction } from './actions'
+import { pickDefaultTitle } from '@/lib/title-resolver'
+import {
+  pinPlayerAction,
+  saveDiscordIdAction,
+  signOutEveryoneAction,
+  unpinPlayerAction,
+} from './actions'
 
 export const metadata: Metadata = { title: 'Admin' }
 export const dynamic = 'force-dynamic'
@@ -47,14 +58,17 @@ const TOOLS = [
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ signout?: string }>
+  searchParams: Promise<{ signout?: string; discord?: string }>
 }) {
   await requireAdmin()
-  const [{ signout }, pinned, candidates] = await Promise.all([
+  const [{ signout, discord }, pinned, candidates, titles] = await Promise.all([
     searchParams,
     listPinnedPlayers(),
     listPinCandidates(),
+    listAllGameTitles(),
   ])
+  const defaultTitle = pickDefaultTitle(titles)
+  const pingRows = defaultTitle === null ? [] : await listDiscordPingRows(defaultTitle.id)
   const ended = signout !== undefined && /^\d+$/.test(signout) ? Number(signout) : null
 
   return (
@@ -124,6 +138,49 @@ export default async function AdminPage({
               </button>
             </form>
           )}
+        </AdminSection>
+      </section>
+
+      <section id="discord-pings" className="scroll-mt-24">
+        <AdminSection
+          title="Discord pings"
+          description="A new card (tier up, mythic) pings its player in Discord. A player who signed in with Discord is pinged by that ID; for anyone else, enter their Discord user ID (Developer Mode → right-click the member → Copy User ID). Empty and Save clears it."
+        >
+          {discord === 'saved' && <AuthNotice tone="info">Saved.</AuthNotice>}
+          {discord === 'invalid' && (
+            <AuthNotice tone="error">A Discord user ID is 17–20 digits.</AuthNotice>
+          )}
+          <ul className="flex flex-col divide-y divide-border-subtle border-y border-border-subtle">
+            {pingRows.map((p) => (
+              <li
+                key={p.playerId}
+                className="flex flex-wrap items-center justify-between gap-3 py-2"
+              >
+                <span className="text-sm text-fg-1">{p.gamertag}</span>
+                {p.signInId !== null ? (
+                  <span className="text-sm text-fg-4">
+                    {p.signInId} <span className="text-fg-5">· from sign-in</span>
+                  </span>
+                ) : (
+                  <form action={saveDiscordIdAction} className="flex items-center gap-2">
+                    <input type="hidden" name="playerId" value={p.playerId} />
+                    <input
+                      name="discordUserId"
+                      defaultValue={p.manualId ?? ''}
+                      inputMode="numeric"
+                      pattern="[0-9]{17,20}"
+                      placeholder="Discord user ID"
+                      aria-label={`Discord user ID for ${p.gamertag}`}
+                      className={`${ADMIN_FIELD} w-[220px]`}
+                    />
+                    <button type="submit" className={ADMIN_SMALL_BUTTON}>
+                      Save
+                    </button>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
         </AdminSection>
       </section>
 

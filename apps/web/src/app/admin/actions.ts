@@ -2,8 +2,14 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { listPinCandidates, revokeAllSessionsExcept, setPlayerPinned } from '@eanhl/db/queries'
+import {
+  listPinCandidates,
+  revokeAllSessionsExcept,
+  setPlayerDiscordUserId,
+  setPlayerPinned,
+} from '@eanhl/db/queries'
 import { getCurrentSessionId, requireAdmin } from '@/lib/auth'
+import { parseDiscordIdForm } from '@/lib/discord-id-form'
 
 /**
  * Admin hub actions (release C1). Each re-checks the caller is a signed-in
@@ -45,4 +51,13 @@ export async function signOutEveryoneAction(formData: FormData): Promise<void> {
   if (keep === null) redirect('/login')
   const ended = await revokeAllSessionsExcept(keep)
   redirect(`/admin?signout=${String(ended)}#sessions`)
+}
+
+/** Save or clear a player's manual Discord user ID (new-card unlock pings). */
+export async function saveDiscordIdAction(formData: FormData): Promise<void> {
+  await requireAdmin()
+  const parsed = parseDiscordIdForm(formData)
+  if ('error' in parsed) redirect('/admin?discord=invalid#discord-pings')
+  await setPlayerDiscordUserId(parsed.playerId, parsed.id)
+  redirect('/admin?discord=saved#discord-pings')
 }
