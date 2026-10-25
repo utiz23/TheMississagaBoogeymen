@@ -71,7 +71,12 @@ import { applyContext, titleGameFromFacts, titleGameFromRow } from './context'
 import { applyChemistry } from './chemistry'
 import { rankFacts } from './rank-facts'
 import { mapLimit, memoize } from './map-limit'
-import { buildThreads, threadGameFromFacts, threadGameFromRow } from './threads'
+import {
+  buildThreads,
+  stancesWithoutForbidden,
+  threadGameFromFacts,
+  threadGameFromRow,
+} from './threads'
 import { applyNewRecords, buildRecords, publicRecords, type SeasonLineInput } from './records'
 import { applyPlayerFacts, playerGameFromRow, type PlayerGameInput } from './players'
 
@@ -408,7 +413,11 @@ async function loadSheet(
     history,
     gameTitleId,
   })
-  const stances = await stancesForThreads(threads.map((t) => t.key))
+  // C2 fix M8: a stored stance never brings back a name that is now forbidden.
+  const stances = stancesWithoutForbidden(
+    await stancesForThreads(threads.map((t) => t.key)),
+    forbiddenNames,
+  )
 
   const unlocks: NewsFacts['unlocks'] = []
   for (const ev of events) {

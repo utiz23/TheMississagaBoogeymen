@@ -6,6 +6,7 @@ import {
   persisted,
   playerThreads,
   rivalThreads,
+  stancesWithoutForbidden,
   teamThreads,
   threadRuns,
   type ThreadTeamGame,
@@ -233,4 +234,23 @@ void test('buildThreads: team, rivals and players together', () => {
     t.map((x) => x.kind),
     ['losing-streak', 'rival'],
   )
+})
+
+void test('stancesWithoutForbidden: a stance naming a forbidden person is dropped (C2 fix M8)', () => {
+  const st = (stance: string) => ({
+    threadKey: 'k',
+    reporter: 'quill' as const,
+    stance,
+    night: null,
+  })
+  const list = [
+    st('Hidden  Hank will score soon.'),
+    st('Hankering for goals.'),
+    st('The slump ends.'),
+  ]
+  assert.deepEqual(
+    stancesWithoutForbidden(list, ['Hidden Hank', 'Hank']).map((s) => s.stance),
+    ['Hankering for goals.', 'The slump ends.'],
+  )
+  assert.equal(stancesWithoutForbidden(list, []).length, 3)
 })

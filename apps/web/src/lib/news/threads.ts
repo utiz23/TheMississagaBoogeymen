@@ -289,3 +289,27 @@ export function buildThreads(args: {
     ),
   ]
 }
+
+/**
+ * Stored stances whose text names a forbidden person are left off the sheet
+ * (C2 fix M8): a player who chose "Leave me out" after the stance was written
+ * must not come back through it. Word-bounded, case and spacing ignored.
+ */
+export function stancesWithoutForbidden<T extends { stance: string }>(
+  stances: readonly T[],
+  forbiddenNames: readonly string[],
+): T[] {
+  const names = forbiddenNames.map((n) => n.replace(/\s+/g, ' ').trim()).filter((n) => n !== '')
+  if (names.length === 0) return [...stances]
+  const res = names.map(
+    (n) =>
+      new RegExp(
+        `(?<![\\p{L}\\p{N}_])${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}_])`,
+        'iu',
+      ),
+  )
+  return stances.filter((s) => {
+    const text = s.stance.replace(/\s+/g, ' ')
+    return !res.some((re) => re.test(text))
+  })
+}
