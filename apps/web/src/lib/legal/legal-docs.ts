@@ -120,9 +120,9 @@ export interface LegalChangeNotice {
 }
 
 export const LEGAL_CHANGE_NOTICE: LegalChangeNotice = {
-  text: 'Updated Oct 2026: invited team members can now sign in with Discord.',
+  text: "Updated Oct 2026: team members' names and game stats are now sent to an AI service to write the News pages.",
   slug: 'privacy',
-  showUntil: '2026-11-09',
+  showUntil: '2026-11-24',
 }
 
 /** The notice to show now, or null once it has run its course. */
