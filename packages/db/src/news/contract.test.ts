@@ -71,6 +71,8 @@ function sample(): NewsFactsResponse {
           aiGoalieInNet: false,
           guestCount: 1,
           unnamedTeammates: 1,
+          unnamedGoals: 1,
+          unnamedAssists: 2,
         },
         {
           matchId: 2502,
@@ -98,6 +100,8 @@ function sample(): NewsFactsResponse {
           aiGoalieInNet: true,
           guestCount: 0,
           unnamedTeammates: 0,
+          unnamedGoals: 0,
+          unnamedAssists: 0,
         },
       ],
       nightTotals: {
@@ -212,6 +216,23 @@ void test('contract: unnamedTeammates is required and must be an integer', () =>
   assert.throws(() => parseNewsFactsResponse(s), /games\[0\]\.unnamedTeammates/)
   s.facts.games[0]!['unnamedTeammates'] = 1.5
   assert.throws(() => parseNewsFactsResponse(s), /unnamedTeammates is not an integer/)
+})
+
+void test('contract: unnamedGoals and unnamedAssists are required non-negative integers', () => {
+  const ok = parseNewsFactsResponse(clone(sample()))
+  assert.equal(ok.facts.games[0]!.unnamedGoals, 1)
+  assert.equal(ok.facts.games[0]!.unnamedAssists, 2)
+  for (const key of ['unnamedGoals', 'unnamedAssists']) {
+    const missing = clone(sample()) as unknown as { facts: { games: Record<string, unknown>[] } }
+    delete missing.facts.games[0]![key]
+    assert.throws(() => parseNewsFactsResponse(missing), new RegExp(`games\\[0\\]\\.${key}`))
+    const frac = clone(sample()) as unknown as { facts: { games: Record<string, unknown>[] } }
+    frac.facts.games[0]![key] = 1.5
+    assert.throws(() => parseNewsFactsResponse(frac), /is not an integer/)
+    const neg = clone(sample()) as unknown as { facts: { games: Record<string, unknown>[] } }
+    neg.facts.games[0]![key] = -1
+    assert.throws(() => parseNewsFactsResponse(neg), /is negative/)
+  }
 })
 
 void test('reporters: seven, unique slugs, lookup by slug', () => {

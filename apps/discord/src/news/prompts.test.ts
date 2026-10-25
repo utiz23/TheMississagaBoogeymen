@@ -140,6 +140,15 @@ void test('system prompt: unnamed teammates are teammates, never named or single
   assert.ok(s.includes('"guestCount" is the number of players from outside the club'))
 })
 
+void test('system prompt: goals by people not on the sheet are in unnamedGoals / unnamedAssists (T1)', () => {
+  const s = buildSystemPrompt(all)
+  assert.ok(
+    s.includes(
+      'Goals and assists by people not named on the sheet are in "unnamedGoals" / "unnamedAssists" of each game. Never say a named player\'s goal was the only goal, or that a named player did something alone, unless the sheet shows it.',
+    ),
+  )
+})
+
 void test('system prompt: never a YYYY-MM-DD date; weekday or month and day (c1)', () => {
   const s = buildSystemPrompt(all)
   assert.ok(s.includes('Never write a date as YYYY-MM-DD; use the weekday, or the month and day'))

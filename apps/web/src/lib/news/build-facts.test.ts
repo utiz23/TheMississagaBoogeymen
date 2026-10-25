@@ -244,6 +244,66 @@ void test('buildGameFacts: guestCount counts non-members only; an out-member is 
   assert.equal(noId.unnamedTeammates, 0)
 })
 
+void test('buildGameFacts: named goals plus unnamedGoals equal the score; unnamed assists are counted too', () => {
+  const g = buildGameFacts(gameArgs())
+  // Hero (named) 2 goals; OutGuy (unnamed teammate) 1 goal; GuestA (guest) 1 assist; Hero 1 assist.
+  assert.equal(g.unnamedGoals, 1)
+  assert.equal(g.unnamedAssists, 1)
+  const namedGoals = g.players.reduce((n, p) => n + p.goals, 0)
+  assert.equal(namedGoals + g.unnamedGoals, g.scoreFor)
+  const namedAssists = g.players.reduce((n, p) => n + p.assists, 0)
+  assert.equal(namedAssists + g.unnamedAssists, 2)
+})
+
+void test('buildGameFacts: a guest with goals and an AI goalie with an assist are counted as unnamed', () => {
+  const g = buildGameFacts(
+    gameArgs({
+      match: { ...gameArgs().match, scoreFor: 4 },
+      players: [
+        skater({ playerId: 1, gamertag: 'Hero', goals: 2 }),
+        skater({ playerId: 9, gamertag: 'GuestC', goals: 1, assists: 1 }),
+        skater({ playerId: null, gamertag: 'Anon', goals: 1 }),
+        skater({
+          playerId: 5,
+          gamertag: 'Lehmann',
+          position: 'goalie',
+          isGoalie: true,
+          aiGoalie: true,
+          assists: 1,
+        }),
+      ],
+    }),
+  )
+  assert.equal(g.unnamedGoals, 2)
+  assert.equal(g.unnamedAssists, 2)
+  assert.equal(g.players.reduce((n, p) => n + p.goals, 0) + g.unnamedGoals, g.scoreFor)
+})
+
+void test('buildGameFacts: unnamed goals and assists are 0 when everyone is named, and never negative on bad data', () => {
+  const clean = buildGameFacts(
+    gameArgs({
+      match: { ...gameArgs().match, scoreFor: 2 },
+      players: [skater({ playerId: 1, gamertag: 'Hero', goals: 2, assists: 1 })],
+    }),
+  )
+  assert.equal(clean.unnamedGoals, 0)
+  assert.equal(clean.unnamedAssists, 0)
+  // Inconsistent EA data: the score differs from the player rows, and a row has a negative number.
+  // The sheet follows the player rows (never the score) and clamps each row at 0.
+  const bad = buildGameFacts(
+    gameArgs({
+      match: { ...gameArgs().match, scoreFor: 1 },
+      players: [
+        skater({ playerId: 3, gamertag: 'GuestA', goals: 3, assists: -2 }),
+        skater({ playerId: 4, gamertag: 'GuestB', goals: -1, assists: 1 }),
+      ],
+    }),
+  )
+  assert.equal(bad.unnamedGoals, 3)
+  assert.equal(bad.unnamedAssists, 1)
+  assert.ok(bad.unnamedGoals >= 0 && bad.unnamedAssists >= 0)
+})
+
 void test('buildGameFacts: team numbers come from the arguments the match page uses', () => {
   const g = buildGameFacts(gameArgs())
   assert.deepEqual(g.team, {

@@ -195,7 +195,8 @@ function playerLine(p: GamePlayerInput, person: NewsPerson): NewsPlayerLine {
  * One game's part of the sheet. Only named people get a player line. Unnamed
  * club members (press level `out`) count towards `unnamedTeammates`; everyone
  * else unnamed counts towards `guestCount`; AI goalies count towards neither.
- * The goals of everyone stay in the team score.
+ * The goals of everyone stay in the team score; the goals and assists of the
+ * unnamed (AI goalies too) are summed in `unnamedGoals` / `unnamedAssists`.
  */
 export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
   const { match } = args
@@ -203,14 +204,20 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
   const players: NewsPlayerLine[] = []
   let guestCount = 0
   let unnamedTeammates = 0
+  let unnamedGoals = 0
+  let unnamedAssists = 0
   let aiGoalieInNet = false
   for (const p of args.players) {
-    if (p.aiGoalie) {
-      aiGoalieInNet = true
+    const person = p.aiGoalie || p.playerId === null ? undefined : byId.get(p.playerId)
+    if (person) {
+      players.push(playerLine(p, person))
       continue
     }
-    const person = p.playerId === null ? undefined : byId.get(p.playerId)
-    if (person) players.push(playerLine(p, person))
+    // Everyone without a player line: their goals and assists go on the sheet
+    // as plain numbers, each row clamped at 0 so a bad row cannot make a total negative.
+    unnamedGoals += Math.max(0, p.goals)
+    unnamedAssists += Math.max(0, p.assists)
+    if (p.aiGoalie) aiGoalieInNet = true
     else if (p.playerId !== null && args.memberIds.has(p.playerId)) unnamedTeammates += 1
     else guestCount += 1
   }
@@ -241,6 +248,8 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     aiGoalieInNet,
     guestCount,
     unnamedTeammates,
+    unnamedGoals,
+    unnamedAssists,
   }
 }
 

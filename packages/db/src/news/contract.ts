@@ -61,6 +61,14 @@ export interface NewsGameFacts {
   guestCount: number
   /** Club members in the game at press level `out`: teammates who must not be named or singled out. */
   unnamedTeammates: number
+  /**
+   * Goals by BGM players who are not in `players` (guests, unnamed teammates,
+   * an AI goalie if it has any). Named goals + this = the team's goals, when
+   * the EA data is consistent.
+   */
+  unnamedGoals: number
+  /** Assists by the same unnamed players. */
+  unnamedAssists: number
 }
 
 export interface NewsRecord {
@@ -128,6 +136,11 @@ function num(v: unknown, path: string): number {
 function int(v: unknown, path: string): number {
   const n = num(v, path)
   if (!Number.isSafeInteger(n)) fail(path, 'is not an integer')
+  return n
+}
+function nonNegInt(v: unknown, path: string): number {
+  const n = int(v, path)
+  if (n < 0) fail(path, 'is negative')
   return n
 }
 function str(v: unknown, path: string): string {
@@ -230,6 +243,8 @@ function parseGame(v: unknown, path: string): NewsGameFacts {
     aiGoalieInNet: bool(o['aiGoalieInNet'], `${path}.aiGoalieInNet`),
     guestCount: int(o['guestCount'], `${path}.guestCount`),
     unnamedTeammates: int(o['unnamedTeammates'], `${path}.unnamedTeammates`),
+    unnamedGoals: nonNegInt(o['unnamedGoals'], `${path}.unnamedGoals`),
+    unnamedAssists: nonNegInt(o['unnamedAssists'], `${path}.unnamedAssists`),
   }
 }
 
