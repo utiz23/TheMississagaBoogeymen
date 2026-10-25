@@ -93,7 +93,7 @@ export function NavAccount({
         className="hidden nav:block"
         buttonLabel={`Account menu (${session.name})`}
         buttonTitle={session.name}
-        buttonClassName="flex h-[38px] w-[38px] items-center justify-center overflow-hidden rounded-xs border border-accent-line bg-surface-raised transition-[filter] hover:brightness-110 aria-expanded:border-accent"
+        buttonClassName="flex h-[38px] w-[38px] items-center justify-center overflow-hidden rounded-full border border-accent-line bg-surface-raised transition-[filter] hover:brightness-110 aria-expanded:border-accent"
         button={<MemberPicture image={session.image} />}
       >
         <AccountMenuItems session={session} />
