@@ -1,0 +1,161 @@
+import type { NewsFacts, Reporter } from '@eanhl/db/news'
+
+const MAX_UNLOCKS = 12
+const MAX_MILESTONES = 10
+
+/** JSON with keys sorted at every depth, so the same sheet always gives the same bytes (prompt-cache stable). */
+export function stableStringify(value: unknown): string {
+  const sort = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(sort)
+    if (typeof v === 'object' && v !== null) {
+      const o = v as Record<string, unknown>
+      return Object.fromEntries(
+        Object.keys(o)
+          .sort()
+          .map((k) => [k, sort(o[k])]),
+      )
+    }
+    return v
+  }
+  return JSON.stringify(sort(value))
+}
+
+/**
+ * The sheet as the model sees it: at most 12 unlocks (card unlocks first, then
+ * badges) and 10 milestones. The fact CHECK still uses the full sheet.
+ */
+export function capFactsForPrompt(facts: NewsFacts): NewsFacts {
+  const isCard = (u: { text: string }) => /card/i.test(u.text)
+  const unlocks = [...facts.unlocks.filter(isCard), ...facts.unlocks.filter((u) => !isCard(u))]
+  return {
+    ...facts,
+    unlocks: unlocks.slice(0, MAX_UNLOCKS),
+    milestones: facts.milestones.slice(0, MAX_MILESTONES),
+  }
+}
+
+function sheet(facts: NewsFacts): string {
+  return stableStringify(capFactsForPrompt(facts))
+}
+
+/** Stable text (cached by the API): the desk's purpose, the rules, then each reporter's voice. */
+export function buildSystemPrompt(reporters: Reporter[]): string {
+  const rules = [
+    "You write for the Boogeymen News Desk. The Boogeymen are a small club of friends who play EA NHL Pro Clubs together. The desk has fictional reporters. You write short posts and articles about the club's games, for the club's Discord and website. The readers are the players themselves, so the tone is playful and sharp, but the facts must be right.",
+    'You get a fact sheet as JSON in each request. Follow these rules in every piece, whichever reporter you write as.',
+    'FACTS',
+    '1. Take every fact from the fact sheet and from nowhere else. A number you write must appear on the sheet exactly as written there. Do not add, subtract, round or convert numbers. Do not write a date or a time unless the sheet has it. Numbers written as words are checked the same way as digits.',
+    '2. Name people exactly as written in "people[].name". Write no other person: no opponent players, no guests, no AI goalies, no real-life names. The two AI goalies are not teammates and get no praise or blame. If the sheet says "aiGoalieInNet", the club played with an AI goalie. Name an opponent club exactly as in "games[].opponentName".',
+    '3. Do not invent quotes from teammates or from opponents. The reporters are fictional, so they may quote each other and answer each other.',
+    '4. Opinion is allowed when it follows from the stats ("29 shots against says the defence was under siege"). Invented events are not: no shot off the post, no save, no pass, no line change, no mood in the room, no argument, no play-by-play. There is no video or play-by-play data, only the numbers on the sheet.',
+    '5. A win does not always deserve praise. A loss does not always deserve doom. Let the numbers decide.',
+    'TONE',
+    '6. Criticism is about hockey only: the game, the stats, the choices on the ice. Never write about real life, looks, family, work, health or the person.',
+    '7. Each person on the sheet has a "pressLevel". "full" means a reporter may be harsh about that player\'s games. "easy" means criticism of that player stays mild. Rule 6 applies at both levels.',
+    'FORMAT',
+    '8. Plain text only. No @ mentions, no links, no hashtags, no emoji, no markdown. Do not write "@everyone" or "@here".',
+    '9. Put every person you name in "mentions" and every opponent club you name in "clubs", spelled exactly as in the sheet. Reporter names may be listed in "mentions". Use empty lists when you name nobody.',
+    "10. Write as the reporter you are told to write as. Keep the voice of the reporter. Do not repeat a phrase from that reporter's recent pieces.",
+  ].join('\n\n')
+
+  const voices = reporters
+    .map((r) => `${r.name} (id "${r.id}"), ${r.outlet}\n${r.voice}`)
+    .join('\n\n---\n\n')
+
+  return `${rules}\n\nTHE REPORTERS\n\n${voices}`
+}
+
+export function buildGameUserPrompt(args: {
+  facts: NewsFacts
+  first: Reporter
+  second: Reporter | null
+  secondIsReply: boolean
+  relationship: string | null
+}): string {
+  const { facts, first, second, secondIsReply, relationship } = args
+  const lines: string[] = [
+    'Fact sheet (JSON):',
+    sheet(facts),
+    '',
+    'Task: write short posts about the game or games on the sheet. Each post is at most 280 characters, one to three sentences, with no line breaks.',
+  ]
+  if (second === null) {
+    lines.push(`Write exactly one post, as ${first.name} (id "${first.id}") of ${first.outlet}.`)
+  } else {
+    lines.push(
+      `Write exactly two posts, in this order:`,
+      `1. As ${first.name} (id "${first.id}") of ${first.outlet}.`,
+    )
+    if (secondIsReply) {
+      lines.push(
+        `2. As ${second.name} (id "${second.id}") of ${second.outlet}. This post is a reply to the first post, and the reader sees it right under it. Answer ${first.name} directly, in ${second.name}'s own voice.`,
+      )
+      if (relationship !== null) lines.push(`How they feel about each other: ${relationship}`)
+    } else {
+      lines.push(
+        `2. As ${second.name} (id "${second.id}") of ${second.outlet}. This post stands alone. Take a different angle than the first post.`,
+      )
+    }
+  }
+  lines.push(
+    'Set "reporter" on each post to the id above. Remember: only numbers, names and clubs from the sheet, no invented quotes or events.',
+  )
+  return lines.join('\n')
+}
+
+export function buildArticleUserPrompt(args: {
+  facts: NewsFacts
+  reporter: Reporter
+  kind: 'night' | 'week'
+  ownRecent: { headline: string; summary: string; night: string | null }[]
+}): string {
+  const { facts, reporter, kind, ownRecent } = args
+  const what =
+    kind === 'night'
+      ? 'one article about the whole night of games on the sheet'
+      : 'one weekly piece about the whole week of games on the sheet (the sheet lists the games of the week)'
+  const lines: string[] = [
+    'Fact sheet (JSON):',
+    sheet(facts),
+    '',
+    `Task: write ${what}, as ${reporter.name} (id "${reporter.id}") of ${reporter.outlet}. Use ${reporter.name}'s article format from the reporter notes.`,
+    '',
+    'Output fields:',
+    '- headline: a short headline.',
+    '- dek: one line under the headline, at most 160 characters.',
+    '- paragraphs: the article body, 250 to 450 words in total, as separate paragraphs. No headings, no lists.',
+    "- summary: one or two plain sentences saying what the article covers, for the reporter's own memory. Facts from the sheet only.",
+    '- mentions and clubs: as in the rules.',
+  ]
+  if (ownRecent.length > 0) {
+    lines.push(
+      '',
+      `${reporter.name}'s own recent pieces, newest first. Refer back to them if it helps. Do not repeat their images or lines:`,
+    )
+    for (const r of ownRecent) {
+      lines.push(`- ${r.night === null ? 'undated' : r.night}: "${r.headline}" - ${r.summary}`)
+    }
+  }
+  return lines.join('\n')
+}
+
+export function buildReviewPrompt(args: { facts: NewsFacts; text: string }): string {
+  return [
+    'You are the second check of a news desk. A fictional reporter wrote the text below from the fact sheet. Numbers, names and clubs were already checked by a program. Check only what the program cannot check.',
+    '',
+    'Fact sheet (JSON):',
+    sheet(args.facts),
+    '',
+    'Text to review:',
+    '"""',
+    args.text,
+    '"""',
+    '',
+    'Find these problems:',
+    '1. An invented quote from a teammate or an opponent. (A fictional reporter quoting another reporter is fine.)',
+    '2. An invented event: a shot off the post, a save, a pass, a line change, a mood or argument in the room, any play-by-play that the sheet does not support. Opinion that follows from the stats is fine.',
+    '3. Personal criticism: anything about real life, looks, family, work, health or the person instead of their hockey. Also: harsh criticism of a player whose pressLevel is "easy", and praise or blame for an AI goalie as if it were a teammate.',
+    '',
+    'Answer ok = true when you find none of them. Otherwise answer ok = false and list each problem in one short sentence in "problems", naming the words that cause it.',
+  ].join('\n')
+}
