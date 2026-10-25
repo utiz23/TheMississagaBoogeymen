@@ -6,15 +6,25 @@
  *
  *   WEB_INTERNAL_URL=… DISCORD_INTERNAL_TOKEN=… \
  *     node apps/discord/src/news/backfill.ts plan --nights 2026-05-08,2026-05-09 --out <dir>
+ *   WEB_INTERNAL_URL=… DISCORD_INTERNAL_TOKEN=… \
+ *     node apps/discord/src/news/backfill.ts next-feature --out <dir> --week <monday>
  *   node apps/discord/src/news/backfill.ts check --out <dir>
  *   DATABASE_URL=… node apps/discord/src/news/backfill.ts import --out <dir>
+ *
+ * `plan` makes the game and night jobs only. Weekly features (rev 2) are made
+ * one week at a time with `next-feature`, after the previous feature is
+ * accepted: the kind and last week's prediction come from the latest accepted
+ * feature job in <dir>.
  *
  * Files in <dir>:
  *   system.txt            the system prompt for every write (all reporters)
  *   review-system.txt     the system prompt for every review
  *   review-schema.json    the JSON schema of a review answer
  *   jobs/<id>.json        one item to write: { id, kind, night, matchId?, reporters,
- *                         secondIsReply?, user, schema, sheet }
+ *                         secondIsReply?, featureKind?, previousPrediction?, user,
+ *                         schema, sheet }; a feature's `night` is its week's Monday
+ *   status/<id>.json      also for a waiting job when its night already has a harsh
+ *                         list: { state: 'waiting', prompt } (write from that prompt)
  *   answers/<id>.json     the model's JSON answer to `user` (written outside)
  *   reviews/<id>.json     the review answer, { "ok": true } or { "ok": false, "problems": [...] }
  *   status/<id>.json      written by `check`: rewrite / review / accepted
@@ -35,31 +45,51 @@ import {
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
+  FEATURE_KINDS,
+  FEATURE_REPORTER,
   REPORTERS,
   REPORTER_IDS,
   RELATIONSHIPS,
   parseNewsFactsResponse,
+  weekStart as mondayOf,
+  type FeatureKind,
   type NewsFacts,
   type NewsFactsResponse,
   type ReporterId,
 } from '@eanhl/db/news'
 import type { NewNewsItem, NewsMention } from '@eanhl/db/queries'
-import { assignGamePosts, assignNightRecap, type Activity } from './assign.ts'
-import { checkArticleFacts, checkGamePosts, type CheckResult } from './fact-check.ts'
+import {
+  assignGamePosts,
+  assignNightRecap,
+  nextFeatureKind,
+  predictionToJudge,
+  type Activity,
+} from './assign.ts'
+import {
+  checkArticleFacts,
+  checkFeatureFacts,
+  checkGamePosts,
+  type CheckResult,
+} from './fact-check.ts'
 import { articleSlug } from './messages.ts'
 import {
   ARTICLE_SCHEMA,
+  FEATURE_SCHEMA,
   GAME_POSTS_SCHEMA,
   REVIEW_SCHEMA,
+  featureBody,
   parseArticle,
+  parseFeature,
   parseGamePosts,
   parseReview,
   type Article,
+  type Feature,
   type GamePost,
 } from './outputs.ts'
 import {
   REVIEW_SYSTEM_PROMPT,
   buildArticleUserPrompt,
+  buildFeatureUserPrompt,
   buildGameUserPrompt,
   buildReviewPrompt,
   buildRewritePrompt,
@@ -77,11 +107,16 @@ const SITE_ONLY = 'backfill: site only, never sent to Discord'
 
 export interface BackfillJob {
   id: string
-  kind: 'game' | 'night'
+  kind: 'game' | 'night' | 'feature'
+  /** A game's or night's night; for a feature, the Monday of its week. */
   night: string
   matchId?: number
   reporters: ReporterId[]
   secondIsReply?: boolean
+  /** Features only (rev 2, B6). */
+  featureKind?: FeatureKind
+  /** Features only: last week's prediction to judge, or null. */
+  previousPrediction?: string | null
   user: string
   schema: object
   sheet: NewsFactsResponse
@@ -94,14 +129,48 @@ export interface BackfillPlan {
   jobs: BackfillJob[]
 }
 
-export type FetchFacts = (kind: 'game' | 'night', key: string) => Promise<NewsFactsResponse>
+export type FetchFacts = (
+  kind: 'game' | 'night' | 'week',
+  key: string,
+) => Promise<NewsFactsResponse>
 
 const NIGHT = /^\d{4}-\d{2}-\d{2}$/
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
-/** When the item is dated: a post at its game's end (+1 s per post), an article 90 min after the night's last game. */
+const EDMONTON_HOUR = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Edmonton',
+  hour: '2-digit',
+  hourCycle: 'h23',
+})
+
+function addDays(day: string, n: number): string {
+  const [y, m, d] = day.split('-').map(Number)
+  return new Date(Date.UTC(y!, m! - 1, d! + n)).toISOString().slice(0, 10)
+}
+
+/** 12:00 America/Edmonton on `day` (MDT is UTC-6, MST UTC-7). */
+export function edmontonNoon(day: string): Date {
+  const [y, m, d] = day.split('-').map(Number)
+  for (const offset of [6, 7]) {
+    const t = new Date(Date.UTC(y!, m! - 1, d!, 12 + offset))
+    if (Number(EDMONTON_HOUR.format(t)) === 12) return t
+  }
+  throw new Error(`no 12:00 in America/Edmonton on ${day}`)
+}
+
+/** A feature is dated when the live desk would write it: the following Monday, 12:00 Edmonton. */
+export function featureCreatedAt(weekStart: string): Date {
+  return edmontonNoon(addDays(weekStart, 7))
+}
+
+/**
+ * When the item is dated: a post at its game's end (+1 s per post), a night
+ * article 90 min after the night's last game, a feature on the following
+ * Monday at 12:00 Edmonton.
+ */
 export function itemCreatedAt(job: BackfillJob, index: number): Date {
+  if (job.kind === 'feature') return featureCreatedAt(job.night)
   const games = job.sheet.facts.games
   if (job.kind === 'game') {
     const game = games.find((g) => g.matchId === job.matchId)
@@ -250,7 +319,9 @@ function parseJob(v: unknown, file: string): BackfillJob {
   }
   if (typeof o !== 'object' || o === null) bad('is not an object')
   if (typeof o.id !== 'string' || `${o.id}.json` !== file) bad('id does not match the file name')
-  if (o.kind !== 'game' && o.kind !== 'night') bad('kind is not game or night')
+  if (o.kind !== 'game' && o.kind !== 'night' && o.kind !== 'feature') {
+    bad('kind is not game, night or feature')
+  }
   if (typeof o.night !== 'string' || !NIGHT.test(o.night)) bad('night is not YYYY-MM-DD')
   if (o.kind === 'game' && !Number.isSafeInteger(o.matchId)) bad('matchId is missing')
   const reporters = o.reporters
@@ -262,6 +333,14 @@ function parseJob(v: unknown, file: string): BackfillJob {
   ) {
     bad('reporters are invalid')
   }
+  if (o.kind === 'feature') {
+    if (reporters!.length !== 1) bad('a feature has one reporter')
+    if (!(FEATURE_KINDS as readonly unknown[]).includes(o.featureKind))
+      bad('featureKind is invalid')
+    if (o.previousPrediction !== null && typeof o.previousPrediction !== 'string') {
+      bad('previousPrediction is not a string or null')
+    }
+  }
   if (typeof o.user !== 'string') bad('user is not a string')
   const job: BackfillJob = {
     id: o.id!,
@@ -269,16 +348,37 @@ function parseJob(v: unknown, file: string): BackfillJob {
     night: o.night!,
     reporters: reporters!,
     user: o.user!,
-    schema: o.kind === 'game' ? GAME_POSTS_SCHEMA : ARTICLE_SCHEMA,
+    schema:
+      o.kind === 'game'
+        ? GAME_POSTS_SCHEMA
+        : o.kind === 'feature'
+          ? FEATURE_SCHEMA
+          : ARTICLE_SCHEMA,
     sheet: parseNewsFactsResponse(o.sheet),
   }
   if (o.kind === 'game') {
     job.matchId = o.matchId!
     job.secondIsReply = o.secondIsReply === true
   }
+  if (o.kind === 'feature') {
+    job.featureKind = o.featureKind!
+    job.previousPrediction = o.previousPrediction ?? null
+  }
   // Key order as the plan writes it, so a read job equals the planned one.
   return Object.fromEntries(
-    ['id', 'kind', 'night', 'matchId', 'reporters', 'secondIsReply', 'user', 'schema', 'sheet']
+    [
+      'id',
+      'kind',
+      'night',
+      'matchId',
+      'reporters',
+      'secondIsReply',
+      'featureKind',
+      'previousPrediction',
+      'user',
+      'schema',
+      'sheet',
+    ]
       .filter((k) => k in job)
       .map((k) => [k, job[k as keyof BackfillJob]]),
   ) as unknown as BackfillJob
@@ -293,10 +393,118 @@ export function readJobs(out: string): BackfillJob[] {
     .map((f) => parseJob(JSON.parse(readFileSync(join(d.jobs, f), 'utf8')), f))
 }
 
+// ── next-feature ─────────────────────────────────────────────────────────────
+
+const DAY_MS = 86_400_000
+const RINK_GAP_MS = 14 * DAY_MS
+
+/** What the dir's jobs will be, dated as the import dates them (for Father Rink's limit). */
+function activityOf(jobs: readonly BackfillJob[]): Activity {
+  return jobs.flatMap((job) =>
+    job.reporters.map((reporter, k) => ({
+      reporter,
+      night: job.kind === 'feature' ? null : job.night,
+      createdAt: itemCreatedAt(job, k),
+      kind:
+        job.kind === 'feature'
+          ? ('feature' as const)
+          : job.kind === 'night'
+            ? ('night' as const)
+            : k === 0
+              ? ('recap' as const)
+              : ('reaction' as const),
+    })),
+  )
+}
+
+/**
+ * Makes ONE weekly feature job for the week starting `week` (a Monday) and
+ * writes it to <out>/jobs. The kind follows the latest ACCEPTED feature job in
+ * <out> (none ⇒ trend), and its prediction is judged when it covered the week
+ * right before. Father Rink's column only when no Rink item of the backfill is
+ * within 14 days of the feature, before or after (the plan is already fixed).
+ * Refuses when a feature job is not accepted yet, when the week is not after
+ * the latest feature's week, or when the week already has a feature job.
+ */
+export async function planNextFeature(args: {
+  out: string
+  week: string
+  fetchFacts: FetchFacts
+}): Promise<BackfillJob> {
+  const { out, week } = args
+  if (!NIGHT.test(week) || mondayOf(week) !== week) {
+    throw new Error(`"${week}" is not a Monday (YYYY-MM-DD)`)
+  }
+  const evaluated = evaluateDir(out)
+  const features = evaluated.filter((e) => e.job.kind === 'feature')
+  const open = features.find((e) => e.evaluation.state !== 'accepted')
+  if (open) throw new Error(`feature job ${open.job.id} is not accepted yet; accept it first`)
+  const latest = features.reduce<(typeof features)[number] | null>(
+    (best, e) => (best === null || e.job.night > best.job.night ? e : best),
+    null,
+  )
+  if (latest !== null && week < latest.job.night) {
+    throw new Error(
+      `weeks must go forward: the latest feature is for the week of ${latest.job.night}`,
+    )
+  }
+  const same = features.find((e) => e.job.night === week)
+  if (same)
+    throw new Error(`${out} already has a feature job for the week of ${week} (${same.job.id})`)
+
+  let last: { kind: FeatureKind; prediction: string; weekStart: string } | null = null
+  if (latest !== null && latest.evaluation.state === 'accepted') {
+    last = {
+      kind: latest.job.featureKind!,
+      prediction: (latest.evaluation.output as Feature).prediction,
+      weekStart: latest.job.night,
+    }
+  }
+
+  let sheet: NewsFactsResponse
+  try {
+    sheet = await args.fetchFacts('week', week)
+  } catch (err: unknown) {
+    throw new Error(`week ${week}: ${message(err)}`)
+  }
+  if (sheet.facts.kind !== 'week' || sheet.facts.games.length === 0) {
+    throw new Error(`week ${week}: the week sheet has no game`)
+  }
+
+  const id = `${addDays(week, 7)}-0-feature`
+  const at = featureCreatedAt(week).getTime()
+  const rinkNearby = activityOf(evaluated.map((e) => e.job)).some(
+    (a) => a.reporter === 'rink' && Math.abs(a.createdAt.getTime() - at) < RINK_GAP_MS,
+  )
+  const kind = nextFeatureKind(last?.kind ?? null, !rinkNearby)
+  const reporter = FEATURE_REPORTER[kind]
+  const previousPrediction = predictionToJudge(week, last)
+  const job: BackfillJob = {
+    id,
+    kind: 'feature',
+    night: week,
+    reporters: [reporter],
+    featureKind: kind,
+    previousPrediction,
+    // The reporter's own recent pieces are not known before they are written.
+    user: buildFeatureUserPrompt({
+      facts: sheet.facts,
+      reporter: REPORTERS[reporter],
+      kind,
+      ownRecent: [],
+      previousPrediction,
+    }),
+    schema: FEATURE_SCHEMA,
+    sheet,
+  }
+  writeFileSync(join(dirs(out).jobs, `${id}.json`), json(job))
+  return job
+}
+
 // ── check ────────────────────────────────────────────────────────────────────
 
 export type GameOutput = { posts: GamePost[] }
-export type JobOutput = GameOutput | Article
+export type JobOutput = GameOutput | Article | Feature
 
 export type Evaluation =
   /** `prompt`: the request with the night's real harsh list, when the night has one so far. */
@@ -351,6 +559,14 @@ export function evaluateJob(
       output = out
       checked = checkGamePosts(out.posts, facts, forbiddenNames, criticizedTonight)
       textForReview = out.posts.map((p) => `${REPORTERS[p.reporter].name}: ${p.text}`).join('\n\n')
+    } else if (job.kind === 'feature') {
+      const f = parseFeature(value)
+      output = f
+      checked = checkFeatureFacts(f, facts, forbiddenNames, {
+        kind: job.featureKind!,
+        previousPrediction: job.previousPrediction ?? null,
+      })
+      textForReview = [f.headline, f.dek, featureBody(f, f)].join('\n\n')
     } else {
       const a = parseArticle(value)
       output = a
@@ -409,14 +625,15 @@ export function evaluateDir(out: string): { job: BackfillJob; evaluation: Evalua
     const answer = readIf(join(d.answers, `${job.id}.json`))
     const review = readIf(join(d.reviews, `${job.id}.json`))
     const freshReview = answer !== null && review !== null && review.mtimeMs >= answer.mtimeMs
-    const tonight = harsh.get(job.night) ?? []
+    // A feature has no night: the pile-on limit does not apply to it.
+    const tonight = job.kind === 'feature' ? [] : (harsh.get(job.night) ?? [])
     const evaluation = evaluateJob(
       job,
       answer?.text ?? null,
       freshReview ? review.text : null,
       tonight,
     )
-    if (evaluation.state === 'accepted') {
+    if (evaluation.state === 'accepted' && job.kind !== 'feature') {
       harsh.set(job.night, [...new Set([...tonight, ...criticizedOf(evaluation.output)])])
     }
     return { job, evaluation }
@@ -543,6 +760,32 @@ export async function importAccepted(
         inserted++
       }
       log(`${job.id}: ${String(posts.length)} post(s)`)
+    } else if (job.kind === 'feature') {
+      const f = output as Feature
+      const slug = articleSlug(job.night, f.headline) // <weekStart>-<words>
+      if ((await store.findArticle(slug)) !== null) {
+        existing++
+        log(`${job.id}: feature ${slug} already exists`)
+        continue
+      }
+      await store.insert({
+        ...common,
+        kind: 'article',
+        night: null,
+        weekStart: job.night,
+        slug,
+        headline: f.headline,
+        dek: f.dek,
+        body: featureBody(f, f),
+        summary: f.summary,
+        mentions: mentionsOf(f.mentions, facts),
+        criticized: f.criticized,
+        featureKind: job.featureKind!,
+        prediction: f.prediction,
+        createdAt: itemCreatedAt(job, 0),
+      })
+      inserted++
+      log(`${job.id}: feature ${slug}`)
     } else {
       const a = output as Article
       const slug = articleSlug(job.night, a.headline)
@@ -582,6 +825,7 @@ function flag(argv: readonly string[], name: string): string | null {
 const USAGE = [
   'usage:',
   '  node apps/discord/src/news/backfill.ts plan --nights <YYYY-MM-DD,…> --out <dir>   (WEB_INTERNAL_URL, DISCORD_INTERNAL_TOKEN)',
+  '  node apps/discord/src/news/backfill.ts next-feature --out <dir> --week <monday YYYY-MM-DD>   (WEB_INTERNAL_URL, DISCORD_INTERNAL_TOKEN)',
   '  node apps/discord/src/news/backfill.ts check --out <dir>',
   '  node apps/discord/src/news/backfill.ts import --out <dir>                          (DATABASE_URL)',
 ].join('\n')
@@ -593,9 +837,32 @@ export async function main(
 ): Promise<number> {
   const command = argv[0]
   const out = flag(argv, '--out')
-  if (out === null || (command !== 'plan' && command !== 'check' && command !== 'import')) {
+  if (
+    out === null ||
+    (command !== 'plan' &&
+      command !== 'next-feature' &&
+      command !== 'check' &&
+      command !== 'import')
+  ) {
     log(USAGE)
     return 2
+  }
+  const web = env['WEB_INTERNAL_URL']?.trim().replace(/\/+$/, '') ?? ''
+  const token = env['DISCORD_INTERNAL_TOKEN'] ?? ''
+  const fetchFacts: FetchFacts = (kind, key) =>
+    fetchNewsFacts({ webBaseUrl: web, token, kind, key, includeInactive: true })
+
+  if (command === 'next-feature') {
+    const week = flag(argv, '--week')
+    if (week === null || web === '' || token === '') {
+      log(USAGE)
+      return 2
+    }
+    const job = await planNextFeature({ out, week, fetchFacts })
+    log(
+      `${job.id}  ${job.featureKind!} by ${job.reporters[0]!}; last week's prediction: ${job.previousPrediction === null ? 'none' : `"${job.previousPrediction}"`}`,
+    )
+    return 0
   }
 
   if (command === 'plan') {
@@ -603,17 +870,11 @@ export async function main(
       .split(',')
       .map((s) => s.trim())
       .filter((s) => s !== '')
-    const web = env['WEB_INTERNAL_URL']?.trim().replace(/\/+$/, '') ?? ''
-    const token = env['DISCORD_INTERNAL_TOKEN'] ?? ''
     if (nights.length === 0 || web === '' || token === '') {
       log(USAGE)
       return 2
     }
-    const plan = await planBackfill({
-      nights,
-      fetchFacts: (kind, key) =>
-        fetchNewsFacts({ webBaseUrl: web, token, kind, key, includeInactive: true }),
-    })
+    const plan = await planBackfill({ nights, fetchFacts })
     writePlan(out, plan)
     for (const j of plan.jobs) log(`${j.id}  ${j.reporters.join('+')}`)
     log(`${String(plan.jobs.length)} job(s) written to ${join(out, 'jobs')}`)

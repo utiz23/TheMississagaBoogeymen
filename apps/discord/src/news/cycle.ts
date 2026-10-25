@@ -43,6 +43,7 @@ import {
   GAME_POSTS_SCHEMA,
   parseArticle,
   parseFeature,
+  featureBody,
   parseGamePosts,
   type Article,
 } from './outputs.ts'
@@ -189,19 +190,6 @@ const message = (err: unknown) => (err instanceof Error ? err.message : String(e
 const rateLimited = (err: unknown) => /HTTP 429\b/.test(message(err))
 
 const SYSTEM_PROMPT = buildSystemPrompt(Object.values(REPORTERS))
-
-/**
- * A feature's stored body (rev 2, B3): the receipt opens it (when there is
- * one), the prediction closes it; the web shows the body as it is.
- */
-export function featureBody(
-  a: { paragraphs: string[] },
-  closing: { prediction: string; receipt: string },
-): string {
-  return [closing.receipt, ...a.paragraphs, closing.prediction]
-    .filter((x) => x.trim() !== '')
-    .join('\n\n')
-}
 
 /** The people an item names, as stored: sheet names only, one entry per player. */
 function mentionsOf(names: string[], facts: NewsFacts): NewsMention[] {

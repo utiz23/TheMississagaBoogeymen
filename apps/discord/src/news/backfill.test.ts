@@ -12,16 +12,21 @@ import {
 import type { NewNewsItem } from '@eanhl/db/queries'
 import {
   ARTICLE_DELAY_MS,
+  edmontonNoon,
   evaluateJob,
+  featureCreatedAt,
   importAccepted,
   itemCreatedAt,
+  main,
   planBackfill,
+  planNextFeature,
   readJobs,
   runCheck,
   writePlan,
   type BackfillJob,
   type BackfillStore,
 } from './backfill.ts'
+import { FEATURE_SCHEMA } from './outputs.ts'
 import { buildReviewPrompt, buildSystemPrompt, REVIEW_SYSTEM_PROMPT } from './prompts.ts'
 import { oct12Facts } from './test-fixtures.ts'
 
@@ -37,7 +42,7 @@ function loss(matchId: number, night: string, playedAt: string): NewsGameFacts {
 /** Nights → games; the fake web app serves night and game sheets from it. */
 function fakeWeb(nights: Record<string, NewsGameFacts[]>) {
   const calls: string[] = []
-  const fetchFacts = (kind: 'game' | 'night', key: string): Promise<NewsFactsResponse> => {
+  const fetchFacts = (kind: 'game' | 'night' | 'week', key: string): Promise<NewsFactsResponse> => {
     calls.push(`${kind}/${key}`)
     const forbiddenNames = ['Hidden Hank']
     if (kind === 'night') {
@@ -536,4 +541,242 @@ void test('the backfill never loads the Claude SDK, the writer or the live cycle
   assert.ok(!/from '\.\/writer\.ts'/.test(src))
   assert.ok(!/from '\.\/cycle\.ts'/.test(src))
   assert.ok(!src.includes('anthropicModelCall'))
+})
+
+// ── rev 2: plan rotation, next-feature, features ─────────────────────────────
+
+void test('plan: no feature jobs; a plain loss gets only the recap; night recaps never repeat a writer (B6)', async () => {
+  const nights: Record<string, NewsGameFacts[]> = {}
+  let id = 700
+  for (const day of ['01', '02', '03', '04', '05', '06', '07', '08']) {
+    const night = `2026-05-${day}`
+    const next = `2026-05-${String(Number(day) + 1).padStart(2, '0')}`
+    nights[night] = [
+      // A 2-3 loss: "loss", one post only.
+      { ...base, matchId: id++, night, playedAt: at(next, '02:00'), scoreAgainst: 3 },
+      loss(id++, night, at(next, '02:40')),
+    ]
+  }
+  const plan = await planBackfill({ nights: Object.keys(nights), ...fakeWeb(nights) })
+  assert.deepEqual([...new Set(plan.jobs.map((j) => j.kind))].sort(), ['game', 'night'])
+  for (const j of plan.jobs.filter((x) => x.kind === 'game' && x.id.includes('-a01-'))) {
+    assert.equal(j.reporters.length, 1, j.id)
+    assert.ok(j.user.includes('exactly one post: the recap of the game'), j.id)
+  }
+  const writers = plan.jobs.filter((j) => j.kind === 'night').map((j) => j.reporters[0])
+  for (let i = 1; i < writers.length; i++) assert.notEqual(writers[i], writers[i - 1])
+  // The recap queue spreads the first posts over the fitting reporters.
+  const recaps = new Set(plan.jobs.filter((j) => j.kind === 'game').map((j) => j.reporters[0]))
+  assert.ok(recaps.size >= 3, [...recaps].join(','))
+})
+
+void test('edmontonNoon and featureCreatedAt: Monday 12:00 America/Edmonton of the FOLLOWING week', () => {
+  assert.equal(edmontonNoon('2026-10-26').toISOString(), '2026-10-26T18:00:00.000Z') // MDT
+  assert.equal(edmontonNoon('2026-11-02').toISOString(), '2026-11-02T19:00:00.000Z') // MST
+  assert.equal(featureCreatedAt('2026-10-19').toISOString(), '2026-10-26T18:00:00.000Z')
+  assert.equal(featureCreatedAt('2026-12-28').toISOString(), '2027-01-04T19:00:00.000Z')
+})
+
+/** A planned dir with nights in May 2026 (Mondays: 4, 11, 18, 25). */
+async function plannedDir(extra: Record<string, NewsGameFacts[]> = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'backfill-feature-'))
+  const nights: Record<string, NewsGameFacts[]> = {
+    '2026-05-05': [loss(801, '2026-05-05', at('2026-05-06', '02:00'))],
+    '2026-05-12': [loss(802, '2026-05-12', at('2026-05-13', '02:00'))],
+    ...extra,
+  }
+  const plan = await planBackfill({ nights: Object.keys(nights), ...fakeWeb(nights) })
+  writePlan(dir, plan)
+  const weekCalls: string[] = []
+  const fetchFacts = (kind: 'game' | 'night' | 'week', key: string) => {
+    weekCalls.push(`${kind}/${key}`)
+    return Promise.resolve({
+      facts: { ...oct12Facts('week'), key },
+      forbiddenNames: ['Hidden Hank'],
+    })
+  }
+  return { dir, plan, fetchFacts, weekCalls }
+}
+
+const words = (n: number) => Array.from({ length: n }, () => 'word').join(' ')
+
+function featureAnswer(over: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    headline: 'The Week In Numbers',
+    dek: 'A week of hockey.',
+    paragraphs: [words(350), words(350)],
+    summary: 'The week.',
+    mentions: [],
+    clubs: [],
+    criticized: [],
+    prediction: 'Someone finally beats the goalie.',
+    receipt: '',
+    ...over,
+  })
+}
+
+function accept(dir: string, job: BackfillJob, answer: string): void {
+  writeFileSync(join(dir, 'answers', `${job.id}.json`), answer)
+  writeFileSync(join(dir, 'reviews', `${job.id}.json`), '{"ok": true}')
+}
+
+void test('next-feature: one job per call, chained on the latest ACCEPTED feature (B6)', async () => {
+  const { dir, fetchFacts, weekCalls } = await plannedDir()
+  try {
+    const first = await planNextFeature({ out: dir, week: '2026-05-04', fetchFacts })
+    assert.deepEqual(weekCalls, ['week/2026-05-04'])
+    assert.equal(first.id, '2026-05-11-0-feature')
+    assert.equal(first.kind, 'feature')
+    assert.equal(first.night, '2026-05-04')
+    assert.equal(first.featureKind, 'trend')
+    assert.deepEqual(first.reporters, ['quill'])
+    assert.equal(first.previousPrediction, null)
+    assert.equal(first.schema, FEATURE_SCHEMA)
+    assert.ok(first.user.includes("Last week's prediction: none."))
+    assert.ok(first.user.includes('as Mara Quill (id "quill")'))
+    assert.deepEqual(
+      readJobs(dir).find((j) => j.id === first.id),
+      first,
+    )
+    // Sorted after the night of Sunday 2026-05-10 and before the games of Monday 2026-05-11.
+    assert.ok('2026-05-10-z-night' < first.id && first.id < '2026-05-11-a01-g1')
+
+    // Not accepted yet: the next week waits.
+    await assert.rejects(
+      planNextFeature({ out: dir, week: '2026-05-11', fetchFacts }),
+      /2026-05-11-0-feature is not accepted yet/,
+    )
+    accept(dir, first, featureAnswer())
+    const second = await planNextFeature({ out: dir, week: '2026-05-11', fetchFacts })
+    assert.equal(second.featureKind, 'spotlight')
+    assert.deepEqual(second.reporters, ['voss'])
+    assert.equal(second.previousPrediction, 'Someone finally beats the goalie.')
+    assert.ok(second.user.includes(`Last week's prediction: "Someone finally beats the goalie."`))
+
+    // The same week again, an earlier week, a day that is not a Monday: refused.
+    accept(dir, second, featureAnswer({ receipt: 'It did not come true.' }))
+    await assert.rejects(planNextFeature({ out: dir, week: '2026-05-11', fetchFacts }), /already/)
+    await assert.rejects(planNextFeature({ out: dir, week: '2026-05-04', fetchFacts }), /forward/)
+    await assert.rejects(planNextFeature({ out: dir, week: '2026-05-19', fetchFacts }), /Monday/)
+
+    // A gap week: the kind goes on, the prediction is not judged.
+    const fourth = await planNextFeature({ out: dir, week: '2026-05-25', fetchFacts })
+    assert.equal(fourth.featureKind, 'notes')
+    assert.equal(fourth.previousPrediction, null)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+void test('next-feature: Rink only when no Rink item is within 14 days of the feature (B6)', async () => {
+  const run = async (rinkNight: boolean) => {
+    // Four winless games on 2026-05-14 put Rink on that night recap.
+    const winless = [0, 1, 2, 3].map((i) =>
+      loss(900 + i, '2026-05-14', at('2026-05-15', `0${String(i)}:00`)),
+    )
+    const { dir, plan, fetchFacts } = await plannedDir(rinkNight ? { '2026-05-14': winless } : {})
+    try {
+      assert.equal(
+        plan.jobs.some((j) => j.reporters.includes('rink')),
+        rinkNight,
+      )
+      // Four accepted features: trend, spotlight, notes, then bigpicture.
+      const kinds = ['2026-04-13', '2026-04-20', '2026-04-27', '2026-05-04']
+      let job: BackfillJob | null = null
+      for (const week of kinds) {
+        job = await planNextFeature({ out: dir, week, fetchFacts })
+        accept(
+          dir,
+          job,
+          featureAnswer({
+            ...(job.previousPrediction === null ? {} : { receipt: 'It did not.' }),
+            // A notes column has 10-15 items.
+            ...(job.featureKind === 'notes'
+              ? { paragraphs: Array.from({ length: 10 }, () => words(70)) }
+              : {}),
+          }),
+        )
+      }
+      assert.equal(job!.featureKind, 'bigpicture')
+      return await planNextFeature({ out: dir, week: '2026-05-11', fetchFacts })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+  const free = await run(false)
+  assert.deepEqual([free.featureKind, free.reporters[0]], ['rink', 'rink'])
+  const blocked = await run(true) // Rink's night recap on 2026-05-14 is 4 days before 2026-05-18 noon
+  assert.deepEqual([blocked.featureKind, blocked.reporters[0]], ['trend', 'quill'])
+})
+
+void test('check: feature rules (length, prediction without numbers, receipt) apply to feature jobs', async () => {
+  const { dir, fetchFacts } = await plannedDir()
+  try {
+    const first = await planNextFeature({ out: dir, week: '2026-05-04', fetchFacts })
+    const short = evaluateJob(first, featureAnswer({ paragraphs: [words(400)] }), null)
+    assert.ok(short.state === 'rewrite' && short.problems.some((p) => /600 to 900/.test(p)))
+    const digits = evaluateJob(first, featureAnswer({ prediction: 'They win 2.' }), null)
+    assert.ok(
+      digits.state === 'rewrite' && digits.problems.some((p) => /prediction must have no/.test(p)),
+    )
+    const receipt = evaluateJob(first, featureAnswer({ receipt: 'It came true.' }), null)
+    assert.ok(
+      receipt.state === 'rewrite' &&
+        receipt.problems.some((p) => /receipt must be an empty/.test(p)),
+    )
+    const ok = evaluateJob(first, featureAnswer(), null)
+    assert.equal(ok.state, 'review')
+    assert.ok(
+      ok.state === 'review' && ok.reviewPrompt.includes('Someone finally beats the goalie.'),
+    )
+    assert.equal(evaluateJob(first, featureAnswer(), '{"ok": true}').state, 'accepted')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+void test('import: a feature has its week, kind, prediction, slug and the following Monday noon (B6)', async () => {
+  const { dir, fetchFacts } = await plannedDir()
+  try {
+    const first = await planNextFeature({ out: dir, week: '2026-05-04', fetchFacts })
+    accept(dir, first, featureAnswer())
+    const second = await planNextFeature({ out: dir, week: '2026-05-11', fetchFacts })
+    const answer = JSON.parse(
+      featureAnswer({ receipt: 'It did not come true.', criticized: ['Skater A'] }),
+    ) as Record<string, unknown>
+    const { rows, store } = fakeStore()
+    await importAccepted([{ job: second, output: answer as never }], store, () => {})
+    const f = rows[0]!
+    assert.equal(f.kind, 'article')
+    assert.equal(f.reporter, 'voss')
+    assert.equal(f.night, null)
+    assert.equal(f.weekStart, '2026-05-11')
+    assert.equal(f.featureKind, 'spotlight')
+    assert.equal(f.prediction, 'Someone finally beats the goalie.')
+    assert.deepEqual(f.criticized, ['Skater A'])
+    assert.equal(f.slug, '2026-05-11-the-week-in-numbers')
+    assert.equal(f.createdAt?.toISOString(), '2026-05-18T18:00:00.000Z')
+    assert.equal(
+      f.body,
+      ['It did not come true.', words(350), words(350), 'Someone finally beats the goalie.'].join(
+        '\n\n',
+      ),
+    )
+    assert.equal(f.discordStatus, 'skipped')
+    // Idempotent by slug.
+    await importAccepted([{ job: second, output: answer as never }], store, () => {})
+    assert.equal(rows.length, 1)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+void test('CLI: next-feature needs --week, the web app and the token', async () => {
+  const lines: string[] = []
+  assert.equal(await main(['next-feature', '--out', '/nowhere'], {}, (l) => lines.push(l)), 2)
+  assert.ok(lines.join('\n').includes('next-feature --out <dir> --week <monday YYYY-MM-DD>'))
+  assert.equal(
+    await main(['next-feature', '--out', '/nowhere', '--week', '2026-05-04'], {}, () => {}),
+    2,
+  )
 })

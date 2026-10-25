@@ -213,3 +213,16 @@ export function parseReview(v: unknown): { ok: boolean; problems: string[] } {
   if (typeof o['ok'] !== 'boolean') fail('ok', 'is not a boolean')
   return { ok: o['ok'], problems: strings(o['problems'], 'problems') }
 }
+
+/**
+ * A feature's stored body (rev 2, B3): the receipt opens it (when there is
+ * one), the prediction closes it; the web shows the body as it is.
+ */
+export function featureBody(
+  a: { paragraphs: string[] },
+  closing: { prediction: string; receipt: string },
+): string {
+  return [closing.receipt, ...a.paragraphs, closing.prediction]
+    .filter((x) => x.trim() !== '')
+    .join('\n\n')
+}
