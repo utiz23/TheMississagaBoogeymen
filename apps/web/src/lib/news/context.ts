@@ -244,8 +244,9 @@ function longestRun(results: readonly Result[], kind: 'W' | 'L'): number {
  * 50th), "100th game of the title" (100/250/500/750/1000), "250th goal of the
  * title" (every 250th crossed); "longest win streak of the season: N" /
  * "longest losing streak of the season: N" (4+ and longer than any earlier
- * run); from the 11th game "most goals in a game this season: N", "biggest win
- * of the season: 11-2", "worst loss of the season: 8-1" (strictly more than
+ * run); per game mode, from the 11th game of the mode (C2 fix M2) "most goals
+ * in a 6s game this season: N", "biggest 6s win of the season: 11-2", "worst
+ * 6s loss of the season: 8-1" (strictly more than
  * every earlier game; the last two after 3+ earlier wins / losses). Scores
  * winner first.
  */
@@ -277,17 +278,20 @@ export function teamNotes(game: TitleGameInput, prior: readonly TitleGameInput[]
       )
     }
   }
-  if (prior.length >= MIN_BEST_GAMES) {
-    if (game.scoreFor > Math.max(...prior.map((g) => g.scoreFor))) {
-      out.push(`most goals in a game this season: ${String(game.scoreFor)}`)
+  // Season bests per mode (C2 fix M2): a 3s score is not a 6s score.
+  const mode = game.gameMode
+  const sameMode = mode === null ? [] : prior.filter((g) => g.gameMode === mode)
+  if (mode !== null && sameMode.length >= MIN_BEST_GAMES) {
+    if (game.scoreFor > Math.max(...sameMode.map((g) => g.scoreFor))) {
+      out.push(`most goals in a ${mode} game this season: ${String(game.scoreFor)}`)
     }
     const margin = (g: TitleGameInput) => Math.abs(g.scoreFor - g.scoreAgainst)
-    const same = prior.filter((g) => isWin(g.result) === isWin(game.result))
+    const same = sameMode.filter((g) => isWin(g.result) === isWin(game.result))
     if (same.length >= MIN_BEST_KIND && margin(game) > Math.max(...same.map(margin))) {
       const hi = Math.max(game.scoreFor, game.scoreAgainst)
       const lo = Math.min(game.scoreFor, game.scoreAgainst)
       out.push(
-        `${isWin(game.result) ? 'biggest win' : 'worst loss'} of the season: ${String(hi)}-${String(lo)}`,
+        `${isWin(game.result) ? `biggest ${mode} win` : `worst ${mode} loss`} of the season: ${String(hi)}-${String(lo)}`,
       )
     }
   }

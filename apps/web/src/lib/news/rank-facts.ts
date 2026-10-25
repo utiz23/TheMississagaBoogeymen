@@ -258,8 +258,7 @@ function gameFacts(facts: NewsFacts, g: NewsGameFacts, push: Push): void {
     push(id('shutout'), `Shutout: ${score}`, 40, null)
   }
   for (const n of g.teamNotes) {
-    const best =
-      n.startsWith('biggest win of the season') || n.startsWith('worst loss of the season')
+    const best = /^(biggest (3s |6s )?win|worst (3s |6s )?loss) of the season/.test(n)
     push(id(`team:${n}`), `Team: ${n}`, best ? 50 : 35, null)
   }
   const h = g.headToHead

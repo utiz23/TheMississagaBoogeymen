@@ -151,13 +151,13 @@ void test('teamNotes: title milestones and season bests (C2.2)', () => {
   // Most goals, biggest win, worst loss: from the 11th game, strictly more than before.
   const ten = many(10, 'WIN', { scoreFor: 5, scoreAgainst: 2 })
   const big = teamNotes(tg('WIN', { scoreFor: 11, scoreAgainst: 2 }), ten)
-  assert.ok(big.includes('most goals in a game this season: 11'))
-  assert.ok(big.includes('biggest win of the season: 11-2'))
+  assert.ok(big.includes('most goals in a 6s game this season: 11'))
+  assert.ok(big.includes('biggest 6s win of the season: 11-2'))
   const worst = teamNotes(tg('LOSS', { scoreFor: 1, scoreAgainst: 8 }), [
     ...ten,
     ...many(3, 'LOSS', { scoreFor: 2, scoreAgainst: 5 }),
   ])
-  assert.ok(worst.includes('worst loss of the season: 8-1'))
+  assert.ok(worst.includes('worst 6s loss of the season: 8-1'))
   // The first losses of a season are not its "worst": at least 3 earlier losses.
   assert.ok(
     !teamNotes(tg('LOSS', { scoreFor: 1, scoreAgainst: 8 }), [
@@ -269,4 +269,29 @@ void test('titleGameFromRow: opponent spacing collapsed; ended early by the shee
     opponentName: 'Real knickerbockers',
     endedEarly: true,
   })
+})
+
+void test('teamNotes: season bests compare within the mode (C2 fix M2)', () => {
+  const sixes = many(10, 'WIN', { scoreFor: 9, scoreAgainst: 1 })
+  // A 6-1 3s win after ten 9-1 6s wins: fewer than 10 earlier 3s games, no best.
+  assert.deepEqual(
+    teamNotes(tg('WIN', { gameMode: '3s', scoreFor: 6, scoreAgainst: 1 }), sixes).filter(
+      (n) => n.includes('season') && !n.includes('streak'),
+    ),
+    [],
+  )
+  const threes = many(10, 'WIN', { gameMode: '3s', scoreFor: 4, scoreAgainst: 2 })
+  const notes = teamNotes(tg('WIN', { gameMode: '3s', scoreFor: 6, scoreAgainst: 1 }), [
+    ...sixes,
+    ...threes,
+  ])
+  assert.ok(notes.includes('most goals in a 3s game this season: 6'))
+  assert.ok(notes.includes('biggest 3s win of the season: 6-1'))
+  // A game without a mode gets none.
+  assert.deepEqual(
+    teamNotes(tg('WIN', { gameMode: null, scoreFor: 20, scoreAgainst: 0 }), sixes).filter(
+      (n) => n.includes('season') && !n.includes('streak'),
+    ),
+    [],
+  )
 })

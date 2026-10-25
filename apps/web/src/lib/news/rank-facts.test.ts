@@ -154,7 +154,7 @@ void test('rankFacts: an 11-2 blowout ranks first, ahead of a big night for a pl
     scoreFor: 11,
     scoreAgainst: 2,
     context: { ...game().context!, margin: 'blowout' },
-    teamNotes: ['biggest win of the season: 11-2', 'most goals in a game this season: 11'],
+    teamNotes: ['biggest 6s win of the season: 11-2', 'most goals in a 6s game this season: 11'],
     players: [
       line({
         playerId: 2,
@@ -170,7 +170,7 @@ void test('rankFacts: an 11-2 blowout ranks first, ahead of a big night for a pl
     top.slice(0, 3).map((f) => [f.text, f.weight]),
     [
       ['Blowout: 11-2 win over Shake N Bake', 67],
-      ['Team: biggest win of the season: 11-2', 50],
+      ['Team: biggest 6s win of the season: 11-2', 50],
       ['Raz: 2 goals vs Shake N Bake — big for him (6s avg as F 0.5 over 20 games)', 40],
     ],
   )

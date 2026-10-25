@@ -463,8 +463,9 @@ export interface NewsGameFacts {
    * (100/250/500/750/1000), "250th goal of the title" (every 250th),
    * "longest win streak of the season: N" / "longest losing streak of the
    * season: N" (4+, longer than any earlier run), and from the 11th game
-   * "most goals in a game this season: N", "biggest win of the season: 11-2",
-   * "worst loss of the season: 8-1" (winner first). Numbers may be quoted.
+   * per game mode (C2 fix M2) "most goals in a 6s game this season: N",
+   * "biggest 6s win of the season: 11-2", "worst 6s loss of the season: 8-1"
+   * (winner first). Numbers may be quoted.
    */
   teamNotes: string[]
   /** Earlier meetings with this opponent in the title; null when none (§12.15-2). */
