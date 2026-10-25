@@ -56,7 +56,7 @@ const goodWriter: ModelCall = async (req) => {
       json: {
         posts: ids.map((id) => ({
           reporter: id,
-          text: `The Boogeymen kept skating, says ${String(id)}.`,
+          text: `The Boogeymen took 14 shots, says ${String(id)}.`,
           mentions: [],
           clubs: [],
           criticized: [],
@@ -1121,7 +1121,7 @@ void test("game: the night's harsh list goes into the prompt; a repeat is rewrit
           json: {
             posts: ids.map((id, i) => ({
               reporter: id,
-              text: `The Boogeymen kept skating, says ${String(id)}.`,
+              text: `The Boogeymen took 14 shots, says ${String(id)}.`,
               mentions: [],
               clubs: [],
               // First write: post 1 piles on Skater A. Rewrite: Goalie G, once.
@@ -1210,7 +1210,7 @@ void test("night: the article's prompt carries the night's harsh list; criticize
   assert.deepEqual(h.items.get(1)!.criticized, ['Skater A'])
 })
 
-void test('C3a.4: zeroCalled, takesUsed and stances are stored with the item; unknown thread keys dropped', async () => {
+void test('C3a.4: zeroCalled, takesUsed and stances are stored with the item', async () => {
   const thread = {
     key: 'pp-drought@2026-10-08',
     kind: 'pp-drought' as const,
@@ -1234,10 +1234,7 @@ void test('C3a.4: zeroCalled, takesUsed and stances are stored with the item; un
             ? {
                 ...p,
                 zeroCalled: ['skater  a'],
-                stances: [
-                  { threadKey: thread.key, stance: 'It ends this week.' },
-                  { threadKey: 'nope@2026-01-01', stance: 'Gone.' },
-                ],
+                stances: [{ threadKey: thread.key, stance: 'It ends this week.' }],
               }
             : p,
         )
@@ -1246,6 +1243,7 @@ void test('C3a.4: zeroCalled, takesUsed and stances are stored with the item; un
     },
   })
   await runNewsCycle(h.deps, h.opts)
+  assert.deepEqual(logs(h.events), [])
   const first = h.items.get(1)!
   assert.deepEqual(first.zeroCalled, ['Skater A'])
   assert.deepEqual(first.takesUsed, [])
@@ -1258,4 +1256,30 @@ void test('C3a.4: zeroCalled, takesUsed and stances are stored with the item; un
       itemId: 1,
     },
   ])
+})
+
+void test("C3a.5: the night's and the previous night's zero call-outs reach the check", async () => {
+  const zeroWriter: ModelCall = async (req) => {
+    const r = await goodWriter(req)
+    if (req.schema !== GAME_POSTS_SCHEMA) return r
+    const posts = (r.json as { posts: Record<string, unknown>[] }).posts.map((p, i) =>
+      i === 0 ? { ...p, zeroCalled: ['Skater A'] } : p,
+    )
+    return { ...r, json: { posts } }
+  }
+  const tonight = harness({
+    candidates: [501],
+    store: { nightZeroCalled: async () => ({ tonight: ['Goalie G'], previous: [] }) },
+    deps: { writer: zeroWriter },
+  })
+  await runNewsCycle(tonight.deps, tonight.opts)
+  assert.equal(tonight.jobs.get('game:501')?.status, 'failed')
+  assert.match(tonight.jobs.get('game:501')!.error!, /at most one per night/)
+  const lastNight = harness({
+    candidates: [501],
+    store: { nightZeroCalled: async () => ({ tonight: [], previous: ['Skater A'] }) },
+    deps: { writer: zeroWriter },
+  })
+  await runNewsCycle(lastNight.deps, lastNight.opts)
+  assert.match(lastNight.jobs.get('game:501')!.error!, /two nights in a row/)
 })

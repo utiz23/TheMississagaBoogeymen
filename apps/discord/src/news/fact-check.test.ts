@@ -6,7 +6,11 @@ import {
   checkArticleFacts,
   checkFacts,
   checkFeatureFacts,
+  checkGamePosts,
   labelClaims,
+  numberTokens,
+  shotPairs,
+  signatureWordCount,
 } from './fact-check.ts'
 import { oct12Facts } from './test-fixtures.ts'
 
@@ -732,4 +736,362 @@ void test('labelClaims: no over-blocking on plain records, team slides, team sea
     [],
   )
   assert.equal(labelClaims('His first goal of the season.', plain).length, 1)
+})
+
+// ── C3a.5: style and craft checks ───────────────────────────────────────────
+
+const pad = (n: number) => Array.from({ length: n }, () => 'hockey').join(' ')
+const has = (r: ReturnType<typeof checkFacts>, re: RegExp) => problems(r).some((p) => re.test(p))
+
+void test('C3a.5 signature words: a post at most 1, an article at most 3 (each occurrence counts)', () => {
+  assert.equal(signatureWordCount('A clean, messy, clean night.', 'barlow'), 3)
+  assert.equal(signatureWordCount('Cleanly done.', 'barlow'), 0)
+  assert.equal(signatureWordCount('The truth is, frankly, soft.', 'pettibone'), 3)
+  const post = (text: string) =>
+    checkFacts(text, facts, FORBIDDEN, none, [], { reporter: 'barlow' })
+  assert.deepEqual(post('A clean night.'), { ok: true })
+  assert.ok(
+    has(post('A clean night, a messy finish.'), /Lean less on your signature words: at most 1/),
+  )
+  // No reporter given: no signature count.
+  assert.deepEqual(checkFacts('A clean night, a messy finish.', facts, FORBIDDEN, none), {
+    ok: true,
+  })
+  const body = (text: string) => ({
+    headline: 'Shake N Bake win the night',
+    dek: 'The Boogeymen lose twice.',
+    paragraphs: [`${text} ${pad(260)}`],
+    summary: 'S.',
+    mentions: [],
+    clubs: [],
+    criticized: [],
+  })
+  const art = (text: string) =>
+    checkArticleFacts(body(text), night, FORBIDDEN, [], { reporter: 'barlow' })
+  assert.deepEqual(art('Clean. Messy. Structure.'), { ok: true })
+  assert.ok(problems(art('Clean. Messy. Structure. Detail.')).some((p) => /at most 3/.test(p)))
+})
+
+void test('C3a.5 format labels, one "not X ... Y" contrast, reply jabs and a number in replies', () => {
+  for (const t of [
+    'The tactical point is simple.',
+    'It was less comfortable.',
+    'The detail: shots.',
+  ]) {
+    assert.ok(has(checkFacts(t, facts, FORBIDDEN, none), /format label/), t)
+  }
+  assert.deepEqual(checkFacts('It was not luck, but the shots said 14.', facts, FORBIDDEN, none), {
+    ok: true,
+  })
+  assert.ok(
+    has(
+      checkFacts(
+        'It was not luck, but shots. It was not skill, but volume.',
+        facts,
+        FORBIDDEN,
+        none,
+      ),
+      /2 "not X \.\.\. Y" contrasts/,
+    ),
+  )
+  const reply = (t: string) =>
+    checkGamePosts(
+      [
+        { reporter: 'mercer', text: 'Fine night, 2-6.', ...none, criticized: [] },
+        { reporter: 'barlow', text: t, ...none, criticized: [] },
+      ],
+      facts,
+      FORBIDDEN,
+      [],
+      { replies: [false, true] },
+    )
+  assert.deepEqual(reply('Shots were 14 to 29. That is the story.'), { ok: true })
+  for (const jab of ['clicks', 'outrage', 'jealous', 'clipboard', 'shows up', 'timing']) {
+    assert.ok(
+      problems(reply(`Mercer chases ${jab}, 14 shots say otherwise.`)).some((p) => p.includes(jab)),
+      jab,
+    )
+  }
+  assert.ok(problems(reply('Nothing to add.')).some((p) => /name one/.test(p)))
+})
+
+void test('C3a.5 pronouns, numbers per sentence, clock times per article', () => {
+  for (const w of ['we', 'us', 'our', 'ours', 'We']) {
+    assert.ok(has(checkFacts(`That one hurt ${w}.`, facts, FORBIDDEN, none), /outside media/), w)
+  }
+  assert.deepEqual(checkFacts('Trust the usual numbers.', facts, FORBIDDEN, none), { ok: true })
+  assert.equal(numberTokens('A 2-6 loss with 14 shots and 29 against.'), 3)
+  assert.equal(numberTokens('Record 9-11-1, 83.1% at 3:58.'), 3)
+  assert.equal(numberTokens('Two goals, three shots and six hits, plus 14.'), 4)
+  assert.ok(
+    has(
+      checkFacts('A 2-6 loss, 14 shots, 29 against and 10 hits.', facts, FORBIDDEN, none),
+      /has 4 numbers/,
+    ),
+  )
+  const timeline = oct12Facts('night')
+  timeline.games[0] = {
+    ...timeline.games[0]!,
+    goals: [
+      { period: '1st', clock: '03:58', team: 'for', scorer: 'Skater A', assists: [] },
+      { period: '2nd', clock: '10:12', team: 'against', scorer: null, assists: [] },
+      { period: '3rd', clock: '18:44', team: 'against', scorer: null, assists: [] },
+    ],
+    clockMeaning: 'elapsed',
+  } as never
+  const clocks = (t: string) =>
+    checkArticleFacts(
+      {
+        headline: 'H',
+        dek: 'D',
+        paragraphs: [`${t} ${pad(260)}`],
+        summary: 'S',
+        ...none,
+        criticized: [],
+      },
+      timeline,
+      FORBIDDEN,
+    )
+  assert.ok(!problems(clocks('Goals at 3:58 and 10:12.')).some((p) => /clock times/.test(p)))
+  assert.ok(
+    problems(clocks('Goals at 3:58, then 10:12. Then 18:44.')).some((p) => /3 clock times/.test(p)),
+  )
+})
+
+void test('C3a.5 "X of Y shots" / "X on Y shots" must be a real goals-and-shots pair', () => {
+  const pairs = shotPairs(facts)
+  for (const k of ['2/14', '6/29', '23/29', '1/5', '23/29', '6/16', '0/3'])
+    assert.ok(pairs.has(k), k)
+  assert.deepEqual(checkFacts('Two goals on 14 shots.', facts, FORBIDDEN, none), { ok: true })
+  assert.deepEqual(checkFacts('Goalie G stopped 23 of 29 shots.', facts, FORBIDDEN, none), {
+    ok: true,
+  })
+  assert.ok(
+    has(checkFacts('Two goals on 29 shots.', facts, FORBIDDEN, none), /not a goals-and-shots pair/),
+  )
+  assert.ok(
+    has(
+      checkFacts('Skater A: 1 of 14 shots.', facts, FORBIDDEN, none),
+      /not a goals-and-shots pair/,
+    ),
+  )
+})
+
+void test('C3a.5 ended early: no numbers but the score; plus-minus and game score blocked', () => {
+  const early = oct12Facts('game')
+  early.games = [{ ...early.games[0]!, endedEarly: true, team: null }]
+  assert.deepEqual(
+    checkFacts('Shake N Bake won 6-2 in a game that ended early.', early, FORBIDDEN, none),
+    {
+      ok: true,
+    },
+  )
+  assert.ok(
+    has(
+      checkFacts('A 6-2 loss with 5 shots from Skater A.', early, FORBIDDEN, none),
+      /ended early/,
+    ),
+  )
+  for (const t of [
+    'His plus-minus was ugly.',
+    'A +/- to forget.',
+    'His game score says 2.',
+    'A -2 skater.',
+  ]) {
+    assert.ok(has(checkFacts(t, facts, FORBIDDEN, none), /Plus-minus and game score/), t)
+  }
+})
+
+void test('C3a.5 zero call-outs: never D/G, one per night, never two nights in a row; detected in text', () => {
+  const f = oct12Facts('game')
+  f.games[0] = {
+    ...f.games[0]!,
+    players: f.games[0]!.players.map((p) => (p.name === 'Skater B' ? { ...p, position: 'D' } : p)),
+  }
+  f.games = [f.games[0]!]
+  const zero = (text: string, zeroCalled: string[], ctx = {}) =>
+    checkFacts(text, f, FORBIDDEN, { ...none, zeroCalled }, [], ctx)
+  assert.deepEqual(zero('Fine.', ['Skater A']), { ok: true })
+  assert.ok(has(zero('Fine.', ['Skater B']), /no zero call-out for a defenceman or a goalie/))
+  assert.ok(has(zero('Fine.', ['Goalie G']), /defenceman or a goalie/))
+  assert.ok(
+    has(zero('Fine.', ['Skater A'], { zeroCalledTonight: ['Goalie G'] }), /at most one per night/),
+  )
+  assert.ok(
+    has(zero('Fine.', ['Skater A'], { zeroCalledPrevious: ['skater a'] }), /two nights in a row/),
+  )
+  assert.ok(has(zero('Fine.', ['Skater A', 'Goalie G']), /at most one player/))
+  assert.ok(has(zero('Fine.', ['Nobody']), /not a person/))
+  // Named with a zero but not listed.
+  assert.ok(has(zero('Skater A had 0 points.', []), /list the player in "zeroCalled"/))
+  assert.deepEqual(zero('The power play had zero goals.', []), { ok: true })
+  // Two posts of one game: the second may not add a second call-out.
+  const posts = checkGamePosts(
+    [
+      { reporter: 'barlow', text: 'Fine.', ...none, criticized: [], zeroCalled: ['Skater A'] },
+      { reporter: 'quill', text: 'Fine.', ...none, criticized: [], zeroCalled: ['Skater A'] },
+    ],
+    f,
+    FORBIDDEN,
+  )
+  assert.ok(problems(posts).some((p) => /at most one per night/.test(p)))
+})
+
+void test('C3a.5 headline, dek and opening rules; one-game night 120-200 words', () => {
+  const a = (over: object) => ({
+    headline: 'Shake N Bake run the table',
+    dek: 'The Boogeymen fall to 9-11-1.',
+    paragraphs: [pad(260)],
+    summary: 'S.',
+    ...none,
+    criticized: [],
+    ...over,
+  })
+  assert.deepEqual(checkArticleFacts(a({}), night, FORBIDDEN), { ok: true })
+  assert.ok(
+    problems(checkArticleFacts(a({ headline: 'Two wins, one loss' }), night, FORBIDDEN)).some((p) =>
+      /not a tally/.test(p),
+    ),
+  )
+  assert.ok(
+    problems(checkArticleFacts(a({ headline: 'Down to 9-11-1' }), night, FORBIDDEN)).some((p) =>
+      /both the headline and the dek/.test(p),
+    ),
+  )
+  assert.ok(
+    problems(checkArticleFacts(a({ dek: 'Shake N Bake run the table' }), night, FORBIDDEN)).some(
+      (p) => /dek repeats the headline/.test(p),
+    ),
+  )
+  assert.ok(
+    problems(
+      checkArticleFacts(
+        a({ paragraphs: [`On Monday, October 12 the club fell to 9-11-1. ${pad(260)}`] }),
+        night,
+        FORBIDDEN,
+      ),
+    ).some((p) => /opens with the date and the record/.test(p)),
+  )
+  const single = oct12Facts('night')
+  single.games = [single.games[0]!]
+  assert.deepEqual(checkArticleFacts(a({ paragraphs: [pad(150)] }), single, FORBIDDEN), {
+    ok: true,
+  })
+  assert.ok(
+    problems(checkArticleFacts(a({}), single, FORBIDDEN)).some((p) =>
+      /must have 120 to 200/.test(p),
+    ),
+  )
+  // A big game's story and spotlight/column lengths (C3a.7).
+  assert.deepEqual(
+    checkArticleFacts(a({ paragraphs: [pad(300)] }), facts, FORBIDDEN, [], {
+      length: 'game-story',
+    }),
+    { ok: true },
+  )
+  assert.ok(
+    problems(
+      checkArticleFacts(a({ paragraphs: [pad(450)] }), facts, FORBIDDEN, [], {
+        length: 'game-story',
+      }),
+    ).some((p) => /200 to 350/.test(p)),
+  )
+  assert.deepEqual(
+    checkArticleFacts(a({ paragraphs: [pad(500)] }), facts, FORBIDDEN, [], {
+      length: 'game-feature',
+    }),
+    { ok: true },
+  )
+})
+
+void test('C3a.5 profanity: strong words always blocked; mild only Mercer/Pettibone/Vale, at most one', () => {
+  const t = (text: string, reporter?: 'mercer' | 'barlow' | 'vale') =>
+    checkFacts(text, facts, FORBIDDEN, none, [], reporter === undefined ? {} : { reporter })
+  assert.ok(has(t('What a shitshow.', 'mercer'), /never prints/))
+  assert.deepEqual(t('Hell of a night.', 'mercer'), { ok: true })
+  assert.deepEqual(t('Damn, that hurt.', 'vale'), { ok: true })
+  assert.ok(has(t('Hell of a night.', 'barlow'), /Only Dex Mercer, Gord Pettibone and Rico Vale/))
+  assert.ok(has(t('Hell of a night.'), /Only Dex Mercer/))
+  assert.ok(has(t('Hell, damn.', 'mercer'), /2 mild swear words/))
+  assert.deepEqual(t('Hello there, shell game.', 'barlow'), { ok: true })
+})
+
+void test('C3a.5 penalty minutes only from 10; label claims wired in; stances and takes', () => {
+  assert.ok(
+    has(checkFacts('Skater A took 2 penalty minutes.', facts, FORBIDDEN, none), /only from 10/),
+  )
+  assert.deepEqual(checkFacts('Skater A sat 10 penalty minutes.', facts, FORBIDDEN, none), {
+    ok: true,
+  })
+  assert.ok(has(checkFacts('A career high for Skater A.', facts, FORBIDDEN, none), /career high/))
+  const f = oct12Facts('game')
+  f.threads = [
+    {
+      key: 'pp-drought@2026-10-08',
+      kind: 'pp-drought',
+      subject: null,
+      since: '2026-10-08',
+      status: 'open',
+      summary: 'No power-play goal in 2 games.',
+    },
+  ]
+  const st = (stances: { threadKey: string; stance: string }[]) =>
+    checkFacts('Fine.', f, FORBIDDEN, { ...none, stances })
+  assert.deepEqual(st([{ threadKey: 'pp-drought@2026-10-08', stance: 'It lasts.' }]), { ok: true })
+  assert.ok(
+    has(st([{ threadKey: 'rival:x@2026-01-01', stance: 'No.' }]), /not a thread on the fact sheet/),
+  )
+  // A stance's text gets the number check too.
+  const posts = checkGamePosts(
+    [
+      {
+        reporter: 'quill',
+        text: 'Fine.',
+        ...none,
+        criticized: [],
+        stances: [{ threadKey: 'pp-drought@2026-10-08', stance: 'It lasts 7 more games.' }],
+      },
+    ],
+    f,
+    FORBIDDEN,
+  )
+  assert.ok(problems(posts).some((p) => /The number 7 is not on the fact sheet/.test(p)))
+  const takes = (takesUsed: number[], offeredTakes: number[]) =>
+    checkFacts('Fine.', facts, FORBIDDEN, { ...none, takesUsed }, [], { offeredTakes })
+  assert.deepEqual(takes([3], [3, 5]), { ok: true })
+  assert.ok(has(takes([4], [3]), /Take 4 was not offered/))
+  assert.ok(has(takes([3, 5], [3, 5]), /at most one reporter take/))
+})
+
+void test('C2 re-review: a score never cancels a record claim; a steal needs goalie context', () => {
+  const plain = oct12Facts('game')
+  for (const t of [
+    'The Boogeymen set a team record in an 11-2 rout.',
+    'A new club record: 7-3 win.',
+    'A new team record for the club.',
+  ]) {
+    assert.equal(labelClaims(t, plain).length, 1, t)
+  }
+  for (const t of [
+    'The team record now sits at 12-3-1.',
+    'The team record stands at 12-3-1 after it.',
+  ]) {
+    assert.deepEqual(labelClaims(t, plain), [], t)
+  }
+  for (const t of [
+    'Lehmann stole the game.',
+    'Matteo Lehmann, quietly, stole it.',
+    'A steal in net for the AI.',
+    'That win was a steal.',
+    'They stole a win.',
+  ]) {
+    assert.equal(labelClaims(t, plain).length, 1, t)
+  }
+  for (const t of [
+    'A steal and a goal for Skater A.',
+    'Skater A had a steal in the slot.',
+    'Two steals.',
+  ]) {
+    assert.deepEqual(labelClaims(t, plain), [], t)
+  }
 })

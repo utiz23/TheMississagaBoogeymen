@@ -551,9 +551,11 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     // The job is claimed: any error before the write must mark it failed, never leave it pending.
     let a: ReturnType<typeof assignGamePosts>
     let tonight: string[]
+    let zero: { tonight: string[]; previous: string[] }
     try {
       a = assignGamePosts(classifyGame(game), now, night, await loadActivity(now))
       tonight = await store.nightCriticized(night, opts.dryRun)
+      zero = await store.nightZeroCalled(night, opts.dryRun)
     } catch (err: unknown) {
       await failJob(jobId, tag, `could not prepare: ${message(err)}`)
       return 'go'
@@ -574,7 +576,12 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       }),
       schema: GAME_POSTS_SCHEMA,
       parse: (v) => parseGamePosts(v, order),
-      check: (out) => checkGamePosts(out.posts, facts, forbiddenNames, tonight),
+      check: (out) =>
+        checkGamePosts(out.posts, facts, forbiddenNames, tonight, {
+          replies: [false, a.secondIsReply],
+          zeroCalledTonight: zero.tonight,
+          zeroCalledPrevious: zero.previous,
+        }),
       textForReview: (out) =>
         out.posts.map((p) => `${REPORTERS[p.reporter].name}: ${p.text}`).join('\n\n'),
       criticizedForReview: (out) => [...new Set(out.posts.flatMap((p) => p.criticized))],
@@ -723,6 +730,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     let reporterId: ReporterId
     let ownRecent: Awaited<ReturnType<NewsStore['recentReporterSummaries']>>
     let tonight: string[] = []
+    let zero: { tonight: string[]; previous: string[] } = { tonight: [], previous: [] }
     /** Week jobs: the feature kind and the prediction to judge (rev 2, B3/B5). */
     let feature: { kind: FeatureKind; previousPrediction: string | null } | null = null
     try {
@@ -730,6 +738,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       if (kind === 'night') {
         reporterId = assignNightRecap(facts, now, activity)
         tonight = await store.nightCriticized(key, opts.dryRun)
+        zero = await store.nightZeroCalled(key, opts.dryRun)
       } else {
         const last =
           opts.dryRun && state.testLastFeature !== null
@@ -763,7 +772,12 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         }),
         schema: ARTICLE_SCHEMA,
         parse: parseArticle,
-        check: (x) => checkArticleFacts(x, facts, forbiddenNames, tonight),
+        check: (x) =>
+          checkArticleFacts(x, facts, forbiddenNames, tonight, {
+            reporter: reporterId,
+            zeroCalledTonight: zero.tonight,
+            zeroCalledPrevious: zero.previous,
+          }),
         textForReview: (x) => [x.headline, x.dek, ...x.paragraphs].join('\n\n'),
         criticizedForReview: (x) => x.criticized,
         facts,
@@ -783,7 +797,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         }),
         schema: FEATURE_SCHEMA,
         parse: parseFeature,
-        check: (f) => checkFeatureFacts(f, facts, forbiddenNames, rules),
+        check: (f) =>
+          checkFeatureFacts(f, facts, forbiddenNames, rules, [], { reporter: reporterId }),
         textForReview: (f) => [f.headline, f.dek, featureBody(f, f)].join('\n\n'),
         criticizedForReview: (f) => f.criticized,
         facts,
