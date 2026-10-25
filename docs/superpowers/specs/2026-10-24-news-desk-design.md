@@ -570,3 +570,47 @@ for the number of posts; §12.11 still decides who replies to whom).
 
 Fan reactions driving buzz (operator's item 7) need the Discord bot and belong to
 the bot project.
+
+### 12.16 Expectation-based fact system (operator, 2026-10-25)
+
+Every number on the sheet comes with "compared with what". Three layers: raw
+facts (exist) → expectations (title so far AND last 10 games) → labels the
+program computes; reporters get the labels ready-made and may only claim what a
+label says (e.g. "career high", "slump", "upset").
+
+- **Team:** result context label (rolling: win extending a win streak to 5+;
+  blip: loss ending a win streak of 5+; slide: 3rd loss in a row; panic: 5th+
+  loss in a row or 2-8 or worse in the last 10; turnaround: win ending a losing
+  streak of 3+; normal); streak before and after; last-10 record; margin label
+  against the club's usual margin (close / comfortable / blowout); surprise label
+  from the club's win rate (expected / upset / big upset); the night's running
+  context ("3rd loss of the night", "swept the night"); team milestones and
+  season records (e.g. 100th win of the title, longest win streak of the season).
+- **Players:** per-game averages in the title and the last 10 (from the 10th
+  game), labels against the player's own normal (typical for him / big for him /
+  quiet for him); season and career highs; form (last 5 vs season: heating up /
+  cooling off); firsts (first goal of the season, first hat trick); coming
+  milestones ("2 goals from 100") so reporters can build them up; position is
+  always part of the comparison.
+- **Use:** labels set the tone (the result label sets the mood; Mercer and
+  Pettibone still complain), feed the buzz (§12.14), give extra posts their
+  angles, and are enforced by the fact check (no drama a label does not support).
+- Thresholds are Claude's call, tuned on the NHL 26 and NHL 27 data.
+
+### 12.17 More fact-system parts (operator, 2026-10-25)
+
+1. **Norms per game mode:** every norm, average and label (team and player) is
+   computed within the same mode (3s or 6s).
+2. **Fact ranking:** each fact gets an importance score from its labels; each
+   piece gets its top 5 facts as "the story" and the rest as background; extra
+   posts in a big game get different top facts.
+3. **Open threads with reporter stances:** a label that persists over several
+   nights (e.g. power play broken, a player's slump, losing to the same rival)
+   opens a thread; reporters follow it and the thread closes with a story when
+   the data changes. Reporters take stances on open threads; later pieces may
+   say "I told you so" / "I was wrong". Stored, data-only (GM storylines come
+   with the bot project).
+4. **Line chemistry:** pair records from the site's existing pair/chemistry data
+   ("with Silky and Erb together, 12-3") on the sheet for named players.
+
+Dropped by the operator: division race, time-of-night patterns.
