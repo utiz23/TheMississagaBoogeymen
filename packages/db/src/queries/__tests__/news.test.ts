@@ -301,6 +301,20 @@ void test('fact sheet matches: active title, not DNF, night key in the list, old
   assert.deepEqual(q.params, ['2026-10-12', '2026-10-13'])
 })
 
+void test('fact sheet matches: includeInactive drops only the active-title condition (B2)', () => {
+  const def = flat(
+    dialect.sqlToQuery(listNewsNightMatchesSql(['2026-05-08'], { includeInactive: false })).sql,
+  )
+  assert.match(def, /join game_titles g on g\.id = m\.game_title_id and g\.is_active/)
+  const q = dialect.sqlToQuery(listNewsNightMatchesSql(['2026-05-08'], { includeInactive: true }))
+  const s = flat(q.sql)
+  assert.ok(!/is_active/.test(s), s)
+  assert.match(s, /m\.result <> 'DNF'/)
+  assert.ok(s.includes(`to_char(${NIGHT('m')}, 'YYYY-MM-DD') in ($1)`))
+  assert.match(s, /order by m\.played_at, m\.id/)
+  assert.deepEqual(q.params, ['2026-05-08'])
+})
+
 void test('title results: counted games up to the last game, bound taken from matches, newest first', () => {
   const q = dialect.sqlToQuery(listTitleResultsSql(4, 900))
   const s = flat(q.sql)

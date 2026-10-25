@@ -8,9 +8,11 @@ import {
   buildPeople,
   buildGoalTimeline,
   buildRecordAndStreak,
+  includeInactiveOption,
   normalizePeriod,
   passPctOf,
   periodsFromSummaries,
+  titleAllowed,
   unlockText,
   type GameFactsArgs,
   type GamePlayerInput,
@@ -733,4 +735,29 @@ void test('goal timeline: two goals at the same clock keep their goal number ord
     t.goals?.map((x) => x.side),
     ['for', 'against'],
   )
+})
+
+// ── Old nights (B2) ──────────────────────────────────────────────────────────
+
+void test('includeInactiveOption: only ?includeInactive=1 turns it on', () => {
+  const at = (q: string) =>
+    includeInactiveOption(`http://web:3000/internal/news/night/2026-05-08${q}`)
+  assert.deepEqual(at(''), { includeInactive: false })
+  assert.deepEqual(at('?includeInactive=1'), { includeInactive: true })
+  assert.deepEqual(at('?x=2&includeInactive=1'), { includeInactive: true })
+  for (const q of [
+    '?includeInactive=0',
+    '?includeInactive=true',
+    '?includeInactive=',
+    '?includeinactive=1',
+  ])
+    assert.deepEqual(at(q), { includeInactive: false }, q)
+})
+
+void test('titleAllowed: the active title always; an inactive one only with includeInactive', () => {
+  assert.equal(titleAllowed({ isActive: true }, {}), true)
+  assert.equal(titleAllowed({ isActive: false }, {}), false)
+  assert.equal(titleAllowed({ isActive: false }, { includeInactive: false }), false)
+  assert.equal(titleAllowed({ isActive: false }, { includeInactive: true }), true)
+  assert.equal(titleAllowed(undefined, { includeInactive: true }), false)
 })

@@ -680,16 +680,30 @@ const idList = (ids: readonly number[]): SQL =>
     sql`, `,
   )
 
+/** Options for the fact-sheet loaders. */
+export interface NewsTitleOptions {
+  /** Also games of titles that are not active (the backfill of old nights). Default false. */
+  includeInactive?: boolean
+}
+
 /**
  * Counted (non-DNF, active-title) games whose night key is in `nights`,
  * oldest first. Quarantined or archived titles are never active, so they never
- * appear.
+ * appear. `includeInactive` drops the active-title condition (old nights);
+ * quarantined matches are not in `matches` at all.
  */
-export function listNewsNightMatchesSql(nights: readonly string[]): SQL {
+export function listNewsNightMatchesSql(
+  nights: readonly string[],
+  opts: NewsTitleOptions = {},
+): SQL {
+  const title =
+    opts.includeInactive === true
+      ? sql``
+      : sql`join game_titles g on g.id = m.game_title_id and g.is_active`
   return sql`
     select m.id, m.game_title_id
     from matches m
-    join game_titles g on g.id = m.game_title_id and g.is_active
+    ${title}
     where m.result <> 'DNF'
       and to_char(${nightKeySql('m')}, 'YYYY-MM-DD') in (${sql.join(
         nights.map((n) => sql`${n}`),
@@ -700,10 +714,11 @@ export function listNewsNightMatchesSql(nights: readonly string[]): SQL {
 
 export async function listNewsNightMatches(
   nights: readonly string[],
+  opts: NewsTitleOptions = {},
 ): Promise<{ id: number; gameTitleId: number }[]> {
   if (nights.length === 0) return []
   const rows = await db.execute<{ id: string | number; game_title_id: number }>(
-    listNewsNightMatchesSql(nights),
+    listNewsNightMatchesSql(nights, opts),
   )
   return rows.map((r) => ({ id: Number(r.id), gameTitleId: Number(r.game_title_id) }))
 }

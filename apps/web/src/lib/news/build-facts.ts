@@ -525,6 +525,25 @@ function isRealDay(s: string): boolean {
 /** A night key: a real `YYYY-MM-DD` calendar day. */
 export const isNightKey = isRealDay
 
+/** Options of the fact-sheet loaders: `includeInactive` loads nights of a title that is not active. */
+export interface FactsLoadOptions {
+  includeInactive?: boolean
+}
+
+/** `?includeInactive=1` (exactly) on an internal fact-sheet route turns the option on. */
+export function includeInactiveOption(url: string): { includeInactive: boolean } {
+  return { includeInactive: new URL(url).searchParams.get('includeInactive') === '1' }
+}
+
+/** A game's title may get a sheet: the active title always, another one only with `includeInactive`. */
+export function titleAllowed(
+  title: { isActive: boolean } | undefined,
+  opts: FactsLoadOptions,
+): boolean {
+  if (!title) return false
+  return title.isActive || opts.includeInactive === true
+}
+
 /** A week key: a real `YYYY-MM-DD` day that is a Monday. */
 export function isWeekStartKey(s: string): boolean {
   return isRealDay(s) && new Date(`${s}T00:00:00Z`).getUTCDay() === 1

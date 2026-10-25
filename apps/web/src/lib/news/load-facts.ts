@@ -1,7 +1,8 @@
 // Loads the fact sheets for the news desk. Every number comes from the same
 // functions the match page and the Discord poster use (stars, game scores,
 // overtime, OCR-reviewed shots), so a story can never disagree with the page.
-// Active game title only; DNF games are left out. Throws on a database failure
+// Active game title only, unless `includeInactive` (the backfill of old
+// nights); DNF games are left out. Throws on a database failure
 // (the news service retries).
 import { describeUnlock } from '@eanhl/db/discord'
 import {
@@ -45,7 +46,9 @@ import {
   buildRecordAndStreak,
   passPctOf,
   periodsFromSummaries,
+  titleAllowed,
   unlockText,
+  type FactsLoadOptions,
   type GameFactsArgs,
   type GamePlayerInput,
   type GoalEventInput,
@@ -282,9 +285,11 @@ async function loadSheet(
   return parseNewsFactsResponse({ facts, forbiddenNames })
 }
 
-/** Matches of the active title for the given nights, oldest first. */
-async function loadNightMatches(nights: string[]): Promise<Match[]> {
-  const rows = await listNewsNightMatches(nights)
+/** Matches of one title for the given nights (the active title unless `includeInactive`), oldest first. */
+async function loadNightMatches(nights: string[], opts: FactsLoadOptions): Promise<Match[]> {
+  const rows = await listNewsNightMatches(nights, {
+    includeInactive: opts.includeInactive === true,
+  })
   const titleId = rows[0]?.gameTitleId
   const out: Match[] = []
   for (const r of rows) {
@@ -295,22 +300,31 @@ async function loadNightMatches(nights: string[]): Promise<Match[]> {
   return out
 }
 
-/** The sheet for one game. Null: unknown match, DNF, or not the active title. */
-export async function loadGameFacts(matchId: number): Promise<NewsFactsResponse | null> {
+/** The sheet for one game. Null: unknown match, DNF, or not the active title (unless `includeInactive`). */
+export async function loadGameFacts(
+  matchId: number,
+  opts: FactsLoadOptions = {},
+): Promise<NewsFactsResponse | null> {
   const match = await getMatchById(matchId)
   if (!match || countedResult(match.result) === null) return null
   const title = (await listAllGameTitles()).find((t) => t.id === match.gameTitleId)
-  if (!title?.isActive) return null
+  if (!titleAllowed(title, opts)) return null
   // R12: a game sheet's key is its night; the match id is games[0].matchId.
   return loadSheet('game', nightKey(match.playedAt), [match])
 }
 
 /** The sheet for one night (`YYYY-MM-DD`). Null when the night has no counted game. */
-export async function loadNightFacts(night: string): Promise<NewsFactsResponse | null> {
-  return loadSheet('night', night, await loadNightMatches([night]))
+export async function loadNightFacts(
+  night: string,
+  opts: FactsLoadOptions = {},
+): Promise<NewsFactsResponse | null> {
+  return loadSheet('night', night, await loadNightMatches([night], opts))
 }
 
 /** The sheet for the Monday-to-Sunday week that starts on `start`. Null when it had no counted game. */
-export async function loadWeekFacts(start: string): Promise<NewsFactsResponse | null> {
-  return loadSheet('week', start, await loadNightMatches(nightsOfWeek(start)))
+export async function loadWeekFacts(
+  start: string,
+  opts: FactsLoadOptions = {},
+): Promise<NewsFactsResponse | null> {
+  return loadSheet('week', start, await loadNightMatches(nightsOfWeek(start), opts))
 }
