@@ -136,6 +136,8 @@ function sample(): NewsFactsResponse {
         { night: '2026-10-10', wins: 3, losses: 1, otl: 0, goalsFor: 14, goalsAgainst: 8 },
       ],
       people: [{ playerId: 2, name: 'Silky', position: 'C', pressLevel: 'full' }],
+      history: [],
+      weekPlayers: [],
     },
     forbiddenNames: ['Hidden Guy'],
   }
@@ -384,4 +386,88 @@ void test('contract: rejects a bad goal period, side, clock, scorer or clockMean
   bad((s) => (s.facts.games[0]!.goals[0]!['assists'] = [1]), /goals\[0\]\.assists/)
   bad((s) => (s.facts.games[0]!.clockMeaning = 'up'), /clockMeaning/)
   bad((s) => (s.facts.games[0]!.clockMeaning = null), /clockMeaning/)
+})
+
+function weekSample(): NewsFactsResponse {
+  const s = sample()
+  s.facts.kind = 'week'
+  s.facts.key = '2026-10-12'
+  s.facts.history = [
+    {
+      weekStart: '2026-09-21',
+      wins: 2,
+      losses: 1,
+      otl: 0,
+      goalsFor: 11,
+      goalsAgainst: 7,
+      shotsFor: 60,
+      shotsAgainst: 41,
+      ppGoals: 1,
+      ppOpportunities: 4,
+    },
+    {
+      weekStart: '2026-10-05',
+      wins: 0,
+      losses: 2,
+      otl: 1,
+      goalsFor: 4,
+      goalsAgainst: 9,
+      shotsFor: 33,
+      shotsAgainst: 50,
+      ppGoals: 0,
+      ppOpportunities: 2,
+    },
+  ]
+  s.facts.weekPlayers = [
+    {
+      playerId: 2,
+      name: 'Silky',
+      games: 2,
+      goals: 3,
+      assists: 1,
+      points: 4,
+      shots: 9,
+      hits: 5,
+      plusMinus: -2,
+      titleGoals: 100,
+      titleAssists: 40,
+      titlePoints: 140,
+      titleGames: 80,
+    },
+  ]
+  return s
+}
+
+void test('contract: a week sheet with history and weekPlayers round-trips (rev 2, A4)', () => {
+  const s = weekSample()
+  assert.deepEqual(parseNewsFactsResponse(clone(s)), s)
+})
+
+void test('contract: missing history and weekPlayers read as empty (deploy order, A4)', () => {
+  const old = clone(weekSample()) as unknown as { facts: Record<string, unknown> }
+  delete old.facts['history']
+  delete old.facts['weekPlayers']
+  const parsed = parseNewsFactsResponse(old)
+  assert.deepEqual(parsed.facts.history, [])
+  assert.deepEqual(parsed.facts.weekPlayers, [])
+})
+
+void test('contract: rejects a bad history or weekPlayers row (A4)', () => {
+  type W = { facts: { history: Record<string, unknown>[]; weekPlayers: Record<string, unknown>[] } }
+  const bad = (edit: (s: W) => void, re: RegExp) => {
+    const s = clone(weekSample()) as unknown as W
+    edit(s)
+    assert.throws(() => parseNewsFactsResponse(s), re)
+  }
+  bad((s) => (s.facts.history[0]!['weekStart'] = 'last week'), /history\[0\]\.weekStart/)
+  bad((s) => (s.facts.history[1]!['wins'] = -1), /history\[1\]\.wins is negative/)
+  bad((s) => delete s.facts.history[0]!['ppOpportunities'], /history\[0\]\.ppOpportunities/)
+  bad((s) => (s.facts.history = {} as never), /facts\.history is not an array/)
+  bad((s) => (s.facts.weekPlayers[0]!['titlePoints'] = 1.5), /weekPlayers\[0\]\.titlePoints/)
+  bad((s) => (s.facts.weekPlayers[0]!['name'] = 7), /weekPlayers\[0\]\.name/)
+  bad((s) => (s.facts.weekPlayers[0]!['games'] = -1), /weekPlayers\[0\]\.games is negative/)
+  // plusMinus may be negative.
+  const ok = clone(weekSample())
+  ok.facts.weekPlayers[0]!.plusMinus = -7
+  assert.equal(parseNewsFactsResponse(ok).facts.weekPlayers[0]!.plusMinus, -7)
 })

@@ -67,6 +67,15 @@ export function nightsOfWeek(start: string): string[] {
   return Array.from({ length: 7 }, (_, i) => isoDay(new Date(first + i * DAY_MS)))
 }
 
+/** The `count` Mondays before Monday `start`, oldest first. */
+export function previousWeekStarts(start: string, count: number): string[] {
+  const d = parseNight(start)
+  if (d.getUTCDay() !== 1) throw new Error(`news keys: "${start}" is not a Monday`)
+  return Array.from({ length: count }, (_, i) =>
+    isoDay(new Date(d.getTime() - (count - i) * 7 * DAY_MS)),
+  )
+}
+
 const LABEL = new Intl.DateTimeFormat('en-US', {
   timeZone: 'UTC',
   weekday: 'long',

@@ -128,6 +128,8 @@ export function oct12Facts(kind: NewsFacts['kind'] = 'game'): NewsFacts {
       { playerId: 2, name: 'Skater B', position: 'LW', pressLevel: 'easy' },
       { playerId: 3, name: 'Goalie G', position: 'G', pressLevel: 'full' },
     ],
+    history: [],
+    weekPlayers: [],
   }
 }
 

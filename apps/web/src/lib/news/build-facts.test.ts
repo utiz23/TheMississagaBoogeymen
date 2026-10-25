@@ -8,6 +8,9 @@ import {
   buildPeople,
   buildGoalTimeline,
   buildRecordAndStreak,
+  buildWeekHistory,
+  buildWeekPlayers,
+  gameScoreAsShown,
   includeInactiveOption,
   normalizePeriod,
   passPctOf,
@@ -295,7 +298,7 @@ void test('buildGameFacts: unnamed goals and assists are 0 when everyone is name
   assert.equal(clean.unnamedGoals, 0)
   assert.equal(clean.unnamedAssists, 0)
   // Inconsistent EA data: the score differs from the player rows, and a row has a negative number.
-  // The sheet follows the player rows (never the score) and clamps each row at 0.
+  // Rows above the score: the sheet follows the player rows and clamps each row at 0.
   const bad = buildGameFacts(
     gameArgs({
       match: { ...gameArgs().match, scoreFor: 1 },
@@ -760,4 +763,241 @@ void test('titleAllowed: the active title always; an inactive one only with incl
   assert.equal(titleAllowed({ isActive: false }, { includeInactive: false }), false)
   assert.equal(titleAllowed({ isActive: false }, { includeInactive: true }), true)
   assert.equal(titleAllowed(undefined, { includeInactive: true }), false)
+})
+
+// ── Revision 2: fact-sheet fixes (A5) ────────────────────────────────────────
+
+void test('gameScoreAsShown: two decimals, exactly as the match page shows it (toFixed(2))', () => {
+  assert.equal(gameScoreAsShown(17.534), 17.53)
+  assert.equal(gameScoreAsShown(9.126), 9.13)
+  assert.equal(gameScoreAsShown(9.1), 9.1)
+  assert.equal(gameScoreAsShown(-1.234), -1.23)
+  // Same float behaviour as the page: 1.005 shows as "1.00".
+  assert.equal(gameScoreAsShown(1.005), Number((1.005).toFixed(2)))
+})
+
+void test('buildGameFacts: the game score on the sheet is rounded as the page shows it (A5)', () => {
+  const g = buildGameFacts(
+    gameArgs({ players: [skater({ playerId: 1, gamertag: 'Hero', gameScore: 12.3456 })] }),
+  )
+  assert.equal(g.players[0]?.gameScore, 12.35)
+  const none = buildGameFacts(gameArgs({ players: [skater({ playerId: 1, gamertag: 'Hero' })] }))
+  assert.equal(none.players[0]?.gameScore, null)
+})
+
+void test('buildGameFacts: goals missing from the player rows count as unnamed goals (A5)', () => {
+  // Score 4; Hero (named) has 1; the rows of the unnamed have 1; two goals are on no row.
+  const g = buildGameFacts(
+    gameArgs({
+      match: { ...gameArgs().match, scoreFor: 4 },
+      players: [
+        skater({ playerId: 1, gamertag: 'Hero', goals: 1, assists: 1 }),
+        skater({ playerId: 3, gamertag: 'GuestA', goals: 1, assists: 1 }),
+      ],
+    }),
+  )
+  assert.equal(g.unnamedGoals, 3)
+  // Assists come only from the rows.
+  assert.equal(g.unnamedAssists, 1)
+  assert.equal(g.players.reduce((n, p) => n + p.goals, 0) + g.unnamedGoals, g.scoreFor)
+  // Named goals above the score never make it negative.
+  const over = buildGameFacts(
+    gameArgs({
+      match: { ...gameArgs().match, scoreFor: 1 },
+      players: [skater({ playerId: 1, gamertag: 'Hero', goals: 3 })],
+    }),
+  )
+  assert.equal(over.unnamedGoals, 0)
+})
+
+// ── Revision 2: week sheet history and players (A4) ──────────────────────────
+
+const hist = (
+  night: string,
+  result: 'WIN' | 'LOSS' | 'OTL',
+  over: Partial<{
+    scoreFor: number
+    scoreAgainst: number
+    shotsFor: number
+    shotsAgainst: number
+    ppGoals: number | null
+    ppOpportunities: number | null
+  }> = {},
+) => ({
+  night,
+  result,
+  scoreFor: 3,
+  scoreAgainst: 2,
+  shotsFor: 20,
+  shotsAgainst: 15,
+  ppGoals: 1,
+  ppOpportunities: 2,
+  ...over,
+})
+
+void test('buildWeekHistory: the four weeks before, oldest first, empty weeks left out', () => {
+  const h = buildWeekHistory(
+    [
+      hist('2026-09-20', 'WIN'), // Sunday of the week of Sep 14: five weeks back, left out
+      hist('2026-09-21', 'WIN'), // week of Sep 21
+      hist('2026-09-27', 'LOSS', { scoreFor: 1, scoreAgainst: 4, ppGoals: null }), // Sunday, same week
+      hist('2026-10-12', 'OTL', { ppOpportunities: null }), // week of Oct 12
+      hist('2026-10-13', 'WIN', { shotsFor: 31 }),
+      hist('2026-10-19', 'WIN'), // the sheet's own week: left out
+    ],
+    '2026-10-19',
+  )
+  assert.deepEqual(h, [
+    {
+      weekStart: '2026-09-21',
+      wins: 1,
+      losses: 1,
+      otl: 0,
+      goalsFor: 4,
+      goalsAgainst: 6,
+      shotsFor: 40,
+      shotsAgainst: 30,
+      ppGoals: 1,
+      ppOpportunities: 4,
+    },
+    {
+      weekStart: '2026-10-12',
+      wins: 1,
+      losses: 0,
+      otl: 1,
+      goalsFor: 6,
+      goalsAgainst: 4,
+      shotsFor: 51,
+      shotsAgainst: 30,
+      ppGoals: 2,
+      ppOpportunities: 2,
+    },
+  ])
+  assert.deepEqual(buildWeekHistory([], '2026-10-19'), [])
+})
+
+void test('buildWeekPlayers: week sums of the named lines plus title totals, best week first', () => {
+  const g1 = buildGameFacts(
+    gameArgs({
+      players: [
+        skater({
+          playerId: 1,
+          gamertag: 'Hero',
+          goals: 2,
+          assists: 1,
+          shots: 5,
+          hits: 2,
+          plusMinus: 1,
+        }),
+        skater({
+          playerId: 2,
+          gamertag: 'Second',
+          goals: 0,
+          assists: 1,
+          shots: 1,
+          hits: 4,
+          plusMinus: -1,
+        }),
+        skater({ playerId: 3, gamertag: 'GuestA', goals: 1 }),
+      ],
+      people,
+    }),
+  )
+  const g2 = buildGameFacts(
+    gameArgs({
+      match: { ...gameArgs().match, id: 901 },
+      players: [
+        skater({
+          playerId: 2,
+          gamertag: 'Second',
+          goals: 3,
+          assists: 2,
+          shots: 7,
+          hits: 1,
+          plusMinus: 2,
+        }),
+      ],
+      people,
+    }),
+  )
+  const w = buildWeekPlayers(
+    [g1, g2],
+    people,
+    new Map([
+      [1, totals(40, 30, 50)],
+      [2, totals(10, 15, 20)],
+    ]),
+  )
+  assert.deepEqual(w, [
+    {
+      playerId: 2,
+      name: 'Second',
+      games: 2,
+      goals: 3,
+      assists: 3,
+      points: 6,
+      shots: 8,
+      hits: 5,
+      plusMinus: 1,
+      titleGoals: 10,
+      titleAssists: 15,
+      titlePoints: 25,
+      titleGames: 20,
+    },
+    {
+      playerId: 1,
+      name: 'Hero Name',
+      games: 1,
+      goals: 2,
+      assists: 1,
+      points: 3,
+      shots: 5,
+      hits: 2,
+      plusMinus: 1,
+      titleGoals: 40,
+      titleAssists: 30,
+      titlePoints: 70,
+      titleGames: 50,
+    },
+  ])
+  // Nobody who is not on the sheet's people list; nobody without a game line.
+  assert.deepEqual(buildWeekPlayers([], people, new Map()), [])
+})
+
+void test('buildFacts: history and weekPlayers default to empty; a week sheet passes the contract', () => {
+  const night = buildFacts({
+    kind: 'night',
+    key: '2026-10-12',
+    gameTitleName: 'NHL 27',
+    games: [buildGameFacts(gameArgs())],
+    record: { wins: 1, losses: 0, otl: 0 },
+    streak: null,
+    unlocks: [],
+    milestones: [],
+    recentNights: [],
+    people: [people[0]!],
+  })
+  assert.deepEqual(night.history, [])
+  assert.deepEqual(night.weekPlayers, [])
+  const g = buildGameFacts(gameArgs())
+  const week = buildFacts({
+    kind: 'week',
+    key: '2026-10-12',
+    gameTitleName: 'NHL 27',
+    games: [g],
+    record: { wins: 1, losses: 0, otl: 0 },
+    streak: null,
+    unlocks: [],
+    milestones: [],
+    recentNights: [],
+    people: [people[0]!],
+    history: buildWeekHistory([hist('2026-10-05', 'WIN')], '2026-10-12'),
+    weekPlayers: buildWeekPlayers([g], [people[0]!], new Map([[1, totals(5, 5, 9)]])),
+  })
+  const parsed = parseNewsFactsResponse(
+    JSON.parse(JSON.stringify({ facts: week, forbiddenNames: [] })),
+  )
+  assert.equal(parsed.facts.history.length, 1)
+  assert.equal(parsed.facts.history[0]!.weekStart, '2026-10-05')
+  assert.equal(parsed.facts.weekPlayers[0]!.titlePoints, 10)
 })

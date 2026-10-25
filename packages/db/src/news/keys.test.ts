@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { nightKey, nightLabel, nightsOfWeek, weekStart } from './keys.js'
+import { nightKey, nightLabel, nightsOfWeek, previousWeekStarts, weekStart } from './keys.js'
 
 void test('nightKey: late evening MDT belongs to that calendar day', () => {
   assert.equal(nightKey(new Date('2026-10-13T05:30:00Z')), '2026-10-12') // 23:30 MDT
@@ -52,4 +52,18 @@ void test('nightLabel: weekday, month and day of the night key, no year and no I
   assert.equal(nightLabel('2026-11-01'), 'Sunday, November 1') // DST change day
   assert.equal(nightLabel('2027-01-01'), 'Friday, January 1')
   assert.throws(() => nightLabel('2026-13-01'))
+})
+
+void test('previousWeekStarts: the Mondays before a week, oldest first (A4)', () => {
+  assert.deepEqual(previousWeekStarts('2026-10-19', 4), [
+    '2026-09-21',
+    '2026-09-28',
+    '2026-10-05',
+    '2026-10-12',
+  ])
+  // Across the DST date and the year end.
+  assert.deepEqual(previousWeekStarts('2027-01-04', 2), ['2026-12-21', '2026-12-28'])
+  assert.deepEqual(previousWeekStarts('2026-11-02', 1), ['2026-10-26'])
+  assert.deepEqual(previousWeekStarts('2026-10-19', 0), [])
+  assert.throws(() => previousWeekStarts('2026-10-20', 4), /Monday/)
 })

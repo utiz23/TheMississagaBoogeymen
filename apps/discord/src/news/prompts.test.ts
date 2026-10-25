@@ -65,6 +65,48 @@ void test('capFactsForPrompt: 12 unlocks (card first), 10 milestones; originals 
   assert.equal(big.milestones.length, 15)
 })
 
+void test('capFactsForPrompt: milestones by value, points before goals before assists before games (A5)', () => {
+  const f = oct12Facts()
+  const m = (stat: 'goals' | 'assists' | 'points' | 'games', value: number, playerId = 1) => ({
+    playerId,
+    name: playerId === 1 ? 'Skater A' : 'Skater B',
+    stat,
+    value,
+  })
+  // Twelve small ones first in sheet order, then the round numbers that must survive the cap.
+  const small = Array.from({ length: 12 }, (_, i) => m('goals', 25, i % 2 === 0 ? 1 : 2))
+  const big: NewsFacts = {
+    ...f,
+    milestones: [
+      ...small,
+      m('games', 100),
+      m('assists', 50),
+      m('points', 100),
+      m('goals', 100, 2),
+      m('points', 50, 2),
+    ],
+  }
+  const capped = capFactsForPrompt(big)
+  assert.equal(capped.milestones.length, 10)
+  assert.deepEqual(
+    capped.milestones.slice(0, 5).map((x) => [x.stat, x.value, x.playerId]),
+    [
+      ['points', 100, 1],
+      ['goals', 100, 2],
+      ['games', 100, 1],
+      ['points', 50, 2],
+      ['assists', 50, 1],
+    ],
+  )
+  // Ties keep the sheet order.
+  assert.deepEqual(
+    capped.milestones.slice(5).map((x) => x.playerId),
+    [1, 2, 1, 2, 1],
+  )
+  // The sheet itself is untouched.
+  assert.equal(big.milestones[0]!.value, 25)
+})
+
 void test('game prompt: sheet JSON, both reporters, reply note, no forbidden data', () => {
   const f = oct12Facts()
   const p = buildGameUserPrompt({

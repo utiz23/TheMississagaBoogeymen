@@ -863,6 +863,74 @@ export async function listRecentNightSummaries(args: {
   }))
 }
 
+/** One counted game of a title for the week sheet's `history`, as stored (shots before the OCR override). */
+export interface NewsHistoryGame {
+  id: number
+  night: string
+  result: 'WIN' | 'LOSS' | 'OTL'
+  scoreFor: number
+  scoreAgainst: number
+  shotsFor: number
+  shotsAgainst: number
+  ppGoals: number | null
+  ppOpportunities: number | null
+}
+
+/**
+ * Counted (non-DNF) games of one title whose night key is in [from, to),
+ * oldest first. No active-title condition: the caller passes the title of a
+ * sheet it already allowed.
+ */
+export function listNewsHistoryGamesSql(args: {
+  gameTitleId: number
+  from: string
+  to: string
+}): SQL {
+  return sql`
+    select m.id, to_char(x.night, 'YYYY-MM-DD') as night, m.result, m.score_for, m.score_against,
+      m.shots_for, m.shots_against, m.pp_goals, m.pp_opportunities
+    from matches m
+    cross join lateral (select ${nightKeySql('m')} as night) x
+    where m.game_title_id = ${args.gameTitleId}
+      and m.result <> 'DNF'
+      and x.night >= ${args.from}::date and x.night < ${args.to}::date
+    order by m.played_at, m.id`
+}
+
+export async function listNewsHistoryGames(args: {
+  gameTitleId: number
+  from: string
+  to: string
+}): Promise<NewsHistoryGame[]> {
+  const rows = await db.execute<{
+    id: string | number
+    night: string
+    result: string
+    score_for: number
+    score_against: number
+    shots_for: number
+    shots_against: number
+    pp_goals: number | null
+    pp_opportunities: number | null
+  }>(listNewsHistoryGamesSql(args))
+  const out: NewsHistoryGame[] = []
+  for (const r of rows) {
+    if (r.result !== 'WIN' && r.result !== 'LOSS' && r.result !== 'OTL') continue
+    out.push({
+      id: Number(r.id),
+      night: r.night,
+      result: r.result,
+      scoreFor: Number(r.score_for),
+      scoreAgainst: Number(r.score_against),
+      shotsFor: Number(r.shots_for),
+      shotsAgainst: Number(r.shots_against),
+      ppGoals: r.pp_goals === null ? null : Number(r.pp_goals),
+      ppOpportunities: r.pp_opportunities === null ? null : Number(r.pp_opportunities),
+    })
+  }
+  return out
+}
+
 /**
  * Counted card events (same rule as the unlock poster) of the given players in
  * a title, from the first game's end to `afterMinutes` after the last game's

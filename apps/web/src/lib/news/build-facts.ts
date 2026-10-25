@@ -6,12 +6,16 @@
 import type { UnlockDescription } from '@eanhl/db/discord'
 import {
   nightKey,
+  previousWeekStarts,
+  weekStart as weekStartOf,
   type NewsFacts,
   type NewsGameFacts,
   type NewsGoal,
   type NewsGoalPeriod,
   type NewsPerson,
   type NewsPlayerLine,
+  type NewsWeekHistory,
+  type NewsWeekPlayer,
   type PressLevel,
 } from '@eanhl/db/news'
 // The match page's goal timeline functions: the sheet shows its clocks the page's way.
@@ -292,6 +296,14 @@ export function periodsFromSummaries(
   return sumFor === scoreFor && sumAgainst === scoreAgainst ? out : null
 }
 
+/**
+ * A game score as the match page shows it (`score.toFixed(2)` in the
+ * performer row), so a story never quotes digits the page does not show.
+ */
+export function gameScoreAsShown(score: number): number {
+  return Number(score.toFixed(2))
+}
+
 function playerLine(p: GamePlayerInput, person: NewsPerson): NewsPlayerLine {
   let savePct: number | null = null
   if (p.isGoalie && p.saves !== null) {
@@ -312,7 +324,7 @@ function playerLine(p: GamePlayerInput, person: NewsPerson): NewsPlayerLine {
     saves: p.isGoalie ? p.saves : null,
     goalsAgainst: p.isGoalie ? p.goalsAgainst : null,
     savePct,
-    gameScore: p.gameScore,
+    gameScore: p.gameScore === null ? null : gameScoreAsShown(p.gameScore),
     star: p.star,
   }
 }
@@ -323,6 +335,9 @@ function playerLine(p: GamePlayerInput, person: NewsPerson): NewsPlayerLine {
  * else unnamed counts towards `guestCount`; AI goalies count towards neither.
  * The goals of everyone stay in the team score; the goals and assists of the
  * unnamed (AI goalies too) are summed in `unnamedGoals` / `unnamedAssists`.
+ * Goals of the score that no player row accounts for (EA rows short of the
+ * score) are unnamed goals too: `unnamedGoals` = the larger of the unnamed
+ * rows' goals and the score minus the named goals. Assists come only from rows.
  */
 export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
   const { match } = args
@@ -347,6 +362,8 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     else if (p.playerId !== null && args.memberIds.has(p.playerId)) unnamedTeammates += 1
     else guestCount += 1
   }
+  const namedGoals = players.reduce((n, p) => n + p.goals, 0)
+  unnamedGoals = Math.max(unnamedGoals, match.scoreFor - namedGoals, 0)
   return {
     matchId: match.id,
     night: nightKey(match.playedAt),
@@ -466,6 +483,108 @@ export function buildMilestones(
   return out
 }
 
+// ── Week sheets: history and players (revision 2) ────────────────────────────
+
+/** One counted game of the title before the sheet's week (shots as the match page shows them). */
+export interface HistoryGameInput {
+  night: string
+  result: 'WIN' | 'LOSS' | 'OTL'
+  scoreFor: number
+  scoreAgainst: number
+  shotsFor: number
+  shotsAgainst: number
+  ppGoals: number | null
+  ppOpportunities: number | null
+}
+
+/** How many weeks before the sheet's week the `history` covers. */
+export const HISTORY_WEEKS = 4
+
+/**
+ * The week sheet's `history`: team totals of each of the four weeks before
+ * `weekStart`, oldest first. A week without a game is left out; a game outside
+ * those weeks is ignored. Missing power-play numbers count as 0.
+ */
+export function buildWeekHistory(
+  games: readonly HistoryGameInput[],
+  weekStart: string,
+): NewsWeekHistory[] {
+  const weeks = previousWeekStarts(weekStart, HISTORY_WEEKS)
+  const byWeek = new Map<string, NewsWeekHistory>()
+  for (const g of games) {
+    const w = weekStartOf(g.night)
+    if (!weeks.includes(w)) continue
+    const row = byWeek.get(w) ?? {
+      weekStart: w,
+      wins: 0,
+      losses: 0,
+      otl: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      shotsFor: 0,
+      shotsAgainst: 0,
+      ppGoals: 0,
+      ppOpportunities: 0,
+    }
+    if (g.result === 'WIN') row.wins += 1
+    else if (g.result === 'LOSS') row.losses += 1
+    else row.otl += 1
+    row.goalsFor += g.scoreFor
+    row.goalsAgainst += g.scoreAgainst
+    row.shotsFor += g.shotsFor
+    row.shotsAgainst += g.shotsAgainst
+    row.ppGoals += g.ppGoals ?? 0
+    row.ppOpportunities += g.ppOpportunities ?? 0
+    byWeek.set(w, row)
+  }
+  return weeks.flatMap((w) => {
+    const row = byWeek.get(w)
+    return row ? [row] : []
+  })
+}
+
+/**
+ * The week sheet's `weekPlayers`: every named person with a game line this
+ * week, their week (sums of the lines) and their title totals through the
+ * week's last game (`titleTotals`, the same totals the milestones use). Most
+ * points first, then goals, then the order of `people`.
+ */
+export function buildWeekPlayers(
+  games: readonly NewsGameFacts[],
+  people: readonly NewsPerson[],
+  titleTotals: ReadonlyMap<number, Totals>,
+): NewsWeekPlayer[] {
+  const out: NewsWeekPlayer[] = []
+  for (const person of people) {
+    const lines = games.flatMap((g) => g.players.filter((p) => p.playerId === person.playerId))
+    if (lines.length === 0) continue
+    const sum = (f: (l: NewsPlayerLine) => number) => lines.reduce((n, l) => n + f(l), 0)
+    const t = titleTotals.get(person.playerId) ?? { goals: 0, assists: 0, points: 0, games: 0 }
+    out.push({
+      playerId: person.playerId,
+      name: person.name,
+      games: lines.length,
+      goals: sum((l) => l.goals),
+      assists: sum((l) => l.assists),
+      points: sum((l) => l.points),
+      shots: sum((l) => l.shots),
+      hits: sum((l) => l.hits),
+      plusMinus: sum((l) => l.plusMinus),
+      titleGoals: t.goals,
+      titleAssists: t.assists,
+      titlePoints: t.points,
+      titleGames: t.games,
+    })
+  }
+  const rank = new Map(people.map((p, i) => [p.playerId, i]))
+  return out.sort(
+    (a, b) =>
+      b.points - a.points ||
+      b.goals - a.goals ||
+      (rank.get(a.playerId) ?? 0) - (rank.get(b.playerId) ?? 0),
+  )
+}
+
 /** Assemble a sheet; the night totals are summed from the games. */
 export function buildFacts(args: {
   kind: NewsFacts['kind']
@@ -478,6 +597,10 @@ export function buildFacts(args: {
   milestones: NewsFacts['milestones']
   recentNights: NewsFacts['recentNights']
   people: NewsPerson[]
+  /** Week sheets only (default []). */
+  history?: NewsWeekHistory[]
+  /** Week sheets only (default []). */
+  weekPlayers?: NewsWeekPlayer[]
 }): NewsFacts {
   const nightTotals = {
     goalsFor: 0,
@@ -509,6 +632,8 @@ export function buildFacts(args: {
     milestones: args.milestones,
     recentNights: args.recentNights,
     people: args.people,
+    history: args.history ?? [],
+    weekPlayers: args.weekPlayers ?? [],
   }
 }
 

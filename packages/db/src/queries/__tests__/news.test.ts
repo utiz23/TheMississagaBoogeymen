@@ -30,6 +30,7 @@ const {
   listRecentNightSummariesSql,
   listNewsCardEventsSql,
   listPlayerTitleTotalsSql,
+  listNewsHistoryGamesSql,
   recentReporterSummariesSql,
   skipBacklogGamesSql,
   skipBacklogNightsSql,
@@ -558,4 +559,23 @@ void test('backfill lookups: a post by match, reporter and body; an article by s
   assert.match(as, /"news_items"\."slug" = \$1/)
   assert.ok(!/deleted_at|is_test/.test(as), as)
   assert.deepEqual(a.params.slice(0, 1), ['2026-05-08-a-night'])
+})
+
+void test('week history games: one title, not DNF, night key in [from, to), oldest first (A4)', () => {
+  const q = dialect.sqlToQuery(
+    listNewsHistoryGamesSql({ gameTitleId: 7, from: '2026-09-21', to: '2026-10-19' }),
+  )
+  const s = flat(q.sql)
+  assert.match(
+    s,
+    /select m\.id, to_char\(x\.night, 'YYYY-MM-DD'\) as night, m\.result, m\.score_for, m\.score_against, m\.shots_for, m\.shots_against, m\.pp_goals, m\.pp_opportunities/,
+  )
+  assert.ok(s.includes(NIGHT('m')), 'night expression')
+  assert.match(s, /m\.game_title_id = \$\d+/)
+  assert.match(s, /m\.result <> 'DNF'/)
+  assert.match(s, /x\.night >= \$\d+::date and x\.night < \$\d+::date/)
+  assert.match(s, /order by m\.played_at, m\.id/)
+  // No active-title join: the caller passes the title of the sheet it already allowed.
+  assert.doesNotMatch(s, /is_active/)
+  assert.deepEqual(q.params, [7, '2026-09-21', '2026-10-19'])
 })

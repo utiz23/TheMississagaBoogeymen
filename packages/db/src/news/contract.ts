@@ -103,6 +103,37 @@ export interface NewsStreak {
   count: number
 }
 
+/** One earlier week of the title (week sheets only): Monday key and the week's team totals. */
+export interface NewsWeekHistory {
+  weekStart: string
+  wins: number
+  losses: number
+  otl: number
+  goalsFor: number
+  goalsAgainst: number
+  shotsFor: number
+  shotsAgainst: number
+  ppGoals: number
+  ppOpportunities: number
+}
+
+/** A named person's week (sums of their game lines) and title totals through the week's last game. */
+export interface NewsWeekPlayer {
+  playerId: number
+  name: string
+  games: number
+  goals: number
+  assists: number
+  points: number
+  shots: number
+  hits: number
+  plusMinus: number
+  titleGoals: number
+  titleAssists: number
+  titlePoints: number
+  titleGames: number
+}
+
 export interface NewsFacts {
   kind: 'game' | 'night' | 'week'
   key: string
@@ -135,6 +166,10 @@ export interface NewsFacts {
     goalsAgainst: number
   }[]
   people: NewsPerson[]
+  /** Week sheets: the four weeks before this one, oldest first; weeks without a game left out. Else []. */
+  history: NewsWeekHistory[]
+  /** Week sheets: every named person who played this week. Else []. */
+  weekPlayers: NewsWeekPlayer[]
 }
 
 export interface NewsFactsResponse {
@@ -323,6 +358,41 @@ function parseStreak(v: unknown, path: string): NewsStreak {
   }
 }
 
+function parseHistory(v: unknown, path: string): NewsWeekHistory {
+  const o = obj(v, path)
+  return {
+    weekStart: night(o['weekStart'], `${path}.weekStart`),
+    wins: nonNegInt(o['wins'], `${path}.wins`),
+    losses: nonNegInt(o['losses'], `${path}.losses`),
+    otl: nonNegInt(o['otl'], `${path}.otl`),
+    goalsFor: nonNegInt(o['goalsFor'], `${path}.goalsFor`),
+    goalsAgainst: nonNegInt(o['goalsAgainst'], `${path}.goalsAgainst`),
+    shotsFor: nonNegInt(o['shotsFor'], `${path}.shotsFor`),
+    shotsAgainst: nonNegInt(o['shotsAgainst'], `${path}.shotsAgainst`),
+    ppGoals: nonNegInt(o['ppGoals'], `${path}.ppGoals`),
+    ppOpportunities: nonNegInt(o['ppOpportunities'], `${path}.ppOpportunities`),
+  }
+}
+
+function parseWeekPlayer(v: unknown, path: string): NewsWeekPlayer {
+  const o = obj(v, path)
+  return {
+    playerId: int(o['playerId'], `${path}.playerId`),
+    name: str(o['name'], `${path}.name`),
+    games: nonNegInt(o['games'], `${path}.games`),
+    goals: int(o['goals'], `${path}.goals`),
+    assists: int(o['assists'], `${path}.assists`),
+    points: int(o['points'], `${path}.points`),
+    shots: int(o['shots'], `${path}.shots`),
+    hits: int(o['hits'], `${path}.hits`),
+    plusMinus: int(o['plusMinus'], `${path}.plusMinus`),
+    titleGoals: int(o['titleGoals'], `${path}.titleGoals`),
+    titleAssists: int(o['titleAssists'], `${path}.titleAssists`),
+    titlePoints: int(o['titlePoints'], `${path}.titlePoints`),
+    titleGames: nonNegInt(o['titleGames'], `${path}.titleGames`),
+  }
+}
+
 function parseFacts(v: unknown, path: string): NewsFacts {
   const o = obj(v, path)
   const t = obj(o['nightTotals'], `${path}.nightTotals`)
@@ -372,6 +442,12 @@ function parseFacts(v: unknown, path: string): NewsFacts {
       }
     }),
     people: arr(o['people'], `${path}.people`, parsePerson),
+    // A sheet from a web app without them still parses (deploy order).
+    history: o['history'] === undefined ? [] : arr(o['history'], `${path}.history`, parseHistory),
+    weekPlayers:
+      o['weekPlayers'] === undefined
+        ? []
+        : arr(o['weekPlayers'], `${path}.weekPlayers`, parseWeekPlayer),
   }
 }
 

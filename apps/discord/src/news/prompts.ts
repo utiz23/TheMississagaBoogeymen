@@ -2,6 +2,12 @@ import { nightLabel, type NewsFacts, type Reporter } from '@eanhl/db/news'
 
 const MAX_UNLOCKS = 12
 const MAX_MILESTONES = 10
+const MILESTONE_STAT_ORDER: Record<NewsFacts['milestones'][number]['stat'], number> = {
+  points: 0,
+  goals: 1,
+  assists: 2,
+  games: 3,
+}
 
 /** JSON with keys sorted at every depth, so the same sheet always gives the same bytes (prompt-cache stable). */
 export function stableStringify(value: unknown): string {
@@ -22,15 +28,21 @@ export function stableStringify(value: unknown): string {
 
 /**
  * The sheet as the model sees it: at most 12 unlocks (card unlocks first, then
- * badges) and 10 milestones. The fact CHECK still uses the full sheet.
+ * badges) and 10 milestones (largest value first; points, goals, assists,
+ * games on a tie). The fact CHECK still uses the full sheet.
  */
 export function capFactsForPrompt(facts: NewsFacts): NewsFacts {
   const isCard = (u: { text: string }) => /card/i.test(u.text)
   const unlocks = [...facts.unlocks.filter(isCard), ...facts.unlocks.filter((u) => !isCard(u))]
+  // Biggest milestones first (so 100s and 50s survive the cap), points before
+  // goals before assists before games on a tie, then the sheet's order (stable sort).
+  const milestones = [...facts.milestones].sort(
+    (a, b) => b.value - a.value || MILESTONE_STAT_ORDER[a.stat] - MILESTONE_STAT_ORDER[b.stat],
+  )
   return {
     ...facts,
     unlocks: unlocks.slice(0, MAX_UNLOCKS),
-    milestones: facts.milestones.slice(0, MAX_MILESTONES),
+    milestones: milestones.slice(0, MAX_MILESTONES),
   }
 }
 

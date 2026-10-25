@@ -17,6 +17,7 @@ import {
   listAllGameTitles,
   listMemberPressLevels,
   listNewsCardEvents,
+  listNewsHistoryGames,
   listNewsNightMatches,
   listNewsProfiles,
   listPlayerTitleTotals,
@@ -27,6 +28,7 @@ import {
   nightKey,
   nightsOfWeek,
   parseNewsFactsResponse,
+  previousWeekStarts,
   type NewsFacts,
   type NewsFactsResponse,
 } from '@eanhl/db/news'
@@ -44,6 +46,9 @@ import {
   buildMilestones,
   buildPeople,
   buildRecordAndStreak,
+  buildWeekHistory,
+  buildWeekPlayers,
+  HISTORY_WEEKS,
   passPctOf,
   periodsFromSummaries,
   titleAllowed,
@@ -52,6 +57,7 @@ import {
   type GameFactsArgs,
   type GamePlayerInput,
   type GoalEventInput,
+  type HistoryGameInput,
 } from './build-facts'
 
 /** An unlock counts when it lands up to this long after the last game of the sheet. */
@@ -159,6 +165,34 @@ async function loadGame(match: Match): Promise<LoadedGame | null> {
       ),
     stats,
   }
+}
+
+/**
+ * The title's counted games of the four weeks before the week sheet's
+ * Monday `start`, with shots as the match page shows them (reviewed OCR over
+ * EA's count, as in `loadGame`). Read one game at a time: a weekly job, so
+ * a gentle load matters more than speed.
+ */
+async function loadHistoryGames(gameTitleId: number, start: string): Promise<HistoryGameInput[]> {
+  const weeks = previousWeekStarts(start, HISTORY_WEEKS)
+  const from = weeks[0]
+  if (from === undefined) return []
+  const rows = await listNewsHistoryGames({ gameTitleId, from, to: start })
+  const out: HistoryGameInput[] = []
+  for (const r of rows) {
+    const ocrShots = aggregateOcrShots(await getMatchPeriodSummaries(r.id))
+    out.push({
+      night: r.night,
+      result: r.result,
+      scoreFor: r.scoreFor,
+      scoreAgainst: r.scoreAgainst,
+      shotsFor: ocrShots.for ?? r.shotsFor,
+      shotsAgainst: ocrShots.against ?? r.shotsAgainst,
+      ppGoals: r.ppGoals,
+      ppOpportunities: r.ppOpportunities,
+    })
+  }
+  return out
 }
 
 /** Build one sheet from games (oldest first) of a single title. Null when there is none. */
@@ -270,6 +304,16 @@ async function loadSheet(
     if (d) unlocks.push({ playerId: ev.playerId, name, text: unlockText(d) })
   }
 
+  // Week sheets (revision 2): the four weeks before, and each named person's
+  // week with title totals through the week's last game (same totals as the milestones).
+  const week =
+    kind === 'week'
+      ? {
+          history: buildWeekHistory(await loadHistoryGames(gameTitleId, key), key),
+          weekPlayers: buildWeekPlayers(games, people, totals.after),
+        }
+      : {}
+
   const facts = buildFacts({
     kind,
     key,
@@ -280,6 +324,7 @@ async function loadSheet(
     milestones: buildMilestones(totals.before, totals.after, people),
     recentNights: recent,
     people,
+    ...week,
   })
   // The service parses the same shape at its boundary; refuse to emit a sheet it would reject.
   return parseNewsFactsResponse({ facts, forbiddenNames })
