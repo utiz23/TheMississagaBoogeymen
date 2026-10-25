@@ -468,3 +468,57 @@ The same reply pairs repeat. Make it weighted random:
   amount overall.
 - Seeded from the game (and night), so reruns and tests are reproducible.
 - Weights and the generic attitudes are Claude's call.
+
+### 12.12 Content-quality rules from the backfill audit (operator, 2026-10-25)
+
+An editor audit of all 138 backfill items found recurring problems. Operator
+decisions:
+
+1. **Colleague quotes are allowed** as second-hand talk; they need not match a
+   published post. They are optional, not the standard ending (at most about one
+   article in three ends that way).
+2. **Winning fixes almost everything.** After a win, pieces read like a win; a
+   player's big night (3+ goals or 5+ points) is credited first and never called
+   luck, variance or unrepeatable. "Not repeatable" only about the team, at most
+   once a night. Exception: Dex Mercer and Gord Pettibone are built to find
+   something to complain about and keep their caveats.
+3. **Games that ended early** (score not accounted for by credited goals, or
+   time on attack under about 240 s, or under about 10 total shots) are marked
+   `endedEarly`; pieces give them one neutral line with no shot, attack-time or
+   conversion numbers.
+4. **Plus-minus and game score** are not on the sheet for the writer and are
+   never cited (game score still ranks the stars).
+5. **Zero call-outs:** none for defencemen or goalies; at most one per night; never
+   the same player on two nights in a row; penalty minutes only from 10 minutes,
+   once a night. Each player's position per game goes on the sheet.
+6. **Replies** argue with a number from the sheet; no remarks about the other
+   reporter's motives, clicks or career (the bible jabs are blocked in replies).
+7. **Number density:** at most 3 numbers per sentence, no lists of more than 3
+   values, at most 2 clock times per article; an article does not open with the
+   date and record; a one-game night gets 120–200 words; the night article sees
+   that night's posts and reuses their numbers only to draw a new conclusion.
+8. **No templates:** format labels ("The tactical point is…") are blocked; at most
+   one "not X … Y" contrast per piece; posts make one point (the 4-part formats
+   are for articles); each reporter sees their own last 5 pieces; Vale writes
+   about more than overtime games.
+9. **Headlines** name the night's one story; the record goes in the dek or body,
+   once; the dek never repeats the headline; sentence case.
+10. **Milestones:** tiered thresholds (points every 100, goals and assists every
+    50, games at 100/250/500/…) and at most 3 per night, each in its own sentence,
+    never a list.
+11. **Style:** reporters are outside media and never write "we", "us", "our";
+    scores winner first ("beat … 4-2", "lost to … 6-2"); one style for
+    percentages ("83.1%") and for the record ("40-11-5").
+
+What works and must stay: facts are accurate; guests/unnamed handled safely;
+two reporters on one game pick different numbers; Quill's counter-voice; short
+quotable lines that argue from one number.
+
+### 12.13 Club lore (operator, 2026-10-25)
+
+A short list of world facts every fact sheet carries, edited by asking Claude for
+now (moves to the GM page with the bot project). First entry: **the Boogeymen's
+farm team is the Oregon Outlaws.** Reporters may use a lore fact when it fits and
+invent nothing around it (no Outlaws games, scores, call-ups or players). The
+player storylines (Scoot, JoeyFlopfish, Joseph, Benson) wait for the storyline
+system of the bot project (Claude's call; operator may override).
