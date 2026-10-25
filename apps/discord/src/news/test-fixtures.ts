@@ -131,6 +131,7 @@ export function oct12Facts(kind: NewsFacts['kind'] = 'game'): NewsFacts {
     history: [],
     weekPlayers: [],
     aiGoalieWeek: [],
+    lore: ["The Boogeymen's farm team is the Oregon Outlaws."],
   }
 }
 

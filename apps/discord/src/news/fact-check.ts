@@ -1,4 +1,10 @@
-import { REPORTERS, REPORTER_IDS, type FeatureKind, type NewsFacts } from '@eanhl/db/news'
+import {
+  LORE_NAMES,
+  REPORTERS,
+  REPORTER_IDS,
+  type FeatureKind,
+  type NewsFacts,
+} from '@eanhl/db/news'
 
 export type CheckResult = { ok: true } | { ok: false; problems: string[] }
 
@@ -64,9 +70,18 @@ function parseDigits(run: string): number {
 /**
  * Keys whose numbers are identifiers, clock digits or dates, never stats (R16;
  * `clock` B1; rev 2: `weekStart`, the dates of the week sheet's history, so an
- * invented stat cannot pass on a date digit. The sheet's own `key` stays).
+ * invented stat cannot pass on a date digit. The sheet's own `key` stays;
+ * Part C1: `lore`, world facts that are never a source of numbers).
  */
-const NON_STAT_KEYS = new Set(['playerId', 'matchId', 'playedAt', 'period', 'clock', 'weekStart'])
+const NON_STAT_KEYS = new Set([
+  'playerId',
+  'matchId',
+  'playedAt',
+  'period',
+  'clock',
+  'weekStart',
+  'lore',
+])
 
 /** A game clock in text, such as "3:58" or "03:58". */
 const CLOCK = /\b(\d{1,2}):(\d{2})\b/g
@@ -243,7 +258,12 @@ function check(
 
   problems.push(...criticizedProblems(out.criticized ?? [], facts, forbiddenNames, tonight))
 
-  const clubs = new Set(facts.games.map((g) => collapse(g.opponentName).toLowerCase()))
+  // Opponents on the sheet, and the lore's club names (spec §12.13: the farm team).
+  const clubs = new Set(
+    [...facts.games.map((g) => g.opponentName), ...LORE_NAMES].map((c) =>
+      collapse(c).toLowerCase(),
+    ),
+  )
   for (const c of out.clubs) {
     if (!clubs.has(collapse(c).toLowerCase())) {
       problems.push(`"${c}" is not an opponent club on the fact sheet.`)

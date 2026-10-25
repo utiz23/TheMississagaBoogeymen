@@ -209,6 +209,8 @@ export interface NewsFacts {
   weekPlayers: NewsWeekPlayer[]
   /** Week sheets: each AI goalie's week totals, most games first. Else []. */
   aiGoalieWeek: NewsAiGoalieWeek[]
+  /** Club lore (spec §12.13, `CLUB_LORE`), on every sheet. Never a source of stats. */
+  lore: string[]
 }
 
 export interface NewsFactsResponse {
@@ -527,6 +529,7 @@ function parseFacts(v: unknown, path: string): NewsFacts {
       o['aiGoalieWeek'] === undefined
         ? []
         : arr(o['aiGoalieWeek'], `${path}.aiGoalieWeek`, parseAiGoalieWeek),
+    lore: o['lore'] === undefined ? [] : arr(o['lore'], `${path}.lore`, str),
   }
 }
 

@@ -5,6 +5,7 @@
 // the model and is only used to reject text that names them anyway.
 import type { UnlockDescription } from '@eanhl/db/discord'
 import {
+  CLUB_LORE,
   milestoneCrossed,
   nightKey,
   previousWeekStarts,
@@ -728,6 +729,7 @@ export function buildFacts(args: {
     history: args.history ?? [],
     weekPlayers: args.weekPlayers ?? [],
     aiGoalieWeek: args.aiGoalieWeek ?? [],
+    lore: [...CLUB_LORE],
   }
 }
 

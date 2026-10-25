@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseNewsFactsResponse } from '@eanhl/db/news'
+import { CLUB_LORE, parseNewsFactsResponse } from '@eanhl/db/news'
 import {
   buildFacts,
   buildGameFacts,
@@ -1193,4 +1193,25 @@ void test('buildFacts: night totals leave out the shots of a game that ended ear
   assert.equal(facts.nightTotals.shotsFor, 30)
   assert.equal(facts.nightTotals.shotsAgainst, 21)
   assert.equal(facts.nightTotals.wins, 2)
+})
+
+// ── Part C1: club lore (spec 12.13) ──────────────────────────────────────────
+
+void test('buildFacts: every sheet carries the club lore, copied (C1.7)', () => {
+  const facts = buildFacts({
+    kind: 'game',
+    key: '2026-10-12',
+    gameTitleName: 'NHL 27',
+    games: [buildGameFacts(gameArgs())],
+    record: { wins: 1, losses: 0, otl: 0 },
+    streak: null,
+    unlocks: [],
+    milestones: [],
+    recentNights: [],
+    people: [],
+  })
+  assert.deepEqual(facts.lore, [...CLUB_LORE])
+  assert.notEqual(facts.lore, CLUB_LORE)
+  const parsed = parseNewsFactsResponse(JSON.parse(JSON.stringify({ facts, forbiddenNames: [] })))
+  assert.deepEqual(parsed.facts.lore, ["The Boogeymen's farm team is the Oregon Outlaws."])
 })

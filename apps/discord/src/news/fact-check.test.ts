@@ -485,3 +485,19 @@ void test('AI goalie: week totals names are allowed in an article (C1.1)', () =>
   )
   assert.deepEqual(r, { ok: true })
 })
+
+// ── Part C1: club lore (spec 12.13) ─────────────────────────────────────────
+
+void test('lore: the farm team is an allowed club name; lore is never a stat source (C1.7)', () => {
+  assert.deepEqual(
+    checkFacts('The Oregon Outlaws are the farm team.', facts, FORBIDDEN, {
+      mentions: [],
+      clubs: ['Oregon Outlaws', 'oregon  outlaws'],
+    }),
+    { ok: true },
+  )
+  const f = oct12Facts('game')
+  f.lore = [...f.lore, 'The club was founded in 1987.']
+  assert.equal(allowedNumbers(f).has(1987), false)
+  assert.equal(checkFacts('Founded in 1987.', f, FORBIDDEN, none).ok, false)
+})

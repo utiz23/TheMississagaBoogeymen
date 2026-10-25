@@ -2,6 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { parseNewsFactsResponse, type NewsFactsResponse } from './contract.js'
 import {
+  CLUB_LORE,
+  LORE_NAMES,
   FEATURE_KINDS,
   FEATURE_REPORTER,
   PRESS_LEVELS,
@@ -147,6 +149,7 @@ function sample(): NewsFactsResponse {
       history: [],
       weekPlayers: [],
       aiGoalieWeek: [],
+      lore: ["The Boogeymen's farm team is the Oregon Outlaws."],
     },
     forbiddenNames: ['Hidden Guy'],
   }
@@ -595,4 +598,21 @@ void test('contract: an ended-early game has no team numbers; endedEarly default
   const missing = clone(sample()) as unknown as G
   missing.facts.games[0]!['team'] = null
   assert.throws(() => parseNewsFactsResponse(missing), /games\[0\]\.team is not an object/)
+})
+
+void test('club lore: one entry, the farm team; its name is a lore name (spec 12.13, C1.7)', () => {
+  assert.deepEqual([...CLUB_LORE], ["The Boogeymen's farm team is the Oregon Outlaws."])
+  assert.deepEqual([...LORE_NAMES], ['Oregon Outlaws'])
+  for (const name of LORE_NAMES) assert.ok(CLUB_LORE.some((l) => l.includes(name)))
+})
+
+void test('contract: lore parses; missing reads as empty; non-strings are rejected (C1.7)', () => {
+  const s = sample()
+  assert.deepEqual(parseNewsFactsResponse(clone(s)).facts.lore, s.facts.lore)
+  const old = clone(s) as unknown as { facts: Record<string, unknown> }
+  delete old.facts['lore']
+  assert.deepEqual(parseNewsFactsResponse(old).facts.lore, [])
+  const bad = clone(s) as unknown as { facts: Record<string, unknown> }
+  bad.facts['lore'] = [3]
+  assert.throws(() => parseNewsFactsResponse(bad), /facts\.lore\[0\]/)
 })
