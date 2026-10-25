@@ -345,7 +345,8 @@ currently configured.
   after 30 days without use. Records of used, cancelled, or expired invite
   links are kept for the operator's reference.
 - **News posts and articles** stay on this site until the admin deletes
-  them. We do not set any other time limit for them. Anthropic's own handling
+  them. A deleted item stays in our database but is no longer shown. We do
+  not set any other time limit for them. Anthropic's own handling
   of what we send it is not something we have independently verified.
 - **Correspondence sent to our project email addresses** is retained under
   the following operator targets, reviewed at least annually:
@@ -455,9 +456,10 @@ locations each of these providers uses, and we do not claim otherwise.
 
 ### 13. News posts written by an AI service
 
-Our News pages, and our team's Discord channel, show short posts and articles
-about our team's games. The reporters who sign them are fictional. The text
-is written by an AI service, Anthropic's Claude API, from our game statistics.
+Our News pages show short posts and articles about our team's games. Our
+team's Discord channel shows the posts, and links to the articles. The
+reporters who sign them are fictional. The text is written by an AI service,
+Anthropic's Claude API, from our game statistics.
 
 **What we send.** We send the service the profile names of team members (or
 their gamertags, when a member has no profile name), their game statistics,
@@ -466,15 +468,16 @@ who choose "Leave me out", and we do not send their names to the service as
 people to write about.
 
 **Where it appears.** The finished posts and articles appear on the News
-pages of this site and in our team's Discord channel.
+pages of this site. Our team's Discord channel gets the posts, and links to
+the articles.
 
 **What members control.** Each member sets a "Press coverage" level on EDIT
 PROFILE: "Full press", "Go easy", or "Leave me out". Every member starts at
 "Full press". The site's admin can also set the level for any member.
 
 **Deletion.** The admin can delete any news item. A deleted item is removed
-from this site and from Discord. See also "How long we keep information"
-above.
+from this site and from Discord. A deleted item stays in our database but is
+no longer shown. See also "How long we keep information" above.
 
 ### 14. Accuracy, security, incidents, and changes to this policy
 

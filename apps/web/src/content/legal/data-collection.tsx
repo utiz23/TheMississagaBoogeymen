@@ -476,9 +476,10 @@ export const sections: LegalPageSection[] = [
           of used, cancelled, or expired invite links are kept for the operator's reference.
         </LI>
         <LI>
-          <Strong>News posts and articles</Strong> stay on this site until the admin deletes them.
-          We do not set any other time limit for them. Anthropic's own handling of what we send it
-          is not something we have independently verified.
+          <Strong>News posts and articles</Strong> stay on this site until the admin deletes them. A
+          deleted item stays in our database but is no longer shown. We do not set any other time
+          limit for them. Anthropic's own handling of what we send it is not something we have
+          independently verified.
         </LI>
         <LI>
           <Strong>Correspondence sent to our project email addresses</Strong> is retained under the
@@ -650,9 +651,10 @@ export const sections: LegalPageSection[] = [
     body: (
       <>
         <P>
-          Our News pages, and our team's Discord channel, show short posts and articles about our
-          team's games. The reporters who sign them are fictional. The text is written by an AI
-          service, Anthropic's Claude API, from our game statistics.
+          Our News pages show short posts and articles about our team's games. Our team's Discord
+          channel shows the posts, and links to the articles. The reporters who sign them are
+          fictional. The text is written by an AI service, Anthropic's Claude API, from our game
+          statistics.
         </P>
         <P>
           <Strong>What we send.</Strong> We send the service the profile names of team members (or
@@ -662,7 +664,7 @@ export const sections: LegalPageSection[] = [
         </P>
         <P>
           <Strong>Where it appears.</Strong> The finished posts and articles appear on the News
-          pages of this site and in our team's Discord channel.
+          pages of this site. Our team's Discord channel gets the posts, and links to the articles.
         </P>
         <P>
           <Strong>What members control.</Strong> Each member sets a "Press coverage" level on EDIT
@@ -671,7 +673,8 @@ export const sections: LegalPageSection[] = [
         </P>
         <P>
           <Strong>Deletion.</Strong> The admin can delete any news item. A deleted item is removed
-          from this site and from Discord. See also "How long we keep information" above.
+          from this site and from Discord. A deleted item stays in our database but is no longer
+          shown. See also "How long we keep information" above.
         </P>
       </>
     ),

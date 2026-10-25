@@ -167,11 +167,11 @@ export const sections: LegalPageSection[] = [
           test fixtures), <Strong>Backblaze</Strong> (off-site storage for backup copies of our
           database), <Strong>Healthchecks.io</Strong> (monitoring that receives only status messages
           from our server, not information about visitors), <Strong>Discord</Strong> (the sign-in
-          service team members use, and the place where our News posts appear in the team's channel;
-          at sign-in it tells us only the member's Discord user ID, display name and profile picture
-          link), <Strong>Anthropic</Strong> (its Claude API is the AI service that writes our News
-          posts and articles), <Strong>EA's game services</Strong> (the source of underlying game
-          data), and{' '}
+          service team members use, and the place where our News posts, and links to our articles,
+          appear in the team's channel; at sign-in it tells us only the member's Discord user ID,
+          display name and profile picture link), <Strong>Anthropic</Strong> (its Claude API is the
+          AI service that writes our News posts and articles), <Strong>EA's game services</Strong>{' '}
+          (the source of underlying game data), and{' '}
           <Strong>community-operated hosting infrastructure based in Alberta, Canada</Strong>.
         </P>
         <P>
@@ -305,9 +305,9 @@ export const sections: LegalPageSection[] = [
     body: (
       <>
         <P>
-          The News pages of this site show short posts and articles about our team's games. The same
-          posts appear in our team's Discord channel. The reporters who sign them are fictional. An
-          AI service writes the text.
+          The News pages of this site show short posts and articles about our team's games. The
+          posts, and links to the articles, also appear in our team's Discord channel. The reporters
+          who sign them are fictional. An AI service writes the text.
         </P>
         <P>
           To write the posts, we send Anthropic's Claude API the profile names of team members (or
@@ -322,8 +322,8 @@ export const sections: LegalPageSection[] = [
         </P>
         <P>
           The admin can delete any news item. A deleted item is removed from this site and from
-          Discord. For more detail, see our{' '}
-          <DocLink to="data-collection">Data Collection Policy</DocLink>.
+          Discord. A deleted item stays in our database but is no longer shown. For more detail, see
+          our <DocLink to="data-collection">Data Collection Policy</DocLink>.
         </P>
       </>
     ),

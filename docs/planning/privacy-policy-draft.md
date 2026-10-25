@@ -125,7 +125,8 @@ a limited set of test fixtures), **Backblaze** (off-site storage for backup
 copies of our database), **Healthchecks.io** (monitoring that receives only
 status messages from our server, not information about visitors),
 **Discord** (the sign-in service team members use, and the place where our
-News posts appear in the team's channel; at sign-in it tells us only the
+News posts, and links to our articles, appear in the team's channel; at
+sign-in it tells us only the
 member's Discord user ID, display name and profile picture link),
 **Anthropic** (its Claude API is the AI service that writes our News posts
 and articles), **EA's game services** (the source of underlying game data), and
@@ -222,8 +223,9 @@ game services provide.
 ### 13. News posts written by an AI service
 
 The News pages of this site show short posts and articles about our team's
-games. The same posts appear in our team's Discord channel. The reporters who
-sign them are fictional. An AI service writes the text.
+games. The posts, and links to the articles, also appear in our team's
+Discord channel. The reporters who sign them are fictional. An AI service
+writes the text.
 
 To write the posts, we send Anthropic's Claude API the profile names of team
 members (or their gamertags, when a member has no profile name) and their
@@ -236,7 +238,8 @@ are "Full press", "Go easy", and "Leave me out". Every member starts at "Full
 press". The site's admin can also set the level for any member.
 
 The admin can delete any news item. A deleted item is removed from this site
-and from Discord. For more detail, see our [Data Collection
+and from Discord. A deleted item stays in our database but is no longer
+shown. For more detail, see our [Data Collection
 Policy](PLACEHOLDER-DATA-COLLECTION-POLICY-URL).
 
 ### 14. Changes to this policy
