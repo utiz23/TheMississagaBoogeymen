@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseNewsFactsResponse, runMinimum, type NewsFactsResponse } from './contract.js'
+import {
+  aiGoalieLabel,
+  parseNewsFactsResponse,
+  runMinimum,
+  type NewsFactsResponse,
+} from './contract.js'
 import {
   AI_GOALIE_NAMES,
   CLUB_LORE,
@@ -141,6 +146,7 @@ function sample(): NewsFactsResponse {
             shotsAgainst: 16,
             goalsAgainst: 4,
             savePct: 75,
+            label: null,
           },
           endedEarly: false,
           labels: null,
@@ -595,6 +601,7 @@ void test('contract: the AI goalie line and week totals parse; missing ones read
     shotsAgainst: 16,
     goalsAgainst: 4,
     savePct: 75,
+    label: null,
   })
   assert.deepEqual(parsed.facts.aiGoalieWeek, s.facts.aiGoalieWeek)
   // An AI goalie is never a person.
@@ -1007,4 +1014,23 @@ void test('runMinimum: the floor, or the smallest N with rate^N <= 0.1 (C2 tunin
   assert.equal(runMinimum(8, 0.6), 8)
   assert.equal(runMinimum(8, 0.85), 15)
   assert.equal(runMinimum(3, 1), Number.POSITIVE_INFINITY)
+})
+
+void test('aiGoalieLabel: meltdown under 75% on 10+ shots, steal from 92% on 15+; the label parses (C2 fix M1)', () => {
+  assert.equal(aiGoalieLabel(74.9, 10), 'meltdown')
+  assert.equal(aiGoalieLabel(70, 9), null)
+  assert.equal(aiGoalieLabel(75, 20), null)
+  assert.equal(aiGoalieLabel(92, 15), 'steal')
+  assert.equal(aiGoalieLabel(95, 14), null)
+  assert.equal(aiGoalieLabel(null, 30), null)
+  const s = sample()
+  s.facts.games[1]!.aiGoalie!.label = 'meltdown'
+  assert.deepEqual(parseNewsFactsResponse(clone(s)), s)
+  const old = clone(s) as unknown as {
+    facts: { games: { aiGoalie: Record<string, unknown> | null }[] }
+  }
+  delete old.facts.games[1]!.aiGoalie!['label']
+  assert.equal(parseNewsFactsResponse(old).facts.games[1]!.aiGoalie!.label, null)
+  old.facts.games[1]!.aiGoalie!['label'] = 'brick wall'
+  assert.throws(() => parseNewsFactsResponse(old), /aiGoalie\.label/)
 })

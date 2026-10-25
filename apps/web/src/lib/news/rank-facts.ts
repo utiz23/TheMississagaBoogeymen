@@ -278,10 +278,9 @@ function gameFacts(facts: NewsFacts, g: NewsGameFacts, push: Push): void {
   const ai = g.aiGoalie
   if (ai !== null && ai.savePct !== null) {
     const line = `${ai.name} (AI goalie): ${s(ai.saves)} saves on ${s(ai.shotsAgainst)} shots, ${s(ai.savePct)}%`
-    if (ai.savePct < 75 && ai.shotsAgainst >= 10)
-      push(id('ai-goalie'), `${line} — a meltdown`, 25, ai.name)
-    else if (ai.savePct >= 92 && ai.shotsAgainst >= 15)
-      push(id('ai-goalie'), `${line} — a steal`, 20, ai.name)
+    // The words come only from the sheet's AI goalie label (C2 fix M1).
+    if (ai.label === 'meltdown') push(id('ai-goalie'), `${line} — a meltdown`, 25, ai.name)
+    else if (ai.label === 'steal') push(id('ai-goalie'), `${line} — a steal`, 20, ai.name)
   }
   if (g.labels !== null && g.team !== null) {
     const t = g.team

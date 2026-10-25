@@ -441,6 +441,7 @@ const LEHMANN = {
   shotsAgainst: 16,
   goalsAgainst: 6,
   savePct: 62.5,
+  label: 'meltdown' as const,
 }
 
 void test('AI goalie: the name on the sheet is allowed in text and mentions, never in criticized (C1.1)', () => {
@@ -681,4 +682,21 @@ void test('labelClaims: drama only when a label supports it (C2)', () => {
   assert.deepEqual(labelClaims('A career high.', plain), [
     'It says "career high", but no line on the fact sheet has a career high.',
   ])
+})
+
+void test('labelClaims: an AI goalie meltdown or steal only with the sheet label (C2 fix M1)', () => {
+  const f = oct12Facts('game')
+  for (const t of [
+    'Matteo Lehmann had a meltdown.',
+    'A melt-down in net.',
+    'Lehmann stole the game.',
+    'That win was a steal.',
+  ])
+    assert.equal(labelClaims(t, f).length, 1, t)
+  // A steal of the puck is not a claim.
+  assert.deepEqual(labelClaims('Two steals and a takeaway.', f), [])
+  const melt = oct12Facts('game')
+  melt.games[1] = { ...melt.games[1]!, aiGoalieInNet: true, aiGoalie: LEHMANN }
+  assert.deepEqual(labelClaims('Matteo Lehmann had a meltdown.', melt), [])
+  assert.equal(labelClaims('Lehmann stole the game.', melt).length, 1)
 })

@@ -290,6 +290,7 @@ void test('rankFacts: texts use only numbers on the sheet; the ranked sheet pass
       shotsAgainst: 20,
       goalsAgainst: 0,
       savePct: 100,
+      label: 'steal',
     },
   })
   const f = sheet([g])

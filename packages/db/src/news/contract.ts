@@ -279,7 +279,7 @@ export interface NewsGoal {
  * Wagner" (players.ai_goalie_side). Not a person: never in `people`, no press
  * level, no pile-on limit; praise and blame are allowed.
  */
-export interface NewsAiGoalieLine {
+export interface NewsAiGoalieStats {
   name: string
   saves: number
   shotsAgainst: number
@@ -288,8 +288,33 @@ export interface NewsAiGoalieLine {
   savePct: number | null
 }
 
+/**
+ * An AI goalie's game read as a story (C2 fix M1): `meltdown` = save % under
+ * 75 on 10+ shots, `steal` = save % 92 or more on 15+ shots; else null.
+ * Words only. A writer may call a game a meltdown or a steal only with it.
+ */
+export const AI_GOALIE_LABELS = ['meltdown', 'steal'] as const
+export type AiGoalieLabel = (typeof AI_GOALIE_LABELS)[number]
+export const AI_GOALIE_MELTDOWN_PCT = 75
+export const AI_GOALIE_MELTDOWN_SHOTS = 10
+export const AI_GOALIE_STEAL_PCT = 92
+export const AI_GOALIE_STEAL_SHOTS = 15
+
+export function aiGoalieLabel(savePct: number | null, shotsAgainst: number): AiGoalieLabel | null {
+  if (savePct === null) return null
+  if (savePct < AI_GOALIE_MELTDOWN_PCT && shotsAgainst >= AI_GOALIE_MELTDOWN_SHOTS)
+    return 'meltdown'
+  if (savePct >= AI_GOALIE_STEAL_PCT && shotsAgainst >= AI_GOALIE_STEAL_SHOTS) return 'steal'
+  return null
+}
+
+export interface NewsAiGoalieLine extends NewsAiGoalieStats {
+  /** `aiGoalieLabel` of this game; missing (an older web app) reads as null. */
+  label: AiGoalieLabel | null
+}
+
 /** An AI goalie's totals over the week sheet's games. */
-export interface NewsAiGoalieWeek extends NewsAiGoalieLine {
+export interface NewsAiGoalieWeek extends NewsAiGoalieStats {
   games: number
 }
 
@@ -919,7 +944,7 @@ function parseTeam(v: unknown, path: string): NewsTeamStats {
   }
 }
 
-function parseAiGoalie(v: unknown, path: string): NewsAiGoalieLine {
+function parseAiGoalieStats(v: unknown, path: string): NewsAiGoalieStats {
   const o = obj(v, path)
   return {
     name: str(o['name'], `${path}.name`),
@@ -930,10 +955,20 @@ function parseAiGoalie(v: unknown, path: string): NewsAiGoalieLine {
   }
 }
 
+function parseAiGoalie(v: unknown, path: string): NewsAiGoalieLine {
+  const o = obj(v, path)
+  return {
+    ...parseAiGoalieStats(o, path),
+    label: opt(o, 'label', null, () =>
+      nullable(o['label'], `${path}.label`, (x, p) => oneOf(x, p, AI_GOALIE_LABELS)),
+    ),
+  }
+}
+
 function parseAiGoalieWeek(v: unknown, path: string): NewsAiGoalieWeek {
   const o = obj(v, path)
   return {
-    ...parseAiGoalie(o, path),
+    ...parseAiGoalieStats(o, path),
     games: nonNegInt(o['games'], `${path}.games`),
   }
 }

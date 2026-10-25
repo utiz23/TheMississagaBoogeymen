@@ -6,6 +6,7 @@
 import type { UnlockDescription } from '@eanhl/db/discord'
 import {
   CLUB_LORE,
+  aiGoalieLabel,
   emptyPlayerExtras,
   milestoneCrossed,
   nightKey,
@@ -326,12 +327,14 @@ function savePctAsShown(saves: number, shotsAgainst: number): number | null {
 function aiGoalieLine(p: GamePlayerInput): NewsAiGoalieLine | null {
   if (p.saves === null || p.goalsAgainst === null) return null
   const shotsAgainst = p.shotsAgainst ?? p.saves + p.goalsAgainst
+  const savePct = savePctAsShown(p.saves, shotsAgainst)
   return {
     name: p.gamertag.replace(/\s+/g, ' ').trim(),
     saves: p.saves,
     shotsAgainst,
     goalsAgainst: p.goalsAgainst,
-    savePct: savePctAsShown(p.saves, shotsAgainst),
+    savePct,
+    label: aiGoalieLabel(savePct, shotsAgainst),
   }
 }
 

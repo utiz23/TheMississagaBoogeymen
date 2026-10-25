@@ -519,6 +519,7 @@ export function checkFeatureFacts(
  *   `expected` (also catches "upset" as a feeling: rephrase);
  * - "panic": a game whose `context.result` is `panic`;
  * - "blowout": a game whose `context.margin` is `blowout`;
+ * - "meltdown" / "stole the game", "a steal": an AI goalie `label` (C2 fix M1);
  * - "first ... of the season" (up to 40 characters between, one sentence): a
  *   line's `firsts` or a title `debut`;
  * - "record" as an achievement ("club/team/franchise/all-time/new/single-season
@@ -569,6 +570,19 @@ export const LABEL_CLAIMS: readonly {
     pattern: /\bblow-?outs?\b/i,
     supported: (f) => f.games.some((g) => g.context?.margin === 'blowout'),
     problem: 'It says "blowout", but no game on the fact sheet is labelled a blowout.',
+  },
+  {
+    phrase: 'meltdown',
+    pattern: /\bmelt[- ]?downs?\b/i,
+    supported: (f) => f.games.some((g) => g.aiGoalie?.label === 'meltdown'),
+    problem: 'It says "meltdown", but no AI goalie line on the fact sheet has the meltdown label.',
+  },
+  {
+    phrase: 'steal',
+    pattern: /\b(stole|steals?|stealing) (the|a|this) (game|win|night)\b|\b(a|the|what a) steal\b/i,
+    supported: (f) => f.games.some((g) => g.aiGoalie?.label === 'steal'),
+    problem:
+      'It says the AI goalie stole the game, but no AI goalie line on the fact sheet has the steal label.',
   },
   {
     phrase: 'first ... of the season',

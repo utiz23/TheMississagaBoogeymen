@@ -1085,6 +1085,7 @@ void test('buildGameFacts: the AI goalie line, numbers as the match page shows t
     shotsAgainst: 21,
     goalsAgainst: 2,
     savePct: 90.5, // 19 / 21 = 90.476 -> the page's toFixed(1)
+    label: null, // 90.5% is under the 92% of a steal
   })
   assert.equal(g.aiGoalieInNet, true)
   // Never a player line.
