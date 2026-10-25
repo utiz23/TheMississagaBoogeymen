@@ -1,10 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { updatePlayerProfile } from '@eanhl/db/queries'
+import { getPlayerWithProfile, updatePlayerProfile } from '@eanhl/db/queries'
 import { getViewer } from '@/lib/auth'
 import { canEditPlayerCard } from '@/lib/card-permissions'
-import { parseProfileForm, pressLevelSetBy, type ProfileFormState } from '@/lib/profile-edit'
+import { parseProfileForm, withPressLevelChange, type ProfileFormState } from '@/lib/profile-edit'
 
 /**
  * Save a player's profile from the EDIT PROFILE form. Re-checks everything:
@@ -34,11 +34,9 @@ export async function saveProfileAction(
   }
 
   try {
-    // A press level carries who chose it; the news admin page shows that.
-    const patch =
-      parsed.patch.pressLevel === undefined
-        ? parsed.patch
-        : { ...parsed.patch, pressLevelSetBy: pressLevelSetBy(viewer, playerId) }
+    // The level and its "set by" mark change only when the level itself changes.
+    const stored = await getPlayerWithProfile(playerId)
+    const patch = withPressLevelChange(parsed.patch, stored?.pressLevel ?? 'full', viewer, playerId)
     await updatePlayerProfile(playerId, patch)
   } catch {
     return { status: 'error', message: 'Saving failed. Please try again.', errors: {} }

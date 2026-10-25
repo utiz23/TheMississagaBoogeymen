@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseProfileForm, pressLevelSetBy } from './profile-edit.ts'
+import { parseProfileForm, pressLevelSetBy, withPressLevelChange } from './profile-edit.ts'
 
 const form = (values: Record<string, string>) => (name: string) => values[name] ?? null
 
@@ -131,4 +131,32 @@ void test('press level is set by the admin only on another player', () => {
   assert.equal(pressLevelSetBy({ role: 'admin', playerId: 5 }, 5), 'self')
   assert.equal(pressLevelSetBy({ role: 'admin', playerId: null }, 5), 'admin')
   assert.equal(pressLevelSetBy({ role: 'user', playerId: 5 }, 5), 'self')
+})
+
+void test('a save that keeps the press level leaves level and set-by out of the patch', () => {
+  const patch = { bio: 'Hi', pressLevel: 'easy' as const }
+  const out = withPressLevelChange(patch, 'easy', { role: 'user', playerId: 5 }, 5)
+  assert.deepEqual(out, { bio: 'Hi' })
+  const admin = withPressLevelChange(patch, 'easy', { role: 'admin', playerId: 2 }, 5)
+  assert.deepEqual(admin, { bio: 'Hi' })
+})
+
+void test('a changed press level is stamped self for the player', () => {
+  const out = withPressLevelChange({ pressLevel: 'out' }, 'full', { role: 'user', playerId: 5 }, 5)
+  assert.deepEqual(out, { pressLevel: 'out', pressLevelSetBy: 'self' })
+})
+
+void test('a changed press level is stamped admin when an admin edits another player', () => {
+  const out = withPressLevelChange(
+    { pressLevel: 'easy' },
+    'full',
+    { role: 'admin', playerId: 2 },
+    5,
+  )
+  assert.deepEqual(out, { pressLevel: 'easy', pressLevelSetBy: 'admin' })
+})
+
+void test('a patch without a press level stays without one', () => {
+  const out = withPressLevelChange({ bio: 'x' }, 'full', { role: 'user', playerId: 5 }, 5)
+  assert.deepEqual(out, { bio: 'x' })
 })

@@ -153,6 +153,22 @@ export function pressLevelSetBy(
   return viewer.role === 'admin' && viewer.playerId !== playerId ? 'admin' : 'self'
 }
 
+/**
+ * Keep the press level in the patch only when it differs from the stored one,
+ * and then stamp who set it. A save that leaves the level alone (a bio edit)
+ * must not touch the level or its "set by" mark.
+ */
+export function withPressLevelChange(
+  patch: ProfilePatch,
+  storedLevel: PressLevel,
+  viewer: { role: string; playerId: number | null },
+  playerId: number,
+): ProfilePatch {
+  const { pressLevel, pressLevelSetBy: _ignored, ...rest } = patch
+  if (pressLevel === undefined || pressLevel === storedLevel) return rest
+  return { ...rest, pressLevel, pressLevelSetBy: pressLevelSetBy(viewer, playerId) }
+}
+
 /** What the profile form shows after a submit. */
 export type ProfileFormState =
   | { status: 'idle' }
