@@ -298,7 +298,7 @@ void test('system prompt: the goal timeline may be used, with no play details (B
   const s = buildSystemPrompt(all)
   assert.ok(
     s.includes(
-      'When a game has a goal timeline, you may say in which period and at which clock time a goal came, who scored it for us and who assisted, and that an opponent scored. clockMeaning says whether the clock counts up (elapsed) or down (remaining). Do not describe how a goal was scored — the timeline has no play details.',
+      'When a game has a goal timeline, you may say in which period and at which clock time a goal came, who scored it for the Boogeymen and who assisted, and that an opponent scored. clockMeaning says whether the clock counts up (elapsed) or down (remaining). Do not describe how a goal was scored — the timeline has no play details.',
     ),
   )
 })
@@ -390,7 +390,7 @@ void test('game prompt: the first post is the recap — result, score, scorers, 
   assert.ok(/exactly one post/i.test(p))
   assert.ok(p.includes('the recap of the game'))
   assert.ok(p.includes('the result and the score'))
-  assert.ok(p.includes('who scored for us'))
+  assert.ok(p.includes('who scored for the Boogeymen'))
   assert.ok(p.includes('"a guest"'))
   assert.ok(p.includes('"an opponent"'))
   assert.ok(p.includes('exactly one key number'))
@@ -543,4 +543,57 @@ void test('feature prompt: kind instructions, 600-900 words, prediction and rece
   assert.ok(withPrev.includes(`Last week's prediction: "Someone finally beats the goalie."`))
   assert.ok(withPrev.includes('- receipt: one or two sentences'))
   assert.ok(withPrev.includes('only from this sheet'))
+})
+
+void test('system prompt (C3a.2): every writing rule of spec §12.8-§12.19', () => {
+  const s = buildSystemPrompt(all)
+  for (const needle of [
+    // AI goalies: named, praise/blame allowed, not teammates.
+    'Matteo Lehmann and Jonas Wagner',
+    'Praise and blame of their numbers are allowed',
+    'They are not teammates and not club members',
+    // Labels.
+    'Labels are binding.',
+    'No drama that no label supports.',
+    'The result label ("games[].context.result") sets the mood',
+    'Typical patterns are not news.',
+    // Ended early, plus-minus, positions, TOA in seconds.
+    'give it one neutral line with the result and the score only',
+    'Never cite plus-minus or game score',
+    '"games[].players[].position": F forward, D defence, G goalie',
+    'is in SECONDS',
+    'never as a clock time',
+    // Fairness.
+    'Never for a D or a G. At most one per night',
+    '"zeroCalled"',
+    'Penalty minutes only when a player has 10 or more, and at most once a night.',
+    "A reply argues with a number from the sheet. No remarks about the other reporter's motives, clicks",
+    '"takesUsed"',
+    'never two "weaker player" takes in one piece',
+    '"stances"',
+    // Craft and style.
+    'At most 3 numbers in a sentence. No list of more than 3 values. At most 2 clock times in an article.',
+    'An article never opens with the date and the record.',
+    'sentence case',
+    'The dek never repeats the headline.',
+    'Each milestone gets its own sentence',
+    'never write "we", "us", "our" or "ours"',
+    'Scores winner first',
+    '"83.1%"',
+    '"40-11-5"',
+    '"Friday, May 8"',
+    'lore',
+    'invent nothing around it',
+    'mild swearing (hell, damn, crap) only for Dex Mercer, Gord Pettibone and Rico Vale',
+    'Never a slur',
+    'Winning fixes almost everything.',
+    'never called luck',
+    'keep their caveats',
+    'at most about one article in three ends with one',
+  ]) {
+    assert.ok(s.includes(needle), needle)
+  }
+  // The old "no praise or blame" AI goalie rule is gone, and no rule says "us".
+  assert.ok(!s.includes('get no praise or blame'))
+  assert.ok(!/for us\b|against us\b/.test(s))
 })
