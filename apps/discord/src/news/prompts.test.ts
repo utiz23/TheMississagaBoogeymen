@@ -238,3 +238,21 @@ void test('review prompt: clubs only from games[].opponentName; off-ice places; 
   }
   assert.ok(p.includes('A claim about what a player wanted, felt or thought.'))
 })
+
+void test('system prompt: the goal timeline may be used, with no play details (B1)', () => {
+  const s = buildSystemPrompt(all)
+  assert.ok(
+    s.includes(
+      'When a game has a goal timeline, you may say in which period and at which clock time a goal came, who scored it for us and who assisted, and that an opponent scored. clockMeaning says whether the clock counts up (elapsed) or down (remaining). Do not describe how a goal was scored — the timeline has no play details.',
+    ),
+  )
+})
+
+void test('review prompt: goal timeline facts are allowed (B1)', () => {
+  const p = buildReviewPrompt({ facts: oct12Facts(), text: 'x' })
+  assert.ok(
+    p.includes(
+      'Facts from a game\'s "goals" timeline are allowed: the period and clock of a goal, who scored it for us, who assisted, and that an opponent scored. How a goal was scored is not on the sheet.',
+    ),
+  )
+})

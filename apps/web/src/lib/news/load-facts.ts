@@ -7,6 +7,7 @@ import { describeUnlock } from '@eanhl/db/discord'
 import {
   getClubMemberIds,
   getMatchById,
+  getMatchEvents,
   getMatchLineups,
   getMatchPeriodSummaries,
   getOpponentPlayerMatchStats,
@@ -47,6 +48,7 @@ import {
   unlockText,
   type GameFactsArgs,
   type GamePlayerInput,
+  type GoalEventInput,
 } from './build-facts'
 
 /** An unlock counts when it lands up to this long after the last game of the sheet. */
@@ -63,6 +65,8 @@ interface LoadedGame {
   shots: { for: number; against: number }
   passPct: number | null
   periods: GameFactsArgs['periods']
+  /** The match page's event rows (its trust filter: EA rows, reviewed OCR and manual rows). */
+  goalEvents: GoalEventInput[]
   /** BGM player rows with this game's score and star rank (AI-goalie flag not set yet). */
   stats: (BgmStat & { gameScore: number | null; star: 1 | 2 | 3 | null })[]
 }
@@ -76,11 +80,12 @@ async function loadGame(match: Match): Promise<LoadedGame | null> {
   const result = countedResult(match.result)
   if (result === null) return null
 
-  const [playerStats, opponentPlayerStats, lineups, periodSummaries] = await Promise.all([
+  const [playerStats, opponentPlayerStats, lineups, periodSummaries, events] = await Promise.all([
     getPlayerMatchStats(match.id),
     getOpponentPlayerMatchStats(match.id),
     getMatchLineups(match.id),
     getMatchPeriodSummaries(match.id),
+    getMatchEvents(match.id),
   ])
 
   const stars = starsForMatch(match, playerStats, opponentPlayerStats, lineups)
@@ -131,6 +136,24 @@ async function loadGame(match: Match): Promise<LoadedGame | null> {
     },
     passPct: passPctOf(passCompletions, passAttempts),
     periods: periodsFromSummaries(periodSummaries, match.scoreFor, match.scoreAgainst),
+    goalEvents: events
+      .filter((e) => e.eventType === 'goal')
+      .map(
+        (e): GoalEventInput => ({
+          id: e.id,
+          eventType: e.eventType,
+          periodNumber: e.periodNumber,
+          periodLabel: e.periodLabel,
+          clock: e.clock,
+          teamSide: e.teamSide,
+          goalNumberInGame: e.goalNumberInGame,
+          scorerId: e.scorer?.id ?? null,
+          scorerSnapshot: e.scorerSnapshot,
+          actorId: e.actor?.id ?? null,
+          primaryAssistId: e.primaryAssist?.id ?? null,
+          secondaryAssistId: e.secondaryAssist?.id ?? null,
+        }),
+      ),
     stats,
   }
 }
@@ -208,6 +231,7 @@ async function loadSheet(
       ),
       people,
       memberIds,
+      goalEvents: g.goalEvents,
     }),
   )
 

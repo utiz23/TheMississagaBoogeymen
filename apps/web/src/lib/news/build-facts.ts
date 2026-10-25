@@ -8,10 +8,14 @@ import {
   nightKey,
   type NewsFacts,
   type NewsGameFacts,
+  type NewsGoal,
+  type NewsGoalPeriod,
   type NewsPerson,
   type NewsPlayerLine,
   type PressLevel,
 } from '@eanhl/db/news'
+// The match page's goal timeline functions: the sheet shows its clocks the page's way.
+import { clockToSeconds, toElapsedClock } from '../event-timeline.ts'
 
 // ── People ───────────────────────────────────────────────────────────────────
 
@@ -130,6 +134,128 @@ export interface GameFactsArgs {
   people: readonly NewsPerson[]
   /** Club member ids: an unnamed member is a teammate at press level `out`, not a guest. */
   memberIds: ReadonlySet<number>
+  /** The match page's event rows (`getMatchEvents`, its trust filter applied); only goals are used. */
+  goalEvents: readonly GoalEventInput[]
+}
+
+// ── Goal timeline ────────────────────────────────────────────────────────────
+
+/** The fields of a match-page event row (`MatchEventRow`) the timeline needs. */
+export interface GoalEventInput {
+  id: number
+  eventType: string
+  periodNumber: number
+  periodLabel: string | null
+  /** Stored as the in-game countdown, `MM:SS` remaining. */
+  clock: string | null
+  teamSide: string | null
+  goalNumberInGame: number | null
+  scorerId: number | null
+  scorerSnapshot: string | null
+  actorId: number | null
+  primaryAssistId: number | null
+  secondaryAssistId: number | null
+}
+
+const PERIOD_BY_NUMBER: Record<number, NewsGoalPeriod> = {
+  1: '1st',
+  2: '2nd',
+  3: '3rd',
+  4: 'OT',
+  5: 'OT2',
+  6: 'OT3',
+}
+
+/**
+ * The sheet's period name. The number decides, as on the match page (OCR
+ * writes prefixes such as "RT 2ND PERIOD" into the label); the label is read
+ * only when the number is not a period 1-6. EASHL has no shootout.
+ */
+export function normalizePeriod(periodNumber: number, label: string | null): NewsGoalPeriod | null {
+  const byNumber = PERIOD_BY_NUMBER[periodNumber]
+  if (byNumber) return byNumber
+  const l = (label ?? '').toUpperCase()
+  const ot = /\bOT\s*([23])?\b/.exec(l)
+  if (ot) return ot[1] === '2' ? 'OT2' : ot[1] === '3' ? 'OT3' : 'OT'
+  if (/\b1ST\b/.test(l)) return '1st'
+  if (/\b2ND\b/.test(l)) return '2nd'
+  if (/\b3RD\b/.test(l)) return '3rd'
+  return null
+}
+
+const PERIOD_SECONDS = 20 * 60
+
+/** A stored `MM:SS` countdown inside one period, or null. */
+function validClock(clock: string | null): string | null {
+  const c = clock?.trim() ?? ''
+  const m = /^(\d{1,2}):(\d{2})$/.exec(c)
+  if (!m || Number(m[2]) > 59) return null
+  return clockToSeconds(c) <= PERIOD_SECONDS ? c : null
+}
+
+/** The scorer the match page shows: the scorer row, else (no snapshot either) the actor. */
+function scorerIdOf(e: GoalEventInput): number | null {
+  if (e.scorerId !== null) return e.scorerId
+  if (e.scorerSnapshot !== null && e.scorerSnapshot.trim() !== '') return null
+  return e.actorId
+}
+
+/**
+ * The goal timeline for the sheet. Null when the game has no goal events, when
+ * the events miss a goal of the final score (the match page then says the rest
+ * were not captured), or when a goal has no usable period or clock: a partial
+ * timeline would let a story claim "the only goal of the period". Clocks are
+ * the match page's (elapsed). Only `people` are named; an opponent goal never
+ * has a scorer or assists.
+ */
+export function buildGoalTimeline(
+  events: readonly GoalEventInput[],
+  people: readonly NewsPerson[],
+  score: { for: number; against: number },
+): Pick<NewsGameFacts, 'goals' | 'clockMeaning'> {
+  const none = { goals: null, clockMeaning: null }
+  const goals = events.filter((e) => e.eventType === 'goal')
+  if (goals.length === 0) return none
+  const countFor = goals.filter((e) => e.teamSide === 'for').length
+  if (countFor !== score.for || goals.length - countFor !== score.against) return none
+
+  const nameById = new Map(people.map((p) => [p.playerId, p.name]))
+  const nameOf = (id: number | null) => (id === null ? undefined : nameById.get(id))
+  const rows: { e: GoalEventInput; goal: NewsGoal; periodIndex: number }[] = []
+  for (const e of goals) {
+    const period = normalizePeriod(e.periodNumber, e.periodLabel)
+    const clock = validClock(e.clock)
+    const elapsed = toElapsedClock(clock)
+    if (period === null || clock === null || elapsed === null) return none
+    const side = e.teamSide === 'for' ? 'for' : 'against'
+    const assists =
+      side === 'for'
+        ? [e.primaryAssistId, e.secondaryAssistId].flatMap((id) => {
+            const n = nameOf(id)
+            return n === undefined ? [] : [n]
+          })
+        : []
+    rows.push({
+      e,
+      periodIndex: Object.values(PERIOD_BY_NUMBER).indexOf(period),
+      goal: {
+        period,
+        clock: elapsed,
+        side,
+        scorer: side === 'for' ? (nameOf(scorerIdOf(e)) ?? null) : null,
+        assists,
+      },
+    })
+  }
+  // As played: period, then the countdown from high to low, then the goal number.
+  rows.sort(
+    (a, b) =>
+      a.periodIndex - b.periodIndex ||
+      clockToSeconds(b.e.clock) - clockToSeconds(a.e.clock) ||
+      (a.e.goalNumberInGame ?? 0) - (b.e.goalNumberInGame ?? 0) ||
+      a.e.id - b.e.id,
+  )
+  return { goals: rows.map((r) => r.goal), clockMeaning: 'elapsed' }
 }
 
 const round1 = (n: number): number => Math.round(n * 10) / 10
@@ -250,6 +376,10 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     unnamedTeammates,
     unnamedGoals,
     unnamedAssists,
+    ...buildGoalTimeline(args.goalEvents, args.people, {
+      for: match.scoreFor,
+      against: match.scoreAgainst,
+    }),
   }
 }
 

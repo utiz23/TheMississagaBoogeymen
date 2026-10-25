@@ -6,12 +6,15 @@ import {
   buildGameFacts,
   buildMilestones,
   buildPeople,
+  buildGoalTimeline,
   buildRecordAndStreak,
+  normalizePeriod,
   passPctOf,
   periodsFromSummaries,
   unlockText,
   type GameFactsArgs,
   type GamePlayerInput,
+  type GoalEventInput,
 } from './build-facts.ts'
 
 const profile = (name: string | null, pressLevel: 'full' | 'easy' | 'out' = 'full') => ({
@@ -208,6 +211,7 @@ const gameArgs = (over: Partial<GameFactsArgs> = {}): GameFactsArgs => ({
   people: [{ playerId: 1, name: 'Hero Name', position: 'center', pressLevel: 'full' }],
   // Hero and OutGuy are members (OutGuy at "out"); GuestA and GuestB are not. Lehmann is an AI goalie.
   memberIds: new Set([1, 2, 5]),
+  goalEvents: [],
   ...over,
 })
 
@@ -575,4 +579,158 @@ void test('buildGameFacts: opponent club name has whitespace runs collapsed and 
     gameArgs({ match: { ...gameArgs().match, opponentName: ' Shake   N   Bake ' } }),
   )
   assert.equal(g.opponentName, 'Shake N Bake')
+})
+
+// ── Goal timeline (B1) ───────────────────────────────────────────────────────
+
+const goalEvent = (over: Partial<GoalEventInput> & Pick<GoalEventInput, 'id'>): GoalEventInput => ({
+  eventType: 'goal',
+  periodNumber: 1,
+  periodLabel: '1ST',
+  clock: '10:00',
+  teamSide: 'for',
+  goalNumberInGame: null,
+  scorerId: null,
+  scorerSnapshot: null,
+  actorId: null,
+  primaryAssistId: null,
+  secondaryAssistId: null,
+  ...over,
+})
+
+// gameArgs(): a 3-2 win. Hero (1) is named; OutGuy (2) is a member at "out";
+// GuestA (3) is a guest; Lehmann (5) is an AI goalie.
+const fullTimeline: GoalEventInput[] = [
+  goalEvent({
+    id: 11,
+    periodNumber: 2,
+    periodLabel: 'RT 2ND PERIOD',
+    clock: '15:00',
+    scorerId: 2,
+    primaryAssistId: 1,
+    secondaryAssistId: 3,
+  }),
+  goalEvent({ id: 10, clock: '12:30', scorerId: 1, primaryAssistId: 5 }),
+  goalEvent({ id: 12, clock: '18:00', teamSide: 'against', actorId: 99, primaryAssistId: 1 }),
+  goalEvent({ id: 20, eventType: 'shot', clock: '19:00', actorId: 1 }),
+  goalEvent({ id: 13, periodNumber: 3, periodLabel: '3RD', clock: '00:30', teamSide: 'against' }),
+  goalEvent({
+    id: 14,
+    periodNumber: 4,
+    periodLabel: 'RT OT',
+    clock: '17:15',
+    scorerId: 3,
+    primaryAssistId: 1,
+  }),
+]
+
+void test('normalizePeriod: the period number wins (as on the match page); labels are the fallback', () => {
+  assert.equal(normalizePeriod(1, '1ST'), '1st')
+  assert.equal(normalizePeriod(2, 'RT 2ND PERIOD'), '2nd')
+  assert.equal(normalizePeriod(3, 'RT 3RD'), '3rd')
+  assert.equal(normalizePeriod(4, 'RT OT'), 'OT')
+  assert.equal(normalizePeriod(5, 'OT2'), 'OT2')
+  assert.equal(normalizePeriod(6, 'OT3'), 'OT3')
+  assert.equal(normalizePeriod(2, 'RT 3RD PERIOD'), '2nd')
+  assert.equal(normalizePeriod(0, 'RT 2ND PERIOD'), '2nd')
+  assert.equal(normalizePeriod(0, '2ND'), '2nd')
+  assert.equal(normalizePeriod(0, 'RT OT'), 'OT')
+  assert.equal(normalizePeriod(0, 'OT 2'), 'OT2')
+  assert.equal(normalizePeriod(0, 'RT OT3'), 'OT3')
+  assert.equal(normalizePeriod(0, 'SHOOTOUT'), null)
+  assert.equal(normalizePeriod(7, null), null)
+})
+
+void test('goal timeline: ordered as played, elapsed clocks, only sheet names, opponents never named', () => {
+  const g = buildGameFacts(gameArgs({ goalEvents: fullTimeline }))
+  assert.equal(g.clockMeaning, 'elapsed')
+  assert.deepEqual(g.goals, [
+    // P1 18:00 left = 02:00 elapsed; an opponent goal: no scorer, no assists, whatever the row says.
+    { period: '1st', clock: '02:00', side: 'against', scorer: null, assists: [] },
+    // The AI goalie's assist is left out.
+    { period: '1st', clock: '07:30', side: 'for', scorer: 'Hero Name', assists: [] },
+    // The out-member's goal: scorer null; the guest's assist is left out.
+    { period: '2nd', clock: '05:00', side: 'for', scorer: null, assists: ['Hero Name'] },
+    { period: '3rd', clock: '19:30', side: 'against', scorer: null, assists: [] },
+    // The guest's goal in OT: scorer null.
+    { period: 'OT', clock: '02:45', side: 'for', scorer: null, assists: ['Hero Name'] },
+  ])
+  // The sheet passes the shared contract.
+  const parsed = parseNewsFactsResponse(
+    JSON.parse(
+      JSON.stringify({
+        facts: buildFacts({
+          kind: 'game',
+          key: '2026-10-12',
+          gameTitleName: 'NHL 27',
+          games: [g],
+          record: { wins: 1, losses: 0, otl: 0 },
+          streak: null,
+          unlocks: [],
+          milestones: [],
+          recentNights: [],
+          people: [...gameArgs().people],
+        }),
+        forbiddenNames: [],
+      }),
+    ),
+  )
+  assert.deepEqual(parsed.facts.games[0]!.goals, g.goals)
+})
+
+void test('goal timeline: the scorer is picked as the match page picks it', () => {
+  const people = gameArgs().people
+  const score = { for: 1, against: 0 }
+  // No scorer row: the actor is shown.
+  assert.equal(
+    buildGoalTimeline([goalEvent({ id: 1, actorId: 1 })], people, score).goals?.[0]?.scorer,
+    'Hero Name',
+  )
+  // A scorer snapshot without an id: the page shows that text, so no named scorer.
+  assert.equal(
+    buildGoalTimeline([goalEvent({ id: 1, scorerSnapshot: 'Hero', actorId: 1 })], people, score)
+      .goals?.[0]?.scorer,
+    null,
+  )
+})
+
+void test('goal timeline: null when the game has no goal events', () => {
+  const none = buildGameFacts(gameArgs())
+  assert.equal(none.goals, null)
+  assert.equal(none.clockMeaning, null)
+  const shotsOnly = buildGameFacts(
+    gameArgs({ goalEvents: [goalEvent({ id: 1, eventType: 'shot' })] }),
+  )
+  assert.equal(shotsOnly.goals, null)
+  assert.equal(shotsOnly.clockMeaning, null)
+})
+
+void test('goal timeline: null when it misses goals, or a goal has no usable clock or period', () => {
+  const partial = fullTimeline.filter((e) => e.id !== 13)
+  assert.equal(buildGameFacts(gameArgs({ goalEvents: partial })).goals, null)
+  const noClock = fullTimeline.map((e) => (e.id === 10 ? { ...e, clock: null } : e))
+  assert.equal(buildGameFacts(gameArgs({ goalEvents: noClock })).goals, null)
+  const badClock = fullTimeline.map((e) => (e.id === 10 ? { ...e, clock: '25:00' } : e))
+  assert.equal(buildGameFacts(gameArgs({ goalEvents: badClock })).goals, null)
+  const badPeriod = fullTimeline.map((e) =>
+    e.id === 14 ? { ...e, periodNumber: 9, periodLabel: 'SHOOTOUT' } : e,
+  )
+  const r = buildGameFacts(gameArgs({ goalEvents: badPeriod }))
+  assert.equal(r.goals, null)
+  assert.equal(r.clockMeaning, null)
+})
+
+void test('goal timeline: two goals at the same clock keep their goal number order', () => {
+  const t = buildGoalTimeline(
+    [
+      goalEvent({ id: 2, clock: '10:00', goalNumberInGame: 2, teamSide: 'against' }),
+      goalEvent({ id: 1, clock: '10:00', goalNumberInGame: 1, scorerId: 1 }),
+    ],
+    gameArgs().people,
+    { for: 1, against: 1 },
+  )
+  assert.deepEqual(
+    t.goals?.map((x) => x.side),
+    ['for', 'against'],
+  )
 })

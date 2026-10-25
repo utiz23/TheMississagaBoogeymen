@@ -33,6 +33,23 @@ export interface NewsPlayerLine {
   star: 1 | 2 | 3 | null
 }
 
+/** A period as the match page names it. EASHL has no shootout: periods 4-6 are OT, OT2, OT3. */
+export const NEWS_GOAL_PERIODS = ['1st', '2nd', '3rd', 'OT', 'OT2', 'OT3'] as const
+export type NewsGoalPeriod = (typeof NEWS_GOAL_PERIODS)[number]
+
+/** One goal of a game's timeline, as the match page shows it. */
+export interface NewsGoal {
+  period: NewsGoalPeriod
+  /** `MM:SS`, exactly as the match page shows it; see `NewsGameFacts.clockMeaning`. */
+  clock: string
+  /** `for` = a Boogeymen goal. */
+  side: 'for' | 'against'
+  /** A name from `people`, or null (opponent, guest, unnamed teammate, AI goalie, unknown). */
+  scorer: string | null
+  /** Names from `people` only; everyone else is left out. */
+  assists: string[]
+}
+
 export interface NewsGameFacts {
   matchId: number
   night: string
@@ -69,6 +86,10 @@ export interface NewsGameFacts {
   unnamedGoals: number
   /** Assists by the same unnamed players. */
   unnamedAssists: number
+  /** The goals in the order they were scored, or null when the game has no complete timeline. */
+  goals: NewsGoal[] | null
+  /** Whether `goals[].clock` counts up from 00:00 (elapsed) or down to 00:00 (remaining). Null without goals. */
+  clockMeaning: 'elapsed' | 'remaining' | null
 }
 
 export interface NewsRecord {
@@ -215,6 +236,42 @@ function parseTeam(v: unknown, path: string): NewsGameFacts['team'] {
   }
 }
 
+function parseGoal(v: unknown, path: string): NewsGoal {
+  const o = obj(v, path)
+  const clock = str(o['clock'], `${path}.clock`)
+  if (!/^\d{1,2}:\d{2}$/.test(clock)) fail(`${path}.clock`, 'is not an MM:SS clock')
+  return {
+    period: oneOf(o['period'], `${path}.period`, NEWS_GOAL_PERIODS),
+    clock,
+    side: oneOf(o['side'], `${path}.side`, ['for', 'against']),
+    scorer: nullable(o['scorer'], `${path}.scorer`, str),
+    assists: arr(o['assists'], `${path}.assists`, str),
+  }
+}
+
+/**
+ * The timeline and its clock meaning. A missing `goals` reads as null, so a
+ * sheet from a web app without the timeline still parses. A timeline needs a
+ * clock meaning.
+ */
+function parseTimeline(
+  o: Record<string, unknown>,
+  path: string,
+): Pick<NewsGameFacts, 'goals' | 'clockMeaning'> {
+  const goals =
+    o['goals'] === undefined
+      ? null
+      : nullable(o['goals'], `${path}.goals`, (x, p) => arr(x, p, parseGoal))
+  const raw = o['clockMeaning'] === undefined ? null : o['clockMeaning']
+  const clockMeaning = nullable(raw, `${path}.clockMeaning`, (x, p) =>
+    oneOf(x, p, ['elapsed', 'remaining']),
+  )
+  if (goals !== null && clockMeaning === null) {
+    fail(`${path}.clockMeaning`, 'is required when goals are present')
+  }
+  return { goals, clockMeaning: goals === null ? null : clockMeaning }
+}
+
 function parseGame(v: unknown, path: string): NewsGameFacts {
   const o = obj(v, path)
   return {
@@ -245,6 +302,7 @@ function parseGame(v: unknown, path: string): NewsGameFacts {
     unnamedTeammates: int(o['unnamedTeammates'], `${path}.unnamedTeammates`),
     unnamedGoals: nonNegInt(o['unnamedGoals'], `${path}.unnamedGoals`),
     unnamedAssists: nonNegInt(o['unnamedAssists'], `${path}.unnamedAssists`),
+    ...parseTimeline(o, path),
   }
 }
 

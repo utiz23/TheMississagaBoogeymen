@@ -73,6 +73,11 @@ function sample(): NewsFactsResponse {
           unnamedTeammates: 1,
           unnamedGoals: 1,
           unnamedAssists: 2,
+          goals: [
+            { period: '1st', clock: '05:12', side: 'for', scorer: 'Silky', assists: [] },
+            { period: 'OT', clock: '01:40', side: 'against', scorer: null, assists: [] },
+          ],
+          clockMeaning: 'elapsed',
         },
         {
           matchId: 2502,
@@ -102,6 +107,8 @@ function sample(): NewsFactsResponse {
           unnamedTeammates: 0,
           unnamedGoals: 0,
           unnamedAssists: 0,
+          goals: null,
+          clockMeaning: null,
         },
       ],
       nightTotals: {
@@ -274,4 +281,36 @@ void test('relationships: seven lines between known reporters; press levels re-e
     assert.ok(r.note.length > 0)
   }
   assert.deepEqual([...PRESS_LEVELS], ['full', 'easy', 'out'])
+})
+
+void test('contract: a goal timeline parses; a missing timeline reads as none (B1)', () => {
+  const ok = parseNewsFactsResponse(clone(sample()))
+  assert.deepEqual(ok.facts.games[0]!.goals, sample().facts.games[0]!.goals)
+  assert.equal(ok.facts.games[0]!.clockMeaning, 'elapsed')
+  assert.equal(ok.facts.games[1]!.goals, null)
+  assert.equal(ok.facts.games[1]!.clockMeaning, null)
+  // A sheet from a web app without the timeline still parses (deploy order).
+  const old = clone(sample()) as unknown as { facts: { games: Record<string, unknown>[] } }
+  delete old.facts.games[0]!['goals']
+  delete old.facts.games[0]!['clockMeaning']
+  const parsed = parseNewsFactsResponse(old)
+  assert.equal(parsed.facts.games[0]!.goals, null)
+  assert.equal(parsed.facts.games[0]!.clockMeaning, null)
+})
+
+void test('contract: rejects a bad goal period, side, clock, scorer or clockMeaning (B1)', () => {
+  type G = { facts: { games: { goals: Record<string, unknown>[]; clockMeaning: unknown }[] } }
+  const bad = (edit: (s: G) => void, re: RegExp) => {
+    const s = clone(sample()) as unknown as G
+    edit(s)
+    assert.throws(() => parseNewsFactsResponse(s), re)
+  }
+  bad((s) => (s.facts.games[0]!.goals[0]!['period'] = 'SO'), /goals\[0\]\.period/)
+  bad((s) => (s.facts.games[0]!.goals[0]!['period'] = 2), /goals\[0\]\.period/)
+  bad((s) => (s.facts.games[0]!.goals[0]!['side'] = 'bgm'), /goals\[0\]\.side/)
+  bad((s) => (s.facts.games[0]!.goals[0]!['clock'] = '5 min'), /goals\[0\]\.clock/)
+  bad((s) => (s.facts.games[0]!.goals[0]!['scorer'] = 7), /goals\[0\]\.scorer/)
+  bad((s) => (s.facts.games[0]!.goals[0]!['assists'] = [1]), /goals\[0\]\.assists/)
+  bad((s) => (s.facts.games[0]!.clockMeaning = 'up'), /clockMeaning/)
+  bad((s) => (s.facts.games[0]!.clockMeaning = null), /clockMeaning/)
 })

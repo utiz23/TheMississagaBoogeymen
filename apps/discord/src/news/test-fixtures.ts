@@ -75,6 +75,8 @@ const game1: NewsGameFacts = {
   unnamedTeammates: 0,
   unnamedGoals: 0,
   unnamedAssists: 0,
+  goals: null,
+  clockMeaning: null,
 }
 
 const game2: NewsGameFacts = {

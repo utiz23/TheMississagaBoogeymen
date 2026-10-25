@@ -178,3 +178,59 @@ void test('ids and clock digits are not stats (R16)', () => {
     ok: true,
   })
 })
+
+// ── Goal timeline clocks (B1) ────────────────────────────────────────────────
+
+function withTimeline(kind: 'game' | 'night' = 'game') {
+  const f = oct12Facts(kind)
+  f.games[0] = {
+    ...f.games[0]!,
+    goals: [
+      { period: '1st', clock: '03:58', side: 'for', scorer: 'Skater A', assists: ['Skater B'] },
+      { period: '2nd', clock: '18:44', side: 'against', scorer: null, assists: [] },
+    ],
+    clockMeaning: 'elapsed',
+  }
+  return f
+}
+
+void test('timeline: a clock on the sheet passes, also without the leading zero (B1)', () => {
+  const f = withTimeline()
+  for (const t of [
+    'Skater A scored at 03:58 of the first.',
+    'Skater A scored at 3:58 of the first, and they answered at 18:44 of the second.',
+  ]) {
+    assert.deepEqual(checkFacts(t, f, FORBIDDEN, none), { ok: true }, t)
+  }
+})
+
+void test('timeline: a clock not on the sheet fails as a game clock (B1)', () => {
+  const p = problems(checkFacts('A goal at 12:34 of the third.', withTimeline(), FORBIDDEN, none))
+  assert.deepEqual(p, ['The game clock 12:34 is not on the fact sheet.'])
+  // No timeline at all: every clock fails.
+  assert.equal(checkFacts('At 03:58 of the first.', oct12Facts(), FORBIDDEN, none).ok, false)
+  // Articles are checked the same way.
+  const night = withTimeline('night')
+  const body = Array.from({ length: 300 }, () => 'word').join(' ')
+  const r = checkArticleFacts(
+    {
+      headline: 'Late at 12:34',
+      dek: 'x',
+      paragraphs: [body],
+      summary: 's',
+      mentions: [],
+      clubs: [],
+    },
+    night,
+    FORBIDDEN,
+  )
+  assert.deepEqual(problems(r), ['The game clock 12:34 is not on the fact sheet.'])
+})
+
+void test('timeline: clock digits are not stats (B1)', () => {
+  const f = withTimeline()
+  const a = allowedNumbers(f)
+  for (const n of [58, 18, 44]) assert.equal(a.has(n), false, String(n))
+  assert.equal(checkFacts('They had 58 shots.', f, FORBIDDEN, none).ok, false)
+  assert.equal(checkFacts('Forty-four hits.', f, FORBIDDEN, none).ok, false)
+})

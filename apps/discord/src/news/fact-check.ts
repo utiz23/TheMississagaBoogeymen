@@ -56,8 +56,37 @@ function parseDigits(run: string): number {
   return Number(run.replace(/,/g, ''))
 }
 
-/** Keys whose numbers are identifiers or clock digits, never stats (R16). */
-const NON_STAT_KEYS = new Set(['playerId', 'matchId', 'playedAt', 'period'])
+/** Keys whose numbers are identifiers or clock digits, never stats (R16; `clock` B1). */
+const NON_STAT_KEYS = new Set(['playerId', 'matchId', 'playedAt', 'period', 'clock'])
+
+/** A game clock in text, such as "3:58" or "03:58". */
+const CLOCK = /\b(\d{1,2}):(\d{2})\b/g
+
+const clockSeconds = (minutes: string, seconds: string): number =>
+  Number(minutes) * 60 + Number(seconds)
+
+/**
+ * Game clocks in the text must be goal clocks on the sheet (compared by value,
+ * so "3:58" equals "03:58"). Returns the problems and the text with every
+ * clock removed, so clock digits are never checked as stats.
+ */
+function clockProblems(text: string, facts: NewsFacts): { problems: string[]; rest: string } {
+  const onSheet = new Set<number>()
+  for (const g of facts.games) {
+    for (const goal of g.goals ?? []) {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(goal.clock)
+      if (m) onSheet.add(clockSeconds(m[1]!, m[2]!))
+    }
+  }
+  const problems: string[] = []
+  const rest = text.replace(CLOCK, (whole, minutes: string, seconds: string) => {
+    if (!onSheet.has(clockSeconds(minutes, seconds))) {
+      problems.push(`The game clock ${whole} is not on the fact sheet.`)
+    }
+    return ' '
+  })
+  return { problems, rest }
+}
 
 /**
  * Every number anywhere in the sheet (values and digits inside strings), plus
@@ -123,7 +152,8 @@ function check(
   out: { mentions: string[]; clubs: string[] },
   length: LengthRule,
 ): string[] {
-  const problems = numberProblems(text, allowedNumbers(facts))
+  const clocks = clockProblems(text, facts)
+  const problems = [...clocks.problems, ...numberProblems(clocks.rest, allowedNumbers(facts))]
 
   // The problem text never repeats the name: it goes back to the model in the
   // rewrite prompt, into news_jobs.last_error and into the logs.
