@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { REPORTER_IDS } from '@eanhl/db/news'
 import { oct12Facts } from './test-fixtures.ts'
 import {
   criticizedAsOnSheet,
@@ -21,6 +22,9 @@ const post = (reporter: string) => ({
   mentions: [],
   clubs: [],
   criticized: [],
+  zeroCalled: [],
+  stances: [],
+  takesUsed: [],
 })
 
 void test('parseGamePosts accepts the assigned reporters in order', () => {
@@ -36,13 +40,17 @@ void test('parseGamePosts rejects a reporter not assigned, 3 posts, an extra fie
   assert.throws(() =>
     parseGamePosts({ posts: [post('a'), post('b'), post('c')] }, ['barlow', 'quill']),
   )
-  assert.throws(() =>
+  // C3a: the buzz assigns 1 to 9 posts (one per reporter); 3 assigned is fine, 10 never.
+  assert.equal(
     parseGamePosts({ posts: [post('barlow'), post('quill'), post('voss')] }, [
       'barlow',
       'quill',
       'voss',
-    ]),
+    ]).posts.length,
+    3,
   )
+  const ten = [...REPORTER_IDS, 'barlow' as const]
+  assert.throws(() => parseGamePosts({ posts: ten.map(post) }, ten), /1 to 9/)
   assert.throws(() => parseGamePosts({ posts: [{ ...post('barlow'), extra: 1 }] }, ['barlow']))
   assert.throws(() => parseGamePosts({ posts: [post('barlow')], more: true }, ['barlow']))
   assert.throws(() => parseGamePosts({ posts: [post('barlow')] }, ['barlow', 'quill']))
@@ -59,6 +67,9 @@ const article = {
   mentions: ['Skater A'],
   clubs: ['Shake N Bake'],
   criticized: [],
+  zeroCalled: [],
+  stances: [],
+  takesUsed: [],
 }
 
 void test('parseArticle', () => {
@@ -150,8 +161,8 @@ void test('feature schema: the article fields plus prediction and receipt (rev 2
   assert.ok((FEATURE_SCHEMA.required as readonly string[]).includes('prediction'))
   assert.ok((FEATURE_SCHEMA.required as readonly string[]).includes('receipt'))
   assert.equal(FEATURE_SCHEMA.additionalProperties, false)
-  const f = { ...article, prediction: 'They win the week.', receipt: '' }
-  assert.deepEqual(parseFeature(f), f)
+  const f = { ...article, prediction: 'They win the week.', receipt: '', receiptVerdict: 'none' }
+  assert.deepEqual(parseFeature(f), { ...f, receiptVerdict: null })
   assert.equal(parseFeature({ ...f, receipt: 'It came true.' }).receipt, 'It came true.')
   assert.throws(() => parseFeature({ ...f, prediction: ' ' }), /prediction/)
   const { prediction: _p, ...noPrediction } = f
@@ -159,6 +170,16 @@ void test('feature schema: the article fields plus prediction and receipt (rev 2
   const { receipt: _r, ...noReceipt } = f
   assert.throws(() => parseFeature(noReceipt), /receipt/)
   assert.throws(() => parseFeature({ ...f, receipt: 3 }), /receipt/)
+  // C3a.4: the verdict is hit, miss or none (none = no prediction to judge).
+  assert.deepEqual(FEATURE_SCHEMA.properties.receiptVerdict, {
+    type: 'string',
+    enum: ['hit', 'miss', 'none'],
+  })
+  assert.equal(parseFeature({ ...f, receiptVerdict: 'hit' }).receiptVerdict, 'hit')
+  assert.equal(parseFeature({ ...f, receiptVerdict: 'miss' }).receiptVerdict, 'miss')
+  assert.throws(() => parseFeature({ ...f, receiptVerdict: 'maybe' }), /receiptVerdict/)
+  const { receiptVerdict: _v, ...noVerdict } = f
+  assert.throws(() => parseFeature(noVerdict), /receiptVerdict/)
   // A night article does not take them.
   assert.throws(() => parseArticle(f), /unexpected field/)
 })
@@ -172,4 +193,39 @@ void test("criticizedAsOnSheet: stored with the sheet's spelling, each person on
   // A name not on the sheet (the fact check already rejects those) stays as written, trimmed.
   assert.deepEqual(criticizedAsOnSheet(['  Igor ', ''], facts), ['Igor'])
   assert.deepEqual(criticizedAsOnSheet([], facts), [])
+})
+
+void test('piece fields (C3a.4): zeroCalled, stances and takesUsed on posts and articles', () => {
+  for (const props of [
+    GAME_POSTS_SCHEMA.properties.posts.items.properties,
+    ARTICLE_SCHEMA.properties,
+  ]) {
+    assert.deepEqual(props.zeroCalled, { type: 'array', items: { type: 'string' } })
+    assert.deepEqual(props.takesUsed, { type: 'array', items: { type: 'integer' } })
+    assert.deepEqual(props.stances.items.required, ['threadKey', 'stance'])
+  }
+  const p = {
+    ...post('barlow'),
+    zeroCalled: ['Skater A'],
+    stances: [{ threadKey: 'pp-drought@2026-10-08', stance: 'It ends soon.' }],
+    takesUsed: [3],
+  }
+  assert.deepEqual(parseGamePosts({ posts: [p] }, ['barlow']).posts[0], p)
+  for (const bad of [
+    { ...p, zeroCalled: [1] },
+    { ...p, stances: [{ threadKey: 'x' }] },
+    { ...p, stances: [{ threadKey: '', stance: 'y' }] },
+    { ...p, stances: [{ threadKey: 'x', stance: 'y', extra: 1 }] },
+    { ...p, takesUsed: ['3'] },
+    { ...p, takesUsed: [0] },
+    { ...p, takesUsed: [1.5] },
+  ]) {
+    assert.throws(() => parseGamePosts({ posts: [bad] }, ['barlow']), JSON.stringify(bad))
+  }
+  const { takesUsed: _t, ...noTakes } = p
+  assert.throws(() => parseGamePosts({ posts: [noTakes] }, ['barlow']), /takesUsed/)
+  const a = { ...article, zeroCalled: [], stances: [], takesUsed: [7] }
+  assert.deepEqual(parseArticle(a).takesUsed, [7])
+  const { stances: _s, ...noStances } = a
+  assert.throws(() => parseArticle(noStances), /stances/)
 })

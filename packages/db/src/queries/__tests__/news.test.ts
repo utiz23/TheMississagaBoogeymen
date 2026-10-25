@@ -43,6 +43,8 @@ const {
   reporterActivitySql,
   lastFeatureSql,
   nightCriticizedSql,
+  nightZeroCalledSql,
+  rowsToNightZeroCalled,
   nightPostsForPromptSql,
   rowToNightPost,
   rowToActivity,
@@ -426,6 +428,16 @@ void test('raw feed row: criticized, prediction and feature kind (rev 2)', () =>
   assert.equal(old.prediction, null)
   assert.equal(old.featureKind, null)
   assert.equal(old.receiptVerdict, null)
+  // Part C3a: zero_called and takes_used, as text or arrays; absent = [].
+  assert.deepEqual(old.zeroCalled, [])
+  assert.deepEqual(old.takesUsed, [])
+  const c3 = rawToNewsItem({
+    ...base,
+    zero_called: JSON.stringify(['Hero Name']),
+    takes_used: [4, 9],
+  } as never)
+  assert.deepEqual(c3.zeroCalled, ['Hero Name'])
+  assert.deepEqual(c3.takesUsed, [4, 9])
 })
 
 void test('schema: reporter ids match the cast; rev 2 columns and checks (pins)', () => {
@@ -988,4 +1000,53 @@ void test('migration 0071: receipt_verdict hit | miss on features only (C2.9)', 
   assert.ok(
     text.indexOf('"receipt_verdict" text') < text.indexOf('news_items_receipt_verdict_check'),
   )
+})
+
+void test('night zero-called (C3a): tonight and the previous night with items; test items only when asked', () => {
+  const q = dialect.sqlToQuery(nightZeroCalledSql('2026-10-12', false))
+  const s = flat(q.sql)
+  assert.match(
+    s,
+    /select to_char\(n\.night, 'YYYY-MM-DD'\) as night, n\.zero_called from news_items n where n\.deleted_at is null and \(n\.is_test = false or \$1\) and \( n\.night = \$2::date or n\.night = \( select max\(p\.night\) from news_items p where p\.night < \$3::date and p\.deleted_at is null and \(p\.is_test = false or \$4\) \) \) order by n\.id asc/,
+  )
+  assert.deepEqual(q.params, [false, '2026-10-12', '2026-10-12', false])
+  assert.deepEqual(
+    rowsToNightZeroCalled('2026-10-12', [
+      { night: '2026-10-08', zero_called: ['Old Name'] },
+      { night: '2026-10-12', zero_called: JSON.stringify(['Hero Name']) },
+      { night: '2026-10-12', zero_called: ['Hero Name'] },
+      { night: '2026-10-12', zero_called: null },
+    ]),
+    { tonight: ['Hero Name'], previous: ['Old Name'] },
+  )
+})
+
+void test('migration 0071: zero_called and takes_used arrays (C3a), idempotent checks', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const raw = await readFile(
+    new URL('../../../migrations/0071_news_desk.sql', import.meta.url),
+    'utf8',
+  )
+  const text = flat(
+    raw
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('--'))
+      .join('\n'),
+  )
+  for (const col of ['zero_called', 'takes_used']) {
+    assert.ok(
+      text.includes(
+        `ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "${col}" jsonb DEFAULT '[]'::jsonb NOT NULL;`,
+      ),
+      col,
+    )
+    assert.ok(
+      text.includes(
+        `DO $$ BEGIN ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_${col}_array_check"; ALTER TABLE "news_items" ADD CONSTRAINT "news_items_${col}_array_check" CHECK (jsonb_typeof("${col}") = 'array'); END $$;`,
+      ),
+      col,
+    )
+  }
+  const cols = getTableConfig(newsItems).columns.map((c) => c.name)
+  assert.ok(cols.includes('zero_called') && cols.includes('takes_used'))
 })

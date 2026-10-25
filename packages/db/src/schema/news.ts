@@ -121,6 +121,10 @@ export const newsItems = pgTable(
     featureKind: text('feature_kind').$type<FeatureKind>(),
     /** Part C2: a weekly feature's verdict on the previous prediction; null when none. */
     receiptVerdict: text('receipt_verdict').$type<ReceiptVerdict>(),
+    /** Part C3a: players the item called out for a zero (spec §12.12-5). */
+    zeroCalled: jsonb('zero_called').$type<string[]>().notNull().default([]),
+    /** Part C3a: ids of the reporter takes the item voiced (spec §12.19). */
+    takesUsed: jsonb('takes_used').$type<number[]>().notNull().default([]),
     isTest: boolean('is_test').notNull().default(false),
     discordStatus: text('discord_status').$type<DiscordPostStatus>().notNull().default('pending'),
     discordAttempts: integer('discord_attempts').notNull().default(0),
@@ -146,6 +150,8 @@ export const newsItems = pgTable(
       sql`${table.prediction} IS NULL OR ${table.featureKind} IS NOT NULL`,
     ),
     check('news_items_criticized_array_check', sql`jsonb_typeof(${table.criticized}) = 'array'`),
+    check('news_items_zero_called_array_check', sql`jsonb_typeof(${table.zeroCalled}) = 'array'`),
+    check('news_items_takes_used_array_check', sql`jsonb_typeof(${table.takesUsed}) = 'array'`),
     check(
       'news_items_receipt_verdict_check',
       sql`${table.receiptVerdict} IS NULL OR (${table.receiptVerdict} IN ('hit', 'miss') AND ${table.featureKind} IS NOT NULL)`,

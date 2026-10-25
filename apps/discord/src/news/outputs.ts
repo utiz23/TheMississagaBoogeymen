@@ -10,6 +10,29 @@ import { REPORTER_IDS, type NewsFacts, type ReporterId } from '@eanhl/db/news'
  */
 
 const STRING_ARRAY = { type: 'array', items: { type: 'string' } } as const
+const INTEGER_ARRAY = { type: 'array', items: { type: 'integer' } } as const
+
+/** A stance on a thread of the sheet (C3a.4, spec §12.17-3): stored via `insertStance`. */
+const STANCES = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: { threadKey: { type: 'string' }, stance: { type: 'string' } },
+    required: ['threadKey', 'stance'],
+    additionalProperties: false,
+  },
+} as const
+
+/**
+ * The fields every piece adds (C3a.4): `zeroCalled` (zero call-outs, spec
+ * §12.12-5), `stances` on threads, `takesUsed` (ids of reporter takes, §12.19).
+ */
+const PIECE_FIELDS = {
+  zeroCalled: STRING_ARRAY,
+  stances: STANCES,
+  takesUsed: INTEGER_ARRAY,
+} as const
+const PIECE_KEYS = ['zeroCalled', 'stances', 'takesUsed'] as const
 
 export const GAME_POSTS_SCHEMA = {
   type: 'object',
@@ -24,8 +47,9 @@ export const GAME_POSTS_SCHEMA = {
           mentions: STRING_ARRAY,
           clubs: STRING_ARRAY,
           criticized: STRING_ARRAY,
+          ...PIECE_FIELDS,
         },
-        required: ['reporter', 'text', 'mentions', 'clubs', 'criticized'],
+        required: ['reporter', 'text', 'mentions', 'clubs', 'criticized', ...PIECE_KEYS],
         additionalProperties: false,
       },
     },
@@ -44,15 +68,29 @@ export const ARTICLE_SCHEMA = {
     mentions: STRING_ARRAY,
     clubs: STRING_ARRAY,
     criticized: STRING_ARRAY,
+    ...PIECE_FIELDS,
   },
-  required: ['headline', 'dek', 'paragraphs', 'summary', 'mentions', 'clubs', 'criticized'],
+  required: [
+    'headline',
+    'dek',
+    'paragraphs',
+    'summary',
+    'mentions',
+    'clubs',
+    'criticized',
+    ...PIECE_KEYS,
+  ],
   additionalProperties: false,
 } as const
 
+/** The receipt's verdict as the model writes it: `none` when there was no prediction to judge. */
+export const RECEIPT_VERDICT_OUTPUTS = ['hit', 'miss', 'none'] as const
+
 /**
  * A weekly feature (rev 2, B3): the article fields plus `prediction` (one
- * short prediction about next week, no numbers) and `receipt` (one or two
- * sentences on last week's prediction, or "" when there was none).
+ * short prediction about next week, no numbers), `receipt` (one or two
+ * sentences on last week's prediction, or "" when there was none) and
+ * `receiptVerdict` (C3a.4: hit / miss, `none` without a prediction).
  */
 export const FEATURE_SCHEMA = {
   type: 'object',
@@ -60,8 +98,9 @@ export const FEATURE_SCHEMA = {
     ...ARTICLE_SCHEMA.properties,
     prediction: { type: 'string' },
     receipt: { type: 'string' },
+    receiptVerdict: { type: 'string', enum: [...RECEIPT_VERDICT_OUTPUTS] },
   },
-  required: [...ARTICLE_SCHEMA.required, 'prediction', 'receipt'],
+  required: [...ARTICLE_SCHEMA.required, 'prediction', 'receipt', 'receiptVerdict'],
   additionalProperties: false,
 } as const
 
@@ -96,6 +135,44 @@ function text(v: unknown, path: string): string {
   return v
 }
 
+/** A stance on a thread, as written (C3a.4). */
+export interface PieceStance {
+  threadKey: string
+  stance: string
+}
+
+/** The fields every piece adds (C3a.4). */
+export interface PieceExtras {
+  /** Players the piece calls out for a zero (spec §12.12-5). */
+  zeroCalled: string[]
+  stances: PieceStance[]
+  /** Ids of the reporter takes the piece voiced (spec §12.19). */
+  takesUsed: number[]
+}
+
+function pieceExtras(o: Record<string, unknown>, path: string): PieceExtras {
+  const at = (k: string) => (path === '' ? k : `${path}.${k}`)
+  const rawStances = o['stances']
+  if (!Array.isArray(rawStances)) fail(at('stances'), 'is not an array')
+  const stances = rawStances.map((x: unknown, i): PieceStance => {
+    const p = `${at('stances')}[${String(i)}]`
+    const so = closedObject(x, p, ['threadKey', 'stance'])
+    return {
+      threadKey: text(so['threadKey'], `${p}.threadKey`),
+      stance: text(so['stance'], `${p}.stance`),
+    }
+  })
+  const rawTakes = o['takesUsed']
+  if (!Array.isArray(rawTakes)) fail(at('takesUsed'), 'is not an array')
+  const takesUsed = rawTakes.map((x: unknown, i) => {
+    if (typeof x !== 'number' || !Number.isSafeInteger(x) || x <= 0) {
+      fail(`${at('takesUsed')}[${String(i)}]`, 'is not a take id')
+    }
+    return x
+  })
+  return { zeroCalled: strings(o['zeroCalled'], at('zeroCalled')), stances, takesUsed }
+}
+
 function strings(v: unknown, path: string): string[] {
   if (!Array.isArray(v)) fail(path, 'is not an array')
   return v.map((x, i) => {
@@ -104,7 +181,7 @@ function strings(v: unknown, path: string): string[] {
   })
 }
 
-export interface GamePost {
+export interface GamePost extends PieceExtras {
   reporter: ReporterId
   text: string
   mentions: string[]
@@ -113,21 +190,33 @@ export interface GamePost {
   criticized: string[]
 }
 
+/** At most one post per reporter of the cast (a historic game, spec §12.14). */
+export const MAX_GAME_POSTS = REPORTER_IDS.length
+
 /**
- * `expected` is the assignment: one reporter per post, in order. The model
- * must return exactly those posts (so 1 or 2, never more).
+ * `expected` is the assignment: one reporter per post, in order (the buzz
+ * count, 1 to 9). The model must return exactly those posts.
  */
 export function parseGamePosts(v: unknown, expected: readonly ReporterId[]): { posts: GamePost[] } {
   const root = closedObject(v, 'root', ['posts'])
   const raw = root['posts']
   if (!Array.isArray(raw)) fail('posts', 'is not an array')
-  if (expected.length < 1 || expected.length > 2) fail('posts', 'must be assigned 1 or 2 reporters')
+  if (expected.length < 1 || expected.length > MAX_GAME_POSTS) {
+    fail('posts', `must be assigned 1 to ${String(MAX_GAME_POSTS)} reporters`)
+  }
   if (raw.length !== expected.length) {
     fail('posts', `has ${String(raw.length)} posts, expected ${String(expected.length)}`)
   }
   const posts = raw.map((item: unknown, i): GamePost => {
     const p = `posts[${String(i)}]`
-    const o = closedObject(item, p, ['reporter', 'text', 'mentions', 'clubs', 'criticized'])
+    const o = closedObject(item, p, [
+      'reporter',
+      'text',
+      'mentions',
+      'clubs',
+      'criticized',
+      ...PIECE_KEYS,
+    ])
     const reporter = expected[i]!
     if (o['reporter'] !== reporter)
       fail(`${p}.reporter`, `is not the assigned reporter "${reporter}"`)
@@ -137,6 +226,7 @@ export function parseGamePosts(v: unknown, expected: readonly ReporterId[]): { p
       mentions: strings(o['mentions'], `${p}.mentions`),
       clubs: strings(o['clubs'], `${p}.clubs`),
       criticized: strings(o['criticized'], `${p}.criticized`),
+      ...pieceExtras(o, p),
     }
   })
   return { posts }
@@ -152,7 +242,7 @@ function limited(v: string, path: string, max: number): string {
   return v
 }
 
-export interface Article {
+export interface Article extends PieceExtras {
   headline: string
   dek: string
   paragraphs: string[]
@@ -171,6 +261,7 @@ const ARTICLE_KEYS = [
   'mentions',
   'clubs',
   'criticized',
+  ...PIECE_KEYS,
 ] as const
 
 function articleFields(o: Record<string, unknown>): Article {
@@ -184,6 +275,7 @@ function articleFields(o: Record<string, unknown>): Article {
     mentions: strings(o['mentions'], 'mentions'),
     clubs: strings(o['clubs'], 'clubs'),
     criticized: strings(o['criticized'], 'criticized'),
+    ...pieceExtras(o, ''),
   }
 }
 
@@ -195,16 +287,23 @@ export interface Feature extends Article {
   prediction: string
   /** "" when there was no previous prediction. */
   receipt: string
+  /** The receipt's verdict (C3a.4); null when there was no prediction ("none"). */
+  receiptVerdict: 'hit' | 'miss' | null
 }
 
 export function parseFeature(v: unknown): Feature {
-  const o = closedObject(v, 'root', [...ARTICLE_KEYS, 'prediction', 'receipt'])
+  const o = closedObject(v, 'root', [...ARTICLE_KEYS, 'prediction', 'receipt', 'receiptVerdict'])
   const receipt = o['receipt']
   if (typeof receipt !== 'string') fail('receipt', 'is not a string')
+  const verdict = o['receiptVerdict']
+  if (!(RECEIPT_VERDICT_OUTPUTS as readonly unknown[]).includes(verdict)) {
+    fail('receiptVerdict', 'is not hit, miss or none')
+  }
   return {
     ...articleFields(o),
     prediction: text(o['prediction'], 'prediction'),
     receipt,
+    receiptVerdict: verdict === 'none' ? null : (verdict as 'hit' | 'miss'),
   }
 }
 
@@ -228,6 +327,11 @@ export function featureBody(
 }
 
 const nameKey = (s: string): string => s.replace(/\s+/g, ' ').trim().toLowerCase()
+
+/** `zeroCalled` as stored (C3a.4): the same spelling rule as `criticizedAsOnSheet`. */
+export function zeroCalledAsOnSheet(names: readonly string[], facts: NewsFacts): string[] {
+  return criticizedAsOnSheet(names, facts)
+}
 
 /**
  * `criticized` as stored (Part C1.9, Q7): each name in the sheet's

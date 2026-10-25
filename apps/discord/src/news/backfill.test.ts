@@ -205,6 +205,9 @@ function goodAnswer(job: BackfillJob): string {
       mentions: ['Skater A'],
       clubs: ['Shake N Bake'],
       criticized: [],
+      zeroCalled: [],
+      stances: [],
+      takesUsed: [],
     })),
   })
 }
@@ -229,6 +232,9 @@ void test('check: a failed fact check is a rewrite with the problems and the rew
       mentions: [],
       clubs: [],
       criticized: [],
+      zeroCalled: [],
+      stances: [],
+      takesUsed: [],
     })),
   })
   const e = evaluateJob(job, answer, null)
@@ -314,6 +320,9 @@ function answerCriticizing(job: BackfillJob, criticized: string[]): string {
       mentions: ['Skater A'],
       clubs: ['Shake N Bake'],
       criticized: i === 0 ? criticized : [],
+      zeroCalled: [],
+      stances: [],
+      takesUsed: [],
     })),
   })
 }
@@ -446,6 +455,9 @@ async function acceptedNight() {
       clubs: [],
       // Other spellings: the import stores the sheet's (C1.9, Q7).
       criticized: i === 0 && job.matchId === 250 ? ['goalie g'] : [],
+      zeroCalled: [],
+      stances: [],
+      takesUsed: [],
     })),
   })
   const article = {
@@ -456,6 +468,9 @@ async function acceptedNight() {
     mentions: ['Skater A', 'Nobody'],
     clubs: [],
     criticized: ['SKATER A'],
+    zeroCalled: [],
+    stances: [],
+    takesUsed: [],
   }
   return plan.jobs.map((job) => ({
     job,
@@ -610,8 +625,12 @@ function featureAnswer(over: Record<string, unknown> = {}): string {
     mentions: [],
     clubs: [],
     criticized: [],
+    zeroCalled: [],
+    stances: [],
+    takesUsed: [],
     prediction: 'Someone finally beats the goalie.',
     receipt: '',
+    receiptVerdict: 'none',
     ...over,
   })
 }
@@ -655,7 +674,7 @@ void test('next-feature: one job per call, chained on the latest ACCEPTED featur
     assert.ok(second.user.includes(`Last week's prediction: "Someone finally beats the goalie."`))
 
     // The same week again, an earlier week, a day that is not a Monday: refused.
-    accept(dir, second, featureAnswer({ receipt: 'It did not come true.' }))
+    accept(dir, second, featureAnswer({ receipt: 'It did not come true.', receiptVerdict: 'miss' }))
     await assert.rejects(planNextFeature({ out: dir, week: '2026-05-11', fetchFacts }), /already/)
     await assert.rejects(planNextFeature({ out: dir, week: '2026-05-04', fetchFacts }), /forward/)
     await assert.rejects(planNextFeature({ out: dir, week: '2026-05-19', fetchFacts }), /Monday/)
@@ -690,7 +709,9 @@ void test('next-feature: Rink only when no Rink item is within 14 days of the fe
           dir,
           job,
           featureAnswer({
-            ...(job.previousPrediction === null ? {} : { receipt: 'It did not.' }),
+            ...(job.previousPrediction === null
+              ? {}
+              : { receipt: 'It did not.', receiptVerdict: 'miss' }),
             // A notes column has 10-15 items.
             ...(job.featureKind === 'notes'
               ? { paragraphs: Array.from({ length: 10 }, () => words(70)) }
@@ -743,7 +764,11 @@ void test('import: a feature has its week, kind, prediction, slug and the follow
     accept(dir, first, featureAnswer())
     const second = await planNextFeature({ out: dir, week: '2026-05-11', fetchFacts })
     const answer = JSON.parse(
-      featureAnswer({ receipt: 'It did not come true.', criticized: ['skater a'] }),
+      featureAnswer({
+        receipt: 'It did not come true.',
+        receiptVerdict: 'miss',
+        criticized: ['skater a'],
+      }),
     ) as Record<string, unknown>
     const { rows, store } = fakeStore()
     await importAccepted([{ job: second, output: answer as never }], store, () => {})

@@ -614,6 +614,56 @@ export async function nightCriticized(night: string, includeTest: boolean): Prom
   return out
 }
 
+/**
+ * The `zero_called` lists of a night's items and of the previous night that
+ * has items (C3a, spec §12.12-5: one zero call-out per night, never the same
+ * player two nights in a row). Deleted items do not count; test items only
+ * when `includeTest`.
+ */
+export function nightZeroCalledSql(night: string, includeTest: boolean): SQL {
+  return sql`
+    select to_char(n.night, 'YYYY-MM-DD') as night, n.zero_called
+    from news_items n
+    where n.deleted_at is null
+      and (n.is_test = false or ${includeTest})
+      and (
+        n.night = ${night}::date
+        or n.night = (
+          select max(p.night) from news_items p
+          where p.night < ${night}::date
+            and p.deleted_at is null
+            and (p.is_test = false or ${includeTest})
+        )
+      )
+    order by n.id asc`
+}
+
+/** Names called out for a zero tonight and on the previous night, each once, first-seen order. */
+export function rowsToNightZeroCalled(
+  night: string,
+  rows: readonly { night: string; zero_called: string[] | string | null }[],
+): { tonight: string[]; previous: string[] } {
+  const out = { tonight: [] as string[], previous: [] as string[] }
+  for (const r of rows) {
+    const list =
+      typeof r.zero_called === 'string' ? (JSON.parse(r.zero_called) as unknown) : r.zero_called
+    if (!Array.isArray(list)) continue
+    const into = r.night === night ? out.tonight : out.previous
+    for (const name of list) if (typeof name === 'string' && !into.includes(name)) into.push(name)
+  }
+  return out
+}
+
+export async function nightZeroCalled(
+  night: string,
+  includeTest: boolean,
+): Promise<{ tonight: string[]; previous: string[] }> {
+  const rows = await db.execute<{ night: string; zero_called: string[] | string | null }>(
+    nightZeroCalledSql(night, includeTest),
+  )
+  return rowsToNightZeroCalled(night, rows)
+}
+
 /** One post of a night for the night article's prompt (Part C1.8, spec §12.12-7). */
 export interface NewsNightPost {
   reporter: string
@@ -791,6 +841,9 @@ type RawNewsItem = {
   feature_kind?: NewsItemRow['featureKind']
   /** Part C2 column; absent on an older row shape. */
   receipt_verdict?: NewsItemRow['receiptVerdict']
+  /** Part C3a columns; absent on an older row shape. */
+  zero_called?: string[] | string
+  takes_used?: number[] | string
   is_test: boolean
   discord_status: NewsItemRow['discordStatus']
   discord_attempts: number
@@ -806,6 +859,12 @@ const toDate = (v: string | Date): Date => (v instanceof Date ? v : new Date(v))
 const toDateOrNull = (v: string | Date | null): Date | null => (v === null ? null : toDate(v))
 const toDay = (v: string | Date | null): string | null =>
   v === null ? null : v instanceof Date ? v.toISOString().slice(0, 10) : v
+
+/** A jsonb array column as postgres.js may hand it back (parsed, or as text); absent = []. */
+function jsonArray<T>(v: T[] | string | undefined): T[] {
+  if (v === undefined) return []
+  return typeof v === 'string' ? (JSON.parse(v) as T[]) : v
+}
 
 export function rawToNewsItem(r: RawNewsItem): NewsItemRow {
   return {
@@ -833,6 +892,8 @@ export function rawToNewsItem(r: RawNewsItem): NewsItemRow {
     prediction: r.prediction ?? null,
     featureKind: r.feature_kind ?? null,
     receiptVerdict: r.receipt_verdict ?? null,
+    zeroCalled: jsonArray<string>(r.zero_called),
+    takesUsed: jsonArray<number>(r.takes_used),
     isTest: r.is_test,
     discordStatus: r.discord_status,
     discordAttempts: r.discord_attempts,

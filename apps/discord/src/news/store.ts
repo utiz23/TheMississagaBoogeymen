@@ -19,6 +19,8 @@ import {
   recentReporterSummaries,
   recordNewsUsage,
   reporterActivity,
+  nightZeroCalled,
+  insertStance,
 } from '@eanhl/db/queries'
 import { REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
 import type { NewsStore } from './cycle.ts'
@@ -56,4 +58,6 @@ export const newsDbStore: NewsStore = {
   recordNewsUsage,
   lastFeature,
   nightCriticized,
+  nightZeroCalled,
+  insertStance,
 }

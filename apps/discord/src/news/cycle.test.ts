@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import type { NewNewsItem, NewNewsUsage, NewsItemRow } from '@eanhl/db/queries'
+import type { NewNewsItem, NewNewsStance, NewNewsUsage, NewsItemRow } from '@eanhl/db/queries'
 import type { NewsFactsResponse, NewsGameFacts } from '@eanhl/db/news'
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
@@ -60,6 +60,9 @@ const goodWriter: ModelCall = async (req) => {
           mentions: [],
           clubs: [],
           criticized: [],
+          zeroCalled: [],
+          stances: [],
+          takesUsed: [],
         })),
       },
     }
@@ -75,6 +78,9 @@ const goodWriter: ModelCall = async (req) => {
         mentions: [],
         clubs: [],
         criticized: [],
+        zeroCalled: [],
+        stances: [],
+        takesUsed: [],
       },
     }
   }
@@ -89,8 +95,12 @@ const goodWriter: ModelCall = async (req) => {
         mentions: [],
         clubs: [],
         criticized: [],
+        zeroCalled: [],
+        stances: [],
+        takesUsed: [],
         prediction: 'Someone finally beats the goalie.',
         receipt: req.user.includes("Last week's prediction: none.") ? '' : 'It did not come true.',
+        receiptVerdict: req.user.includes("Last week's prediction: none.") ? 'none' : 'miss',
       },
     }
   }
@@ -105,6 +115,7 @@ function harness(
   const jobs = new Map<string, Job>()
   const items = new Map<number, NewsItemRow>()
   const usage: NewNewsUsage[] = []
+  const stances: NewNewsStance[] = []
   const sent: NewsWebhookPayload[] = []
   const dry: { key: string; payload: NewsWebhookPayload }[] = []
   const writerCalls: string[] = []
@@ -191,6 +202,8 @@ function harness(
         prediction: item.prediction ?? null,
         featureKind: item.featureKind ?? null,
         receiptVerdict: item.receiptVerdict ?? null,
+        zeroCalled: item.zeroCalled ?? [],
+        takesUsed: item.takesUsed ?? [],
         isTest: item.isTest ?? false,
         discordStatus: item.discordStatus ?? 'pending',
         discordAttempts: 0,
@@ -253,6 +266,24 @@ function harness(
           .flatMap((i) => i.criticized),
       ),
     ],
+    nightZeroCalled: async (night, includeTest) => {
+      const live = [...items.values()].filter(
+        (i) => i.deletedAt === null && (includeTest || !i.isTest) && i.night !== null,
+      )
+      const previous = live
+        .map((i) => i.night!)
+        .filter((n) => n < night)
+        .sort()
+        .at(-1)
+      const names = (n: string | undefined) => [
+        ...new Set(live.filter((i) => i.night === n).flatMap((i) => i.zeroCalled)),
+      ]
+      return { tonight: names(night), previous: previous === undefined ? [] : names(previous) }
+    },
+    insertStance: async (st) => {
+      stances.push(st)
+      return stances.length
+    },
     recordNewsUsage: async (row) => void usage.push(row),
     ...over.store,
   }
@@ -290,7 +321,7 @@ function harness(
     monthlyLimitUsd: 10,
     state: createNewsCycleState(),
   }
-  return { deps, opts, state, events, jobs, items, usage, sent, dry, writerCalls }
+  return { deps, opts, state, events, jobs, items, usage, sent, dry, writerCalls, stances }
 }
 
 const logs = (events: string[]) => events.filter((e) => e.startsWith('log:'))
@@ -1095,6 +1126,9 @@ void test("game: the night's harsh list goes into the prompt; a repeat is rewrit
               clubs: [],
               // First write: post 1 piles on Skater A. Rewrite: Goalie G, once.
               criticized: writes === 1 ? ['Skater A'] : i === 0 ? ['Goalie G'] : [],
+              zeroCalled: [],
+              stances: [],
+              takesUsed: [],
             })),
           },
         }
@@ -1137,6 +1171,9 @@ void test('game: the second post may not pile on the first post of the same game
               mentions: [],
               clubs: [],
               criticized: ['Goalie G'],
+              zeroCalled: [],
+              stances: [],
+              takesUsed: [],
             })),
           },
         }
@@ -1171,4 +1208,54 @@ void test("night: the article's prompt carries the night's harsh list; criticize
   await runNewsCycle(h.deps, h.opts)
   assert.ok(prompts[0]!.includes('Already criticised harshly tonight: Goalie G.'))
   assert.deepEqual(h.items.get(1)!.criticized, ['Skater A'])
+})
+
+void test('C3a.4: zeroCalled, takesUsed and stances are stored with the item; unknown thread keys dropped', async () => {
+  const thread = {
+    key: 'pp-drought@2026-10-08',
+    kind: 'pp-drought' as const,
+    subject: null,
+    since: '2026-10-08',
+    status: 'open' as const,
+    summary: 'No power-play goal in 3 games with a chance.',
+  }
+  const h = harness({
+    candidates: [501],
+    deps: {
+      fetchFacts: async (kind, key) => {
+        const r = gameResponse(Number(key))
+        return { ...r, facts: { ...r.facts, threads: [thread] } }
+      },
+      writer: async (req) => {
+        const r = await goodWriter(req)
+        if (req.schema !== GAME_POSTS_SCHEMA) return r
+        const posts = (r.json as { posts: Record<string, unknown>[] }).posts.map((p, i) =>
+          i === 0
+            ? {
+                ...p,
+                zeroCalled: ['skater  a'],
+                stances: [
+                  { threadKey: thread.key, stance: 'It ends this week.' },
+                  { threadKey: 'nope@2026-01-01', stance: 'Gone.' },
+                ],
+              }
+            : p,
+        )
+        return { ...r, json: { posts } }
+      },
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  const first = h.items.get(1)!
+  assert.deepEqual(first.zeroCalled, ['Skater A'])
+  assert.deepEqual(first.takesUsed, [])
+  assert.deepEqual(h.stances, [
+    {
+      threadKey: thread.key,
+      reporter: first.reporter,
+      stance: 'It ends this week.',
+      night: '2026-10-12',
+      itemId: 1,
+    },
+  ])
 })

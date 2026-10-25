@@ -14,6 +14,9 @@
 -- Part C2 (2026-10-25, edited in place): news_stances (a reporter's stance on
 -- an open thread, spec §12.17-3) and news_items.receipt_verdict (a weekly
 -- feature's verdict on the previous prediction: hit | miss, spec §12.15-4).
+-- Part C3a (2026-10-25, edited in place): news_items.zero_called (players an
+-- item called out for a zero, spec §12.12-5) and news_items.takes_used (ids of
+-- the reporter takes it voiced, spec §12.19), both JSON arrays.
 -- Back-fills a skipped job for every existing game, night and week (Monday
 -- start, from the night key) so launch never covers history.
 --
@@ -140,6 +143,23 @@ DO $$ BEGIN
   ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_criticized_array_check";
   ALTER TABLE "news_items" ADD CONSTRAINT "news_items_criticized_array_check"
     CHECK (jsonb_typeof("criticized") = 'array');
+END $$;
+
+-- Part C3a: zero call-outs (one per night, never the same player two nights in
+-- a row) and the reporter takes an item voiced (at most about once a week each).
+ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "zero_called" jsonb DEFAULT '[]'::jsonb NOT NULL;
+ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "takes_used" jsonb DEFAULT '[]'::jsonb NOT NULL;
+
+DO $$ BEGIN
+  ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_zero_called_array_check";
+  ALTER TABLE "news_items" ADD CONSTRAINT "news_items_zero_called_array_check"
+    CHECK (jsonb_typeof("zero_called") = 'array');
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_takes_used_array_check";
+  ALTER TABLE "news_items" ADD CONSTRAINT "news_items_takes_used_array_check"
+    CHECK (jsonb_typeof("takes_used") = 'array');
 END $$;
 
 DO $$ BEGIN

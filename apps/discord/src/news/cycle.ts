@@ -10,6 +10,7 @@ import {
 } from '@eanhl/db/news'
 import type {
   NewNewsItem,
+  NewNewsStance,
   NewNewsUsage,
   NewsItemRow,
   NewsJobKind,
@@ -42,11 +43,13 @@ import {
   FEATURE_SCHEMA,
   GAME_POSTS_SCHEMA,
   criticizedAsOnSheet,
+  zeroCalledAsOnSheet,
   parseArticle,
   parseFeature,
   featureBody,
   parseGamePosts,
   type Article,
+  type PieceStance,
 } from './outputs.ts'
 import {
   buildArticleUserPrompt,
@@ -120,6 +123,13 @@ export interface NewsStore {
   lastFeature(): Promise<LastFeature | null>
   /** Names the night's items criticised harshly so far (not deleted; test items only when asked). */
   nightCriticized(night: string, includeTest: boolean): Promise<string[]>
+  /** Zero call-outs of the night and of the previous night with items (C3a). */
+  nightZeroCalled(
+    night: string,
+    includeTest: boolean,
+  ): Promise<{ tonight: string[]; previous: string[] }>
+  /** Stores a stance on a thread (C3a.4); the item that took it. */
+  insertStance(stance: NewNewsStance): Promise<number>
 }
 
 export interface NewsDeps {
@@ -202,6 +212,20 @@ function mentionsOf(names: string[], facts: NewsFacts): NewsMention[] {
     }
   }
   return out
+}
+
+/** The stances a piece took on threads of the sheet (unknown keys are dropped; the check rejects them). */
+export function stancesToStore(
+  stances: readonly PieceStance[],
+  facts: NewsFacts,
+  reporter: ReporterId,
+  night: string | null,
+  itemId: number,
+): NewNewsStance[] {
+  const keys = new Set(facts.threads.map((t) => t.key))
+  return stances
+    .filter((st) => keys.has(st.threadKey))
+    .map((st) => ({ threadKey: st.threadKey, reporter, stance: st.stance.trim(), night, itemId }))
 }
 
 const EDMONTON = new Intl.DateTimeFormat('en-US', {
@@ -574,10 +598,13 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           body: p.text,
           mentions: mentionsOf(p.mentions, facts),
           criticized: criticizedAsOnSheet(p.criticized, facts),
+          zeroCalled: zeroCalledAsOnSheet(p.zeroCalled, facts),
+          takesUsed: p.takesUsed,
           facts,
           isTest: opts.dryRun,
         })
         stored.push({ id, reporter: p.reporter, text: p.text, isReply })
+        await saveStances(stancesToStore(p.stances, facts, p.reporter, night, id), tag)
         noteWritten(p.reporter, night, i === 0 ? 'recap' : 'reaction')
       }
     } catch (err: unknown) {
@@ -602,6 +629,17 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       await deliver(s.id, payload, `${tag} item ${String(s.id)}`)
     }
     return sendingStopped ? 'end' : 'go'
+  }
+
+  /** Stances are a side record: a failed insert is logged, never fails the item. */
+  async function saveStances(rows: NewNewsStance[], tag: string): Promise<void> {
+    for (const row of rows) {
+      try {
+        await store.insertStance(row)
+      } catch (err: unknown) {
+        log(`${tag}: stance not stored (${message(err)})`)
+      }
+    }
   }
 
   async function markDone(jobId: number, tag: string): Promise<void> {
@@ -709,7 +747,11 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     const reporter = REPORTERS[reporterId]
 
     let a: Article
-    let closing: { prediction: string; receipt: string } | null = null
+    let closing: {
+      prediction: string
+      receipt: string
+      receiptVerdict: 'hit' | 'miss' | null
+    } | null = null
     if (feature === null) {
       const written = await write(jobId, tag, {
         user: buildArticleUserPrompt({
@@ -749,7 +791,11 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       if (written === 'end') return 'end'
       if (written === 'failed') return 'go'
       a = written.out
-      closing = { prediction: written.out.prediction, receipt: written.out.receipt }
+      closing = {
+        prediction: written.out.prediction,
+        receipt: written.out.receipt,
+        receiptVerdict: written.out.receiptVerdict,
+      }
     }
 
     const night = kind === 'night' ? key : null
@@ -769,8 +815,11 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         summary: a.summary,
         mentions: mentionsOf(a.mentions, facts),
         criticized: criticizedAsOnSheet(a.criticized, facts),
+        zeroCalled: zeroCalledAsOnSheet(a.zeroCalled, facts),
+        takesUsed: a.takesUsed,
         featureKind: feature?.kind ?? null,
         prediction: closing?.prediction ?? null,
+        receiptVerdict: closing?.receiptVerdict ?? null,
         facts,
         isTest: opts.dryRun,
       })
@@ -778,6 +827,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       await failJob(jobId, tag, `could not store: ${message(err)}`)
       return 'go'
     }
+    await saveStances(stancesToStore(a.stances, facts, reporterId, night, id), tag)
     noteWritten(reporterId, night, kind === 'night' ? 'night' : 'feature')
     if (opts.dryRun && feature !== null && closing !== null) {
       state.testLastFeature = { kind: feature.kind, prediction: closing.prediction, weekStart: key }
