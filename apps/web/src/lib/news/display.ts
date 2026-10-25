@@ -10,6 +10,8 @@ export const KICKERS: Readonly<Record<ReporterId, string>> = {
   vale: 'After the Horn',
   quill: 'Numbers Desk',
   rink: 'Midnight Column',
+  pettibone: 'Notes',
+  bergstrom: 'Big Country',
 }
 
 /** Article body paragraphs: the service stores them joined by blank lines. */

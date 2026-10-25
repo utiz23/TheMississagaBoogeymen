@@ -1,7 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { parseNewsFactsResponse, type NewsFactsResponse } from './contract.js'
-import { PRESS_LEVELS, REPORTERS, REPORTER_IDS, RELATIONSHIPS, reporterBySlug } from './index.js'
+import {
+  FEATURE_KINDS,
+  FEATURE_REPORTER,
+  PRESS_LEVELS,
+  REPORTERS,
+  REPORTER_IDS,
+  RELATIONSHIPS,
+  reporterBySlug,
+} from './index.js'
 
 function sample(): NewsFactsResponse {
   return {
@@ -242,10 +250,10 @@ void test('contract: unnamedGoals and unnamedAssists are required non-negative i
   }
 })
 
-void test('reporters: seven, unique slugs, lookup by slug', () => {
-  assert.equal(REPORTER_IDS.length, 7)
+void test('reporters: nine, unique slugs, lookup by slug (rev 2 adds Pettibone and Bergstrom last)', () => {
+  assert.equal(REPORTER_IDS.length, 9)
   const slugs = REPORTER_IDS.map((id) => REPORTERS[id].slug)
-  assert.equal(new Set(slugs).size, 7)
+  assert.equal(new Set(slugs).size, 9)
   assert.deepEqual(slugs, [
     'wade-barlow',
     'talia-voss',
@@ -254,7 +262,10 @@ void test('reporters: seven, unique slugs, lookup by slug', () => {
     'rico-vale',
     'mara-quill',
     'father-rink',
+    'gord-pettibone',
+    'lyle-bergstrom',
   ])
+  assert.deepEqual(REPORTER_IDS.slice(7), ['pettibone', 'bergstrom'])
   for (const id of REPORTER_IDS) {
     const r = REPORTERS[id]
     assert.equal(r.id, id)
@@ -273,8 +284,68 @@ void test('reporters: Barlow voice drops the quote line; no markdown headings', 
   for (const id of REPORTER_IDS) assert.ok(!/^#/m.test(REPORTERS[id].voice), id)
 })
 
-void test('relationships: seven lines between known reporters; press levels re-exported', () => {
-  assert.equal(RELATIONSHIPS.length, 7)
+void test('reporters: Pettibone and Bergstrom (spec 12.2)', () => {
+  const p = REPORTERS.pettibone
+  assert.equal(p.name, 'Gord Pettibone')
+  assert.equal(p.outlet, 'The Daily Slapshot')
+  assert.equal(p.byline, 'Notes by Gord Pettibone, The Daily Slapshot')
+  assert.equal(p.initials, 'GP')
+  assert.equal(p.tint, '#facc15')
+  const b = REPORTERS.bergstrom
+  assert.equal(b.name, 'Lyle Bergstrom')
+  assert.equal(b.outlet, 'Big Country Hockey')
+  assert.equal(b.byline, 'Lyle Bergstrom, Big Country Hockey')
+  assert.equal(b.initials, 'LB')
+  assert.equal(b.tint, '#fb923c')
+  for (const word of ['frankly', 'overrated', 'the truth is', 'soft', 'embarrassing']) {
+    assert.ok(p.voice.includes(word), `pettibone: ${word}`)
+  }
+  for (const word of ['compete', 'honest', 'the room', 'this time of year', 'in my experience']) {
+    assert.ok(b.voice.includes(word), `bergstrom: ${word}`)
+  }
+  assert.match(p.voice, /notes column/)
+  assert.match(b.voice, /big picture/)
+  // The shared rules travel in the voice: hockey-only criticism, facts only from the sheet.
+  for (const r of [p, b]) {
+    assert.match(r.voice, /criticism is about hockey only/i, r.id)
+    assert.match(r.voice, /only from the fact sheet/i, r.id)
+  }
+  // Bergstrom's experience never becomes a fact: no "back in my day" claims.
+  assert.match(b.voice, /never makes "back in my day" claims/)
+  assert.match(b.voice, /numbers on the sheet/)
+  // No real person: the new names appear nowhere else in the cast.
+  for (const id of REPORTER_IDS.slice(0, 7)) {
+    assert.ok(!/Pettibone|Bergstrom/.test(REPORTERS[id].voice), id)
+  }
+})
+
+void test('relationships: rev 2 lines (spec 12.2)', () => {
+  const has = (from: string, to: string, re: RegExp) =>
+    assert.ok(
+      RELATIONSHIPS.some((r) => r.from === from && r.to === to && re.test(r.note)),
+      `${from} -> ${to}`,
+    )
+  has('pettibone', 'quill', /spreadsheet/)
+  has('quill', 'pettibone', /fact-check/)
+  has('pettibone', 'mercer', /outrage/)
+  has('mercer', 'pettibone', /outrage/)
+  has('bergstrom', 'barlow', /respect/)
+  has('bergstrom', 'vale', /theatrics/)
+})
+
+void test('feature kinds: five kinds, each with its reporter (rev 2, 12.3)', () => {
+  assert.deepEqual([...FEATURE_KINDS], ['trend', 'spotlight', 'notes', 'bigpicture', 'rink'])
+  assert.deepEqual(FEATURE_REPORTER, {
+    trend: 'quill',
+    spotlight: 'voss',
+    notes: 'pettibone',
+    bigpicture: 'bergstrom',
+    rink: 'rink',
+  })
+})
+
+void test('relationships: lines between known reporters; press levels re-exported', () => {
+  assert.equal(RELATIONSHIPS.length, 13)
   for (const r of RELATIONSHIPS) {
     assert.ok(REPORTER_IDS.includes(r.from))
     assert.ok(REPORTER_IDS.includes(r.to))
