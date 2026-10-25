@@ -20,8 +20,15 @@ export function articleKicker(item: {
   night: string | null
   weekStart: string | null
   featureKind: FeatureKind | null
+  /** C3a: a big game's article has its match (and no week). */
+  matchId?: number | null
 }): string | null {
   if (item.kind !== 'article') return null
+  if (item.weekStart === null && item.matchId !== undefined && item.matchId !== null) {
+    // A big game's article (C3a.7): the game story, a spotlight, or a column.
+    if (item.featureKind === 'spotlight') return 'Spotlight'
+    return item.featureKind === null ? 'Game story' : 'Column'
+  }
   if (item.featureKind !== null) return FEATURE_KICKERS[item.featureKind]
   if (item.night !== null) return 'Night recap'
   if (item.weekStart !== null) return 'Week in review'

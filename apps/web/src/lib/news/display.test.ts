@@ -95,3 +95,19 @@ test('articleKicker: night recap, feature kinds, none for posts (rev 2, A6)', ()
     null,
   )
 })
+
+test('articleKicker: a big game article is a game story, a spotlight or a column (C3a.7)', () => {
+  const a = (over: Partial<Parameters<typeof articleKicker>[0]> = {}) =>
+    articleKicker({
+      kind: 'article',
+      night: '2026-10-12',
+      weekStart: null,
+      featureKind: null,
+      ...over,
+    })
+  assert.equal(a({ matchId: 701 }), 'Game story')
+  assert.equal(a({ matchId: 701, featureKind: 'spotlight' }), 'Spotlight')
+  assert.equal(a({ matchId: 701, featureKind: 'bigpicture' }), 'Column')
+  assert.equal(a({ matchId: null }), 'Night recap')
+  assert.equal(a(), 'Night recap')
+})
