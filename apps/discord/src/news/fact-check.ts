@@ -512,24 +512,31 @@ export function checkFeatureFacts(
  * Drama a piece may claim only when a label or fact on the sheet supports it
  * (C2, spec §12.16: "no drama a label does not support"). Case-insensitive.
  * - "career high" (also "career-high"): a line's `bests` has a career high;
- * - "season high": a line's `bests` has a season or career high;
- * - "slump" (slumps, slumped, slumping): a line's `noGoal` streak or a
- *   `player-slump` thread;
+ * - "season high" (also "season-high"): a line's `bests` has a season or
+ *   career high, or a team note is a season best ("… this season", "… of the
+ *   season") (C2 fix I3);
+ * - "slump" (slumps, slumped, slumping): a line's `noGoal` streak, a
+ *   `player-slump` or `losing-streak` thread, or a `slide` / `panic` result
+ *   (C2 fix I3);
  * - "upset" (upsets, "big upset"): a game whose `context.surprise` is not
  *   `expected` (also catches "upset" as a feeling: rephrase);
  * - "panic": a game whose `context.result` is `panic`;
  * - "blowout": a game whose `context.margin` is `blowout`;
  * - "meltdown" / "stole the game", "a steal": an AI goalie `label` (C2 fix M1);
- * - "first ... of the season" (up to 40 characters between, one sentence): a
+ * - "first ... of the season" (up to 20 characters between, one sentence): a
  *   line's `firsts` or a title `debut`;
  * - "record" as an achievement ("club/team/franchise/all-time/new/single-season
  *   record", "record-breaking", "set/broke ... record"): a game's `newRecords`.
- *   A plain record such as "a 12-3-1 record" is not a claim.
+ *   A plain record such as "a 12-3-1 record" is not a claim, nor is a
+ *   "team record" followed by a W-L-OTL record ("the team record now sits at
+ *   12-3-1", C2 fix I3).
  * C3 wires this into the checks.
  */
 export const LABEL_CLAIMS: readonly {
   phrase: string
   pattern: RegExp
+  /** Tested on the text right after a match: when it matches, that match is no claim. */
+  except?: RegExp
   supported: (facts: NewsFacts) => boolean
   problem: string
 }[] = [
@@ -542,15 +549,21 @@ export const LABEL_CLAIMS: readonly {
   {
     phrase: 'season high',
     pattern: /\bseason[- ]highs?\b/i,
-    supported: (f) => lines(f).some((p) => p.bests.length > 0),
-    problem: 'It says "season high", but no line on the fact sheet has a season or career high.',
+    supported: (f) =>
+      lines(f).some((p) => p.bests.length > 0) ||
+      f.games.some((g) =>
+        g.teamNotes.some((n) => /\b(this season|of the season)\b/.test(n) && !/streak/.test(n)),
+      ),
+    problem:
+      'It says "season high", but no line or team note on the fact sheet has a season or career high.',
   },
   {
     phrase: 'slump',
     pattern: /\bslump(s|ed|ing)?\b/i,
     supported: (f) =>
       lines(f).some((p) => p.streaks.some((s) => s.kind === 'noGoal')) ||
-      f.threads.some((t) => t.kind === 'player-slump'),
+      f.threads.some((t) => t.kind === 'player-slump' || t.kind === 'losing-streak') ||
+      f.games.some((g) => g.context?.result === 'slide' || g.context?.result === 'panic'),
     problem: 'It says "slump", but the fact sheet has no slump (8+ games without a goal).',
   },
   {
@@ -586,7 +599,7 @@ export const LABEL_CLAIMS: readonly {
   },
   {
     phrase: 'first ... of the season',
-    pattern: /\bfirst\b[^.!?]{0,40}\bof the season\b/i,
+    pattern: /\bfirst\b[^.!?]{0,20}\bof the season\b/i,
     supported: (f) => lines(f).some((p) => p.firsts.length > 0 || p.debut === 'title'),
     problem:
       'It says "first ... of the season", but no line on the fact sheet has a season first or a title debut.',
@@ -595,6 +608,8 @@ export const LABEL_CLAIMS: readonly {
     phrase: 'record',
     pattern:
       /\b(club|team|franchise|all-time|new|single-season)\s+records?\b|\brecord[- ](breaking|setting|breaker)\b|\b(set|sets|setting|broke|breaks|breaking|smashed|smashes|tied|ties)\s+(a|the|his|their)\s+(\w+\s+){0,2}records?\b/i,
+    // "team record now sits at 12-3-1": a W-L-OTL record right after it is no claim.
+    except: /^[^.!?\d]{0,25}\d+-\d+(-\d+)?\b/,
     supported: (f) => f.games.some((g) => g.newRecords.length > 0),
     problem: 'It claims a record, but no new club record is on the fact sheet.',
   },
@@ -606,7 +621,18 @@ function lines(f: NewsFacts) {
 
 /** The problems for drama the sheet's labels do not support (`LABEL_CLAIMS`). */
 export function labelClaims(text: string, facts: NewsFacts): string[] {
-  return LABEL_CLAIMS.filter((c) => c.pattern.test(text) && !c.supported(facts)).map(
-    (c) => c.problem,
+  return LABEL_CLAIMS.filter((c) => claimed(c, text) && !c.supported(facts)).map((c) => c.problem)
+}
+
+/** Whether `text` makes the claim: a match not followed by the claim's `except`. */
+function claimed(c: (typeof LABEL_CLAIMS)[number], text: string): boolean {
+  const re = new RegExp(
+    c.pattern.source,
+    c.pattern.flags.includes('g') ? c.pattern.flags : `${c.pattern.flags}g`,
   )
+  for (const m of text.matchAll(re)) {
+    const after = text.slice((m.index ?? 0) + m[0].length)
+    if (c.except === undefined || !c.except.test(after)) return true
+  }
+  return false
 }

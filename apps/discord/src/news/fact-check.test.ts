@@ -700,3 +700,36 @@ void test('labelClaims: an AI goalie meltdown or steal only with the sheet label
   assert.deepEqual(labelClaims('Matteo Lehmann had a meltdown.', melt), [])
   assert.equal(labelClaims('Lehmann stole the game.', melt).length, 1)
 })
+
+void test('labelClaims: no over-blocking on plain records, team slides, team season bests or a far "first" (C2 fix I3)', () => {
+  const plain = oct12Facts('game')
+  // A team record followed by a W-L-OTL record is no claim; a bare "team record" still is.
+  assert.deepEqual(labelClaims('The team record now sits at 12-3-1.', plain), [])
+  assert.equal(labelClaims('A new team record for the club.', plain).length, 1)
+  // "slump" during a slide (or panic, or a losing-streak thread).
+  const slide = structuredClone(oct12Facts('game'))
+  slide.games[0]!.context = {
+    result: 'slide',
+    streakBefore: { kind: 'L', count: 2 },
+    streakAfter: { kind: 'L', count: 3 },
+    last10: { wins: 5, losses: 4, otl: 1 },
+    margin: 'comfortable',
+    surprise: 'expected',
+    night: [],
+  }
+  assert.deepEqual(labelClaims('The team is in a slump.', slide), [])
+  assert.equal(labelClaims('The team is in a slump.', plain).length, 1)
+  // "season high" with a team season-best note.
+  const best = structuredClone(oct12Facts('game'))
+  best.games[0]!.teamNotes = ['most goals in a 6s game this season: 7']
+  assert.deepEqual(labelClaims('A season-high seven goals.', best), [])
+  // A longest-streak note is no season high.
+  best.games[0]!.teamNotes = ['longest win streak of the season: 6']
+  assert.equal(labelClaims('A season-high seven goals.', best).length, 1)
+  // "first" far from "of the season".
+  assert.deepEqual(
+    labelClaims('He was first to the puck in the best game of the season.', plain),
+    [],
+  )
+  assert.equal(labelClaims('His first goal of the season.', plain).length, 1)
+})
