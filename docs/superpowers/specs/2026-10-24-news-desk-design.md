@@ -640,3 +640,26 @@ Dropped by the operator: division race, time-of-night patterns.
    posts spaced a few minutes apart in Discord; language levels (above);
    correction posts after a deletion for a wrong fact (optional, same reporter);
    a short "how to read the Press Room" note on the reporter pages.
+
+### 12.19 Reporter takes on players — GM-only lore (operator, 2026-10-25)
+
+Reporters may hold running takes on players (a beef, a favourite, a target). The
+operator wrote the first set. **The content is internal lore: never in git, never
+on a public page or in Discord as a list, never visible to players.** Only the
+coverage shows it, the way a columnist's grudge shows.
+
+- Storage: database table `news_reporter_takes` (reporter, player, take text,
+  spread: some / a few / most, critics, defender, data angle, active), readable by
+  the news service and the admin only; edited on `/admin/news` (first piece of the
+  GM page). Seeded by Claude at release from a private, git-ignored file.
+- Each take has critics and a defender (a debate, not bullying), and a data angle
+  the reporters use as evidence.
+- Fairness: press levels apply ("Go easy" = mild, "Leave me out" = never used);
+  each take at most about once a week per player; never two "weaker player" takes
+  in one piece; pile-on limit and hockey-only rule apply; the review checks it.
+- Takes soften or harden with the data over time (threads and stances, §12.17).
+  With the bot project, a relationship score per reporter–player pair moves with
+  interview answers and attitude.
+- Privacy: the policy pages need one general sentence that admin-written notes
+  for the fictional coverage are also sent to the AI service (no take revealed) —
+  operator to confirm.
