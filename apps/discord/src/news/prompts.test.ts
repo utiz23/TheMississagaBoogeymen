@@ -216,12 +216,9 @@ void test('system prompt: a tactical point must name its number; no described pl
 void test('voices: tactical points come from the numbers, never from described plays (T2)', () => {
   const s = buildSystemPrompt(all)
   const numbersOnly =
-    'a tactical point drawn from the numbers on the sheet (shots, time on attack, passing %, power play, hits, period scores, goals for and against) and stated as what those numbers show, never as a described play, movement, lane, zone entry or sequence'
-  assert.ok(s.includes(`Every piece includes ${numbersOnly}.`), 'Barlow')
-  assert.ok(
-    s.includes(`Her tactical points are ${numbersOnly.replace(/^a tactical point /, '')}.`),
-    'Halberd',
-  )
+    'drawn from the numbers on the sheet (shots, time on attack, passing %, power play, hits, period scores, goals for and against) and stated as what those numbers show, never as a described play, movement, lane, zone entry or sequence'
+  assert.ok(s.includes(`Every article makes one point about tactics ${numbersOnly}.`), 'Barlow')
+  assert.ok(s.includes(`Her tactical points are ${numbersOnly}.`), 'Halberd')
   assert.ok(!s.includes('one tactical observation'))
   assert.ok(!s.includes('sequence breakdown'))
   assert.ok(!REPORTERS.halberd.voice.includes('pressure release'))

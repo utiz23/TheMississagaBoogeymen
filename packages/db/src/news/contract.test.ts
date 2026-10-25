@@ -15,7 +15,9 @@ import {
   PRESS_LEVELS,
   REPORTERS,
   REPORTER_IDS,
+  MILD_SWEAR_WORDS,
   RELATIONSHIPS,
+  SIGNATURE_WORDS,
   reporterBySlug,
 } from './index.js'
 
@@ -1036,4 +1038,66 @@ void test('aiGoalieLabel: meltdown under 75% on 10+ shots, steal from 92% on 15+
   assert.equal(parseNewsFactsResponse(old).facts.games[1]!.aiGoalie!.label, null)
   old.facts.games[1]!.aiGoalie!['label'] = 'brick wall'
   assert.throws(() => parseNewsFactsResponse(old), /aiGoalie\.label/)
+})
+
+void test('voices (C3a.1): doubled word lists, used one or two at a time; formats for articles only', () => {
+  for (const id of REPORTER_IDS) {
+    const r = REPORTERS[id]
+    assert.deepEqual(SIGNATURE_WORDS[id], r.signatureWords, id)
+    assert.ok(r.typicalWords.length >= 2 * r.signatureWords.length, id)
+    assert.deepEqual(r.typicalWords.slice(0, r.signatureWords.length), [...r.signatureWords], id)
+    for (const w of r.typicalWords) assert.ok(r.voice.includes(w), `${id}: ${w}`)
+    assert.match(r.voice, /Use one or two of them at most per piece, and vary them/, id)
+    assert.match(r.voice, /This format is for articles only\. A post makes one point/, id)
+    // The blocked format labels never appear in a voice the writer could copy.
+    assert.ok(!/the tactical point|less comfortable|the detail:/i.test(r.voice), id)
+  }
+  assert.deepEqual(SIGNATURE_WORDS.barlow, [
+    'clean',
+    'messy',
+    'repeatable',
+    'detail',
+    'structure',
+    'survive',
+  ])
+  assert.deepEqual(SIGNATURE_WORDS.pettibone, [
+    'frankly',
+    'overrated',
+    'the truth is',
+    'soft',
+    'embarrassing',
+  ])
+})
+
+void test('voices (C3a.1): Barlow worries only after a loss, a one-goal or OT game, a lost shot count', () => {
+  assert.match(
+    REPORTERS.barlow.voice,
+    /only after a loss, a one-goal or overtime game, or a game in which the club lost the shot count/,
+  )
+  assert.match(REPORTERS.barlow.voice, /after any other win he skips this part/)
+})
+
+void test('voices (C3a.1): tone, mode opinions, language levels', () => {
+  for (const id of ['mercer', 'pettibone'] as const) {
+    assert.match(REPORTERS[id].voice, /keeps his caveats/, id)
+  }
+  for (const id of ['barlow', 'voss', 'halberd', 'vale', 'rink', 'bergstrom'] as const) {
+    assert.match(REPORTERS[id].voice, /reads like a win.*never called luck/, id)
+  }
+  assert.match(REPORTERS.bergstrom.modeOpinion ?? '', /6s is real hockey and 3s is shinny/)
+  assert.match(REPORTERS.vale.modeOpinion ?? '', /loves the chaos of 3s/)
+  assert.match(REPORTERS.pettibone.modeOpinion ?? '', /mocks 3s/)
+  assert.match(REPORTERS.quill.modeOpinion ?? '', /does not care whether a game is 3s or 6s/)
+  for (const id of ['barlow', 'voss', 'mercer', 'halberd', 'rink'] as const) {
+    assert.equal(REPORTERS[id].modeOpinion, null, id)
+  }
+  for (const id of REPORTER_IDS) {
+    const r = REPORTERS[id]
+    if (r.modeOpinion !== null) assert.ok(r.voice.includes(r.modeOpinion), id)
+    const mild = ['mercer', 'pettibone', 'vale'].includes(id)
+    assert.equal(r.language, mild ? 'mild' : 'clean', id)
+    assert.match(r.voice, mild ? /mild swearing \(hell, damn, crap\)/ : /Language: clean/, id)
+  }
+  assert.deepEqual([...MILD_SWEAR_WORDS], ['hell', 'damn', 'crap'])
+  assert.match(REPORTERS.vale.voice, /not only overtime/)
 })
