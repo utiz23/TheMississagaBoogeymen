@@ -1,0 +1,71 @@
+/**
+ * News display helpers: paragraphs, read time, day labels, score chips.
+ *
+ * Run: node --test apps/web/src/lib/news/display.test.ts
+ */
+
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  dayKeyLabel,
+  dayKeyLabelWithWeekday,
+  readMinutes,
+  scoreChips,
+  splitParagraphs,
+} from './display.ts'
+
+test('splitParagraphs splits on blank lines and drops empties', () => {
+  assert.deepEqual(splitParagraphs('One.\n\nTwo.\n  \n\nThree.\n'), ['One.', 'Two.', 'Three.'])
+  assert.deepEqual(splitParagraphs(''), [])
+})
+
+test('readMinutes is at least 1 and rounds at 200 words a minute', () => {
+  assert.equal(readMinutes('short'), 1)
+  assert.equal(readMinutes(Array(800).fill('word').join(' ')), 4)
+  assert.equal(readMinutes(Array(650).fill('word').join(' ')), 3)
+})
+
+test('dayKeyLabel reads a night key in the club zone, not the server zone', () => {
+  const year = String(new Date().getFullYear())
+  assert.equal(dayKeyLabel(`${year}-10-12`), 'Oct 12')
+  assert.equal(dayKeyLabel('not-a-date'), 'not-a-date')
+})
+
+test('dayKeyLabelWithWeekday adds the weekday', () => {
+  // 2026-10-12 is a Monday.
+  assert.match(dayKeyLabelWithWeekday('2026-10-12'), /^Mon Oct 12/)
+})
+
+test('scoreChips: null, odd or partial facts give fewer chips, never an error', () => {
+  assert.deepEqual(scoreChips(null), [])
+  assert.deepEqual(scoreChips('x'), [])
+  assert.deepEqual(scoreChips({ games: 'no' }), [])
+  const good = {
+    matchId: 7,
+    result: 'LOSS',
+    scoreFor: 2,
+    scoreAgainst: 6,
+    opponentName: 'Shake N Bake',
+  }
+  assert.deepEqual(
+    scoreChips({
+      games: [good, { matchId: '8' }, null, { ...good, result: 'DNF' }, { ...good, matchId: 9 }],
+    }),
+    [
+      { ...good, shots: null },
+      { ...good, matchId: 9, shots: null },
+    ],
+  )
+})
+
+test('scoreChips reads the shot counts when the sheet has them', () => {
+  const game = {
+    matchId: 7,
+    result: 'WIN',
+    scoreFor: 4,
+    scoreAgainst: 2,
+    opponentName: 'X',
+    team: { shotsFor: 30, shotsAgainst: 18 },
+  }
+  assert.deepEqual(scoreChips({ games: [game] })[0]?.shots, { for: 30, against: 18 })
+})
