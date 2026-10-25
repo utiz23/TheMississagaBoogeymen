@@ -275,7 +275,7 @@ void test('title totals: counted games, before the first game and through the la
   const s = flat(q.sql)
   assert.match(s, /from player_match_stats pms join matches m on m\.id = pms\.match_id/)
   assert.match(s, /m\.game_title_id = \$\d+/)
-  assert.match(s, /m\.result <> 'DNF'/)
+  assert.doesNotMatch(s, /DNF/, 'DNF games count, like player_game_title_stats on the site')
   assert.match(
     s,
     /filter \(where m\.played_at < \( ?select f\.played_at from matches f where f\.id = \$\d+ ?\)\)/,

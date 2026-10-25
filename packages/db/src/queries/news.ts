@@ -768,7 +768,7 @@ export interface NewsPlayerTotals {
 }
 
 /**
- * Title totals (counted games only) for the given players: `before` = games
+ * Title totals (DNF games count, like player_game_title_stats) for the given players: `before` = games
  * ended before the first game of the sheet, `after` = through the last game.
  * Bounds come from the matches table so no precision is lost.
  */
@@ -791,7 +791,6 @@ export function listPlayerTitleTotalsSql(args: {
     from player_match_stats pms
     join matches m on m.id = pms.match_id
     where m.game_title_id = ${args.gameTitleId}
-      and m.result <> 'DNF'
       and pms.player_id in (${idList(args.playerIds)})
       and m.played_at <= ${last}
     group by pms.player_id`
