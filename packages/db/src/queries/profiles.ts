@@ -12,6 +12,8 @@ export type ProfilePatch = Partial<
     | 'preferredPosition'
     | 'archetype'
     | 'clubRoleLabel'
+    | 'pressLevel'
+    | 'pressLevelSetBy'
   >
 >
 

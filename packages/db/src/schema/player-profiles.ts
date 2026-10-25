@@ -2,6 +2,11 @@ import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { players } from './players.js'
 import type { PlayerArchetype } from './player-archetype.js'
 
+/** How much the news desk may write about a player. Default 'full' (migration 0071). */
+export const PRESS_LEVELS = ['full', 'easy', 'out'] as const
+export type PressLevel = (typeof PRESS_LEVELS)[number]
+export type PressLevelSetBy = 'self' | 'admin'
+
 /**
  * Manual/enriched metadata for a player. 1:1 with `players`.
  *
@@ -61,6 +66,14 @@ export const playerProfiles = pgTable('player_profiles', {
    * Editorial only — not provided by the EA API.
    */
   clubRoleLabel: text('club_role_label'),
+  /**
+   * How much the news desk may write about this player: 'full' (default),
+   * 'easy' (no criticism) or 'out' (never named). CHECK constraints live in
+   * migration 0071 (hand-applied), like the other hand-written checks.
+   */
+  pressLevel: text('press_level').$type<PressLevel>().notNull().default('full'),
+  /** Who last set press_level: the player ('self'), an admin, or never set (null). */
+  pressLevelSetBy: text('press_level_set_by').$type<PressLevelSetBy>(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
