@@ -28,6 +28,7 @@ import {
   listPlayerTitleTotals,
   listRecentNightSummaries,
   listTitleResultsUpTo,
+  stancesForThreads,
 } from '@eanhl/db/queries'
 import {
   nightKey,
@@ -68,6 +69,7 @@ import {
 import { applyNorms, normInputFromRow, type NormGameInput } from './norms'
 import { applyContext, titleGameFromFacts, titleGameFromRow } from './context'
 import { applyChemistry } from './chemistry'
+import { buildThreads, threadGameFromFacts, threadGameFromRow } from './threads'
 import { applyNewRecords, buildRecords, publicRecords, type SeasonLineInput } from './records'
 import { applyPlayerFacts, playerGameFromRow, type PlayerGameInput } from './players'
 
@@ -420,6 +422,17 @@ async function loadSheet(
     gameTitleId,
   )
 
+  // Open threads (C2.8): derived from the title's games and the named
+  // players' rows; the stances reporters took on them are stored.
+  const threads = buildThreads({
+    prior: normGames.map((r) => threadGameFromRow(r, titleGameFromRow(r).endedEarly)),
+    sheet: withRecords.map(threadGameFromFacts),
+    people,
+    history,
+    gameTitleId,
+  })
+  const stances = await stancesForThreads(threads.map((t) => t.key))
+
   const unlocks: NewsFacts['unlocks'] = []
   for (const ev of events) {
     const name = nameById.get(ev.playerId)
@@ -446,6 +459,8 @@ async function loadSheet(
     games: withRecords,
     norms: normed.norms,
     records: publicRecords(records),
+    threads,
+    stances,
     ...buildRecordAndStreak(results),
     unlocks,
     milestones: buildMilestones(totals.before, totals.after, people),

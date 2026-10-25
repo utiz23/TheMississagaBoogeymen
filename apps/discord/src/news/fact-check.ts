@@ -77,6 +77,12 @@ function parseDigits(run: string): number {
  * The per-game `patterns` are words: a run is quoted in words, never as a
  * new number (C1 fix 3). The norms' averages and lead % (`ours`, `theirs`,
  * `leadPct`) stay quotable.
+ * Part C2: the player lines' `norm.labels`, `bests`, `form` and `firsts` are
+ * words (no digits); `norm.perGame`, `norm.last10`, `norm.games`,
+ * `approaching`, `streaks`, `seasonTotals`, `chemistry`, `records`,
+ * `newRecords`, the context and the thread `summary` hold numbers a writer
+ * may quote. Not stats: `stances` (a writer's earlier words), `threadKey`,
+ * and inside `threads` the `key` (holds a player id) and `since` (a date).
  */
 const NON_STAT_KEYS = new Set([
   'playerId',
@@ -89,7 +95,14 @@ const NON_STAT_KEYS = new Set([
   'sampleGames',
   'labels',
   'patterns',
+  'stances',
+  'threadKey',
 ])
+
+/** Keys that are not stats only inside the named section (the sheet's own `key` stays a date it may quote). */
+const NON_STAT_IN: Record<string, ReadonlySet<string>> = {
+  threads: new Set(['key', 'since']),
+}
 
 /** A game clock in text, such as "3:58" or "03:58". */
 const CLOCK = /\b(\d{1,2}):(\d{2})\b/g
@@ -127,20 +140,22 @@ function clockProblems(text: string, facts: NewsFacts): { problems: string[]; re
  */
 export function allowedNumbers(facts: NewsFacts): Set<number> {
   const out = new Set<number>([0, 1])
-  const walk = (v: unknown): void => {
+  const walk = (v: unknown, section: string | null): void => {
     if (typeof v === 'number') {
       if (Number.isFinite(v)) out.add(Math.abs(v))
     } else if (typeof v === 'string') {
       for (const m of v.matchAll(DIGIT_RUN)) out.add(parseDigits(m[0]))
     } else if (Array.isArray(v)) {
-      for (const x of v) walk(x)
+      for (const x of v) walk(x, section)
     } else if (typeof v === 'object' && v !== null) {
+      const skip = section === null ? undefined : NON_STAT_IN[section]
       for (const [k, x] of Object.entries(v)) {
-        if (!NON_STAT_KEYS.has(k)) walk(x)
+        if (NON_STAT_KEYS.has(k) || skip?.has(k) === true) continue
+        walk(x, k in NON_STAT_IN ? k : section)
       }
     }
   }
-  walk(facts)
+  walk(facts, null)
   return out
 }
 

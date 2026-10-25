@@ -147,6 +147,8 @@ export function oct12Facts(kind: NewsFacts['kind'] = 'game'): NewsFacts {
     lore: ["The Boogeymen's farm team is the Oregon Outlaws."],
     norms: { '3s': null, '6s': null },
     records: [],
+    threads: [],
+    stances: [],
   }
 }
 

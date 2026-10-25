@@ -22,6 +22,8 @@ import {
   type NewsModeNorms,
   type NewsPerson,
   type NewsPlayerLine,
+  type NewsThread,
+  type NewsThreadStance,
   type NewsPosition,
   type NewsWeekHistory,
   type NewsWeekPlayer,
@@ -724,6 +726,10 @@ export function buildFacts(args: {
   norms?: NewsModeNorms
   /** The club's single-season records before the sheet (`buildRecords`); default none. */
   records?: NewsClubRecord[]
+  /** Open and closed-tonight threads (`buildThreads`); default none. */
+  threads?: NewsThread[]
+  /** Earlier stances on those threads; default none. */
+  stances?: NewsThreadStance[]
 }): NewsFacts {
   const nightTotals = {
     goalsFor: 0,
@@ -762,6 +768,8 @@ export function buildFacts(args: {
     lore: [...CLUB_LORE],
     norms: args.norms ?? { '3s': null, '6s': null },
     records: args.records ?? [],
+    threads: args.threads ?? [],
+    stances: args.stances ?? [],
   }
 }
 

@@ -5,13 +5,16 @@ import {
   newsItems,
   newsJobs,
   newsSettings,
+  newsStances,
   playerProfiles,
   players,
   type NewNewsItem,
+  type NewNewsStance,
   type NewNewsUsage,
   type NewsItemKind,
   type NewsItemRow,
   type NewsJobKind,
+  type NewsReporterId,
   type PressLevel,
   type PressLevelSetBy,
 } from '../schema/index.js'
@@ -24,6 +27,7 @@ import { updatePlayerProfile } from './profiles.js'
 export type {
   NewsItemRow,
   NewNewsItem,
+  NewNewsStance,
   NewNewsUsage,
   NewsJobKind,
   NewsMention,
@@ -209,6 +213,56 @@ export async function insertNewsItem(item: NewNewsItem): Promise<number> {
   const row = rows[0]
   if (!row) throw new Error('insertNewsItem: no row returned')
   return row.id
+}
+
+// ── Stances on threads (Part C2.8, spec §12.17-3) ───────────────────────────
+
+export async function insertStance(stance: NewNewsStance): Promise<number> {
+  const rows = await db.insert(newsStances).values(stance).returning({ id: newsStances.id })
+  const row = rows[0]
+  if (!row) throw new Error('insertStance: no row returned')
+  return row.id
+}
+
+/** A stance as the fact sheet carries it. */
+export interface NewsStance {
+  threadKey: string
+  reporter: NewsReporterId
+  stance: string
+  night: string | null
+}
+
+/**
+ * The stances on these threads, oldest first. A stance of a deleted or test
+ * item is left out (the sheet is the public record); one without an item stays.
+ */
+export function stancesForThreadsSql(keys: readonly string[]): SQL {
+  return sql`
+    select s.thread_key, s.reporter, s.stance, to_char(s.night, 'YYYY-MM-DD') as night
+    from news_stances s
+    left join news_items i on i.id = s.item_id
+    where s.thread_key in (${sql.join(
+      keys.map((k) => sql`${k}`),
+      sql`, `,
+    )})
+      and (s.item_id is null or (i.deleted_at is null and i.is_test = false))
+    order by s.night asc nulls last, s.id asc`
+}
+
+export async function stancesForThreads(keys: readonly string[]): Promise<NewsStance[]> {
+  if (keys.length === 0) return []
+  const rows = await db.execute<{
+    thread_key: string
+    reporter: NewsReporterId
+    stance: string
+    night: string | null
+  }>(stancesForThreadsSql(keys))
+  return rows.map((r) => ({
+    threadKey: r.thread_key,
+    reporter: r.reporter,
+    stance: r.stance,
+    night: r.night,
+  }))
 }
 
 // ── Backfill lookups (apps/discord/src/news/backfill.ts) ────────────────────

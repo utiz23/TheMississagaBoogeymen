@@ -181,6 +181,8 @@ function sample(): NewsFactsResponse {
       lore: ["The Boogeymen's farm team is the Oregon Outlaws."],
       norms: { '3s': null, '6s': null },
       records: [],
+      threads: [],
+      stances: [],
     },
     forbiddenNames: ['Hidden Guy'],
   }
@@ -924,4 +926,40 @@ void test('contract: chemistry round-trips; missing reads as none; a pair is two
   }
   bad.facts.games[0]!.chemistry[0]!['pair'] = ['Silky']
   assert.throws(() => parseNewsFactsResponse(bad), /chemistry\[0\]\.pair is not two names/)
+})
+
+void test('contract: threads and stances round-trip; missing ones read as none; fixed kinds and reporters (C2.8)', () => {
+  const s = sample()
+  s.facts.threads = [
+    {
+      key: 'player-slump:2@2026-10-01',
+      kind: 'player-slump',
+      subject: 'Silky',
+      since: '2026-10-01',
+      status: 'open',
+      summary: 'Silky: no goal in 9 games',
+    },
+  ]
+  s.facts.stances = [
+    {
+      threadKey: 'player-slump:2@2026-10-01',
+      reporter: 'quill',
+      stance: 'It ends soon.',
+      night: '2026-10-05',
+    },
+  ]
+  assert.deepEqual(parseNewsFactsResponse(clone(s)), s)
+  const old = clone(s) as unknown as { facts: Record<string, unknown> }
+  delete old.facts['threads']
+  delete old.facts['stances']
+  const p = parseNewsFactsResponse(old)
+  assert.deepEqual([p.facts.threads, p.facts.stances], [[], []])
+  const bad = clone(s) as unknown as {
+    facts: { threads: Record<string, unknown>[]; stances: Record<string, unknown>[] }
+  }
+  bad.facts.threads[0]!['kind'] = 'beef'
+  assert.throws(() => parseNewsFactsResponse(bad), /threads\[0\]\.kind/)
+  bad.facts.threads[0]!['kind'] = 'rival'
+  bad.facts.stances[0]!['reporter'] = 'nobody'
+  assert.throws(() => parseNewsFactsResponse(bad), /stances\[0\]\.reporter/)
 })

@@ -1,3 +1,5 @@
+import { REPORTER_IDS, type ReporterId } from './reporters.js'
+
 /**
  * The JSON the web app's news fact-sheet route returns and the news service
  * consumes. Lives here (no DB client import) so both apps share one
@@ -560,6 +562,60 @@ export interface NewsFacts {
   norms: NewsModeNorms
   /** The club's single-season records before the sheet's first game (C2.4); [] from an older web app. */
   records: NewsClubRecord[]
+  /** Open threads and the ones a game of this sheet closed (C2.8); [] from an older web app. */
+  threads: NewsThread[]
+  /** Earlier stances on those threads, oldest first (C2.8); [] when none. */
+  stances: NewsThreadStance[]
+}
+
+/**
+ * Open threads (C2.8, spec §12.17-3): derived, never stored. A label that
+ * persisted on 3+ nights (`THREAD_MIN_NIGHTS`: the label was on at a game of
+ * each of 3 distinct nights) opens a thread; it is `closed-tonight` when a
+ * game of this sheet ended it. Kinds and the label each one follows:
+ * - `winning-streak` (5+ wins in a row, the `rolling` label),
+ *   `losing-streak` (3+ losses in a row, the `slide` label);
+ * - `pp-drought`: 3+ games in a row with a power-play chance and no
+ *   power-play goal (games without a chance or that ended early are skipped);
+ * - `player-hot` (points in 3+ straight games) and `player-slump` (8+ games
+ *   without a goal, forwards) of a named player, counted games of the title;
+ * - `rival`: an opponent of this sheet the club lost to on 3+ nights of the
+ *   title with a losing record against them (open after another loss,
+ *   closed-tonight after a win).
+ * `key` is stable for one thread: `<kind>@<since>`, `player-…:<playerId>@<since>`,
+ * `rival:<opponent, lower case>`; `since` = the night it began. Both are not
+ * stats. `subject` = the player's or opponent's name, null for the team.
+ * `summary` = one fixed-form sentence; its numbers may be quoted.
+ */
+export const THREAD_KINDS = [
+  'pp-drought',
+  'player-slump',
+  'player-hot',
+  'rival',
+  'losing-streak',
+  'winning-streak',
+] as const
+export type ThreadKind = (typeof THREAD_KINDS)[number]
+export const THREAD_MIN_NIGHTS = 3
+
+export interface NewsThread {
+  key: string
+  kind: ThreadKind
+  subject: string | null
+  since: string
+  status: 'open' | 'closed-tonight'
+  summary: string
+}
+
+/**
+ * A reporter's earlier stance on a thread of this sheet (C2.8; stored in
+ * news_stances). Words of a writer, not a source of numbers.
+ */
+export interface NewsThreadStance {
+  threadKey: string
+  reporter: ReporterId
+  stance: string
+  night: string | null
 }
 
 export interface NewsFactsResponse {
@@ -687,6 +743,28 @@ function parseClubRecord(v: unknown, path: string): NewsClubRecord {
     holder: nullable(o['holder'], `${path}.holder`, str),
     value: nonNegInt(o['value'], `${path}.value`),
     title: str(o['title'], `${path}.title`),
+  }
+}
+
+function parseThread(v: unknown, path: string): NewsThread {
+  const o = obj(v, path)
+  return {
+    key: str(o['key'], `${path}.key`),
+    kind: oneOf(o['kind'], `${path}.kind`, THREAD_KINDS),
+    subject: nullable(o['subject'], `${path}.subject`, str),
+    since: night(o['since'], `${path}.since`),
+    status: oneOf(o['status'], `${path}.status`, ['open', 'closed-tonight']),
+    summary: str(o['summary'], `${path}.summary`),
+  }
+}
+
+function parseStance(v: unknown, path: string): NewsThreadStance {
+  const o = obj(v, path)
+  return {
+    threadKey: str(o['threadKey'], `${path}.threadKey`),
+    reporter: oneOf(o['reporter'], `${path}.reporter`, REPORTER_IDS),
+    stance: str(o['stance'], `${path}.stance`),
+    night: nullable(o['night'], `${path}.night`, night),
   }
 }
 
@@ -1090,6 +1168,8 @@ function parseFacts(v: unknown, path: string): NewsFacts {
     lore: o['lore'] === undefined ? [] : arr(o['lore'], `${path}.lore`, str),
     norms: parseModeNorms(o['norms'], `${path}.norms`),
     records: opt(o, 'records', [], () => arr(o['records'], `${path}.records`, parseClubRecord)),
+    threads: opt(o, 'threads', [], () => arr(o['threads'], `${path}.threads`, parseThread)),
+    stances: opt(o, 'stances', [], () => arr(o['stances'], `${path}.stances`, parseStance)),
   }
 }
 

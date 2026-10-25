@@ -585,3 +585,30 @@ void test('club record holders are allowed names; a null holder adds none; holde
     ['"Old Sniper" is not a person on the fact sheet.'],
   )
 })
+
+void test("threads: a summary's numbers may be quoted; the key's player id and the since date may not; stances are not stats; the sheet key stays (C2.8)", () => {
+  const f = oct12Facts('game')
+  f.threads = [
+    {
+      key: 'player-slump:83@2026-03-19',
+      kind: 'player-slump',
+      subject: 'Skater A',
+      since: '2026-03-19',
+      status: 'open',
+      summary: 'Skater A: no goal in 51 games',
+    },
+  ]
+  f.stances = [
+    {
+      threadKey: 'player-slump:83@2026-03-19',
+      reporter: 'quill',
+      stance: 'He will score 33 soon.',
+      night: '2026-09-30',
+    },
+  ]
+  const a = allowedNumbers(f)
+  assert.ok(a.has(51))
+  for (const x of [83, 19, 33, 30]) assert.equal(a.has(x), false, String(x))
+  // The sheet's own key (a date) still counts.
+  assert.ok(a.has(2026) && a.has(12))
+})

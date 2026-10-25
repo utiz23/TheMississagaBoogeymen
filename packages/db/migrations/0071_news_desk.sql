@@ -11,6 +11,9 @@
 -- Revision 2 (2026-10-25, edited in place; not on live yet): nine reporters
 -- (pettibone, bergstrom), and news_items gains criticized (jsonb array),
 -- prediction and feature_kind (weekly features only).
+-- Part C2 (2026-10-25, edited in place): news_stances (a reporter's stance on
+-- an open thread, spec §12.17-3) and news_items.receipt_verdict (a weekly
+-- feature's verdict on the previous prediction: hit | miss, spec §12.15-4).
 -- Back-fills a skipped job for every existing game, night and week (Monday
 -- start, from the night key) so launch never covers history.
 --
@@ -25,6 +28,7 @@
 -- no job yet as 'skipped' (the back-fill covers every match without a row).
 -- Re-run only right before the first launch.
 -- ROLLBACK:
+--   DROP TABLE IF EXISTS "news_stances";
 --   DROP TABLE IF EXISTS "news_ai_usage";
 --   DROP TABLE IF EXISTS "news_items";
 --   DROP TABLE IF EXISTS "news_jobs";
@@ -136,6 +140,28 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS "news_items_feed_idx"
   ON "news_items" ("kind", "is_test", "deleted_at", "id" DESC);
+
+-- ── news_stances (Part C2) ──────────────────────────────────────────────────
+-- A reporter's stance on a derived thread (thread_key from the fact sheet,
+-- e.g. 'player-slump:2@2026-05-08'); the item that took it. Deleting the item
+-- deletes the stance.
+CREATE TABLE IF NOT EXISTS "news_stances" (
+  "id" bigserial PRIMARY KEY NOT NULL,
+  "thread_key" text NOT NULL,
+  "reporter" text NOT NULL,
+  "stance" text NOT NULL,
+  "night" date,
+  "item_id" bigint REFERENCES "news_items"("id") ON DELETE CASCADE,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+DO $$ BEGIN
+  ALTER TABLE "news_stances" DROP CONSTRAINT IF EXISTS "news_stances_reporter_check";
+  ALTER TABLE "news_stances" ADD CONSTRAINT "news_stances_reporter_check"
+    CHECK ("reporter" IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom'));
+END $$;
+
+CREATE INDEX IF NOT EXISTS "news_stances_thread_key_idx" ON "news_stances" ("thread_key");
 
 -- ── news_ai_usage ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "news_ai_usage" (

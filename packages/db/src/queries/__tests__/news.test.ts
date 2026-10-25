@@ -37,6 +37,7 @@ const {
   rowToPlayerGame,
   listNewsPlayersWithOtherSeasonsSql,
   listNewsTitleSeasonTotalsSql,
+  stancesForThreadsSql,
   recentReporterSummariesSql,
   reporterActivitySql,
   lastFeatureSql,
@@ -884,4 +885,49 @@ void test("title season totals: every human player's rows of the title before th
   assert.doesNotMatch(s, /DNF/)
   assert.match(s, /group by pms\.player_id, p\.gamertag$/)
   assert.deepEqual(q.params, [900, 7])
+})
+
+void test('stances for threads: the given keys, oldest first; stances of deleted or test items left out (C2.8)', () => {
+  const q = dialect.sqlToQuery(
+    stancesForThreadsSql(['player-slump:2@2026-05-08', 'pp-drought@2026-05-10']),
+  )
+  const s = flat(q.sql)
+  assert.match(s, /from news_stances s left join news_items i on i\.id = s\.item_id/)
+  assert.match(s, /where s\.thread_key in \(\$1, \$2\)/)
+  assert.match(s, /and \(s\.item_id is null or \(i\.deleted_at is null and i\.is_test = false\)\)/)
+  assert.match(s, /to_char\(s\.night, 'YYYY-MM-DD'\) as night/)
+  assert.match(s, /order by s\.night asc nulls last, s\.id asc$/)
+  assert.deepEqual(q.params, ['player-slump:2@2026-05-08', 'pp-drought@2026-05-10'])
+})
+
+void test('migration 0071: news_stances (C2.8) is idempotent; reporter check drop and re-add; cascade with the item', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const raw = await readFile(
+    new URL('../../../migrations/0071_news_desk.sql', import.meta.url),
+    'utf8',
+  )
+  const text = flat(
+    raw
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('--'))
+      .join('\n'),
+  )
+  const ids = REPORTER_IDS.map((id) => `'${id}'`).join(', ')
+  assert.ok(
+    text.includes(
+      'CREATE TABLE IF NOT EXISTS "news_stances" ( "id" bigserial PRIMARY KEY NOT NULL, "thread_key" text NOT NULL, "reporter" text NOT NULL, "stance" text NOT NULL, "night" date, "item_id" bigint REFERENCES "news_items"("id") ON DELETE CASCADE, "created_at" timestamp with time zone DEFAULT now() NOT NULL );',
+    ),
+  )
+  assert.ok(
+    text.includes(
+      `DO $$ BEGIN ALTER TABLE "news_stances" DROP CONSTRAINT IF EXISTS "news_stances_reporter_check"; ALTER TABLE "news_stances" ADD CONSTRAINT "news_stances_reporter_check" CHECK ("reporter" IN (${ids})); END $$;`,
+    ),
+  )
+  assert.ok(
+    text.includes(
+      'CREATE INDEX IF NOT EXISTS "news_stances_thread_key_idx" ON "news_stances" ("thread_key");',
+    ),
+  )
+  // Inside the transaction.
+  assert.ok(text.indexOf('"news_stances"') < text.indexOf('COMMIT;'))
 })

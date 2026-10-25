@@ -147,6 +147,33 @@ export const newsItems = pgTable(
   ],
 )
 
+/**
+ * A reporter's stance on a derived thread (Part C2, spec §12.17-3). Threads
+ * are not stored: `threadKey` is the key the fact sheet derives (stable for
+ * one thread). Deleting the item deletes its stances. Migration 0071.
+ */
+export const newsStances = pgTable(
+  'news_stances',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    threadKey: text('thread_key').notNull(),
+    reporter: text('reporter').$type<NewsReporterId>().notNull(),
+    stance: text('stance').notNull(),
+    night: date('night', { mode: 'string' }),
+    itemId: bigint('item_id', { mode: 'number' }).references(() => newsItems.id, {
+      onDelete: 'cascade',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('news_stances_thread_key_idx').on(table.threadKey),
+    check(
+      'news_stances_reporter_check',
+      sql`${table.reporter} IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom')`,
+    ),
+  ],
+)
+
 /** One row per Claude call; the sum over a calendar month drives the money limit. */
 export const newsAiUsage = pgTable(
   'news_ai_usage',
@@ -179,6 +206,7 @@ export const newsSettings = pgTable(
 )
 
 export type NewsItemRow = typeof newsItems.$inferSelect
+export type NewNewsStance = typeof newsStances.$inferInsert
 export type NewNewsItem = typeof newsItems.$inferInsert
 export type NewNewsUsage = Omit<typeof newsAiUsage.$inferInsert, 'costUsd' | 'id' | 'createdAt'> & {
   costUsd: number
