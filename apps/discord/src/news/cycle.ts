@@ -49,6 +49,8 @@ export const NIGHT_SINCE_MS = 3 * 86_400_000
 export const STOP_PAUSE_MS = 3_600_000
 /** After the API is unavailable (rate limit, outage), write nothing for this long, so 3 tries span 30+ min. */
 export const RETRYABLE_PAUSE_MS = 900_000
+/** After a week's facts fetch fails, that week is not fetched again for this long (Mondays run every pass). */
+export const WEEK_FETCH_PAUSE_MS = 900_000
 
 const DELETE_LIMIT = 20
 const UNDELIVERED_LIMIT = 10
@@ -113,10 +115,18 @@ export interface NewsCycleState {
   testActivity: Activity
   /** Week keys whose job is done, skipped, capped or in flight: not fetched again by this process. */
   settledWeeks: Set<string>
+  /** Week key -> epoch ms: after a failed facts fetch, that week is not fetched again before this. */
+  weekFetchPausedUntil: Map<string, number>
 }
 
 export function createNewsCycleState(): NewsCycleState {
-  return { budgetLoggedMonth: null, pausedUntil: 0, testActivity: [], settledWeeks: new Set() }
+  return {
+    budgetLoggedMonth: null,
+    pausedUntil: 0,
+    testActivity: [],
+    settledWeeks: new Set(),
+    weekFetchPausedUntil: new Map(),
+  }
 }
 
 export interface NewsCycleOptions {
@@ -456,8 +466,12 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       if (jobId === null) continue
       const game = res.facts.games.find((g) => g.matchId === matchId)
       if (res.facts.kind !== 'game' || game === undefined) {
-        await store.markNewsJob(jobId, 'skipped', 'the fact sheet has no such game')
-        summary.jobsSkipped++
+        try {
+          await store.markNewsJob(jobId, 'skipped', 'the fact sheet has no such game')
+          summary.jobsSkipped++
+        } catch (err: unknown) {
+          await failJob(jobId, tag, `could not mark skipped: ${message(err)}`)
+        }
         continue
       }
       if ((await writeGame(jobId, tag, res, game)) === 'end') return 'end'
@@ -474,7 +488,14 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     const { facts, forbiddenNames } = res
     const night = facts.key // a game sheet's key is its night (R12)
     const now = deps.now()
-    const a = assignGamePosts(classifyGame(game), now, night, await loadActivity(now))
+    // The job is claimed: any error before the write must mark it failed, never leave it pending.
+    let a: ReturnType<typeof assignGamePosts>
+    try {
+      a = assignGamePosts(classifyGame(game), now, night, await loadActivity(now))
+    } catch (err: unknown) {
+      await failJob(jobId, tag, `could not prepare: ${message(err)}`)
+      return 'go'
+    }
     const order: ReporterId[] = a.second === null ? [a.first] : [a.first, a.second]
     const relationship =
       a.second !== null && a.secondIsReply
@@ -585,35 +606,52 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     // No hasNewsJob gate: a failed week job under the cap must be claimed again.
     // claimNewsJob returns null for done, skipped, pending and capped rows.
     if (state.settledWeeks.has(start)) return 'go'
+    if ((state.weekFetchPausedUntil.get(start) ?? 0) > deps.now().getTime()) return 'go'
     if ((await store.countNightGames(nightsOfWeek(start))) === 0) return 'go'
     if (!(await moneyLeft())) return 'end'
-    return articleJob('week', start, `week ${start}`, () => state.settledWeeks.add(start))
+    return articleJob('week', start, `week ${start}`, {
+      onSettled: () => state.settledWeeks.add(start),
+      onFetchFailed: () =>
+        state.weekFetchPausedUntil.set(start, deps.now().getTime() + WEEK_FETCH_PAUSE_MS),
+    })
   }
 
-  /** `onSettled` runs when the job can never be written again: claim refused, or done. */
+  /**
+   * `onSettled` runs when the job can never be written again: claim refused, or
+   * done. `onFetchFailed` runs when the facts could not be fetched.
+   */
   async function articleJob(
     kind: 'night' | 'week',
     key: string,
     tag: string,
-    onSettled: () => void = () => {},
+    hooks: { onSettled?: () => void; onFetchFailed?: () => void } = {},
   ): Promise<Step> {
     let res: NewsFactsResponse
     try {
       res = await deps.fetchFacts(kind, key)
     } catch (err: unknown) {
       log(`${tag}: facts unavailable, will retry (${message(err)})`)
+      hooks.onFetchFailed?.()
       return 'go'
     }
     const jobId = await store.claimNewsJob(kind, key, opts.dryRun)
     if (jobId === null) {
-      onSettled()
+      hooks.onSettled?.()
       return 'go'
     }
     const { facts, forbiddenNames } = res
     const now = deps.now()
-    const reporterId = assignArticle(kind, facts, now, await loadActivity(now))
+    // The job is claimed: any error before the write must mark it failed, never leave it pending.
+    let reporterId: ReporterId
+    let ownRecent: Awaited<ReturnType<NewsStore['recentReporterSummaries']>>
+    try {
+      reporterId = assignArticle(kind, facts, now, await loadActivity(now))
+      ownRecent = await store.recentReporterSummaries(reporterId, OWN_RECENT)
+    } catch (err: unknown) {
+      await failJob(jobId, tag, `could not prepare: ${message(err)}`)
+      return 'go'
+    }
     const reporter = REPORTERS[reporterId]
-    const ownRecent = await store.recentReporterSummaries(reporterId, OWN_RECENT)
     const written = await write(jobId, tag, {
       user: buildArticleUserPrompt({ facts, reporter, kind, ownRecent }),
       schema: ARTICLE_SCHEMA,
@@ -651,7 +689,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     }
     noteWritten(reporterId, night)
     await markDone(jobId, tag)
-    onSettled()
+    hooks.onSettled?.()
     const payload = buildArticlePayload({
       reporter,
       headline: a.headline,

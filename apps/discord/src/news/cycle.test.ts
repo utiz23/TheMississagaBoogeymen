@@ -784,3 +784,93 @@ void test('gates: NewsRetryableError ⇒ no writing for 15 min; deletions and un
   await runNewsCycle(h.deps, h.opts)
   assert.equal(h.jobs.get('game:501')?.status, 'done')
 })
+
+// ── Final fix wave ──────────────────────────────────────────────────────────
+
+void test('game: a DB error after the claim (activity) marks the job failed, never leaves it pending (I1.3)', async () => {
+  const h = harness({
+    candidates: [501],
+    store: {
+      reporterActivity: async () => {
+        throw new Error('connection reset')
+      },
+    },
+  })
+  const s = await runNewsCycle(h.deps, h.opts)
+  const job = h.jobs.get('game:501')!
+  assert.equal(job.status, 'failed')
+  assert.match(job.error ?? '', /could not prepare: connection reset/)
+  assert.equal(s.jobsFailed, 1)
+  assert.equal(h.writerCalls.length, 0)
+  assert.equal(h.items.size, 0)
+})
+
+void test('game: a failed "skipped" mark after the claim marks the job failed instead (I1.3)', async () => {
+  const h = harness({
+    candidates: [501],
+    deps: {
+      fetchFacts: async () => {
+        const r = gameResponse(999) // the sheet has another game
+        return r
+      },
+    },
+  })
+  const mark = h.deps.store.markNewsJob
+  h.deps.store.markNewsJob = async (jobId, status, error) => {
+    if (status === 'skipped') throw new Error('db down')
+    return mark(jobId, status, error)
+  }
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('game:501')?.status, 'failed')
+})
+
+void test('night: a DB error after the claim (own recent pieces) marks the job failed (I1.3)', async () => {
+  const h = harness({
+    store: {
+      recentReporterSummaries: async () => {
+        throw new Error('connection reset')
+      },
+    },
+  })
+  h.state.nights = [{ night: '2026-10-12', lastEnd: new Date(NOW.getTime() - 91 * MIN) }]
+  h.state.nightGames['2026-10-12'] = 2
+  await runNewsCycle(h.deps, h.opts)
+  const job = h.jobs.get('night:2026-10-12')!
+  assert.equal(job.status, 'failed')
+  assert.match(job.error ?? '', /could not prepare: connection reset/)
+  assert.equal(h.writerCalls.length, 0)
+  // Failed under the cap: the next pass claims it again and writes it.
+  h.deps.store.recentReporterSummaries = async () => []
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('night:2026-10-12')?.status, 'done')
+  assert.equal(h.jobs.get('night:2026-10-12')?.attempts, 2)
+})
+
+void test('week: after a failed facts fetch the week is not fetched again for 15 minutes (M8)', async () => {
+  let now = MONDAY_1201
+  let down = true
+  const h = harness({
+    deps: {
+      now: () => now,
+      fetchFacts: async (kind, key) => {
+        h.events.push(`fetch:${kind}:${key}`)
+        if (down) throw new Error('news facts HTTP 500')
+        const r = oct12Response(kind)
+        return { ...r, facts: { ...r.facts, key } }
+      },
+    },
+  })
+  h.state.nightGames['2026-10-22'] = 3
+  const fetches = () => h.events.filter((e) => e === 'fetch:week:2026-10-19').length
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(fetches(), 1)
+  assert.equal(h.jobs.size, 0)
+  now = new Date(MONDAY_1201.getTime() + 5 * MIN)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(fetches(), 1, 'paused: not fetched again within 15 minutes')
+  down = false
+  now = new Date(MONDAY_1201.getTime() + 16 * MIN)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(fetches(), 2)
+  assert.equal(h.jobs.get('week:2026-10-19')?.status, 'done')
+})
