@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import type { PressLevel } from '@eanhl/db/schema'
 import { Pencil } from 'lucide-react'
 import { saveProfileAction } from '@/app/roster/[id]/profile-actions'
 import {
@@ -10,6 +11,7 @@ import {
   NAME_MAX,
   NATIONALITIES,
   POSITIONS,
+  PRESS_LEVEL_OPTIONS,
   ROLE_MAX,
   type ProfileField,
   type ProfileFormState,
@@ -23,6 +25,7 @@ export interface ProfileEditorValues {
   preferredPosition: string | null
   archetype: string | null
   clubRoleLabel: string | null
+  pressLevel: PressLevel
 }
 
 const FIELD =
@@ -145,6 +148,21 @@ export function ProfileEditor({
               aria-invalid={invalid('bio')}
               className={`${FIELD} resize-y`}
             />
+          </Field>
+
+          <Field label="Press coverage" error={errors.pressLevel}>
+            <select
+              name="pressLevel"
+              defaultValue={values.pressLevel}
+              aria-invalid={invalid('pressLevel')}
+              className={FIELD}
+            >
+              {PRESS_LEVEL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </Field>
 
           {isAdmin && (

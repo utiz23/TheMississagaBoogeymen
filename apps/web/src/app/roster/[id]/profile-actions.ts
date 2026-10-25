@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { updatePlayerProfile } from '@eanhl/db/queries'
 import { getViewer } from '@/lib/auth'
 import { canEditPlayerCard } from '@/lib/card-permissions'
-import { parseProfileForm, type ProfileFormState } from '@/lib/profile-edit'
+import { parseProfileForm, pressLevelSetBy, type ProfileFormState } from '@/lib/profile-edit'
 
 /**
  * Save a player's profile from the EDIT PROFILE form. Re-checks everything:
@@ -34,11 +34,17 @@ export async function saveProfileAction(
   }
 
   try {
-    await updatePlayerProfile(playerId, parsed.patch)
+    // A press level carries who chose it; the news admin page shows that.
+    const patch =
+      parsed.patch.pressLevel === undefined
+        ? parsed.patch
+        : { ...parsed.patch, pressLevelSetBy: pressLevelSetBy(viewer, playerId) }
+    await updatePlayerProfile(playerId, patch)
   } catch {
     return { status: 'error', message: 'Saving failed. Please try again.', errors: {} }
   }
   // Names, jerseys and flags appear across the site (cards, home, stats, games).
   revalidatePath('/', 'layout')
+  revalidatePath('/admin/news')
   return { status: 'saved', at: Date.now() }
 }

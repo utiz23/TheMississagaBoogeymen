@@ -356,6 +356,7 @@ export default async function PlayerPage({ params, searchParams }: Props) {
                     preferredPosition: overview.player.preferredPosition,
                     archetype: overview.player.archetype,
                     clubRoleLabel: overview.player.clubRoleLabel,
+                    pressLevel: overview.player.pressLevel ?? 'full',
                   }}
                 />
               ) : null

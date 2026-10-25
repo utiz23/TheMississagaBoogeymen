@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseProfileForm } from './profile-edit.ts'
+import { parseProfileForm, pressLevelSetBy } from './profile-edit.ts'
 
 const form = (values: Record<string, string>) => (name: string) => values[name] ?? null
 
@@ -91,4 +91,44 @@ void test('an admin also sets position, archetype and club role', () => {
   assert.equal(parseProfileForm(form({ archetype: 'wizard' }), true).ok, false)
   const goalie = parseProfileForm(form({ preferredPosition: 'goalie', archetype: 'sniper' }), true)
   assert.equal(goalie.ok, false)
+})
+
+void test('a member sets their press level', () => {
+  const r = parseProfileForm(form({ pressLevel: 'easy' }), false)
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.patch.pressLevel, 'easy')
+})
+
+void test('an admin sets a press level too', () => {
+  const r = parseProfileForm(form({ pressLevel: 'out' }), true)
+  assert.equal(r.ok, true)
+  if (r.ok) assert.equal(r.patch.pressLevel, 'out')
+})
+
+void test('an unknown press level is refused', () => {
+  const r = parseProfileForm(form({ pressLevel: 'harsh' }), false)
+  assert.equal(r.ok, false)
+  if (!r.ok) assert.equal(r.errors.pressLevel, 'Choose a press level.')
+})
+
+void test('an empty press level is refused', () => {
+  const r = parseProfileForm(form({ pressLevel: '' }), false)
+  assert.equal(r.ok, false)
+  if (!r.ok) assert.equal(r.errors.pressLevel, 'Choose a press level.')
+})
+
+void test('an absent press level leaves it unchanged', () => {
+  const r = parseProfileForm(form({ playerName: 'Silky' }), false)
+  assert.equal(r.ok, true)
+  if (r.ok) {
+    assert.equal('pressLevel' in r.patch, false)
+    assert.equal('pressLevelSetBy' in r.patch, false)
+  }
+})
+
+void test('press level is set by the admin only on another player', () => {
+  assert.equal(pressLevelSetBy({ role: 'admin', playerId: 2 }, 5), 'admin')
+  assert.equal(pressLevelSetBy({ role: 'admin', playerId: 5 }, 5), 'self')
+  assert.equal(pressLevelSetBy({ role: 'admin', playerId: null }, 5), 'admin')
+  assert.equal(pressLevelSetBy({ role: 'user', playerId: 5 }, 5), 'self')
 })

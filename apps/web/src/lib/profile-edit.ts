@@ -4,7 +4,12 @@
  * admin edits those plus preferred position, archetype and club role on any
  * player. Pure, so the form and the Server Action share one set of rules.
  */
-import { PLAYER_ARCHETYPES, type PlayerArchetype } from '@eanhl/db/schema'
+import {
+  PLAYER_ARCHETYPES,
+  PRESS_LEVELS,
+  type PlayerArchetype,
+  type PressLevel,
+} from '@eanhl/db/schema'
 import type { ProfilePatch } from '@eanhl/db/queries'
 
 export const NAME_MAX = 24
@@ -38,7 +43,20 @@ export const ARCHETYPE_LABELS: Readonly<Record<PlayerArchetype, string>> = {
   puckmover: 'Puck mover',
 }
 
-export const SELF_FIELDS = ['playerName', 'jerseyNumber', 'nationality', 'bio'] as const
+/** How the news desk's reporters may treat a player (news desk §7.3). */
+export const PRESS_LEVEL_OPTIONS: readonly { value: PressLevel; label: string }[] = [
+  { value: 'full', label: 'Full press — reporters can be harsh about my games' },
+  { value: 'easy', label: 'Go easy — keep criticism mild' },
+  { value: 'out', label: 'Leave me out — never name me' },
+]
+
+export const SELF_FIELDS = [
+  'playerName',
+  'jerseyNumber',
+  'nationality',
+  'bio',
+  'pressLevel',
+] as const
 export const ADMIN_ONLY_FIELDS = ['preferredPosition', 'archetype', 'clubRoleLabel'] as const
 export type ProfileField = (typeof SELF_FIELDS)[number] | (typeof ADMIN_ONLY_FIELDS)[number]
 
@@ -94,6 +112,14 @@ export function parseProfileForm(
   if (bio !== null && bio.length > BIO_MAX) errors.bio = `Up to ${String(BIO_MAX)} characters.`
   else patch.bio = bio
 
+  // Absent = no change (older forms); present must be a known level.
+  const press = get('pressLevel')
+  if (press !== null) {
+    if ((PRESS_LEVELS as readonly string[]).includes(press.trim())) {
+      patch.pressLevel = press.trim() as PressLevel
+    } else errors.pressLevel = 'Choose a press level.'
+  }
+
   if (isAdmin) {
     const pos = (get('preferredPosition') ?? '').trim()
     if (pos === '') patch.preferredPosition = null
@@ -114,6 +140,17 @@ export function parseProfileForm(
   }
 
   return Object.keys(errors).length > 0 ? { ok: false, errors } : { ok: true, patch }
+}
+
+/**
+ * Who set a press level: 'admin' when an admin edits a player that is not
+ * their own, otherwise 'self'. Same "own player" rule as canEditPlayerCard.
+ */
+export function pressLevelSetBy(
+  viewer: { role: string; playerId: number | null },
+  playerId: number,
+): 'self' | 'admin' {
+  return viewer.role === 'admin' && viewer.playerId !== playerId ? 'admin' : 'self'
 }
 
 /** What the profile form shows after a submit. */

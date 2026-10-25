@@ -48,6 +48,11 @@ const TOOLS = [
     note: 'Club-vote trophies and championship banners.',
   },
   {
+    href: '/admin/news',
+    label: 'News desk',
+    note: 'On/off, spending, delete items, press levels.',
+  },
+  {
     href: '/admin/titles',
     label: 'Game titles',
     note: 'Collection, default and order (view only).',

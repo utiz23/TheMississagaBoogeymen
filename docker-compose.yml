@@ -83,6 +83,8 @@ services:
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
       DISCORD_INTERNAL_TOKEN: ${DISCORD_INTERNAL_TOKEN:-}
+      # Shown on /admin/news ("spent of limit"); the news service has its own copy.
+      NEWS_MONTHLY_LIMIT_USD: ${NEWS_MONTHLY_LIMIT_USD:-10}
     ports:
       # Public traffic arrives through cloudflared over the compose network, not
       # through this published port. Keep it on loopback even on a public host.

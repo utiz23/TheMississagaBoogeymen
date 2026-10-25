@@ -430,6 +430,7 @@ export async function getPlayerWithProfile(playerId: number) {
       archetype: playerProfiles.archetype,
       bio: playerProfiles.bio,
       clubRoleLabel: playerProfiles.clubRoleLabel,
+      pressLevel: playerProfiles.pressLevel,
     })
     .from(players)
     .leftJoin(playerProfiles, eq(players.id, playerProfiles.playerId))
