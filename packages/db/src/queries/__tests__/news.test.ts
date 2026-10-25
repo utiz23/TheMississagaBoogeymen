@@ -5,7 +5,9 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { PgDialect } from 'drizzle-orm/pg-core'
+import { PgDialect, getTableConfig } from 'drizzle-orm/pg-core'
+import { FEATURE_KINDS, REPORTER_IDS } from '../../news/index.js'
+import { NEWS_REPORTER_IDS, newsItems } from '../../schema/index.js'
 
 process.env.DATABASE_URL = 'postgresql://news-test:unused@127.0.0.1:1/unused'
 
@@ -287,6 +289,137 @@ void test('raw feed row: mentions and facts parse the same way (text or object, 
   assert.deepEqual(asObject.facts, facts)
   assert.deepEqual(asText.mentions, mentions)
   assert.equal(rawToNewsItem({ ...base, mentions: [], facts: null } as never).facts, null)
+})
+
+void test('raw feed row: criticized, prediction and feature kind (rev 2)', () => {
+  const base = {
+    id: '2',
+    job_id: null,
+    kind: 'article',
+    reporter: 'pettibone',
+    match_id: null,
+    night: null,
+    week_start: '2026-10-19',
+    reply_to: null,
+    slug: '2026-10-19-notes',
+    headline: 'h',
+    dek: null,
+    body: 'b',
+    summary: null,
+    mentions: [],
+    facts: null,
+    is_test: false,
+    discord_status: 'pending',
+    discord_attempts: 0,
+    discord_message_id: null,
+    last_error: null,
+    deleted_at: null,
+    discord_deleted_at: null,
+    created_at: '2026-10-26 18:00:00+00',
+  } as const
+  const asText = rawToNewsItem({
+    ...base,
+    criticized: JSON.stringify(['Hero Name']),
+    prediction: 'They win the opener.',
+    feature_kind: 'notes',
+  } as never)
+  assert.deepEqual(asText.criticized, ['Hero Name'])
+  assert.equal(asText.prediction, 'They win the opener.')
+  assert.equal(asText.featureKind, 'notes')
+  const asArray = rawToNewsItem({
+    ...base,
+    criticized: [],
+    prediction: null,
+    feature_kind: null,
+  } as never)
+  assert.deepEqual(asArray.criticized, [])
+  assert.equal(asArray.prediction, null)
+  assert.equal(asArray.featureKind, null)
+  // A row from before the columns existed reads as empty.
+  const old = rawToNewsItem(base as never)
+  assert.deepEqual(old.criticized, [])
+  assert.equal(old.prediction, null)
+  assert.equal(old.featureKind, null)
+})
+
+void test('schema: reporter ids match the cast; rev 2 columns and checks (pins)', () => {
+  assert.deepEqual([...NEWS_REPORTER_IDS], [...REPORTER_IDS])
+  const config = getTableConfig(newsItems)
+  const cols = new Map(config.columns.map((c) => [c.name, c]))
+  const criticized = cols.get('criticized')
+  assert.ok(criticized)
+  assert.equal(criticized.notNull, true)
+  assert.equal(criticized.getSQLType(), 'jsonb')
+  assert.deepEqual(criticized.default, [])
+  assert.equal(cols.get('prediction')?.notNull, false)
+  assert.equal(cols.get('prediction')?.getSQLType(), 'text')
+  assert.equal(cols.get('feature_kind')?.notNull, false)
+  assert.equal(cols.get('feature_kind')?.getSQLType(), 'text')
+  const checkSql = (name: string): string => {
+    const c = config.checks.find((x) => x.name === name)
+    assert.ok(c, name)
+    return flat(dialect.sqlToQuery(c.value).sql)
+  }
+  const reporter = checkSql('news_items_reporter_check')
+  for (const id of REPORTER_IDS) assert.ok(reporter.includes(`'${id}'`), id)
+  const kind = checkSql('news_items_feature_kind_check')
+  assert.match(kind, /"news_items"\."feature_kind" is null or "news_items"\."feature_kind" in \(/i)
+  for (const k of FEATURE_KINDS) assert.ok(kind.includes(`'${k}'`), k)
+  assert.match(
+    checkSql('news_items_prediction_feature_check'),
+    /"news_items"\."prediction" is null or "news_items"\."feature_kind" is not null/i,
+  )
+  assert.match(
+    checkSql('news_items_criticized_array_check'),
+    /jsonb_typeof\("news_items"\."criticized"\) = 'array'/,
+  )
+})
+
+void test('migration 0071: rev 2 columns; reporter check upgraded by drop and re-add (idempotent)', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const raw = await readFile(
+    new URL('../../../migrations/0071_news_desk.sql', import.meta.url),
+    'utf8',
+  )
+  const text = flat(
+    raw
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('--'))
+      .join('\n'),
+  )
+  const ids = REPORTER_IDS.map((id) => `'${id}'`).join(', ')
+  // A re-run on a database that has the old seven-id check replaces it.
+  assert.ok(
+    text.includes(
+      `DO $$ BEGIN ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_reporter_check"; ALTER TABLE "news_items" ADD CONSTRAINT "news_items_reporter_check" CHECK ("reporter" IN (${ids})); END $$;`,
+    ),
+    'reporter check drop + re-add',
+  )
+  // Only that one definition: no older add-if-missing block left behind.
+  assert.equal(text.split('ADD CONSTRAINT "news_items_reporter_check"').length, 2)
+  assert.ok(
+    text.includes(
+      `ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "criticized" jsonb DEFAULT '[]'::jsonb NOT NULL;`,
+    ),
+  )
+  assert.ok(text.includes(`ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "prediction" text;`))
+  assert.ok(text.includes(`ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "feature_kind" text;`))
+  const kinds = FEATURE_KINDS.map((k) => `'${k}'`).join(', ')
+  assert.ok(
+    text.includes(
+      `DO $$ BEGIN ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_feature_kind_check"; ALTER TABLE "news_items" ADD CONSTRAINT "news_items_feature_kind_check" CHECK ("feature_kind" IS NULL OR "feature_kind" IN (${kinds})); END $$;`,
+    ),
+    'feature kind check',
+  )
+  assert.ok(
+    text.includes(`CHECK ("prediction" IS NULL OR "feature_kind" IS NOT NULL)`),
+    'prediction only on features',
+  )
+  assert.ok(text.includes(`CHECK (jsonb_typeof("criticized") = 'array')`), 'criticized is an array')
+  // The columns are added before any check that names them, and inside the transaction.
+  assert.ok(text.indexOf('"criticized" jsonb') < text.indexOf('jsonb_typeof("criticized")'))
+  assert.ok(text.indexOf('BEGIN;') < text.indexOf('"criticized" jsonb'))
+  assert.ok(text.indexOf('"feature_kind" text') < text.indexOf('COMMIT;'))
 })
 
 void test('db handle exists (builders need no connection)', () => {

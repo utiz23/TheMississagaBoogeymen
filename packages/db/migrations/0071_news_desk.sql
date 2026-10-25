@@ -8,6 +8,9 @@
 -- the fictional reporters write. news_ai_usage: one row per Claude call (cost
 -- record for the monthly limit). news_settings: one row, the on/off switch.
 -- player_profiles gains press_level (full | easy | out) and who set it.
+-- Revision 2 (2026-10-25, edited in place; not on live yet): nine reporters
+-- (pettibone, bergstrom), and news_items gains criticized (jsonb array),
+-- prediction and feature_kind (weekly features only).
 -- Back-fills a skipped job for every existing game, night and week (Monday
 -- start, from the night key) so launch never covers history.
 --
@@ -15,7 +18,9 @@
 --   docker exec -i -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=30s" \
 --     eanhl-team-website-db-1 psql -U eanhl -d <database> -v ON_ERROR_STOP=1 -f - \
 --     < packages/db/migrations/0071_news_desk.sql
--- Apply BEFORE deploying the code that reads it. Idempotent in schema; adds only.
+-- Apply BEFORE deploying the code that reads it. Idempotent in schema: adds
+-- tables and columns; the news_items checks are dropped and re-added by name
+-- (same definition on a re-run, the new one on a database with an older one).
 -- WARNING: re-running it AFTER launch marks every game, night and week that has
 -- no job yet as 'skipped' (the back-fill covers every match without a row).
 -- Re-run only right before the first launch.
@@ -90,10 +95,37 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+-- Revision 2 (2026-10-25): nine reporters. Drop and re-add by name, so a
+-- re-run on a database that has the old seven-id check upgrades it.
 DO $$ BEGIN
+  ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_reporter_check";
   ALTER TABLE "news_items" ADD CONSTRAINT "news_items_reporter_check"
-    CHECK ("reporter" IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink'));
-EXCEPTION WHEN duplicate_object THEN NULL;
+    CHECK ("reporter" IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom'));
+END $$;
+
+-- Revision 2: criticized = the people an item criticises harshly (a JSON array
+-- of names; pile-on limit). prediction and feature_kind belong to weekly
+-- features only.
+ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "criticized" jsonb DEFAULT '[]'::jsonb NOT NULL;
+ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "prediction" text;
+ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "feature_kind" text;
+
+DO $$ BEGIN
+  ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_feature_kind_check";
+  ALTER TABLE "news_items" ADD CONSTRAINT "news_items_feature_kind_check"
+    CHECK ("feature_kind" IS NULL OR "feature_kind" IN ('trend', 'spotlight', 'notes', 'bigpicture', 'rink'));
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_prediction_feature_check";
+  ALTER TABLE "news_items" ADD CONSTRAINT "news_items_prediction_feature_check"
+    CHECK ("prediction" IS NULL OR "feature_kind" IS NOT NULL);
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_criticized_array_check";
+  ALTER TABLE "news_items" ADD CONSTRAINT "news_items_criticized_array_check"
+    CHECK (jsonb_typeof("criticized") = 'array');
 END $$;
 
 DO $$ BEGIN

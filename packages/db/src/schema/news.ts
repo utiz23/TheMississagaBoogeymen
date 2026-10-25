@@ -17,6 +17,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { matches } from './matches.js'
 import type { DiscordPostStatus } from './discord-posts.js'
+import type { FeatureKind } from '../news/features.js'
 
 export const NEWS_JOB_KINDS = ['game', 'night', 'week'] as const
 export type NewsJobKind = (typeof NEWS_JOB_KINDS)[number]
@@ -35,6 +36,8 @@ export const NEWS_REPORTER_IDS = [
   'vale',
   'quill',
   'rink',
+  'pettibone',
+  'bergstrom',
 ] as const
 export type NewsReporterId = (typeof NEWS_REPORTER_IDS)[number]
 
@@ -80,7 +83,10 @@ export const newsJobs = pgTable(
 /**
  * A post (short Discord text) or article (site page) written by a reporter.
  * `body`: posts hold the text, articles hold paragraphs joined by a blank line.
- * `facts` is the fact sheet the item was written from.
+ * `facts` is the fact sheet the item was written from. Revision 2:
+ * `criticized` = the people the item criticises harshly (pile-on limit),
+ * `featureKind` + `prediction` = a weekly feature's kind and its prediction
+ * for the next week (null on everything else).
  */
 export const newsItems = pgTable(
   'news_items',
@@ -106,6 +112,9 @@ export const newsItems = pgTable(
     summary: text('summary'),
     mentions: jsonb('mentions').$type<NewsMention[]>().notNull().default([]),
     facts: jsonb('facts').$type<unknown>(),
+    criticized: jsonb('criticized').$type<string[]>().notNull().default([]),
+    prediction: text('prediction'),
+    featureKind: text('feature_kind').$type<FeatureKind>(),
     isTest: boolean('is_test').notNull().default(false),
     discordStatus: text('discord_status').$type<DiscordPostStatus>().notNull().default('pending'),
     discordAttempts: integer('discord_attempts').notNull().default(0),
@@ -120,8 +129,17 @@ export const newsItems = pgTable(
     check('news_items_kind_check', sql`${table.kind} IN ('post', 'article')`),
     check(
       'news_items_reporter_check',
-      sql`${table.reporter} IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink')`,
+      sql`${table.reporter} IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom')`,
     ),
+    check(
+      'news_items_feature_kind_check',
+      sql`${table.featureKind} IS NULL OR ${table.featureKind} IN ('trend', 'spotlight', 'notes', 'bigpicture', 'rink')`,
+    ),
+    check(
+      'news_items_prediction_feature_check',
+      sql`${table.prediction} IS NULL OR ${table.featureKind} IS NOT NULL`,
+    ),
+    check('news_items_criticized_array_check', sql`jsonb_typeof(${table.criticized}) = 'array'`),
     check(
       'news_items_discord_status_check',
       sql`${table.discordStatus} IN ('pending', 'posted', 'failed', 'skipped')`,

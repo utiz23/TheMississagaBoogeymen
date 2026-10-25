@@ -517,6 +517,10 @@ type RawNewsItem = {
   summary: string | null
   mentions: NewsItemRow['mentions'] | string
   facts: unknown
+  /** Rev 2 columns; absent on a row shape from before migration 0071 gained them. */
+  criticized?: string[] | string
+  prediction?: string | null
+  feature_kind?: NewsItemRow['featureKind']
   is_test: boolean
   discord_status: NewsItemRow['discordStatus']
   discord_attempts: number
@@ -550,6 +554,14 @@ export function rawToNewsItem(r: RawNewsItem): NewsItemRow {
     summary: r.summary,
     mentions: typeof r.mentions === 'string' ? JSON.parse(r.mentions) : r.mentions,
     facts: typeof r.facts === 'string' ? JSON.parse(r.facts) : r.facts,
+    criticized:
+      r.criticized === undefined
+        ? []
+        : typeof r.criticized === 'string'
+          ? (JSON.parse(r.criticized) as string[])
+          : r.criticized,
+    prediction: r.prediction ?? null,
+    featureKind: r.feature_kind ?? null,
     isTest: r.is_test,
     discordStatus: r.discord_status,
     discordAttempts: r.discord_attempts,
