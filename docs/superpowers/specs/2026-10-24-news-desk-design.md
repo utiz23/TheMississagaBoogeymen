@@ -408,3 +408,19 @@ came true — only from the sheet. Predictions are stored with the feature.
   accounted for by player rows count as unnamed goals; when milestones are capped,
   round numbers (100s, then 50s) and points first.
 - The NHL 26 backfill is redone in this format, without the Claude API.
+
+### 12.8 AI goalie coverage (operator, 2026-10-25)
+
+Reporters may write about the AI goalies' performance — "what we are all
+complaining about in the call". Supersedes the earlier rule that AI goalies get
+no praise or blame.
+
+- The AI goalies are named by their in-game names: **Matteo Lehmann** and
+  **Jonas Wagner** (Claude's call: names over "the AI goalie").
+- The game sheet gets the AI goalie's line when one played for the club: name,
+  saves, shots against, goals against, save percentage. The week sheet gets the
+  AI goalies' week totals.
+- Praise and blame are allowed; facts only from the sheet. They are not
+  teammates or members and are never called that.
+- Press levels and the pile-on limit do not apply to them (not real people).
+- The NHL 26 backfill uses this rule.
