@@ -517,6 +517,72 @@ export async function lastFeature(): Promise<{
     : null
 }
 
+/** A reporter's judged predictions (spec §12.15-4). */
+export interface NewsScorecard {
+  reporter: NewsReporterId
+  hits: number
+  misses: number
+}
+
+/**
+ * Each reporter's judged predictions: a feature with a receipt verdict
+ * credits the author of the feature it judged (the latest real feature of an
+ * earlier week, as `lastFeature` picks it when the receipt is written), when
+ * that one had a prediction. Real, not deleted items only. `gameTitleId`:
+ * only receipts of weeks with a game of that title; `beforeWeek`: only
+ * receipts of features before that Monday (a week sheet must not see later
+ * receipts during a backfill).
+ */
+export function predictionScorecardsSql(args: { gameTitleId?: number; beforeWeek?: string }): SQL {
+  const title =
+    args.gameTitleId === undefined
+      ? sql``
+      : sql`and exists (
+          select 1 from matches m
+          where m.game_title_id = ${args.gameTitleId}
+            and date_trunc('week', ${nightKeySql('m')})::date = f.week_start
+        )`
+  const before =
+    args.beforeWeek === undefined ? sql`` : sql`and f.week_start < ${args.beforeWeek}::date`
+  return sql`
+    select p.reporter,
+      count(*) filter (where f.receipt_verdict = 'hit') as hits,
+      count(*) filter (where f.receipt_verdict = 'miss') as misses
+    from news_items f
+    join lateral (
+      select n.reporter, n.prediction
+      from news_items n
+      where n.is_test = false
+        and n.deleted_at is null
+        and n.feature_kind is not null
+        and n.week_start < f.week_start
+      order by n.week_start desc, n.id desc
+      limit 1
+    ) p on true
+    where f.is_test = false
+      and f.deleted_at is null
+      and f.feature_kind is not null
+      and f.receipt_verdict is not null
+      and p.prediction is not null
+      ${title}
+      ${before}
+    group by p.reporter
+    order by p.reporter`
+}
+
+export async function predictionScorecards(
+  args: { gameTitleId?: number; beforeWeek?: string } = {},
+): Promise<NewsScorecard[]> {
+  const rows = await db.execute<{ reporter: NewsReporterId; hits: Numeric; misses: Numeric }>(
+    predictionScorecardsSql(args),
+  )
+  return rows.map((r) => ({
+    reporter: r.reporter,
+    hits: Number(r.hits),
+    misses: Number(r.misses),
+  }))
+}
+
 /**
  * The `criticized` lists of a night's items, oldest first (rev 2, B4 pile-on
  * limit). Deleted items do not count; test items only when `includeTest`.
@@ -723,6 +789,8 @@ type RawNewsItem = {
   criticized?: string[] | string
   prediction?: string | null
   feature_kind?: NewsItemRow['featureKind']
+  /** Part C2 column; absent on an older row shape. */
+  receipt_verdict?: NewsItemRow['receiptVerdict']
   is_test: boolean
   discord_status: NewsItemRow['discordStatus']
   discord_attempts: number
@@ -764,6 +832,7 @@ export function rawToNewsItem(r: RawNewsItem): NewsItemRow {
           : r.criticized,
     prediction: r.prediction ?? null,
     featureKind: r.feature_kind ?? null,
+    receiptVerdict: r.receipt_verdict ?? null,
     isTest: r.is_test,
     discordStatus: r.discord_status,
     discordAttempts: r.discord_attempts,

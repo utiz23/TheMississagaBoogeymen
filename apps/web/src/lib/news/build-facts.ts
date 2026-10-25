@@ -22,6 +22,7 @@ import {
   type NewsModeNorms,
   type NewsPerson,
   type NewsPlayerLine,
+  type NewsScorecardLine,
   type NewsThread,
   type NewsThreadStance,
   type NewsPosition,
@@ -704,6 +705,20 @@ export function buildAiGoalieWeek(games: readonly NewsGameFacts[]): NewsAiGoalie
     .sort((a, b) => b.games - a.games)
 }
 
+/** The scorecards as the sheet carries them (`judged` = hits + misses), best record first. */
+export function buildScorecards(
+  rows: readonly { reporter: NewsScorecardLine['reporter']; hits: number; misses: number }[],
+): NewsScorecardLine[] {
+  return rows
+    .map((r) => ({
+      reporter: r.reporter,
+      hits: r.hits,
+      misses: r.misses,
+      judged: r.hits + r.misses,
+    }))
+    .sort((a, b) => b.hits - a.hits || a.misses - b.misses || a.reporter.localeCompare(b.reporter))
+}
+
 /** Assemble a sheet; the night totals are summed from the games. */
 export function buildFacts(args: {
   kind: NewsFacts['kind']
@@ -730,6 +745,8 @@ export function buildFacts(args: {
   threads?: NewsThread[]
   /** Earlier stances on those threads; default none. */
   stances?: NewsThreadStance[]
+  /** Week sheets only (default []). */
+  scorecards?: NewsScorecardLine[]
 }): NewsFacts {
   const nightTotals = {
     goalsFor: 0,
@@ -770,6 +787,7 @@ export function buildFacts(args: {
     records: args.records ?? [],
     threads: args.threads ?? [],
     stances: args.stances ?? [],
+    scorecards: args.scorecards ?? [],
   }
 }
 

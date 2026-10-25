@@ -38,6 +38,7 @@ const {
   listNewsPlayersWithOtherSeasonsSql,
   listNewsTitleSeasonTotalsSql,
   stancesForThreadsSql,
+  predictionScorecardsSql,
   recentReporterSummariesSql,
   reporterActivitySql,
   lastFeatureSql,
@@ -404,7 +405,9 @@ void test('raw feed row: criticized, prediction and feature kind (rev 2)', () =>
     criticized: JSON.stringify(['Hero Name']),
     prediction: 'They win the opener.',
     feature_kind: 'notes',
+    receipt_verdict: 'hit',
   } as never)
+  assert.equal(asText.receiptVerdict, 'hit')
   assert.deepEqual(asText.criticized, ['Hero Name'])
   assert.equal(asText.prediction, 'They win the opener.')
   assert.equal(asText.featureKind, 'notes')
@@ -422,6 +425,7 @@ void test('raw feed row: criticized, prediction and feature kind (rev 2)', () =>
   assert.deepEqual(old.criticized, [])
   assert.equal(old.prediction, null)
   assert.equal(old.featureKind, null)
+  assert.equal(old.receiptVerdict, null)
 })
 
 void test('schema: reporter ids match the cast; rev 2 columns and checks (pins)', () => {
@@ -930,4 +934,58 @@ void test('migration 0071: news_stances (C2.8) is idempotent; reporter check dro
   )
   // Inside the transaction.
   assert.ok(text.indexOf('"news_stances"') < text.indexOf('COMMIT;'))
+})
+
+void test("prediction scorecards: the judged feature's author gets the verdict; title and week bounds (C2.9)", () => {
+  const all = flat(dialect.sqlToQuery(predictionScorecardsSql({})).sql)
+  assert.match(
+    all,
+    /count\(\*\) filter \(where f\.receipt_verdict = 'hit'\) as hits, count\(\*\) filter \(where f\.receipt_verdict = 'miss'\) as misses/,
+  )
+  assert.match(
+    all,
+    /join lateral \( select n\.reporter, n\.prediction from news_items n where n\.is_test = false and n\.deleted_at is null and n\.feature_kind is not null and n\.week_start < f\.week_start order by n\.week_start desc, n\.id desc limit 1 \) p on true/,
+  )
+  assert.match(
+    all,
+    /where f\.is_test = false and f\.deleted_at is null and f\.feature_kind is not null and f\.receipt_verdict is not null and p\.prediction is not null/,
+  )
+  assert.match(all, /group by p\.reporter order by p\.reporter$/)
+  assert.doesNotMatch(all, /game_title_id/)
+  const q = dialect.sqlToQuery(
+    predictionScorecardsSql({ gameTitleId: 7, beforeWeek: '2026-05-18' }),
+  )
+  const s = flat(q.sql)
+  assert.match(
+    s,
+    /select 1 from matches m where m\.game_title_id = \$1 and date_trunc\('week', \(\(m\.played_at at time zone 'America\/Edmonton'\) - interval '6 hours'\)::date\)::date = f\.week_start/,
+  )
+  assert.match(s, /and f\.week_start < \$2::date/)
+  assert.deepEqual(q.params, [7, '2026-05-18'])
+})
+
+void test('migration 0071: receipt_verdict hit | miss on features only (C2.9)', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const raw = await readFile(
+    new URL('../../../migrations/0071_news_desk.sql', import.meta.url),
+    'utf8',
+  )
+  const text = flat(
+    raw
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('--'))
+      .join('\n'),
+  )
+  assert.ok(
+    text.includes('ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "receipt_verdict" text;'),
+  )
+  assert.ok(
+    text.includes(
+      `DO $$ BEGIN ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_receipt_verdict_check"; ALTER TABLE "news_items" ADD CONSTRAINT "news_items_receipt_verdict_check" CHECK ("receipt_verdict" IS NULL OR ("receipt_verdict" IN ('hit', 'miss') AND "feature_kind" IS NOT NULL)); END $$;`,
+    ),
+  )
+  // The column comes before its check.
+  assert.ok(
+    text.indexOf('"receipt_verdict" text') < text.indexOf('news_items_receipt_verdict_check'),
+  )
 })

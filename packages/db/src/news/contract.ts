@@ -566,6 +566,8 @@ export interface NewsFacts {
   threads: NewsThread[]
   /** Earlier stances on those threads, oldest first (C2.8); [] when none. */
   stances: NewsThreadStance[]
+  /** Week sheets: each reporter's judged predictions in the title before this week (C2.9). Else []. */
+  scorecards: NewsScorecardLine[]
 }
 
 /**
@@ -616,6 +618,18 @@ export interface NewsThreadStance {
   reporter: ReporterId
   stance: string
   night: string | null
+}
+
+/**
+ * A reporter's judged predictions in this title before the week (C2.9, spec
+ * §12.15-4; week sheets only): `hits` + `misses` = `judged`, so "4 for 7"
+ * can be quoted.
+ */
+export interface NewsScorecardLine {
+  reporter: ReporterId
+  hits: number
+  misses: number
+  judged: number
 }
 
 export interface NewsFactsResponse {
@@ -756,6 +770,15 @@ function parseThread(v: unknown, path: string): NewsThread {
     status: oneOf(o['status'], `${path}.status`, ['open', 'closed-tonight']),
     summary: str(o['summary'], `${path}.summary`),
   }
+}
+
+function parseScorecard(v: unknown, path: string): NewsScorecardLine {
+  const o = obj(v, path)
+  const hits = nonNegInt(o['hits'], `${path}.hits`)
+  const misses = nonNegInt(o['misses'], `${path}.misses`)
+  const judged = nonNegInt(o['judged'], `${path}.judged`)
+  if (judged !== hits + misses) fail(`${path}.judged`, 'is not hits + misses')
+  return { reporter: oneOf(o['reporter'], `${path}.reporter`, REPORTER_IDS), hits, misses, judged }
 }
 
 function parseStance(v: unknown, path: string): NewsThreadStance {
@@ -1170,6 +1193,9 @@ function parseFacts(v: unknown, path: string): NewsFacts {
     records: opt(o, 'records', [], () => arr(o['records'], `${path}.records`, parseClubRecord)),
     threads: opt(o, 'threads', [], () => arr(o['threads'], `${path}.threads`, parseThread)),
     stances: opt(o, 'stances', [], () => arr(o['stances'], `${path}.stances`, parseStance)),
+    scorecards: opt(o, 'scorecards', [], () =>
+      arr(o['scorecards'], `${path}.scorecards`, parseScorecard),
+    ),
   }
 }
 

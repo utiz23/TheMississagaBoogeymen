@@ -37,6 +37,7 @@ function row(id: number, over: Partial<NewsItemRow> = {}): NewsItemRow {
     criticized: [],
     prediction: null,
     featureKind: null,
+    receiptVerdict: null,
     isTest: false,
     discordStatus: 'posted',
     discordAttempts: 1,

@@ -190,6 +190,7 @@ function harness(
         criticized: item.criticized ?? [],
         prediction: item.prediction ?? null,
         featureKind: item.featureKind ?? null,
+        receiptVerdict: item.receiptVerdict ?? null,
         isTest: item.isTest ?? false,
         discordStatus: item.discordStatus ?? 'pending',
         discordAttempts: 0,

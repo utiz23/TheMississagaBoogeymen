@@ -126,6 +126,16 @@ DO $$ BEGIN
     CHECK ("prediction" IS NULL OR "feature_kind" IS NOT NULL);
 END $$;
 
+-- Part C2: a weekly feature's verdict on the previous week's prediction
+-- (spec §12.15-4 prediction scorecards); null when there was none.
+ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "receipt_verdict" text;
+
+DO $$ BEGIN
+  ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_receipt_verdict_check";
+  ALTER TABLE "news_items" ADD CONSTRAINT "news_items_receipt_verdict_check"
+    CHECK ("receipt_verdict" IS NULL OR ("receipt_verdict" IN ('hit', 'miss') AND "feature_kind" IS NOT NULL));
+END $$;
+
 DO $$ BEGIN
   ALTER TABLE "news_items" DROP CONSTRAINT IF EXISTS "news_items_criticized_array_check";
   ALTER TABLE "news_items" ADD CONSTRAINT "news_items_criticized_array_check"

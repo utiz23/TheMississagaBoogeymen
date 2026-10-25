@@ -9,6 +9,7 @@ import {
   buildAiGoalieWeek,
   buildGoalTimeline,
   buildRecordAndStreak,
+  buildScorecards,
   buildWeekHistory,
   buildWeekPlayers,
   includeInactiveOption,
@@ -1392,4 +1393,20 @@ void test('buildPeople: the writer-facing person has no position; the game line 
     outMembers: [],
   })
   assert.deepEqual(people, [{ playerId: 1, name: 'A', pressLevel: 'full' }])
+})
+
+void test('buildScorecards: judged = hits + misses, best record first (C2.9)', () => {
+  assert.deepEqual(
+    buildScorecards([
+      { reporter: 'voss', hits: 1, misses: 2 },
+      { reporter: 'quill', hits: 4, misses: 3 },
+      { reporter: 'barlow', hits: 1, misses: 0 },
+    ]),
+    [
+      { reporter: 'quill', hits: 4, misses: 3, judged: 7 },
+      { reporter: 'barlow', hits: 1, misses: 0, judged: 1 },
+      { reporter: 'voss', hits: 1, misses: 2, judged: 3 },
+    ],
+  )
+  assert.deepEqual(buildScorecards([]), [])
 })

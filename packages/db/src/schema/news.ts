@@ -41,6 +41,10 @@ export const NEWS_REPORTER_IDS = [
 ] as const
 export type NewsReporterId = (typeof NEWS_REPORTER_IDS)[number]
 
+/** A receipt's verdict on the prediction it judges (spec §12.15-4). */
+export const RECEIPT_VERDICTS = ['hit', 'miss'] as const
+export type ReceiptVerdict = (typeof RECEIPT_VERDICTS)[number]
+
 export const NEWS_AI_PURPOSES = ['write', 'review'] as const
 export type NewsAiPurpose = (typeof NEWS_AI_PURPOSES)[number]
 
@@ -115,6 +119,8 @@ export const newsItems = pgTable(
     criticized: jsonb('criticized').$type<string[]>().notNull().default([]),
     prediction: text('prediction'),
     featureKind: text('feature_kind').$type<FeatureKind>(),
+    /** Part C2: a weekly feature's verdict on the previous prediction; null when none. */
+    receiptVerdict: text('receipt_verdict').$type<ReceiptVerdict>(),
     isTest: boolean('is_test').notNull().default(false),
     discordStatus: text('discord_status').$type<DiscordPostStatus>().notNull().default('pending'),
     discordAttempts: integer('discord_attempts').notNull().default(0),
@@ -140,6 +146,10 @@ export const newsItems = pgTable(
       sql`${table.prediction} IS NULL OR ${table.featureKind} IS NOT NULL`,
     ),
     check('news_items_criticized_array_check', sql`jsonb_typeof(${table.criticized}) = 'array'`),
+    check(
+      'news_items_receipt_verdict_check',
+      sql`${table.receiptVerdict} IS NULL OR (${table.receiptVerdict} IN ('hit', 'miss') AND ${table.featureKind} IS NOT NULL)`,
+    ),
     check(
       'news_items_discord_status_check',
       sql`${table.discordStatus} IN ('pending', 'posted', 'failed', 'skipped')`,

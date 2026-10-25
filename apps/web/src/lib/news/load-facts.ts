@@ -29,6 +29,7 @@ import {
   listRecentNightSummaries,
   listTitleResultsUpTo,
   stancesForThreads,
+  predictionScorecards,
 } from '@eanhl/db/queries'
 import {
   nightKey,
@@ -52,6 +53,7 @@ import {
   buildMilestones,
   buildPeople,
   buildRecordAndStreak,
+  buildScorecards,
   buildWeekHistory,
   buildWeekPlayers,
   HISTORY_WEEKS,
@@ -449,6 +451,8 @@ async function loadSheet(
           history: buildWeekHistory(await loadHistoryGames(gameTitleId, key), key),
           weekPlayers: buildWeekPlayers(games, people, totals.after),
           aiGoalieWeek: buildAiGoalieWeek(games),
+          // Prediction scorecards (C2.9): receipts of earlier weeks of the title.
+          scorecards: buildScorecards(await predictionScorecards({ gameTitleId, beforeWeek: key })),
         }
       : {}
 
