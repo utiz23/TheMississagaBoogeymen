@@ -1235,6 +1235,172 @@ export async function listNewsNormGames(args: {
 }
 
 /**
+ * One game of a named player (C2.3/C2.5), any title, any result (DNF rows
+ * count for the title totals like player_game_title_stats; callers leave them
+ * out of runs and norms). `position` and `isGoalie` as stored (EA); the
+ * ended-early inputs as on the sheet.
+ */
+export interface NewsPlayerGame {
+  playerId: number
+  matchId: number
+  gameTitleId: number
+  night: string
+  /** ISO timestamp. */
+  playedAt: string
+  gameMode: '3s' | '6s' | null
+  result: 'WIN' | 'LOSS' | 'OTL' | 'DNF'
+  goals: number
+  assists: number
+  shots: number
+  hits: number
+  position: string | null
+  isGoalie: boolean
+  scoreFor: number
+  creditedGoals: number
+  timeOnAttack: number | null
+  shotsFor: number
+  shotsAgainst: number
+}
+
+/**
+ * The given players' game rows in every title, up to and including
+ * `lastMatchId` (played_at, then id), oldest first per player. The match
+ * numbers (page shots: reviewed OCR over EA; the club rows' credited goals)
+ * are computed once per match. Raw SQL with aliases (the lateral subqueries
+ * must not bind to the inner tables).
+ */
+export function listNewsPlayerGamesSql(args: {
+  playerIds: readonly number[]
+  lastMatchId: number
+}): SQL {
+  return sql`
+    with g as (
+      select distinct pms.match_id from player_match_stats pms
+      where pms.player_id in (${idList(args.playerIds)})
+    ),
+    mg as (
+      select m.id, m.game_title_id, to_char(${nightKeySql('m')}, 'YYYY-MM-DD') as night,
+        m.played_at, m.game_mode, m.result, m.score_for, m.time_on_attack,
+        coalesce(ocr.shots_for, m.shots_for) as shots_for,
+        coalesce(ocr.shots_against, m.shots_against) as shots_against,
+        bgm.credited_goals
+      from g
+      join matches m on m.id = g.match_id
+      join matches l on l.id = ${args.lastMatchId}
+      left join lateral (
+        select sum(s.shots_for) as shots_for, sum(s.shots_against) as shots_against
+        from match_period_summaries s
+        where s.match_id = m.id
+          and s.source = 'ocr'
+          and s.shots_review_status = 'reviewed'
+          and s.period_number <> -1
+      ) ocr on true
+      left join lateral (
+        select coalesce(sum(greatest(p.goals, 0)), 0) as credited_goals
+        from player_match_stats p
+        where p.match_id = m.id
+      ) bgm on true
+      where (m.played_at, m.id) <= (l.played_at, l.id)
+    )
+    select pms.player_id, mg.id as match_id, mg.game_title_id, mg.night, mg.played_at,
+      mg.game_mode, mg.result, pms.goals, pms.assists, pms.shots, pms.hits, pms.position,
+      pms.is_goalie, mg.score_for, mg.credited_goals, mg.time_on_attack, mg.shots_for,
+      mg.shots_against
+    from player_match_stats pms
+    join mg on mg.id = pms.match_id
+    where pms.player_id in (${idList(args.playerIds)})
+    order by pms.player_id, mg.played_at, mg.id`
+}
+
+type RawPlayerGame = {
+  player_id: Numeric
+  match_id: Numeric
+  game_title_id: Numeric
+  night: string
+  played_at: string | Date
+  game_mode: string | null
+  result: string
+  goals: Numeric
+  assists: Numeric
+  shots: Numeric
+  hits: Numeric
+  position: string | null
+  is_goalie: boolean
+  score_for: Numeric
+  credited_goals: Numeric
+  time_on_attack: Numeric | null
+  shots_for: Numeric
+  shots_against: Numeric
+}
+
+export function rowToPlayerGame(r: RawPlayerGame): NewsPlayerGame {
+  const result = r.result === 'WIN' || r.result === 'LOSS' || r.result === 'OTL' ? r.result : 'DNF'
+  return {
+    playerId: Number(r.player_id),
+    matchId: Number(r.match_id),
+    gameTitleId: Number(r.game_title_id),
+    night: r.night,
+    playedAt: toDate(r.played_at).toISOString(),
+    gameMode: r.game_mode === '3s' || r.game_mode === '6s' ? r.game_mode : null,
+    result,
+    goals: Number(r.goals),
+    assists: Number(r.assists),
+    shots: Number(r.shots),
+    hits: Number(r.hits),
+    position: r.position,
+    isGoalie: r.is_goalie,
+    scoreFor: Number(r.score_for),
+    creditedGoals: Number(r.credited_goals),
+    timeOnAttack: num(r.time_on_attack),
+    shotsFor: Number(r.shots_for),
+    shotsAgainst: Number(r.shots_against),
+  }
+}
+
+export async function listNewsPlayerGames(args: {
+  playerIds: readonly number[]
+  lastMatchId: number
+}): Promise<NewsPlayerGame[]> {
+  if (args.playerIds.length === 0) return []
+  const rows = await db.execute<RawPlayerGame>(listNewsPlayerGamesSql(args))
+  return rows.map(rowToPlayerGame)
+}
+
+/**
+ * Which of these players have a season row (archive or EA) in another title
+ * that came before `gameTitleId` (or whose order is unknown): a first game
+ * logged for the club is then not a club debut (C2.5).
+ */
+export function listNewsPlayersWithOtherSeasonsSql(args: {
+  playerIds: readonly number[]
+  gameTitleId: number
+}): SQL {
+  const earlier = (table: string) => sql`exists (
+      select 1 from ${sql.raw(table)} x
+      join game_titles t on t.id = x.game_title_id
+      join game_titles cur on cur.id = ${args.gameTitleId}
+      where x.player_id = p.id
+        and x.game_title_id <> ${args.gameTitleId}
+        and (t.release_order is null or cur.release_order is null or t.release_order < cur.release_order)
+    )`
+  return sql`
+    select p.id from players p
+    where p.id in (${idList(args.playerIds)})
+      and (${earlier('historical_player_season_stats')}
+        or ${earlier('historical_club_member_season_stats')}
+        or ${earlier('ea_member_season_stats')})`
+}
+
+export async function listNewsPlayersWithOtherSeasons(args: {
+  playerIds: readonly number[]
+  gameTitleId: number
+}): Promise<Set<number>> {
+  if (args.playerIds.length === 0) return new Set()
+  const rows = await db.execute<{ id: Numeric }>(listNewsPlayersWithOtherSeasonsSql(args))
+  return new Set(rows.map((r) => Number(r.id)))
+}
+
+/**
  * Counted card events (same rule as the unlock poster) of the given players in
  * a title, from the first game's end to `afterMinutes` after the last game's
  * end. Both bounds come from the matches table so no precision is lost.

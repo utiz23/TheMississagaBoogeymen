@@ -33,6 +33,9 @@ const {
   listNewsHistoryGamesSql,
   listNewsNormGamesSql,
   rowToNormGame,
+  listNewsPlayerGamesSql,
+  rowToPlayerGame,
+  listNewsPlayersWithOtherSeasonsSql,
   recentReporterSummariesSql,
   reporterActivitySql,
   lastFeatureSql,
@@ -769,4 +772,97 @@ void test("night posts for the prompt: the night's not-deleted posts, oldest fir
     reporter: 'quill',
     text: 'Outshot 30-21.',
   })
+})
+
+void test("player games: the named players' rows in every title up to the sheet's last game, with the ended-early inputs (C2.3)", () => {
+  const q = dialect.sqlToQuery(listNewsPlayerGamesSql({ playerIds: [2, 5], lastMatchId: 900 }))
+  const s = flat(q.sql)
+  // The matches of those players, once each, bounded by the last game (ties on played_at by id).
+  assert.match(
+    s,
+    /with g as \( select distinct pms\.match_id from player_match_stats pms where pms\.player_id in \(\$1, \$2\) \)/,
+  )
+  assert.match(s, /join matches l on l\.id = \$3/)
+  assert.match(s, /where \(m\.played_at, m\.id\) <= \(l\.played_at, l\.id\)/)
+  // Every title and every result (DNF rows count for the title totals; callers skip them for runs and norms).
+  assert.doesNotMatch(s, /game_title_id = /)
+  assert.doesNotMatch(s, /DNF/)
+  // Shots as the match page shows them, credited goals of the club rows.
+  assert.match(s, /coalesce\(ocr\.shots_for, m\.shots_for\) as shots_for/)
+  assert.match(
+    s,
+    /s\.source = 'ocr' and s\.shots_review_status = 'reviewed' and s\.period_number <> -1/,
+  )
+  assert.match(s, /coalesce\(sum\(greatest\(p\.goals, 0\)\), 0\) as credited_goals/)
+  assert.match(
+    s,
+    /select pms\.player_id, mg\.id as match_id, mg\.game_title_id, mg\.night, mg\.played_at, mg\.game_mode, mg\.result, pms\.goals, pms\.assists, pms\.shots, pms\.hits, pms\.position, pms\.is_goalie,/,
+  )
+  assert.match(
+    s,
+    /where pms\.player_id in \(\$4, \$5\) order by pms\.player_id, mg\.played_at, mg\.id$/,
+  )
+  assert.deepEqual(q.params, [2, 5, 900, 2, 5])
+  assert.deepEqual(
+    rowToPlayerGame({
+      player_id: '2',
+      match_id: '901',
+      game_title_id: 3,
+      night: '2026-05-08',
+      played_at: new Date('2026-05-09T01:00:00Z'),
+      game_mode: '6s',
+      result: 'DNF',
+      goals: 1,
+      assists: '0',
+      shots: 3,
+      hits: 2,
+      position: 'center',
+      is_goalie: false,
+      score_for: 2,
+      credited_goals: '2',
+      time_on_attack: null,
+      shots_for: '20',
+      shots_against: 18,
+    }),
+    {
+      playerId: 2,
+      matchId: 901,
+      gameTitleId: 3,
+      night: '2026-05-08',
+      playedAt: '2026-05-09T01:00:00.000Z',
+      gameMode: '6s',
+      result: 'DNF',
+      goals: 1,
+      assists: 0,
+      shots: 3,
+      hits: 2,
+      position: 'center',
+      isGoalie: false,
+      scoreFor: 2,
+      creditedGoals: 2,
+      timeOnAttack: null,
+      shotsFor: 20,
+      shotsAgainst: 18,
+    },
+  )
+})
+
+void test('players with other seasons: archive or EA season rows of an earlier (or unordered) title (C2.5 debuts)', () => {
+  const q = dialect.sqlToQuery(
+    listNewsPlayersWithOtherSeasonsSql({ playerIds: [2], gameTitleId: 7 }),
+  )
+  const s = flat(q.sql)
+  for (const t of [
+    'historical_player_season_stats',
+    'historical_club_member_season_stats',
+    'ea_member_season_stats',
+  ]) {
+    assert.ok(s.includes(`from ${t} x`), t)
+  }
+  assert.match(s, /x\.game_title_id <> \$\d+/)
+  assert.match(
+    s,
+    /\(t\.release_order is null or cur\.release_order is null or t\.release_order < cur\.release_order\)/,
+  )
+  assert.match(s, /where p\.id in \(\$\d+\)/)
 })
