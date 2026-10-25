@@ -5,8 +5,10 @@
 // the model and is only used to reject text that names them anyway.
 import type { UnlockDescription } from '@eanhl/db/discord'
 import {
+  milestoneCrossed,
   nightKey,
   previousWeekStarts,
+  rankMilestones,
   weekStart as weekStartOf,
   type NewsAiGoalieLine,
   type NewsAiGoalieWeek,
@@ -516,13 +518,14 @@ export interface Totals {
   games: number
 }
 
-const MILESTONE_STEP = 25
 const STATS = ['goals', 'assists', 'points', 'games'] as const
 
 /**
- * A milestone when a title total crosses a multiple of 25 between `before` and
- * `after`. One entry per stat (the highest multiple crossed). Only named
- * people; a player with no `before` row starts from zero.
+ * Milestones when a title total crosses a tier (spec §12.12-10, `milestoneCrossed`:
+ * points every 100, goals and assists every 50, games at 100/250/500/750/1000)
+ * between `before` and `after`. One entry per stat (the highest crossed).
+ * Only named people; a player with no `before` row starts from zero. At most
+ * three per sheet, ranked by spec §12.7 (`rankMilestones`).
  */
 export function buildMilestones(
   before: ReadonlyMap<number, Totals>,
@@ -530,24 +533,16 @@ export function buildMilestones(
   people: readonly NewsPerson[],
 ): NewsFacts['milestones'] {
   const out: NewsFacts['milestones'] = []
-  const value = (t: Totals, stat: (typeof STATS)[number]): number => t[stat]
   for (const person of people) {
     const a = after.get(person.playerId)
     if (!a) continue
     const b = before.get(person.playerId) ?? { goals: 0, assists: 0, points: 0, games: 0 }
     for (const stat of STATS) {
-      const crossed = Math.floor(value(a, stat) / MILESTONE_STEP)
-      if (crossed > Math.floor(value(b, stat) / MILESTONE_STEP)) {
-        out.push({
-          playerId: person.playerId,
-          name: person.name,
-          stat,
-          value: crossed * MILESTONE_STEP,
-        })
-      }
+      const value = milestoneCrossed(stat, b[stat], a[stat])
+      if (value !== null) out.push({ playerId: person.playerId, name: person.name, stat, value })
     }
   }
-  return out
+  return rankMilestones(out)
 }
 
 // ── Week sheets: history and players (revision 2) ────────────────────────────

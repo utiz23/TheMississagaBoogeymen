@@ -1,6 +1,7 @@
 import {
   REPORTERS,
   REPORTER_IDS,
+  compareMilestones,
   nightLabel,
   type FeatureKind,
   type NewsFacts,
@@ -9,14 +10,6 @@ import {
 
 const MAX_UNLOCKS = 12
 const MAX_MILESTONES = 10
-/** 0 = a multiple of 100, 1 = of 50, 2 = any other milestone. */
-const milestoneTier = (value: number): number => (value % 100 === 0 ? 0 : value % 50 === 0 ? 1 : 2)
-const MILESTONE_STAT_ORDER: Record<NewsFacts['milestones'][number]['stat'], number> = {
-  points: 0,
-  goals: 1,
-  assists: 2,
-  games: 3,
-}
 
 /** JSON with keys sorted at every depth, so the same sheet always gives the same bytes (prompt-cache stable). */
 export function stableStringify(value: unknown): string {
@@ -45,13 +38,9 @@ export function capFactsForPrompt(facts: NewsFacts): NewsFacts {
   const unlocks = [...facts.unlocks.filter(isCard), ...facts.unlocks.filter((u) => !isCard(u))]
   // Spec 12.7: round numbers first (100s, then 50s, then the rest), points
   // before goals before assists before games, then the larger value, then the
-  // sheet's order (stable sort).
-  const milestones = [...facts.milestones].sort(
-    (a, b) =>
-      milestoneTier(a.value) - milestoneTier(b.value) ||
-      MILESTONE_STAT_ORDER[a.stat] - MILESTONE_STAT_ORDER[b.stat] ||
-      b.value - a.value,
-  )
+  // sheet's order (stable sort). Sheets from the web app already carry at
+  // most 3 (spec 12.12-10); the cap here guards an older sheet.
+  const milestones = [...facts.milestones].sort(compareMilestones)
   return {
     ...facts,
     unlocks: unlocks.slice(0, MAX_UNLOCKS),

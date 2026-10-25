@@ -457,54 +457,93 @@ const totals = (goals: number, assists: number, games: number, points = goals + 
   games,
 })
 
-void test('buildMilestones: goals 24 -> 26 crosses 25', () => {
+void test('buildMilestones: goals 49 -> 51 crosses 50; 24 -> 26 is no milestone (C1.6)', () => {
   const m = buildMilestones(
+    new Map([[1, totals(49, 3, 10, 52)]]),
+    new Map([[1, totals(51, 3, 11, 54)]]),
+    people,
+  )
+  assert.deepEqual(m, [{ playerId: 1, name: 'Hero Name', stat: 'goals', value: 50 }])
+  const small = buildMilestones(
     new Map([[1, totals(24, 3, 10, 27)]]),
     new Map([[1, totals(26, 3, 11, 29)]]),
     people,
   )
-  assert.deepEqual(m, [{ playerId: 1, name: 'Hero Name', stat: 'goals', value: 25 }])
+  assert.deepEqual(small, [])
 })
 
-void test('buildMilestones: 25 -> 26 is not a milestone', () => {
+void test('buildMilestones: 50 -> 51 is not a milestone', () => {
   const m = buildMilestones(
-    new Map([[1, totals(25, 3, 10, 28)]]),
-    new Map([[1, totals(26, 3, 11, 29)]]),
+    new Map([[1, totals(50, 3, 10, 53)]]),
+    new Map([[1, totals(51, 3, 11, 54)]]),
     people,
   )
   assert.deepEqual(m, [])
 })
 
-void test('buildMilestones: 49 -> 51 points crosses 50 (goals plus assists)', () => {
-  const m = buildMilestones(
+void test('buildMilestones: points only every 100 (goals plus assists) (C1.6)', () => {
+  const fifty = buildMilestones(
     new Map([[1, totals(30, 19, 10, 49)]]),
     new Map([[1, totals(31, 20, 11, 51)]]),
     people,
   )
-  assert.deepEqual(m, [{ playerId: 1, name: 'Hero Name', stat: 'points', value: 50 }])
+  assert.deepEqual(fifty, [])
+  const hundred = buildMilestones(
+    new Map([[1, totals(40, 59, 10, 99)]]),
+    new Map([[1, totals(40, 61, 11, 101)]]),
+    people,
+  )
+  assert.deepEqual(hundred, [{ playerId: 1, name: 'Hero Name', stat: 'points', value: 100 }])
 })
 
-void test('buildMilestones: games, a new player, only named people, highest multiple crossed', () => {
+void test('buildMilestones: games at 100/250/..., a new player, only named people, highest crossed (C1.6)', () => {
   const m = buildMilestones(
     new Map([
-      [1, totals(0, 0, 24)],
+      [1, totals(0, 0, 249)],
       [2, totals(60, 0, 100)],
     ]),
     new Map([
-      [1, totals(0, 0, 25)],
-      [2, totals(130, 0, 101)],
-      [3, totals(50, 50, 50)], // not a named person
+      [1, totals(0, 0, 250)],
+      [2, totals(160, 0, 101)],
+      [3, totals(50, 50, 100)], // not a named person
     ]),
     people,
   )
+  // Second: goals 60 -> 160 crosses 100 and 150 (the highest counts), points 60 -> 160 crosses 100.
+  // Ranked (spec 12.7): the 100 first, then the 50s, goals before games.
   assert.deepEqual(m, [
-    { playerId: 1, name: 'Hero Name', stat: 'games', value: 25 },
-    { playerId: 2, name: 'Second', stat: 'goals', value: 125 },
-    { playerId: 2, name: 'Second', stat: 'points', value: 125 },
+    { playerId: 2, name: 'Second', stat: 'points', value: 100 },
+    { playerId: 2, name: 'Second', stat: 'goals', value: 150 },
+    { playerId: 1, name: 'Hero Name', stat: 'games', value: 250 },
   ])
-  // No "before" row: totals start at zero.
-  const fresh = buildMilestones(new Map(), new Map([[1, totals(0, 0, 1)]]), people)
-  assert.deepEqual(fresh, [])
+  // No "before" row: totals start at zero; games 125 is no milestone.
+  assert.deepEqual(buildMilestones(new Map(), new Map([[1, totals(0, 0, 1)]]), people), [])
+  assert.deepEqual(
+    buildMilestones(new Map([[1, totals(0, 0, 124)]]), new Map([[1, totals(0, 0, 125)]]), people),
+    [],
+  )
+})
+
+void test('buildMilestones: at most 3 per sheet, ranked 100s first, points first (C1.6)', () => {
+  const four = [
+    { playerId: 1, name: 'Hero Name', position: 'center', pressLevel: 'full' as const },
+    { playerId: 2, name: 'Second', position: 'center', pressLevel: 'full' as const },
+  ]
+  const m = buildMilestones(
+    new Map([
+      [1, totals(49, 49, 99, 98)],
+      [2, totals(99, 0, 249, 99)],
+    ]),
+    new Map([
+      [1, totals(50, 50, 100, 100)], // goals 50, assists 50, points 100, games 100
+      [2, totals(100, 0, 250, 100)], // goals 100, points 100, games 250
+    ]),
+    four,
+  )
+  assert.deepEqual(
+    m.map((x) => `${x.name} ${x.stat} ${String(x.value)}`),
+    ['Hero Name points 100', 'Second points 100', 'Second goals 100'],
+  )
 })
 
 // ── buildFacts ───────────────────────────────────────────────────────────────
