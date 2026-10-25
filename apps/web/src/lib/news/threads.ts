@@ -7,6 +7,7 @@ import {
   SLUMP_MIN,
   STREAK_MIN,
   THREAD_MIN_NIGHTS,
+  runMinimum,
   type NewsGameFacts,
   type NewsPerson,
   type NewsThread,
@@ -14,7 +15,7 @@ import {
 } from '@eanhl/db/news'
 import type { NewsNormGame } from '@eanhl/db/queries'
 import { ROLLING_MIN, SLIDE_MIN, sameOpponent } from './context.ts'
-import type { PlayerGameInput } from './players.ts'
+import { hasPoint, noGoal, rateOf, type PlayerGameInput } from './players.ts'
 
 /** A power-play drought thread follows 3+ games in a row with a chance and no goal. */
 export const PP_DROUGHT_MIN = 3
@@ -230,7 +231,8 @@ export function playerThreads(
       .map((g) => ({ ...g, inSheet: sheetMatchIds.has(g.matchId) }))
     if (!rows.some((g) => g.inSheet)) continue
     const id = n(person.playerId)
-    for (const r of threadRuns(rows, (g) => g.goals + g.assists > 0, STREAK_MIN)) {
+    // The player's own rate in the title up to the sheet (`runMinimum`), as on his line.
+    for (const r of threadRuns(rows, hasPoint, runMinimum(STREAK_MIN, rateOf(rows, hasPoint)))) {
       const since = r.items[0]!.night
       const len = r.items.length
       out.push(
@@ -247,7 +249,7 @@ export function playerThreads(
       )
     }
     if (rows[rows.length - 1]!.position !== 'F') continue
-    for (const r of threadRuns(rows, (g) => g.goals === 0, SLUMP_MIN)) {
+    for (const r of threadRuns(rows, noGoal, runMinimum(SLUMP_MIN, rateOf(rows, noGoal)))) {
       const since = r.items[0]!.night
       const len = r.items.length
       out.push(

@@ -16,6 +16,8 @@ import {
   RETURN_MIN_DAYS,
   SLUMP_MIN,
   STREAK_MIN,
+  STREAK_RATE_MIN_GAMES,
+  runMinimum,
   PLAYER_NORM_MIN_GAMES,
   PLAYER_NORM_STATS,
   emptyPlayerExtras,
@@ -306,16 +308,33 @@ export function playerStreaks(
     kind: NewsPlayerStreak['kind'],
     hitNow: boolean,
     hit: (g: PlayerGameInput) => boolean,
-    min: number,
+    floor: number,
   ) => {
     const before = runAtEnd(title, hit)
-    if (hitNow && before + 1 >= min) out.push({ kind, games: before + 1, status: 'extended' })
-    if (!hitNow && before >= min) out.push({ kind, games: before, status: 'ended' })
+    // The player's own rate in his earlier counted games of the title (`runMinimum`).
+    const need = runMinimum(floor, rateOf(title, hit))
+    if (hitNow && before + 1 >= need) out.push({ kind, games: before + 1, status: 'extended' })
+    if (!hitNow && before >= need) out.push({ kind, games: before, status: 'ended' })
   }
-  run('points', line.points > 0, (g) => g.goals + g.assists > 0, STREAK_MIN)
-  run('goals', line.goals > 0, (g) => g.goals > 0, STREAK_MIN)
-  if (line.position === 'F') run('noGoal', line.goals === 0, (g) => g.goals === 0, SLUMP_MIN)
+  run('points', line.points > 0, hasPoint, STREAK_MIN)
+  run('goals', line.goals > 0, hasGoal, STREAK_MIN)
+  if (line.position === 'F') {
+    run('noGoal', line.goals === 0, noGoal, SLUMP_MIN)
+  }
   return out
+}
+
+export const hasPoint = (g: PlayerGameInput) => g.goals + g.assists > 0
+export const hasGoal = (g: PlayerGameInput) => g.goals > 0
+export const noGoal = (g: PlayerGameInput) => g.goals === 0
+
+/** The share of `games` (counted games of the title) that `hit`; null below 10 games. */
+export function rateOf(
+  games: readonly PlayerGameInput[],
+  hit: (g: PlayerGameInput) => boolean,
+): number | null {
+  if (games.length < STREAK_RATE_MIN_GAMES) return null
+  return games.filter(hit).length / games.length
 }
 
 /**

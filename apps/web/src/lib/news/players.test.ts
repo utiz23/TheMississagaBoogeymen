@@ -355,3 +355,30 @@ void test('playerDebut and returnAfterDays (spec 12.15-3)', () => {
   const archived = applyPlayerFacts([g], new Map([[2, [pg({ matchId: 77 })]]]), TITLE, new Set([2]))
   assert.equal(archived[0]!.players[0]!.debut, 'title')
 })
+
+void test('playerStreaks: with 10+ earlier games the run must be unlikely at his own rate (C2 tuning)', () => {
+  const pt = () => pg({ goals: 0, assists: 1 })
+  const zero = () => pg({ goals: 0, assists: 0 })
+  const goal = () => pg({ goals: 1, assists: 0 })
+  const points = (prior: PlayerGameInput[]) =>
+    playerStreaks(line({ assists: 1 }), TITLE, prior).filter((s) => s.kind === 'points')
+  // A point in 14 of 15 earlier games: rate 0.93 -> 34 straight needed.
+  assert.deepEqual(
+    points([...Array.from({ length: 9 }, pt), zero(), ...Array.from({ length: 5 }, pt)]),
+    [],
+  )
+  // A point in 6 of 12: 4 needed; 3 earlier + this one.
+  const half = [pt(), zero(), pt(), zero(), pt(), zero(), zero(), zero(), zero(), pt(), pt(), pt()]
+  assert.deepEqual(points(half), [{ kind: 'points', games: 4, status: 'extended' }])
+  // Goal-less runs: half the games without a goal before -> the floor of 8.
+  const slump = (before: PlayerGameInput[], n: number) =>
+    playerStreaks(line(), TITLE, [...before, ...Array.from({ length: n }, zero)]).filter(
+      (s) => s.kind === 'noGoal',
+    )
+  const even = Array.from({ length: 10 }, (_, i) => (i % 2 === 0 ? zero() : goal()))
+  assert.deepEqual(slump(even, 6), [])
+  assert.deepEqual(slump(even, 7), [{ kind: 'noGoal', games: 8, status: 'extended' }])
+  // A forward who rarely scores: 8 games without a goal is no slump.
+  const rare = [...Array.from({ length: 8 }, zero), goal(), goal()]
+  assert.deepEqual(slump(rare, 7), [])
+})

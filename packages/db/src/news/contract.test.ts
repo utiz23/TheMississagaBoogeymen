@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseNewsFactsResponse, type NewsFactsResponse } from './contract.js'
+import { parseNewsFactsResponse, runMinimum, type NewsFactsResponse } from './contract.js'
 import {
   AI_GOALIE_NAMES,
   CLUB_LORE,
@@ -996,4 +996,15 @@ void test('contract: ranked facts round-trip; missing reads as none (C2.7)', () 
   const bad = clone(s) as unknown as { facts: { topFacts: Record<string, unknown>[] } }
   bad.facts.topFacts[0]!['weight'] = 'high'
   assert.throws(() => parseNewsFactsResponse(bad), /topFacts\[0\]\.weight/)
+})
+
+void test('runMinimum: the floor, or the smallest N with rate^N <= 0.1 (C2 tuning)', () => {
+  assert.equal(runMinimum(3, null), 3)
+  assert.equal(runMinimum(3, 0), 3)
+  assert.equal(runMinimum(3, 0.3), 3)
+  assert.equal(runMinimum(3, 0.5), 4)
+  assert.equal(runMinimum(3, 0.85), 15)
+  assert.equal(runMinimum(8, 0.6), 8)
+  assert.equal(runMinimum(8, 0.85), 15)
+  assert.equal(runMinimum(3, 1), Number.POSITIVE_INFINITY)
 })

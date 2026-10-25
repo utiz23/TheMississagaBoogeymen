@@ -195,9 +195,11 @@ void test('playerThreads: a point streak on 3 nights; a forward slump of 8+ on 3
   const dry = Array.from({ length: 12 }, (_, i) =>
     pr(10 + i, `d${String(Math.floor(i / 2))}`, 0, 0),
   )
+  // Goals in 8 earlier games (one night): his goal-less rate stays moderate.
+  const scored = Array.from({ length: 8 }, (_, i) => pr(40 + i, 'c0', 1, 0))
   const slump = playerThreads(
     people,
-    new Map([[2, [...dry, pr(30, 'd9', 1, 0)]]]),
+    new Map([[2, [...scored, ...dry, pr(30, 'd9', 1, 0)]]]),
     TITLE,
     new Set([30]),
   )

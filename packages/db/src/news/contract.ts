@@ -125,7 +125,8 @@ export interface NewsNewRecord {
 /**
  * A run (C2.5, spec §12.15-1) over the player's counted games of this title,
  * all modes, up to and including this game: `points` / `goals` in N straight
- * games (N >= 3), `noGoal` = N games without a goal (N >= 8, forwards only).
+ * games (N >= 3), `noGoal` = N games without a goal (N >= 8, forwards only);
+ * N also at least `runMinimum` of the player's rate (tuning).
  * `extended`: this game continued it (N counts this game); `ended`: this game
  * broke it (N = the run's length before this game). Goalie lines get none.
  */
@@ -133,6 +134,22 @@ export const STREAK_KINDS = ['points', 'goals', 'noGoal'] as const
 export type StreakKind = (typeof STREAK_KINDS)[number]
 export const STREAK_MIN = 3
 export const SLUMP_MIN = 8
+/**
+ * Tuned on the NHL 26 backfill (C2 tuning): a run must also be unlikely at the
+ * player's own rate, so a scorer who gets a point most nights is not "on a
+ * streak" every night. With 10+ earlier counted games of the title, the
+ * minimum is the smallest N with rate^N <= 0.1 (rate = his share of games
+ * with a point / with a goal / without a goal), never below the floors above.
+ */
+export const STREAK_CHANCE = 0.1
+export const STREAK_RATE_MIN_GAMES = 10
+
+/** The run length that counts: `floor`, or longer when the player's own rate makes a run likely. */
+export function runMinimum(floor: number, rate: number | null): number {
+  if (rate === null || rate <= 0) return floor
+  if (rate >= 1) return Number.POSITIVE_INFINITY
+  return Math.max(floor, Math.ceil(Math.log(STREAK_CHANCE) / Math.log(rate) - 1e-9))
+}
 /** A return: at least this many days since the previous game. */
 export const RETURN_MIN_DAYS = 30
 export interface NewsPlayerStreak {
@@ -582,6 +599,7 @@ export interface NewsFacts {
  *   power-play goal (games without a chance or that ended early are skipped);
  * - `player-hot` (points in 3+ straight games) and `player-slump` (8+ games
  *   without a goal, forwards) of a named player, counted games of the title;
+ *   both at least `runMinimum` of the player's rate in the title so far;
  * - `rival`: an opponent of this sheet the club lost to on 3+ nights of the
  *   title with a losing record against them (open after another loss,
  *   closed-tonight after a win).
