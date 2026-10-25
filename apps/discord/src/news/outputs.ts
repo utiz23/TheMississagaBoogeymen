@@ -4,8 +4,9 @@ import { REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
  * JSON schemas for `output_config.format` and the hand-written parsers for
  * what comes back. The schemas are plain JSON Schema: every object is closed
  * (`additionalProperties: false`) and lists all its properties in `required`.
- * Size rules (1-2 posts, 280 characters, 250-450 words) are not in the
- * schemas; the parsers and the fact check enforce them.
+ * Size rules (1-2 posts, 280 characters, 250-450 words, headline 120 and
+ * dek 160 characters) are not in the schemas; the parsers and the fact check
+ * enforce them.
  */
 
 const STRING_ARRAY = { type: 'array', items: { type: 'string' } } as const
@@ -120,6 +121,16 @@ export function parseGamePosts(v: unknown, expected: readonly ReporterId[]): { p
   return { posts }
 }
 
+/** Longest headline and dek, in characters: the Discord message stays far below 2000. */
+export const HEADLINE_MAX_CHARS = 120
+export const DEK_MAX_CHARS = 160
+
+function limited(v: string, path: string, max: number): string {
+  const chars = Array.from(v).length
+  if (chars > max) fail(path, `has ${String(chars)} characters; the limit is ${String(max)}`)
+  return v
+}
+
 export interface Article {
   headline: string
   dek: string
@@ -141,8 +152,8 @@ export function parseArticle(v: unknown): Article {
   const raw = o['paragraphs']
   if (!Array.isArray(raw) || raw.length === 0) fail('paragraphs', 'is not a non-empty array')
   return {
-    headline: text(o['headline'], 'headline'),
-    dek: text(o['dek'], 'dek'),
+    headline: limited(text(o['headline'], 'headline'), 'headline', HEADLINE_MAX_CHARS),
+    dek: limited(text(o['dek'], 'dek'), 'dek', DEK_MAX_CHARS),
     paragraphs: raw.map((x: unknown, i) => text(x, `paragraphs[${String(i)}]`)),
     summary: text(o['summary'], 'summary'),
     mentions: strings(o['mentions'], 'mentions'),

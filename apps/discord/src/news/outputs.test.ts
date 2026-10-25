@@ -5,6 +5,8 @@ import {
   GAME_POSTS_SCHEMA,
   REVIEW_SCHEMA,
   parseArticle,
+  HEADLINE_MAX_CHARS,
+  DEK_MAX_CHARS,
   parseGamePosts,
   parseReview,
 } from './outputs.ts'
@@ -57,6 +59,22 @@ void test('parseArticle', () => {
   assert.throws(() => parseArticle({ ...article, mentions: [1] }))
   const { summary: _s, ...missing } = article
   assert.throws(() => parseArticle(missing))
+})
+
+void test('parseArticle: headline at most 120 characters, dek at most 160 (M7)', () => {
+  const h120 = 'H'.repeat(120)
+  const d160 = 'D'.repeat(160)
+  assert.equal(parseArticle({ ...article, headline: h120, dek: d160 }).dek, d160)
+  assert.throws(
+    () => parseArticle({ ...article, headline: 'H'.repeat(121) }),
+    /headline has 121 characters; the limit is 120/,
+  )
+  assert.throws(
+    () => parseArticle({ ...article, dek: 'D'.repeat(161) }),
+    /dek has 161 characters; the limit is 160/,
+  )
+  assert.equal(HEADLINE_MAX_CHARS, 120)
+  assert.equal(DEK_MAX_CHARS, 160)
 })
 
 void test('parseReview', () => {

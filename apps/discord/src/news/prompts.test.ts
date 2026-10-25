@@ -8,6 +8,7 @@ import {
   buildSystemPrompt,
   capFactsForPrompt,
   stableStringify,
+  whenLine,
 } from './prompts.ts'
 import { oct12Facts } from './test-fixtures.ts'
 
@@ -129,4 +130,77 @@ void test('review prompt: the text, the sheet, the three checks', () => {
   assert.ok(p.includes('hat trick'))
   assert.ok(p.includes('shutout'))
   assert.ok(!p.includes('were already checked by a program'))
+})
+
+void test('system prompt: unnamed teammates are teammates, never named or singled out (F1)', () => {
+  const s = buildSystemPrompt(all)
+  assert.ok(s.includes('"unnamedTeammates"'))
+  assert.ok(s.includes('They are teammates, not guests'))
+  assert.ok(s.includes('Never name them, hint at who they are, or single them out'))
+  assert.ok(s.includes('"guestCount" is the number of players from outside the club'))
+})
+
+void test('system prompt: never a YYYY-MM-DD date; weekday or month and day (c1)', () => {
+  const s = buildSystemPrompt(all)
+  assert.ok(s.includes('Never write a date as YYYY-MM-DD; use the weekday, or the month and day'))
+  assert.ok(s.includes('off-ice events or places'))
+  assert.ok(s.includes('what a player wanted, felt or thought'))
+})
+
+void test('whenLine: the night in words; a week names its start and its game nights (c1)', () => {
+  const g = oct12Facts('game')
+  assert.equal(whenLine(g), 'The night: Monday, October 12.')
+  assert.equal(whenLine(oct12Facts('night')), 'The night: Monday, October 12.')
+  const w: NewsFacts = {
+    ...oct12Facts('week'),
+    key: '2026-10-12',
+    games: [
+      { ...g.games[0]!, night: '2026-10-15' },
+      { ...g.games[0]!, night: '2026-10-13' },
+      { ...g.games[0]!, night: '2026-10-15' },
+    ],
+  }
+  assert.equal(
+    whenLine(w),
+    'The week starts on Monday, October 12. Game nights: Tuesday, October 13; Thursday, October 15.',
+  )
+})
+
+void test('game and article prompts carry the night label, never only the ISO key (c1)', () => {
+  const game = buildGameUserPrompt({
+    facts: oct12Facts(),
+    first: REPORTERS.barlow,
+    second: null,
+    secondIsReply: false,
+    relationship: null,
+  })
+  assert.ok(game.includes('The night: Monday, October 12.'))
+  const article = buildArticleUserPrompt({
+    facts: oct12Facts('night'),
+    reporter: REPORTERS.quill,
+    kind: 'night',
+    ownRecent: [],
+  })
+  assert.ok(article.includes('The night: Monday, October 12.'))
+})
+
+void test('article prompt: headline at most 120 characters, dek at most 160 (M7)', () => {
+  const p = buildArticleUserPrompt({
+    facts: oct12Facts('night'),
+    reporter: REPORTERS.quill,
+    kind: 'night',
+    ownRecent: [],
+  })
+  assert.ok(p.includes('headline: a short headline, at most 120 characters.'))
+  assert.ok(p.includes('dek: one line under the headline, at most 160 characters.'))
+})
+
+void test('review prompt: clubs only from games[].opponentName; off-ice places; feelings (M5, c2)', () => {
+  const p = buildReviewPrompt({ facts: oct12Facts(), text: 'x' })
+  assert.ok(!p.includes('Opponent club names are fine'))
+  assert.ok(p.includes('A club that is not in games[].opponentName'))
+  for (const needle of ['group chat', 'practice', 'locker room', 'the bench', 'travel']) {
+    assert.ok(p.includes(needle), needle)
+  }
+  assert.ok(p.includes('A claim about what a player wanted, felt or thought.'))
 })

@@ -66,3 +66,18 @@ export function nightsOfWeek(start: string): string[] {
   const first = parseNight(start).getTime()
   return Array.from({ length: 7 }, (_, i) => isoDay(new Date(first + i * DAY_MS)))
 }
+
+const LABEL = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'UTC',
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+})
+
+/**
+ * A night key as people say it: "Monday, October 12". The key is already the
+ * America/Edmonton evening date, so the label is that date, no time zone shift.
+ */
+export function nightLabel(night: string): string {
+  return LABEL.format(parseNight(night))
+}
