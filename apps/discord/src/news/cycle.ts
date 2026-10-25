@@ -15,7 +15,13 @@ import type {
   NewsMention,
 } from '@eanhl/db/queries'
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
-import { assignArticle, assignGamePosts, type Activity } from './assign.ts'
+import {
+  assignFeature,
+  assignGamePosts,
+  assignNightRecap,
+  type Activity,
+  type ActivityKind,
+} from './assign.ts'
 import { costUsd } from './cost.ts'
 import { checkArticleFacts, checkFacts, type CheckResult } from './fact-check.ts'
 import {
@@ -81,9 +87,8 @@ export interface NewsStore {
   markNewsItemPosted(id: number, messageId: string | null): Promise<void>
   markNewsItemFailed(id: number, error: string): Promise<void>
   markNewsItemSkipped(id: number, reason: string): Promise<void>
-  reporterActivity(args: {
-    since: Date
-  }): Promise<{ reporter: ReporterId; night: string | null; createdAt: Date }[]>
+  /** Real items since `since`, each with what it was (recap, reaction, night, feature). */
+  reporterActivity(args: { since: Date }): Promise<Activity>
   recentReporterSummaries(
     reporter: ReporterId,
     limit: number,
@@ -251,8 +256,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     return opts.dryRun ? [...rows, ...state.testActivity] : rows
   }
 
-  function noteWritten(reporter: ReporterId, night: string | null): void {
-    if (opts.dryRun) state.testActivity.push({ reporter, night, createdAt: deps.now() })
+  function noteWritten(reporter: ReporterId, night: string | null, kind: ActivityKind): void {
+    if (opts.dryRun) state.testActivity.push({ reporter, night, createdAt: deps.now(), kind })
   }
 
   async function failJob(jobId: number, tag: string, reason: string): Promise<void> {
@@ -538,7 +543,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           isTest: opts.dryRun,
         })
         stored.push({ id, reporter: p.reporter, text: p.text, isReply })
-        noteWritten(p.reporter, night)
+        noteWritten(p.reporter, night, i === 0 ? 'recap' : 'reaction')
       }
     } catch (err: unknown) {
       if (stored.length === 0) {
@@ -645,7 +650,11 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     let reporterId: ReporterId
     let ownRecent: Awaited<ReturnType<NewsStore['recentReporterSummaries']>>
     try {
-      reporterId = assignArticle(kind, facts, now, await loadActivity(now))
+      const activity = await loadActivity(now)
+      reporterId =
+        kind === 'night'
+          ? assignNightRecap(facts, now, activity)
+          : assignFeature(null, now, activity).reporter
       ownRecent = await store.recentReporterSummaries(reporterId, OWN_RECENT)
     } catch (err: unknown) {
       await failJob(jobId, tag, `could not prepare: ${message(err)}`)
@@ -687,7 +696,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       await failJob(jobId, tag, `could not store: ${message(err)}`)
       return 'go'
     }
-    noteWritten(reporterId, night)
+    noteWritten(reporterId, night, kind === 'night' ? 'night' : 'feature')
     await markDone(jobId, tag)
     hooks.onSettled?.()
     const payload = buildArticlePayload({

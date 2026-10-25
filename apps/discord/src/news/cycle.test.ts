@@ -11,6 +11,7 @@ import {
   type NewsDeps,
   type NewsStore,
 } from './cycle.ts'
+import type { ActivityKind } from './assign.ts'
 import type { NewsWebhookPayload } from './messages.ts'
 import { ARTICLE_SCHEMA, GAME_POSTS_SCHEMA, REVIEW_SCHEMA } from './outputs.ts'
 import { oct12Response } from './test-fixtures.ts'
@@ -28,10 +29,10 @@ type Job = {
   error: string | null
 }
 
-/** A one-goal loss: Wade Barlow writes, Dex Mercer replies (mercer → barlow relationship). */
+/** A 2-3 overtime loss: Dex Mercer's recap, Wade Barlow replies (barlow → mercer relationship). */
 function lossGame(matchId: number): NewsGameFacts {
   const base = oct12Response('game').facts.games[0]!
-  return { ...base, matchId, scoreFor: 2, scoreAgainst: 3 }
+  return { ...base, matchId, result: 'OTL', overtime: true, scoreFor: 2, scoreAgainst: 3 }
 }
 
 function gameResponse(matchId: number): NewsFactsResponse {
@@ -200,10 +201,25 @@ function harness(
       items.get(id)!.discordStatus = 'skipped'
       events.push(`item-skipped:${String(id)}:${reason}`)
     },
-    reporterActivity: async () =>
-      [...items.values()]
-        .filter((i) => !i.isTest)
-        .map((i) => ({ reporter: i.reporter, night: i.night, createdAt: i.createdAt })),
+    reporterActivity: async () => {
+      const real = [...items.values()].filter((i) => !i.isTest)
+      // As the query: a feature, a night recap, a game's first post (recap), or a reaction.
+      const kindOf = (i: NewsItemRow): ActivityKind =>
+        i.kind === 'article'
+          ? i.weekStart !== null
+            ? 'feature'
+            : 'night'
+          : i.replyTo === null &&
+              !real.some((p) => p.kind === 'post' && p.matchId === i.matchId && p.id < i.id)
+            ? 'recap'
+            : 'reaction'
+      return real.map((i) => ({
+        reporter: i.reporter,
+        night: i.night,
+        createdAt: i.createdAt,
+        kind: kindOf(i),
+      }))
+    },
     recentReporterSummaries: async () => [],
     recordNewsUsage: async (row) => void usage.push(row),
     ...over.store,
@@ -258,8 +274,8 @@ void test('game: two candidates ⇒ two jobs, posts sent in order with a pause b
   assert.equal(h.jobs.get('game:502')?.status, 'done')
   assert.deepEqual(
     h.sent.map((p) => p.username),
-    // Same night: Dex Mercer has had his one item, so Mara Quill takes the second slot.
-    ['Wade Barlow', 'Dex Mercer', 'Wade Barlow', 'Mara Quill'],
+    // Same night: Dex Mercer has had his one item, so Barlow's recap and Mara Quill's reaction.
+    ['Dex Mercer', 'Wade Barlow', 'Wade Barlow', 'Mara Quill'],
   )
   // A pause before every send but the first, each at least 2.1 s.
   const sendIdx = h.events.flatMap((e, i) => (e.startsWith('send:') ? [i] : []))
@@ -280,7 +296,7 @@ void test('game: two candidates ⇒ two jobs, posts sent in order with a pause b
   assert.equal(first.isTest, false)
   assert.equal(first.discordStatus, 'posted')
   assert.equal(first.discordMessageId, 'm100')
-  assert.ok(h.sent[1]!.content.startsWith('↪ to Wade Barlow: '))
+  assert.ok(h.sent[1]!.content.startsWith('↪ to Dex Mercer: '))
   // Every write and review call is recorded against its job, with a cost.
   assert.equal(h.usage.length, 4)
   assert.deepEqual(
@@ -391,7 +407,7 @@ void test('game: dry run ⇒ items is_test, files written, nothing sent', async 
   const s = await runNewsCycle(h.deps, { ...h.opts, dryRun: true })
   assert.equal(h.sent.length, 0)
   assert.equal(h.dry.length, 2)
-  assert.ok(h.dry[1]!.payload.content.startsWith('↪ to Wade Barlow: '))
+  assert.ok(h.dry[1]!.payload.content.startsWith('↪ to Dex Mercer: '))
   assert.ok([...h.items.values()].every((i) => i.isTest && i.discordStatus === 'skipped'))
   assert.equal(h.jobs.get('game:501')?.status, 'done')
   assert.equal(s.dryRun, 2)
@@ -399,7 +415,7 @@ void test('game: dry run ⇒ items is_test, files written, nothing sent', async 
 })
 
 void test('game: dry run counts its own test items for the frequency limits', async () => {
-  // Two one-goal losses on the same night: Dex Mercer may write only once a night.
+  // Two overtime losses on the same night: Dex Mercer may write only once a night.
   const h = harness({ candidates: [501, 502] })
   await runNewsCycle(h.deps, { ...h.opts, dryRun: true })
   const mercer = [...h.items.values()].filter((i) => i.reporter === 'mercer')

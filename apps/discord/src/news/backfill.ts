@@ -44,7 +44,7 @@ import {
   type ReporterId,
 } from '@eanhl/db/news'
 import type { NewNewsItem, NewsMention } from '@eanhl/db/queries'
-import { assignArticle, assignGamePosts, type Activity } from './assign.ts'
+import { assignGamePosts, assignNightRecap, type Activity } from './assign.ts'
 import { checkArticleFacts, checkFacts, type CheckResult } from './fact-check.ts'
 import { articleSlug } from './messages.ts'
 import {
@@ -176,7 +176,12 @@ export async function planBackfill(args: {
         relationship,
       })
       job.reporters.forEach((r, k) =>
-        activity.push({ reporter: r, night, createdAt: itemCreatedAt(job, k) }),
+        activity.push({
+          reporter: r,
+          night,
+          createdAt: itemCreatedAt(job, k),
+          kind: k === 0 ? 'recap' : 'reaction',
+        }),
       )
       jobs.push(job)
     }
@@ -191,7 +196,7 @@ export async function planBackfill(args: {
       sheet: nightSheet,
     }
     const createdAt = itemCreatedAt(article, 0)
-    const reporter = assignArticle('night', nightSheet.facts, createdAt, activity)
+    const reporter = assignNightRecap(nightSheet.facts, createdAt, activity)
     article.reporters = [reporter]
     // The reporter's own recent pieces are not known before they are written.
     article.user = buildArticleUserPrompt({
@@ -200,7 +205,7 @@ export async function planBackfill(args: {
       kind: 'night',
       ownRecent: [],
     })
-    activity.push({ reporter, night, createdAt })
+    activity.push({ reporter, night, createdAt, kind: 'night' })
     jobs.push(article)
   }
 

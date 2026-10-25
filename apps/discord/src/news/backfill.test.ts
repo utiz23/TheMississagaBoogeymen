@@ -324,20 +324,23 @@ function fakeStore() {
 async function acceptedNight() {
   const nights = {
     '2026-05-08': [
-      // A 2-3 loss: Wade Barlow, then Dex Mercer's reply to him.
+      // A 2-3 overtime loss: Dex Mercer's recap, then Wade Barlow's reply to him.
       {
         ...base,
         matchId: 250,
         night: '2026-05-08',
         playedAt: at('2026-05-09', '02:00'),
+        result: 'OTL' as const,
+        overtime: true,
         scoreAgainst: 3,
       },
-      // A 0-6 loss: Mercer already wrote tonight, so two others, no reply.
+      // A 0-6 loss: Mercer already wrote tonight, so Quill's recap and Voss's reaction, no reply.
       loss(251, '2026-05-08', at('2026-05-09', '02:40')),
     ],
   }
   const plan = await planBackfill({ nights: ['2026-05-08'], ...fakeWeb(nights) })
-  assert.deepEqual(plan.jobs[0]!.reporters, ['barlow', 'mercer'])
+  assert.deepEqual(plan.jobs[0]!.reporters, ['mercer', 'barlow'])
+  assert.deepEqual(plan.jobs[1]!.reporters, ['quill', 'voss'])
   assert.equal(plan.jobs[0]!.secondIsReply, true)
   assert.equal(plan.jobs[1]!.secondIsReply, false)
   const posts = (job: BackfillJob, text: string) => ({
@@ -390,7 +393,7 @@ void test('import: chronological, created_at from the games, replies linked, nev
   assert.deepEqual(post.mentions, [{ name: 'Skater A', playerId: 1 }])
   assert.deepEqual(post.facts, first.sheet.facts)
   assert.equal(rows[0]!.replyTo, null)
-  assert.equal(rows[1]!.replyTo, rows[0]!.id) // Mercer answers Barlow
+  assert.equal(rows[1]!.replyTo, rows[0]!.id) // Barlow answers Mercer
   assert.equal(rows[3]!.replyTo, null) // game 251: two separate posts
   const article = rows[rows.length - 1]!
   assert.equal(article.kind, 'article')
