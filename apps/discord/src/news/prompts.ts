@@ -599,29 +599,47 @@ export function buildReviewPrompt(args: {
   takes?: readonly NewsTake[]
 }): string {
   const listed = args.criticized.length === 0 ? 'nobody' : args.criticized.join(', ')
+  const takes = args.takes ?? []
+  const takeLines =
+    takes.length === 0
+      ? [
+          'The writer was offered no reporter take: a running grudge or beef against a player is a problem.',
+        ]
+      : [
+          'The writer was offered these reporter takes (private desk notes; only their critics may voice them):',
+          ...takes.map(
+            (t) =>
+              `- Take ${String(t.id)} on ${t.player}, critics ${[t.reporter, ...t.critics].map((c) => REPORTERS[c].name).join(', ')}${t.defender === null ? '' : `, defender ${REPORTERS[t.defender].name}`}${t.mild ? ', MILD (Go easy)' : ''}: ${t.take}`,
+          ),
+        ]
   return [
-    'You are the second check of a news desk. A fictional reporter wrote the text below from the fact sheet. A program already checked the digits and number words in the text, the names the reporter listed, and the club names the reporter listed. It did not read the text for other names or for stats written in other ways. Check what the program cannot check.',
+    'You are the second check of a news desk. A fictional reporter wrote the text below from the fact sheet. A program already checked the digits and number words in the text, the names the reporter listed, the club names the reporter listed, swear words, pronouns and the labels it can match. It did not read the text for other names, for stats written in other ways, or for tone. Check what the program cannot check.',
     '',
     'Fact sheet (JSON):',
     sheet(args.facts),
     '',
-    'Text to review:',
+    'Text to review (each post starts with its reporter; an article with "By <reporter>"):',
     '"""',
     args.text,
     '"""',
     '',
     `The writer listed these people as criticised harshly: ${listed}.`,
+    ...takeLines,
     '',
     'Find these problems:',
-    '1. An invented quote from a teammate or an opponent. (A fictional reporter quoting another reporter is fine.)',
-    '2. An invented event: a shot off the post, a save, a pass, a line change, a mood or argument in the room, any play-by-play that the sheet does not support. Opinion that follows from the stats is fine. Facts from a game\'s "goals" timeline are allowed: the period and clock of a goal, who scored it for us, who assisted, and that an opponent scored. How a goal was scored is not on the sheet.',
-    '3. Personal criticism: anything about real life, looks, family, work, health or the person instead of their hockey. Also: harsh criticism of a player whose pressLevel is "easy", and praise or blame for an AI goalie as if it were a teammate.',
-    `4. A person named in the text who is not in the sheet's people[].name list and is not one of the desk's reporters (${REPORTER_IDS.map((id) => REPORTERS[id].name).join(', ')}). Opponent players, guests and real-life names are problems.`,
+    '1. An invented quote from a teammate or an opponent. (A fictional reporter quoting another reporter is fine, also second-hand.)',
+    '2. An invented event: a shot off the post, a save, a pass, a line change, a mood or argument in the room, any play-by-play that the sheet does not support. Opinion that follows from the stats is fine. Facts from a game\'s "goals" timeline are allowed: the period and clock of a goal, who scored it for the Boogeymen, who assisted, and that an opponent scored. How a goal was scored is not on the sheet.',
+    '3. Personal criticism: anything about real life, looks, family, work, health or the person instead of their hockey. Also: harsh criticism of a player whose pressLevel is "easy". The AI goalies (Matteo Lehmann, Jonas Wagner) may be praised or blamed for their numbers; calling one a teammate or a club member is a problem.',
+    `4. A person named in the text who is not in the sheet's people[].name list, not a record holder in "records", not an AI goalie on the sheet, and not one of the desk's reporters (${REPORTER_IDS.map((id) => REPORTERS[id].name).join(', ')}). Opponent players, guests and real-life names are problems.`,
     '5. A stat stated in words that the program does not read, such as "hat trick", "dozen", "twice", "shutout", "brace", that the sheet does not support.',
-    '6. A club that is not in games[].opponentName. Only those clubs (and the Boogeymen) are allowed.',
-    '7. A reference to an off-ice event or place that the sheet does not support: a group chat, a practice, the locker room, the bench, travel.',
+    '6. A club that is not in games[].opponentName or the lore. Only those clubs (and the Boogeymen) are allowed; nothing invented around the lore.',
+    '7. A reference to an off-ice event or place that the sheet does not support: a group chat, a practice, the locker room, the bench, travel, a crowd.',
     '8. A claim about what a player wanted, felt or thought.',
     '9. Harsh criticism of a player who is not on that list. Mild criticism is fine.',
+    '10. Drama that no label on the sheet supports: a career high, season high, slump, upset, panic, blowout, meltdown, a steal or a record that the sheet\'s labels ("bests", "firsts", "streaks", "threads", "context", "aiGoalie.label", "newRecords") do not show; a big individual night called luck after a win (Dex Mercer and Gord Pettibone may keep caveats); a typical pattern sold as news.',
+    '11. A reporter take used unfairly: voiced by a reporter who is not one of its critics, quoted as a note or revealed as one, two "weaker player" takes in one piece, a take about anything but hockey, or a take marked MILD that is not mild. A grudge against a player without an offered take.',
+    '12. Language: any swearing by a reporter other than Dex Mercer, Gord Pettibone or Rico Vale; more than mild swearing (hell, damn, crap) by anyone; any slur; any swearing aimed at a person.',
+    "13. A reply that argues with the other reporter's motives, clicks, jealousy, timing or career instead of a number from the sheet.",
     '',
     'Answer ok = true when you find none of them. Otherwise answer ok = false and list each problem in one short sentence in "problems", naming the words that cause it.',
   ].join('\n')

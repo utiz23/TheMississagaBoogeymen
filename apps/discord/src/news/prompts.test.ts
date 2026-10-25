@@ -364,7 +364,7 @@ void test('review prompt: goal timeline facts are allowed (B1)', () => {
   const p = buildReviewPrompt({ facts: oct12Facts(), text: 'x', criticized: [] })
   assert.ok(
     p.includes(
-      'Facts from a game\'s "goals" timeline are allowed: the period and clock of a goal, who scored it for us, who assisted, and that an opponent scored. How a goal was scored is not on the sheet.',
+      'Facts from a game\'s "goals" timeline are allowed: the period and clock of a goal, who scored it for the Boogeymen, who assisted, and that an opponent scored. How a goal was scored is not on the sheet.',
     ),
   )
 })
@@ -741,4 +741,48 @@ void test('C3a.9 feature prompt: scorecards and the receipt that restates the pr
   })
   assert.ok(p.includes('Prediction scorecards: Mara Quill 4 for 7.'))
   assert.ok(p.includes("restate last week's prediction"))
+})
+
+void test('C3a.10 review prompt: labels, takes fairness, language level, AI goalies, replies', () => {
+  const none = buildReviewPrompt({ facts: oct12Facts(), text: 'x', criticized: [] })
+  for (const needle of [
+    'Drama that no label on the sheet supports',
+    'a big individual night called luck after a win',
+    'A reporter take used unfairly',
+    'A grudge against a player without an offered take',
+    'any swearing by a reporter other than Dex Mercer, Gord Pettibone or Rico Vale',
+    'any slur; any swearing aimed at a person',
+    'The AI goalies (Matteo Lehmann, Jonas Wagner) may be praised or blamed',
+    'calling one a teammate or a club member is a problem',
+    "A reply that argues with the other reporter's motives, clicks",
+    'Harsh criticism of a player who is not on that list',
+    'The writer was offered no reporter take',
+  ]) {
+    assert.ok(none.includes(needle), needle)
+  }
+  assert.ok(!none.includes('as if it were a teammate'))
+  const take = {
+    id: 3,
+    reporter: 'mercer' as const,
+    critics: ['pettibone' as const],
+    defender: 'quill' as const,
+    playerId: 2,
+    player: 'Skater B',
+    take: 'Invented take.',
+    spread: 'some' as const,
+    dataAngle: null,
+    intensity: 0,
+    mild: true,
+  }
+  const withTake = buildReviewPrompt({
+    facts: oct12Facts(),
+    text: 'x',
+    criticized: [],
+    takes: [take],
+  })
+  assert.ok(
+    withTake.includes(
+      '- Take 3 on Skater B, critics Dex Mercer, Gord Pettibone, defender Mara Quill, MILD (Go easy): Invented take.',
+    ),
+  )
 })

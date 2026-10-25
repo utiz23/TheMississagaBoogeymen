@@ -795,7 +795,12 @@ export function evaluateJob(
         [],
         { reporter: job.reporters[0]!, offeredTakes: offered[0] ?? [] },
       )
-      textForReview = [f.headline, f.dek, featureBody(f, f)].join('\n\n')
+      textForReview = [
+        `By ${REPORTERS[job.reporters[0]!].name}`,
+        f.headline,
+        f.dek,
+        featureBody(f, f),
+      ].join('\n\n')
     } else {
       const a = parseArticle(value)
       output = a
@@ -810,7 +815,12 @@ export function evaluateJob(
             }
           : {}),
       })
-      textForReview = [a.headline, a.dek, ...a.paragraphs].join('\n\n')
+      textForReview = [
+        `By ${REPORTERS[job.reporters[0]!].name}`,
+        a.headline,
+        a.dek,
+        ...a.paragraphs,
+      ].join('\n\n')
     }
   } catch (err: unknown) {
     return rewrite([message(err)])

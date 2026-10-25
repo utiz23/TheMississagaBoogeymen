@@ -776,7 +776,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
             zeroCalledPrevious: ctx.zeroCalledPrevious,
             offeredTakes: mine.map((t) => t.id),
           }),
-        textForReview: (x) => [x.headline, x.dek, ...x.paragraphs].join('\n\n'),
+        textForReview: (x) =>
+          [`By ${REPORTERS[w.reporter].name}`, x.headline, x.dek, ...x.paragraphs].join('\n\n'),
         criticizedForReview: (x) => x.criticized,
         takesForReview: mine,
         facts,
@@ -974,7 +975,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
             zeroCalledPrevious: ctx.zeroCalledPrevious,
             offeredTakes: mine.map((t) => t.id),
           }),
-        textForReview: (x) => [x.headline, x.dek, ...x.paragraphs].join('\n\n'),
+        textForReview: (x) =>
+          [`By ${REPORTERS[reporterId].name}`, x.headline, x.dek, ...x.paragraphs].join('\n\n'),
         criticizedForReview: (x) => x.criticized,
         takesForReview: mine,
         facts,
@@ -999,7 +1001,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
             reporter: reporterId,
             offeredTakes: mine.map((t) => t.id),
           }),
-        textForReview: (f) => [f.headline, f.dek, featureBody(f, f)].join('\n\n'),
+        textForReview: (f) =>
+          [`By ${REPORTERS[reporterId].name}`, f.headline, f.dek, featureBody(f, f)].join('\n\n'),
         criticizedForReview: (f) => f.criticized,
         takesForReview: mine,
         facts,
