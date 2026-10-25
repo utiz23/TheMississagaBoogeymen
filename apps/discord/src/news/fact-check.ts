@@ -1,10 +1,15 @@
-import { REPORTERS, REPORTER_IDS, type NewsFacts } from '@eanhl/db/news'
+import { REPORTERS, REPORTER_IDS, type FeatureKind, type NewsFacts } from '@eanhl/db/news'
 
 export type CheckResult = { ok: true } | { ok: false; problems: string[] }
 
 const POST_MAX_CHARS = 280
 const ARTICLE_MIN_WORDS = 250
 const ARTICLE_MAX_WORDS = 450
+/** Weekly features (rev 2, B3). */
+const FEATURE_MIN_WORDS = 600
+const FEATURE_MAX_WORDS = 900
+const NOTES_MIN_ITEMS = 10
+const NOTES_MAX_ITEMS = 15
 
 const DIGIT_RUN = /\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/g
 
@@ -143,7 +148,7 @@ function containsName(haystack: string, name: string): boolean {
 /** The one problem text for any forbidden name (it never contains the name). */
 export const FORBIDDEN_NAME_PROBLEM = 'The text names a person who is not on the fact sheet.'
 
-type LengthRule = 'post' | 'article' | 'none'
+type LengthRule = 'post' | 'article' | 'feature' | 'none'
 
 /** What the writer listed with the text. `criticized` is checked only when given. */
 export interface ListedOutput {
@@ -236,11 +241,15 @@ function check(
         `The post has ${String(chars)} characters. The limit is ${String(POST_MAX_CHARS)}.`,
       )
     }
-  } else if (length === 'article') {
+  } else if (length === 'article' || length === 'feature') {
+    const [min, max] =
+      length === 'article'
+        ? [ARTICLE_MIN_WORDS, ARTICLE_MAX_WORDS]
+        : [FEATURE_MIN_WORDS, FEATURE_MAX_WORDS]
     const words = flat === '' ? 0 : flat.split(' ').length
-    if (words < ARTICLE_MIN_WORDS || words > ARTICLE_MAX_WORDS) {
+    if (words < min || words > max) {
       problems.push(
-        `The article body has ${String(words)} words. It must have ${String(ARTICLE_MIN_WORDS)} to ${String(ARTICLE_MAX_WORDS)}.`,
+        `The article body has ${String(words)} words. It must have ${String(min)} to ${String(max)}.`,
       )
     }
   }
@@ -330,6 +339,101 @@ export function checkGamePosts(
     ])
     if (!r.ok) problems.push(...r.problems)
   })
+  const unique = [...new Set(problems)]
+  return unique.length === 0 ? { ok: true } : { ok: false, problems: unique }
+}
+
+/** Number words beyond the counted ones, banned in a prediction too. */
+const OTHER_NUMBER_WORDS = /\b(dozens?|twice|thrice|thousands?|millions?)\b/i
+
+/** The first digit run or number word in `text`, or null. */
+function firstNumber(text: string): string | null {
+  const found = [
+    text.match(new RegExp(DIGIT_RUN.source)),
+    text.match(new RegExp(COMPOUND_WORD.source, 'i')),
+    text.match(new RegExp(SINGLE_WORD.source, 'i')),
+    text.match(OTHER_NUMBER_WORDS),
+  ].filter((m): m is RegExpMatchArray => m !== null)
+  if (found.length === 0) return null
+  return found.sort((a, b) => (a.index ?? 0) - (b.index ?? 0))[0]![0]
+}
+
+function sentenceCount(text: string): number {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((x) => x.trim())
+    .filter((x) => x !== '').length
+}
+
+/**
+ * The whole weekly feature (rev 2, B3): the body gets the 600-900 word rule
+ * (a notes column also 10-15 items, one paragraph each); headline, dek,
+ * summary, receipt and prediction get the number, name and club rules; the
+ * prediction has no digits and no number words at all; the receipt is one or
+ * two sentences when there was a previous prediction, else empty.
+ */
+export function checkFeatureFacts(
+  feature: {
+    headline: string
+    dek: string
+    paragraphs: string[]
+    summary: string
+    mentions: string[]
+    clubs: string[]
+    criticized: string[]
+    prediction: string
+    receipt: string
+  },
+  facts: NewsFacts,
+  forbiddenNames: string[],
+  rules: { kind: FeatureKind; previousPrediction: string | null },
+  criticizedTonight: readonly string[] = [],
+): CheckResult {
+  const out = { mentions: feature.mentions, clubs: feature.clubs, criticized: feature.criticized }
+  const problems = [
+    ...check(
+      feature.paragraphs.join('\n\n'),
+      facts,
+      forbiddenNames,
+      out,
+      'feature',
+      criticizedTonight,
+    ),
+    ...check(
+      [feature.headline, feature.dek, feature.summary, feature.receipt, feature.prediction]
+        .filter((x) => x.trim() !== '')
+        .join('\n'),
+      facts,
+      forbiddenNames,
+      { mentions: [], clubs: [] },
+      'none',
+    ),
+  ]
+  if (rules.kind === 'notes') {
+    const items = feature.paragraphs.length
+    if (items < NOTES_MIN_ITEMS || items > NOTES_MAX_ITEMS) {
+      problems.push(
+        `The notes column has ${String(items)} items. It must have ${String(NOTES_MIN_ITEMS)} to ${String(NOTES_MAX_ITEMS)}, one paragraph each.`,
+      )
+    }
+  }
+  const number = firstNumber(feature.prediction)
+  if (number !== null) {
+    problems.push(`The prediction must have no numbers or number words; it has "${number}".`)
+  }
+  const receipt = feature.receipt.trim()
+  if (rules.previousPrediction === null) {
+    if (receipt !== '') {
+      problems.push('There was no previous prediction, so the receipt must be an empty string.')
+    }
+  } else if (receipt === '') {
+    problems.push(
+      "The receipt is empty. Say in one or two sentences whether last week's prediction came true.",
+    )
+  } else {
+    const n = sentenceCount(receipt)
+    if (n > 2) problems.push(`The receipt has ${String(n)} sentences. It must have one or two.`)
+  }
   const unique = [...new Set(problems)]
   return unique.length === 0 ? { ok: true } : { ok: false, problems: unique }
 }

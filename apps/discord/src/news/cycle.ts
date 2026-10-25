@@ -4,6 +4,7 @@ import {
   nightsOfWeek,
   type NewsFacts,
   type NewsFactsResponse,
+  type FeatureKind,
   type NewsGameFacts,
   type ReporterId,
 } from '@eanhl/db/news'
@@ -19,19 +20,38 @@ import {
   assignFeature,
   assignGamePosts,
   assignNightRecap,
+  predictionToJudge,
   type Activity,
   type ActivityKind,
 } from './assign.ts'
 import { costUsd } from './cost.ts'
-import { checkArticleFacts, checkGamePosts, type CheckResult } from './fact-check.ts'
+import {
+  checkArticleFacts,
+  checkFeatureFacts,
+  checkGamePosts,
+  type CheckResult,
+} from './fact-check.ts'
 import {
   articleSlug,
   buildArticlePayload,
   buildNewsPostPayload,
   type NewsWebhookPayload,
 } from './messages.ts'
-import { ARTICLE_SCHEMA, GAME_POSTS_SCHEMA, parseArticle, parseGamePosts } from './outputs.ts'
-import { buildArticleUserPrompt, buildGameUserPrompt, buildSystemPrompt } from './prompts.ts'
+import {
+  ARTICLE_SCHEMA,
+  FEATURE_SCHEMA,
+  GAME_POSTS_SCHEMA,
+  parseArticle,
+  parseFeature,
+  parseGamePosts,
+  type Article,
+} from './outputs.ts'
+import {
+  buildArticleUserPrompt,
+  buildFeatureUserPrompt,
+  buildGameUserPrompt,
+  buildSystemPrompt,
+} from './prompts.ts'
 import { classifyGame } from './situation.ts'
 import {
   NewsRetryableError,
@@ -94,6 +114,8 @@ export interface NewsStore {
     limit: number,
   ): Promise<{ headline: string; summary: string; night: string | null }[]>
   recordNewsUsage(row: NewNewsUsage): Promise<void>
+  /** The newest real, not deleted weekly feature, or null (rev 2, B5). */
+  lastFeature(): Promise<LastFeature | null>
   /** Names the night's items criticised harshly so far (not deleted; test items only when asked). */
   nightCriticized(night: string, includeTest: boolean): Promise<string[]>
 }
@@ -124,6 +146,14 @@ export interface NewsCycleState {
   settledWeeks: Set<string>
   /** Week key -> epoch ms: after a failed facts fetch, that week is not fetched again before this. */
   weekFetchPausedUntil: Map<string, number>
+  /** The last feature written in test mode: lastFeature reads real items only. */
+  testLastFeature: LastFeature | null
+}
+
+export interface LastFeature {
+  kind: FeatureKind
+  prediction: string | null
+  weekStart: string | null
 }
 
 export function createNewsCycleState(): NewsCycleState {
@@ -133,6 +163,7 @@ export function createNewsCycleState(): NewsCycleState {
     testActivity: [],
     settledWeeks: new Set(),
     weekFetchPausedUntil: new Map(),
+    testLastFeature: null,
   }
 }
 
@@ -158,6 +189,19 @@ const message = (err: unknown) => (err instanceof Error ? err.message : String(e
 const rateLimited = (err: unknown) => /HTTP 429\b/.test(message(err))
 
 const SYSTEM_PROMPT = buildSystemPrompt(Object.values(REPORTERS))
+
+/**
+ * A feature's stored body (rev 2, B3): the receipt opens it (when there is
+ * one), the prediction closes it; the web shows the body as it is.
+ */
+export function featureBody(
+  a: { paragraphs: string[] },
+  closing: { prediction: string; receipt: string },
+): string {
+  return [closing.receipt, ...a.paragraphs, closing.prediction]
+    .filter((x) => x.trim() !== '')
+    .join('\n\n')
+}
 
 /** The people an item names, as stored: sheet names only, one entry per player. */
 function mentionsOf(names: string[], facts: NewsFacts): NewsMention[] {
@@ -652,38 +696,73 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     let reporterId: ReporterId
     let ownRecent: Awaited<ReturnType<NewsStore['recentReporterSummaries']>>
     let tonight: string[] = []
+    /** Week jobs: the feature kind and the prediction to judge (rev 2, B3/B5). */
+    let feature: { kind: FeatureKind; previousPrediction: string | null } | null = null
     try {
       const activity = await loadActivity(now)
-      reporterId =
-        kind === 'night'
-          ? assignNightRecap(facts, now, activity)
-          : assignFeature(null, now, activity).reporter
+      if (kind === 'night') {
+        reporterId = assignNightRecap(facts, now, activity)
+        tonight = await store.nightCriticized(key, opts.dryRun)
+      } else {
+        const last =
+          opts.dryRun && state.testLastFeature !== null
+            ? state.testLastFeature
+            : await store.lastFeature()
+        const next = assignFeature(last?.kind ?? null, now, activity)
+        reporterId = next.reporter
+        feature = { kind: next.kind, previousPrediction: predictionToJudge(key, last) }
+      }
       ownRecent = await store.recentReporterSummaries(reporterId, OWN_RECENT)
-      if (kind === 'night') tonight = await store.nightCriticized(key, opts.dryRun)
     } catch (err: unknown) {
       await failJob(jobId, tag, `could not prepare: ${message(err)}`)
       return 'go'
     }
     const reporter = REPORTERS[reporterId]
-    const written = await write(jobId, tag, {
-      user: buildArticleUserPrompt({
-        facts,
-        reporter,
-        kind,
-        ownRecent,
-        criticizedTonight: tonight,
-      }),
-      schema: ARTICLE_SCHEMA,
-      parse: parseArticle,
-      check: (a) => checkArticleFacts(a, facts, forbiddenNames, tonight),
-      textForReview: (a) => [a.headline, a.dek, ...a.paragraphs].join('\n\n'),
-      criticizedForReview: (a) => a.criticized,
-      facts,
-    })
-    if (written === 'end') return 'end'
-    if (written === 'failed') return 'go'
 
-    const a = written.out
+    let a: Article
+    let closing: { prediction: string; receipt: string } | null = null
+    if (feature === null) {
+      const written = await write(jobId, tag, {
+        user: buildArticleUserPrompt({
+          facts,
+          reporter,
+          kind,
+          ownRecent,
+          criticizedTonight: tonight,
+        }),
+        schema: ARTICLE_SCHEMA,
+        parse: parseArticle,
+        check: (x) => checkArticleFacts(x, facts, forbiddenNames, tonight),
+        textForReview: (x) => [x.headline, x.dek, ...x.paragraphs].join('\n\n'),
+        criticizedForReview: (x) => x.criticized,
+        facts,
+      })
+      if (written === 'end') return 'end'
+      if (written === 'failed') return 'go'
+      a = written.out
+    } else {
+      const rules = feature
+      const written = await write(jobId, tag, {
+        user: buildFeatureUserPrompt({
+          facts,
+          reporter,
+          kind: rules.kind,
+          ownRecent,
+          previousPrediction: rules.previousPrediction,
+        }),
+        schema: FEATURE_SCHEMA,
+        parse: parseFeature,
+        check: (f) => checkFeatureFacts(f, facts, forbiddenNames, rules),
+        textForReview: (f) => [f.headline, f.dek, featureBody(f, f)].join('\n\n'),
+        criticizedForReview: (f) => f.criticized,
+        facts,
+      })
+      if (written === 'end') return 'end'
+      if (written === 'failed') return 'go'
+      a = written.out
+      closing = { prediction: written.out.prediction, receipt: written.out.receipt }
+    }
+
     const night = kind === 'night' ? key : null
     const slug = articleSlug(kind === 'week' ? `week-${key}` : key, a.headline)
     let id: number
@@ -697,10 +776,12 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         slug,
         headline: a.headline,
         dek: a.dek,
-        body: a.paragraphs.join('\n\n'),
+        body: closing === null ? a.paragraphs.join('\n\n') : featureBody(a, closing),
         summary: a.summary,
         mentions: mentionsOf(a.mentions, facts),
         criticized: a.criticized,
+        featureKind: feature?.kind ?? null,
+        prediction: closing?.prediction ?? null,
         facts,
         isTest: opts.dryRun,
       })
@@ -709,8 +790,12 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       return 'go'
     }
     noteWritten(reporterId, night, kind === 'night' ? 'night' : 'feature')
+    if (opts.dryRun && feature !== null && closing !== null) {
+      state.testLastFeature = { kind: feature.kind, prediction: closing.prediction, weekStart: key }
+    }
     await markDone(jobId, tag)
     hooks.onSettled?.()
+    // B7: a feature's Discord notice is the article's: headline, dek, link.
     const payload = buildArticlePayload({
       reporter,
       headline: a.headline,

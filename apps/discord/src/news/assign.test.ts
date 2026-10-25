@@ -6,6 +6,7 @@ import {
   assignNightRecap,
   isAllowed,
   nextFeatureKind,
+  predictionToJudge,
   REACTION_SITUATIONS,
   type Activity,
   type ActivityKind,
@@ -307,4 +308,22 @@ void test('assignFeature: the kind decides the reporter; Rink only when his 14-d
     const next = assignFeature(k, NOW, [])
     assert.equal(next.reporter, FEATURE_REPORTER[next.kind])
   }
+})
+
+void test('predictionToJudge: only the prediction of the week right before (spec §12.6)', () => {
+  const last = { prediction: 'Someone finally beats the goalie.', weekStart: '2026-10-12' }
+  assert.equal(predictionToJudge('2026-10-19', last), last.prediction)
+  // A gap week: the prediction was about a week with no games, so nothing to judge.
+  assert.equal(predictionToJudge('2026-10-26', last), null)
+  assert.equal(predictionToJudge('2026-10-19', { ...last, prediction: null }), null)
+  assert.equal(predictionToJudge('2026-10-19', null), null)
+  // Across the end of the year and a DST change.
+  assert.equal(
+    predictionToJudge('2027-01-04', { ...last, weekStart: '2026-12-28' }),
+    last.prediction,
+  )
+  assert.equal(
+    predictionToJudge('2026-11-02', { ...last, weekStart: '2026-10-26' }),
+    last.prediction,
+  )
 })

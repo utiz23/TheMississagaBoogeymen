@@ -189,3 +189,19 @@ export function assignFeature(
   const kind = nextFeatureKind(lastKind, isAllowed('rink', now, null, activity))
   return { kind, reporter: FEATURE_REPORTER[kind] }
 }
+
+/**
+ * The prediction the new feature must judge (spec §12.6: "last week's
+ * prediction"): the last feature's prediction only when that feature covered
+ * the week right before `weekStart`. After a week without games the old
+ * prediction was about a week that was never played, so there is none.
+ */
+export function predictionToJudge(
+  weekStart: string,
+  last: { prediction: string | null; weekStart: string | null } | null,
+): string | null {
+  if (last === null || last.prediction === null || last.weekStart === null) return null
+  const [y, m, d] = weekStart.split('-').map(Number)
+  const previous = new Date(Date.UTC(y!, m! - 1, d! - 7)).toISOString().slice(0, 10)
+  return last.weekStart === previous ? last.prediction : null
+}

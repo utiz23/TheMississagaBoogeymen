@@ -3,6 +3,7 @@ import {
   countNightGames,
   getNewsEnabled,
   insertNewsItem,
+  lastFeature,
   listAdminNewsItems,
   listDiscordDeletions,
   listEndedNights,
@@ -53,5 +54,6 @@ export const newsDbStore: NewsStore = {
     ),
   recentReporterSummaries,
   recordNewsUsage,
+  lastFeature,
   nightCriticized,
 }

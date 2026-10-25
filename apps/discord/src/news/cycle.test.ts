@@ -13,7 +13,7 @@ import {
 } from './cycle.ts'
 import type { ActivityKind } from './assign.ts'
 import type { NewsWebhookPayload } from './messages.ts'
-import { ARTICLE_SCHEMA, GAME_POSTS_SCHEMA, REVIEW_SCHEMA } from './outputs.ts'
+import { ARTICLE_SCHEMA, FEATURE_SCHEMA, GAME_POSTS_SCHEMA, REVIEW_SCHEMA } from './outputs.ts'
 import { oct12Response } from './test-fixtures.ts'
 import { NewsJobError, NewsRetryableError, NewsStopError, type ModelCall } from './writer.ts'
 
@@ -75,6 +75,22 @@ const goodWriter: ModelCall = async (req) => {
         mentions: [],
         clubs: [],
         criticized: [],
+      },
+    }
+  }
+  if (req.schema === FEATURE_SCHEMA) {
+    return {
+      ...base,
+      json: {
+        headline: 'The Week In Numbers',
+        dek: 'A week of hockey.',
+        paragraphs: [FILLER, FILLER],
+        summary: 'The week.',
+        mentions: [],
+        clubs: [],
+        criticized: [],
+        prediction: 'Someone finally beats the goalie.',
+        receipt: req.user.includes("Last week's prediction: none.") ? '' : 'It did not come true.',
       },
     }
   }
@@ -223,6 +239,12 @@ function harness(
       }))
     },
     recentReporterSummaries: async () => [],
+    lastFeature: async () => {
+      const f = [...items.values()]
+        .filter((i) => !i.isTest && i.deletedAt === null && i.featureKind !== null)
+        .at(-1)
+      return f ? { kind: f.featureKind!, prediction: f.prediction, weekStart: f.weekStart } : null
+    },
     nightCriticized: async (night, includeTest) => [
       ...new Set(
         [...items.values()]
@@ -683,6 +705,146 @@ void test('week: Monday 12:01 with a game last week ⇒ one article for the week
   // Written once: the next pass sees the job.
   await runNewsCycle(h.deps, h.opts)
   assert.equal(h.items.size, 1)
+})
+
+void test('week: no feature yet ⇒ a trend column by Mara Quill; kind and prediction stored; Discord gets headline, dek, link (B3, B5, B7)', async () => {
+  const prompts: string[] = []
+  const h = harness({
+    deps: {
+      now: () => MONDAY_1201,
+      writer: async (req) => {
+        prompts.push(req.user)
+        return goodWriter(req)
+      },
+    },
+  })
+  h.state.nightGames['2026-10-22'] = 3
+  await runNewsCycle(h.deps, h.opts)
+  const a = h.items.get(1)!
+  assert.equal(a.reporter, 'quill')
+  assert.equal(a.featureKind, 'trend')
+  assert.equal(a.prediction, 'Someone finally beats the goalie.')
+  assert.equal(a.weekStart, '2026-10-19')
+  assert.deepEqual(a.criticized, [])
+  // No receipt; the prediction closes the piece.
+  assert.equal(a.body, [FILLER, FILLER, 'Someone finally beats the goalie.'].join('\n\n'))
+  assert.ok(prompts[0]!.includes("Last week's prediction: none."))
+  assert.ok(prompts[0]!.includes('"history"'))
+  assert.equal(
+    h.sent[0]!.content,
+    `**The Week In Numbers**\nA week of hockey.\nhttps://boogeymen.app/news/${a.slug!}`,
+  )
+  assert.equal(h.sent[0]!.username, 'Mara Quill')
+})
+
+void test("week: the next kind after the last feature; last week's prediction goes in, the receipt opens the piece (B3, B5)", async () => {
+  const prompts: string[] = []
+  const h = harness({
+    deps: {
+      now: () => MONDAY_1201,
+      writer: async (req) => {
+        prompts.push(req.user)
+        return goodWriter(req)
+      },
+    },
+  })
+  await h.deps.store.insertNewsItem({
+    kind: 'article',
+    reporter: 'pettibone',
+    weekStart: '2026-10-12',
+    slug: 'week-2026-10-12-notes',
+    headline: 'Notes',
+    body: 'x',
+    featureKind: 'notes',
+    prediction: 'The goalie steals one.',
+  })
+  h.state.nightGames['2026-10-22'] = 3
+  await runNewsCycle(h.deps, h.opts)
+  const a = h.items.get(2)!
+  assert.equal(a.featureKind, 'bigpicture')
+  assert.equal(a.reporter, 'bergstrom')
+  assert.ok(prompts[0]!.includes(`Last week's prediction: "The goalie steals one."`))
+  assert.ok(prompts[0]!.includes('the big picture, then the evidence'))
+  assert.equal(
+    a.body,
+    ['It did not come true.', FILLER, FILLER, 'Someone finally beats the goalie.'].join('\n\n'),
+  )
+})
+
+void test('week: after bigpicture comes Rink only when his 14-day limit allows (B3)', async () => {
+  const run = async (rinkDaysAgo: number | null) => {
+    const h = harness({ deps: { now: () => MONDAY_1201 } })
+    await h.deps.store.insertNewsItem({
+      kind: 'article',
+      reporter: 'bergstrom',
+      weekStart: '2026-10-12',
+      slug: 'week-2026-10-12-big',
+      headline: 'Big',
+      body: 'x',
+      featureKind: 'bigpicture',
+      prediction: 'The goalie steals one.',
+    })
+    if (rinkDaysAgo !== null) {
+      const id = await h.deps.store.insertNewsItem({
+        kind: 'article',
+        reporter: 'rink',
+        night: '2026-10-15',
+        slug: 'rink-night',
+        headline: 'Rink',
+        body: 'x',
+      })
+      h.items.get(id)!.createdAt = new Date(MONDAY_1201.getTime() - rinkDaysAgo * 86_400_000)
+    }
+    h.state.nightGames['2026-10-22'] = 3
+    await runNewsCycle(h.deps, h.opts)
+    return [...h.items.values()].at(-1)!
+  }
+  const allowed = await run(null)
+  assert.deepEqual([allowed.featureKind, allowed.reporter], ['rink', 'rink'])
+  const blocked = await run(10)
+  assert.deepEqual([blocked.featureKind, blocked.reporter], ['trend', 'quill'])
+})
+
+void test('week: a prediction older than last week is not judged (spec §12.6)', async () => {
+  const prompts: string[] = []
+  const h = harness({
+    deps: {
+      now: () => MONDAY_1201,
+      writer: async (req) => {
+        prompts.push(req.user)
+        return goodWriter(req)
+      },
+    },
+  })
+  await h.deps.store.insertNewsItem({
+    kind: 'article',
+    reporter: 'quill',
+    weekStart: '2026-10-05',
+    slug: 'week-2026-10-05-trend',
+    headline: 'Trend',
+    body: 'x',
+    featureKind: 'trend',
+    prediction: 'The goalie steals one.',
+  })
+  h.state.nightGames['2026-10-22'] = 3
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(prompts[0]!.includes("Last week's prediction: none."))
+  assert.equal(h.items.get(2)!.featureKind, 'spotlight')
+})
+
+void test('week: a lastFeature error after the claim marks the job failed (I1.3)', async () => {
+  const h = harness({
+    deps: { now: () => MONDAY_1201 },
+    store: {
+      lastFeature: async () => {
+        throw new Error('db down')
+      },
+    },
+  })
+  h.state.nightGames['2026-10-22'] = 3
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('week:2026-10-19')?.status, 'failed')
+  assert.match(h.jobs.get('week:2026-10-19')?.error ?? '', /could not prepare: db down/)
 })
 
 void test('week: a week with no games ⇒ nothing', async () => {

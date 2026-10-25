@@ -9,6 +9,8 @@ import {
   DEK_MAX_CHARS,
   parseGamePosts,
   parseReview,
+  FEATURE_SCHEMA,
+  parseFeature,
 } from './outputs.ts'
 
 const post = (reporter: string) => ({
@@ -135,4 +137,26 @@ void test('every post and article lists the people it criticises harshly (rev 2,
   assert.deepEqual(parseArticle({ ...article, criticized: ['Skater A'] }).criticized, ['Skater A'])
   const { criticized: _a, ...noArticleList } = article
   assert.throws(() => parseArticle(noArticleList), /criticized/)
+})
+
+void test('feature schema: the article fields plus prediction and receipt (rev 2, B3)', () => {
+  for (const k of ARTICLE_SCHEMA.required) {
+    assert.ok((FEATURE_SCHEMA.required as readonly string[]).includes(k), k)
+  }
+  assert.deepEqual(FEATURE_SCHEMA.properties.prediction, { type: 'string' })
+  assert.deepEqual(FEATURE_SCHEMA.properties.receipt, { type: 'string' })
+  assert.ok((FEATURE_SCHEMA.required as readonly string[]).includes('prediction'))
+  assert.ok((FEATURE_SCHEMA.required as readonly string[]).includes('receipt'))
+  assert.equal(FEATURE_SCHEMA.additionalProperties, false)
+  const f = { ...article, prediction: 'They win the week.', receipt: '' }
+  assert.deepEqual(parseFeature(f), f)
+  assert.equal(parseFeature({ ...f, receipt: 'It came true.' }).receipt, 'It came true.')
+  assert.throws(() => parseFeature({ ...f, prediction: ' ' }), /prediction/)
+  const { prediction: _p, ...noPrediction } = f
+  assert.throws(() => parseFeature(noPrediction), /prediction/)
+  const { receipt: _r, ...noReceipt } = f
+  assert.throws(() => parseFeature(noReceipt), /receipt/)
+  assert.throws(() => parseFeature({ ...f, receipt: 3 }), /receipt/)
+  // A night article does not take them.
+  assert.throws(() => parseArticle(f), /unexpected field/)
 })

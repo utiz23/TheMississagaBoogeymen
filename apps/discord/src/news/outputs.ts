@@ -49,6 +49,22 @@ export const ARTICLE_SCHEMA = {
   additionalProperties: false,
 } as const
 
+/**
+ * A weekly feature (rev 2, B3): the article fields plus `prediction` (one
+ * short prediction about next week, no numbers) and `receipt` (one or two
+ * sentences on last week's prediction, or "" when there was none).
+ */
+export const FEATURE_SCHEMA = {
+  type: 'object',
+  properties: {
+    ...ARTICLE_SCHEMA.properties,
+    prediction: { type: 'string' },
+    receipt: { type: 'string' },
+  },
+  required: [...ARTICLE_SCHEMA.required, 'prediction', 'receipt'],
+  additionalProperties: false,
+} as const
+
 export const REVIEW_SCHEMA = {
   type: 'object',
   properties: {
@@ -173,6 +189,23 @@ function articleFields(o: Record<string, unknown>): Article {
 
 export function parseArticle(v: unknown): Article {
   return articleFields(closedObject(v, 'root', ARTICLE_KEYS))
+}
+
+export interface Feature extends Article {
+  prediction: string
+  /** "" when there was no previous prediction. */
+  receipt: string
+}
+
+export function parseFeature(v: unknown): Feature {
+  const o = closedObject(v, 'root', [...ARTICLE_KEYS, 'prediction', 'receipt'])
+  const receipt = o['receipt']
+  if (typeof receipt !== 'string') fail('receipt', 'is not a string')
+  return {
+    ...articleFields(o),
+    prediction: text(o['prediction'], 'prediction'),
+    receipt,
+  }
 }
 
 export function parseReview(v: unknown): { ok: boolean; problems: string[] } {

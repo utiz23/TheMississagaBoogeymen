@@ -5,6 +5,7 @@ import {
   allowedNumbers,
   checkArticleFacts,
   checkFacts,
+  checkFeatureFacts,
 } from './fact-check.ts'
 import { oct12Facts } from './test-fixtures.ts'
 
@@ -286,4 +287,119 @@ void test('pile-on: a person already criticised harshly tonight fails (rev 2, B4
   assert.deepEqual(problems(a), [
     'Goalie G was already criticised harshly tonight — take another angle.',
   ])
+})
+
+// ── Weekly features (rev 2, B3) ─────────────────────────────────────────────
+
+const week = oct12Facts('week')
+const words = (n: number) => Array.from({ length: n }, () => 'word').join(' ')
+function feature(over: Partial<Parameters<typeof checkFeatureFacts>[0]> = {}) {
+  return {
+    headline: 'H',
+    dek: 'D',
+    paragraphs: [words(350), words(350)],
+    summary: 'S',
+    mentions: [],
+    clubs: [],
+    criticized: [],
+    prediction: 'The club wins the week.',
+    receipt: '',
+    ...over,
+  }
+}
+const trend = { kind: 'trend' as const, previousPrediction: null }
+
+void test('feature: body 600-900 words', () => {
+  assert.deepEqual(checkFeatureFacts(feature(), week, FORBIDDEN, trend), { ok: true })
+  assert.deepEqual(
+    checkFeatureFacts(feature({ paragraphs: [words(900)] }), week, FORBIDDEN, trend),
+    { ok: true },
+  )
+  assert.deepEqual(
+    problems(checkFeatureFacts(feature({ paragraphs: [words(599)] }), week, FORBIDDEN, trend)),
+    ['The article body has 599 words. It must have 600 to 900.'],
+  )
+  assert.equal(
+    checkFeatureFacts(feature({ paragraphs: [words(901)] }), week, FORBIDDEN, trend).ok,
+    false,
+  )
+})
+
+void test('feature: a notes column has 10-15 items, one paragraph each', () => {
+  const notes = { kind: 'notes' as const, previousPrediction: null }
+  const items = (n: number) => Array.from({ length: n }, () => words(Math.ceil(700 / n)))
+  assert.deepEqual(checkFeatureFacts(feature({ paragraphs: items(10) }), week, FORBIDDEN, notes), {
+    ok: true,
+  })
+  assert.deepEqual(checkFeatureFacts(feature({ paragraphs: items(15) }), week, FORBIDDEN, notes), {
+    ok: true,
+  })
+  assert.deepEqual(
+    problems(checkFeatureFacts(feature({ paragraphs: items(9) }), week, FORBIDDEN, notes)),
+    ['The notes column has 9 items. It must have 10 to 15, one paragraph each.'],
+  )
+  assert.equal(
+    checkFeatureFacts(feature({ paragraphs: items(16) }), week, FORBIDDEN, notes).ok,
+    false,
+  )
+  // Other kinds have no item count.
+  assert.deepEqual(checkFeatureFacts(feature({ paragraphs: items(20) }), week, FORBIDDEN, trend), {
+    ok: true,
+  })
+})
+
+void test('feature: the prediction has no digits and no number words', () => {
+  for (const bad of [
+    'They win 2 games.',
+    'They win two games.',
+    'Twenty-five shots or more.',
+    'A dozen goals.',
+    'They win twice.',
+  ]) {
+    const r = checkFeatureFacts(feature({ prediction: bad }), week, FORBIDDEN, trend)
+    assert.ok(
+      problems(r).some((p) => p.startsWith('The prediction must have no numbers')),
+      bad,
+    )
+  }
+  assert.deepEqual(
+    checkFeatureFacts(
+      feature({ prediction: 'Someone finally beats the goalie.' }),
+      week,
+      FORBIDDEN,
+      trend,
+    ),
+    { ok: true },
+  )
+  // Names in the prediction are checked as everywhere.
+  assert.deepEqual(
+    problems(
+      checkFeatureFacts(feature({ prediction: 'Hidden Hank scores.' }), week, FORBIDDEN, trend),
+    ),
+    [FORBIDDEN_NAME_PROBLEM],
+  )
+})
+
+void test('feature: a receipt when there is a previous prediction, one or two sentences; else empty', () => {
+  const prev = { kind: 'trend' as const, previousPrediction: 'The club wins the week.' }
+  assert.deepEqual(
+    checkFeatureFacts(feature({ receipt: 'It came true. Barely.' }), week, FORBIDDEN, prev),
+    { ok: true },
+  )
+  assert.deepEqual(problems(checkFeatureFacts(feature(), week, FORBIDDEN, prev)), [
+    "The receipt is empty. Say in one or two sentences whether last week's prediction came true.",
+  ])
+  assert.deepEqual(
+    problems(checkFeatureFacts(feature({ receipt: 'One. Two. Three.' }), week, FORBIDDEN, prev)),
+    ['The receipt has 3 sentences. It must have one or two.'],
+  )
+  assert.deepEqual(
+    problems(checkFeatureFacts(feature({ receipt: 'It came true.' }), week, FORBIDDEN, trend)),
+    ['There was no previous prediction, so the receipt must be an empty string.'],
+  )
+  // The receipt's numbers come from the sheet like any other text.
+  assert.equal(
+    checkFeatureFacts(feature({ receipt: 'They won 7 games.' }), week, FORBIDDEN, prev).ok,
+    false,
+  )
 })

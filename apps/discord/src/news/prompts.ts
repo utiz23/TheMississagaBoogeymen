@@ -1,4 +1,11 @@
-import { REPORTERS, REPORTER_IDS, nightLabel, type NewsFacts, type Reporter } from '@eanhl/db/news'
+import {
+  REPORTERS,
+  REPORTER_IDS,
+  nightLabel,
+  type FeatureKind,
+  type NewsFacts,
+  type Reporter,
+} from '@eanhl/db/news'
 
 const MAX_UNLOCKS = 12
 const MAX_MILESTONES = 10
@@ -197,6 +204,94 @@ export function buildArticleUserPrompt(args: {
     '- criticized: the people the article criticises harshly, spelled as in people[].name; an empty list when none.',
     '',
     criticizedTonightLine(args.criticizedTonight),
+  ]
+  if (ownRecent.length > 0) {
+    lines.push(
+      '',
+      `${reporter.name}'s own recent pieces, newest first. Refer back to them if it helps. Do not repeat their images or lines:`,
+    )
+    for (const r of ownRecent) {
+      lines.push(`- ${r.night === null ? 'undated' : r.night}: "${r.headline}" - ${r.summary}`)
+    }
+  }
+  return lines.join('\n')
+}
+
+/**
+ * The spotlight player (rev 2, B3): the named player with the biggest
+ * milestone this week (in the prompt cap's order), else the named player with
+ * the most points this week (weekPlayers is sorted by points), else null.
+ */
+export function spotlightPlayer(facts: NewsFacts): string | null {
+  const milestone = capFactsForPrompt(facts).milestones[0]
+  if (milestone !== undefined) return milestone.name
+  let best: NewsFacts['weekPlayers'][number] | null = null
+  for (const p of facts.weekPlayers) if (best === null || p.points > best.points) best = p
+  return best?.name ?? null
+}
+
+function featureTask(kind: FeatureKind, facts: NewsFacts): string[] {
+  switch (kind) {
+    case 'trend':
+      return [
+        'Kind: the trend column. Read the numbers across the weeks: "history" holds the four weeks before this one (oldest first; weeks without a game are left out), and the sheet holds this week. Name the trend the numbers show and back it with them.',
+      ]
+    case 'spotlight': {
+      const who = spotlightPlayer(facts)
+      return [
+        'Kind: the player spotlight on one named player, with that player\'s week and title numbers from "weekPlayers" (and any milestone).',
+        who === null
+          ? 'Spotlight player: the named player with the most points this week.'
+          : `Spotlight player: ${who}.`,
+      ]
+    }
+    case 'notes':
+      return [
+        'Kind: the notes column: 10 to 15 short separate items about the week; each item is one paragraph (one entry in "paragraphs"). One item is always a jab, about hockey only.',
+      ]
+    case 'bigpicture':
+      return [
+        "Kind: the big-picture column: the big picture, then the evidence from this week's numbers, then a firm verdict.",
+      ]
+    case 'rink':
+      return ["Kind: Father Rink's midnight column about the week, in his own format."]
+  }
+}
+
+/** The weekly feature request (rev 2, B3; spec §12.3, §12.6). */
+export function buildFeatureUserPrompt(args: {
+  facts: NewsFacts
+  reporter: Reporter
+  kind: FeatureKind
+  ownRecent: { headline: string; summary: string; night: string | null }[]
+  /** Last week's prediction, or null when there is none. */
+  previousPrediction: string | null
+}): string {
+  const { facts, reporter, kind, ownRecent, previousPrediction } = args
+  const lines: string[] = [
+    'Fact sheet (JSON):',
+    sheet(facts),
+    '',
+    whenLine(facts),
+    '',
+    `Task: write this week's in-depth feature about the whole week of games on the sheet, as ${reporter.name} (id "${reporter.id}") of ${reporter.outlet}.`,
+    ...featureTask(kind, facts),
+    '',
+    previousPrediction === null
+      ? "Last week's prediction: none."
+      : `Last week's prediction: "${previousPrediction}"`,
+    '',
+    'Output fields:',
+    '- headline: a short headline, at most 120 characters.',
+    '- dek: one line under the headline, at most 160 characters.',
+    '- paragraphs: the feature body, 600 to 900 words in total, as separate paragraphs. No headings, no lists.',
+    "- summary: one or two plain sentences saying what the feature covers, for the reporter's own memory. Facts from the sheet only.",
+    '- mentions and clubs: as in the rules.',
+    '- criticized: the people the feature criticises harshly, spelled as in people[].name; an empty list when none.',
+    '- prediction: one short prediction about next week, in the reporter\'s voice, with no digits and no number words. It is printed as the last paragraph; do not repeat it in "paragraphs".',
+    previousPrediction === null
+      ? '- receipt: an empty string (there was no prediction last week).'
+      : '- receipt: one or two sentences saying whether last week\'s prediction came true, judged only from this sheet. It is printed as the first paragraph; do not repeat it in "paragraphs".',
   ]
   if (ownRecent.length > 0) {
     lines.push(

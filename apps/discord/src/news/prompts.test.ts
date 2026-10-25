@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import { REPORTERS, REPORTER_IDS, type NewsFacts } from '@eanhl/db/news'
 import {
   buildArticleUserPrompt,
+  buildFeatureUserPrompt,
+  spotlightPlayer,
   buildGameUserPrompt,
   buildReviewPrompt,
   buildSystemPrompt,
@@ -466,4 +468,83 @@ void test('prompts carry the pile-on line; the review checks unlisted harsh crit
   assert.ok(r.includes('Harsh criticism of a player who is not on that list'))
   const none = buildReviewPrompt({ facts: oct12Facts(), text: 'x', criticized: [] })
   assert.ok(none.includes('The writer listed these people as criticised harshly: nobody.'))
+})
+
+// ── Weekly features (rev 2, B3) ─────────────────────────────────────────────
+
+function weekPlayer(name: string, playerId: number, points: number) {
+  return {
+    playerId,
+    name,
+    games: 2,
+    goals: points,
+    assists: 0,
+    points,
+    shots: 5,
+    hits: 1,
+    plusMinus: 0,
+    titleGoals: 10,
+    titleAssists: 10,
+    titlePoints: 20,
+    titleGames: 30,
+  }
+}
+
+void test('spotlight: the named player with a milestone this week, else the most points', () => {
+  const w = oct12Facts('week')
+  assert.equal(spotlightPlayer(w), 'Skater B') // goals 25 milestone
+  const noMilestone: NewsFacts = {
+    ...w,
+    milestones: [],
+    weekPlayers: [weekPlayer('Skater A', 1, 3), weekPlayer('Goalie G', 3, 5)],
+  }
+  assert.equal(spotlightPlayer(noMilestone), 'Goalie G')
+  assert.equal(spotlightPlayer({ ...w, milestones: [], weekPlayers: [] }), null)
+  // The biggest milestone first, as the prompt cap orders them.
+  const two: NewsFacts = {
+    ...w,
+    milestones: [
+      { playerId: 2, name: 'Skater B', stat: 'goals', value: 25 },
+      { playerId: 1, name: 'Skater A', stat: 'points', value: 100 },
+    ],
+  }
+  assert.equal(spotlightPlayer(two), 'Skater A')
+})
+
+void test('feature prompt: kind instructions, 600-900 words, prediction and receipt (rev 2, B3)', () => {
+  const facts = oct12Facts('week')
+  const base = { facts, ownRecent: [], previousPrediction: null }
+  const trend = buildFeatureUserPrompt({ ...base, reporter: REPORTERS.quill, kind: 'trend' })
+  assert.ok(trend.includes(stableStringify(capFactsForPrompt(facts))))
+  assert.ok(trend.includes('The week starts on Monday, October 12.'))
+  assert.ok(trend.includes('as Mara Quill (id "quill")'))
+  assert.ok(trend.includes('"history"'))
+  assert.ok(trend.includes('600 to 900 words'))
+  assert.ok(trend.includes('- prediction: '))
+  assert.ok(trend.includes('no digits and no number words'))
+  assert.ok(trend.includes("Last week's prediction: none."))
+  assert.ok(trend.includes('- receipt: an empty string'))
+  assert.ok(!trend.includes('Already criticised harshly tonight'))
+
+  const spot = buildFeatureUserPrompt({ ...base, reporter: REPORTERS.voss, kind: 'spotlight' })
+  assert.ok(spot.includes('Spotlight player: Skater B.'))
+  assert.ok(spot.includes('"weekPlayers"'))
+  const notes = buildFeatureUserPrompt({ ...base, reporter: REPORTERS.pettibone, kind: 'notes' })
+  assert.ok(notes.includes('10 to 15 short separate items'))
+  assert.ok(notes.includes('each item is one paragraph'))
+  const big = buildFeatureUserPrompt({ ...base, reporter: REPORTERS.bergstrom, kind: 'bigpicture' })
+  assert.ok(big.includes('the big picture, then the evidence'))
+  assert.ok(big.includes('a firm verdict'))
+  const rink = buildFeatureUserPrompt({ ...base, reporter: REPORTERS.rink, kind: 'rink' })
+  assert.ok(rink.includes('Father Rink'))
+
+  const withPrev = buildFeatureUserPrompt({
+    ...base,
+    reporter: REPORTERS.quill,
+    kind: 'trend',
+    previousPrediction: 'Someone finally beats the goalie.',
+  })
+  assert.ok(withPrev.includes(`Last week's prediction: "Someone finally beats the goalie."`))
+  assert.ok(withPrev.includes('- receipt: one or two sentences'))
+  assert.ok(withPrev.includes('only from this sheet'))
 })
