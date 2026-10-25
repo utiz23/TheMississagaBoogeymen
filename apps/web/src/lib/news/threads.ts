@@ -201,7 +201,7 @@ export function rivalThreads(
     out.push(
       thread(
         'rival',
-        `rival:${name.toLowerCase()}`,
+        `rival:${name.toLowerCase()}@${losses[0]!.night}`,
         name,
         losses[0]!.night,
         lastIsWin ? 'closed-tonight' : 'open',

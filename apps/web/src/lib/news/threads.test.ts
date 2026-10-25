@@ -135,7 +135,7 @@ void test('rivalThreads: lost to them on 3+ nights with a losing record; open af
   const prior = [vs('r1', 'LOSS'), vs('r2', 'OTL'), vs('r3', 'WIN')]
   assert.deepEqual(rivalThreads(prior, [vs('r4', 'LOSS')]), [
     {
-      key: 'rival:shake n bake',
+      key: 'rival:shake n bake@r1',
       kind: 'rival',
       subject: 'Shake N Bake',
       since: 'r1',

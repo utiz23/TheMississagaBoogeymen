@@ -606,7 +606,7 @@ export interface NewsFacts {
  *   title with a losing record against them (open after another loss,
  *   closed-tonight after a win).
  * `key` is stable for one thread: `<kind>@<since>`, `player-…:<playerId>@<since>`,
- * `rival:<opponent, lower case>`; `since` = the night it began. Both are not
+ * `rival:<opponent, lower case>@<since>` (C2 fix M9); `since` = the night it began. Both are not
  * stats. `subject` = the player's or opponent's name, null for the team.
  * `summary` = one fixed-form sentence; its numbers may be quoted.
  */
