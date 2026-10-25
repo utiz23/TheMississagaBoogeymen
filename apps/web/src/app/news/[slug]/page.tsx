@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 import { getNewsArticle } from '@eanhl/db/queries'
 import { REPORTERS } from '@eanhl/db/news'
 import {
-  KICKERS,
+  articleKicker,
   dayKeyLabelWithWeekday,
   readMinutes,
   scoreChips,
@@ -44,6 +44,7 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ sl
   const reporter = REPORTERS[article.reporter]
   const paragraphs = splitParagraphs(article.body)
   const when = article.night !== null ? ` · ${dayKeyLabelWithWeekday(article.night)}` : ''
+  const kicker = articleKicker(article)
 
   return (
     <MemberLinks>
@@ -55,10 +56,12 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ sl
         >
           ← Press Room
         </Link>
-        <Kicker>
-          {KICKERS[article.reporter]}
-          {when}
-        </Kicker>
+        {kicker !== null && (
+          <Kicker>
+            {kicker}
+            {when}
+          </Kicker>
+        )}
         <h1 className="break-words font-condensed text-3xl font-black leading-tight text-fg-1 sm:text-5xl">
           {article.headline}
         </h1>

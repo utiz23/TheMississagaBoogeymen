@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { NewsItemRow } from '@eanhl/db/queries'
 import { REPORTERS } from '@eanhl/db/news'
 import {
-  KICKERS,
+  articleKicker,
   dayKeyLabelWithWeekday,
   readMinutes,
   scoreChips,
@@ -20,6 +20,7 @@ export function LeadStory({ article }: { article: NewsItemRow }) {
   const reporter = REPORTERS[article.reporter]
   const paragraphs = splitParagraphs(article.body)
   const when = article.night !== null ? ` · ${dayKeyLabelWithWeekday(article.night)}` : ''
+  const kicker = articleKicker(article)
   const href = article.slug === null ? null : `/news/${article.slug}`
   const headline = (
     <h2 className="break-words font-condensed text-3xl font-black leading-tight text-fg-1 sm:text-5xl">
@@ -28,10 +29,12 @@ export function LeadStory({ article }: { article: NewsItemRow }) {
   )
   return (
     <article className="space-y-4">
-      <Kicker>
-        {KICKERS[article.reporter]}
-        {when}
-      </Kicker>
+      {kicker !== null && (
+        <Kicker>
+          {kicker}
+          {when}
+        </Kicker>
+      )}
       {href === null ? (
         headline
       ) : (

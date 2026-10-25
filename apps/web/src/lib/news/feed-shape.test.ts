@@ -7,7 +7,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { NewsItemRow } from '@eanhl/db/queries'
-import { groupWire, pageOf, parseFeedParams, toFeedItem, type FeedItem } from './feed-shape.ts'
+import {
+  ARTICLE_PAGE_SIZE,
+  POST_PAGE_SIZE,
+  groupWire,
+  pageOf,
+  parseFeedParams,
+  toFeedItem,
+  type FeedItem,
+} from './feed-shape.ts'
 
 function row(id: number, over: Partial<NewsItemRow> = {}): NewsItemRow {
   return {
@@ -61,6 +69,23 @@ test('a post item keeps its text, mentions and a time stamp', () => {
 test('a week piece is dated "Week of ..."', () => {
   const item = toFeedItem(row(7, { night: null, weekStart: '2026-10-05' }))
   assert.match(item.dateLabel, /^Week of Oct 5/)
+})
+
+test('feed items carry the kicker: night recap, feature kind, none on posts (rev 2, A6)', () => {
+  assert.equal(toFeedItem(row(8)).kicker, 'Night recap')
+  assert.equal(
+    toFeedItem(row(9, { night: null, weekStart: '2026-10-05', featureKind: 'notes' })).kicker,
+    'Notes',
+  )
+  assert.equal(
+    toFeedItem(row(10, { kind: 'post', slug: null, headline: null, body: 'x' })).kicker,
+    null,
+  )
+})
+
+test('page sizes: The Wire shows 10 posts, stories 10 (rev 2, A6)', () => {
+  assert.equal(POST_PAGE_SIZE, 10)
+  assert.equal(ARTICLE_PAGE_SIZE, 10)
 })
 
 test('pageOf: the extra row proves there is more and is not shown', () => {

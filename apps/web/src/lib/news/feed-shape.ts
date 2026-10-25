@@ -1,10 +1,10 @@
 import type { NewsItemRow } from '@eanhl/db/queries'
 import type { ReporterId } from '@eanhl/db/news'
-import { dayKeyLabel, postTimeLabel } from './display.ts'
+import { articleKicker, dayKeyLabel, postTimeLabel } from './display.ts'
 
-/** Page sizes of the feed (also used by the first page of /news). */
+/** Page sizes of the feed (also used by the first page of /news). The Wire: 10 (revision 2, was 20). */
 export const ARTICLE_PAGE_SIZE = 10
-export const POST_PAGE_SIZE = 20
+export const POST_PAGE_SIZE = 10
 
 /**
  * What the pages and the `/news/feed` route send about one item. Dates are
@@ -18,6 +18,8 @@ export interface FeedItem {
   slug: string | null
   headline: string | null
   dek: string | null
+  /** The label above an article's headline (`articleKicker`); null for posts. */
+  kicker: string | null
   /** Post text; null for articles. */
   body: string | null
   mentions: { name: string; playerId: number }[]
@@ -46,6 +48,7 @@ export function toFeedItem(row: NewsItemRow): FeedItem {
     slug: row.slug,
     headline: row.headline,
     dek: row.dek,
+    kicker: articleKicker(row),
     body: isPost ? row.body : null,
     mentions: isPost ? row.mentions : [],
     replyTo: row.replyTo,

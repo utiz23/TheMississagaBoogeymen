@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 /**
  * Next page of the public news feed: `?kind=article|post&before=<id>`.
- * Articles come 10 at a time, posts 20. Bad parameters get 400.
+ * Articles and posts come 10 at a time. Bad parameters get 400.
  */
 export async function GET(request: Request): Promise<Response> {
   const params = parseFeedParams(new URL(request.url).searchParams)

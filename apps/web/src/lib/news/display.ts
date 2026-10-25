@@ -1,17 +1,31 @@
-import type { ReporterId } from '@eanhl/db/news'
+import type { FeatureKind } from '@eanhl/db/news'
 import { formatMatchDate, formatMatchTime } from '../format.ts'
 
-/** The small label above a reporter's headline. */
-export const KICKERS: Readonly<Record<ReporterId, string>> = {
-  barlow: 'Night recap',
-  voss: 'Feature',
-  mercer: 'Column',
-  halberd: 'Film Room',
-  vale: 'After the Horn',
-  quill: 'Numbers Desk',
+/** The small label above a weekly feature's headline, by feature kind (revision 2). */
+export const FEATURE_KICKERS: Readonly<Record<FeatureKind, string>> = {
+  trend: 'Numbers Desk',
+  spotlight: 'Spotlight',
+  notes: 'Notes',
+  bigpicture: 'Big Country',
   rink: 'Midnight Column',
-  pettibone: 'Notes',
-  bergstrom: 'Big Country',
+}
+
+/**
+ * The small label above an article's headline: it names the kind of piece,
+ * not the reporter. Posts (game recaps and reactions) have none. A weekly
+ * piece from before revision 2 has no feature kind and reads "Week in review".
+ */
+export function articleKicker(item: {
+  kind: 'post' | 'article'
+  night: string | null
+  weekStart: string | null
+  featureKind: FeatureKind | null
+}): string | null {
+  if (item.kind !== 'article') return null
+  if (item.featureKind !== null) return FEATURE_KICKERS[item.featureKind]
+  if (item.night !== null) return 'Night recap'
+  if (item.weekStart !== null) return 'Week in review'
+  return null
 }
 
 /** Article body paragraphs: the service stores them joined by blank lines. */

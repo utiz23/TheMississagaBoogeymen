@@ -6,7 +6,10 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { FEATURE_KINDS } from '@eanhl/db/news'
 import {
+  FEATURE_KICKERS,
+  articleKicker,
   dayKeyLabel,
   dayKeyLabelWithWeekday,
   readMinutes,
@@ -68,4 +71,27 @@ test('scoreChips reads the shot counts when the sheet has them', () => {
     team: { shotsFor: 30, shotsAgainst: 18 },
   }
   assert.deepEqual(scoreChips({ games: [game] })[0]?.shots, { for: 30, against: 18 })
+})
+
+test('articleKicker: night recap, feature kinds, none for posts (rev 2, A6)', () => {
+  const a = (over: Partial<Parameters<typeof articleKicker>[0]> = {}) =>
+    articleKicker({ kind: 'article', night: null, weekStart: null, featureKind: null, ...over })
+  assert.equal(a({ night: '2026-10-12' }), 'Night recap')
+  assert.equal(a({ weekStart: '2026-10-12', featureKind: 'trend' }), 'Numbers Desk')
+  assert.equal(a({ weekStart: '2026-10-12', featureKind: 'spotlight' }), 'Spotlight')
+  assert.equal(a({ weekStart: '2026-10-12', featureKind: 'notes' }), 'Notes')
+  assert.equal(a({ weekStart: '2026-10-12', featureKind: 'bigpicture' }), 'Big Country')
+  assert.equal(a({ weekStart: '2026-10-12', featureKind: 'rink' }), 'Midnight Column')
+  // Every kind has a label.
+  for (const k of FEATURE_KINDS) assert.ok(FEATURE_KICKERS[k].length > 0, k)
+  // A weekly piece from before revision 2 has no kind.
+  assert.equal(a({ weekStart: '2026-10-12' }), 'Week in review')
+  // The kicker follows the piece, not the reporter.
+  assert.equal(a({ night: '2026-10-12' }), a({ night: '2026-10-13' }))
+  assert.equal(a(), null)
+  // Posts (game recaps, reactions) have no kicker.
+  assert.equal(
+    articleKicker({ kind: 'post', night: '2026-10-12', weekStart: null, featureKind: null }),
+    null,
+  )
 })

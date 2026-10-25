@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { REPORTERS } from '@eanhl/db/news'
-import { KICKERS } from '@/lib/news/display'
 import type { FeedItem } from '@/lib/news/feed-shape'
 import { Kicker } from './kicker'
 import { ReporterAvatar } from './reporter-avatar'
@@ -13,7 +12,7 @@ export function StoryRow({ item }: { item: FeedItem }) {
     <>
       <ReporterAvatar reporter={item.reporter} />
       <div className="min-w-0 flex-1 space-y-1">
-        <Kicker>{KICKERS[item.reporter]}</Kicker>
+        {item.kicker !== null && <Kicker>{item.kicker}</Kicker>}
         <h3 className="break-words font-condensed text-xl font-bold leading-snug text-fg-1">
           {item.headline}
         </h3>
