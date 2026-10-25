@@ -6,6 +6,7 @@
 import type { UnlockDescription } from '@eanhl/db/discord'
 import {
   CLUB_LORE,
+  emptyPlayerExtras,
   milestoneCrossed,
   nightKey,
   previousWeekStarts,
@@ -351,6 +352,8 @@ function playerLine(p: GamePlayerInput, person: NewsPerson): NewsPlayerLine {
     goalsAgainst: p.isGoalie ? p.goalsAgainst : null,
     savePct,
     star: p.star,
+    // Set by `applyPlayerFacts` once the player's earlier games are known.
+    ...emptyPlayerExtras(),
   }
 }
 

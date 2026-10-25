@@ -1,4 +1,9 @@
-import type { NewsFacts, NewsGameFacts, NewsPlayerLine } from '@eanhl/db/news'
+import {
+  emptyPlayerExtras,
+  type NewsFacts,
+  type NewsGameFacts,
+  type NewsPlayerLine,
+} from '@eanhl/db/news'
 
 /**
  * The real 2026-10-12 numbers (two losses, 2-6 and 0-6) with placeholder
@@ -22,6 +27,7 @@ function line(
     goalsAgainst: null,
     savePct: null,
     star: null,
+    ...emptyPlayerExtras(),
     ...over,
   }
 }

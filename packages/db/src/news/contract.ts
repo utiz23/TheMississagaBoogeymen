@@ -48,6 +48,103 @@ export interface NewsPlayerLine {
   goalsAgainst: number | null
   savePct: number | null
   star: 1 | 2 | 3 | null
+  /** The line against the player's own normal (C2.3); null below 10 games or for a goalie / ended-early line. */
+  norm: NewsPlayerNorm | null
+  /** Season and career highs this game set (C2.3), fixed vocabulary `PLAYER_BESTS`. Words only. */
+  bests: PlayerBest[]
+  /** Last 5 games against the season (C2.3); null when neither. */
+  form: PlayerForm | null
+  /** Season firsts this game (C2.3), fixed vocabulary `PLAYER_FIRSTS`. Words only. */
+  firsts: PlayerFirst[]
+  /** Title milestones within 3 after this game (C2.3): "2 goals from 50". Numbers may be quoted. */
+  approaching: NewsApproaching[]
+}
+
+/**
+ * Player norms (C2.3, spec §12.16/§12.17-1). The sample = the player's counted
+ * games of this title BEFORE this game, in the same game mode and at the same
+ * position (F/D, from the stored EA position), games that ended early left
+ * out. Null below `PLAYER_NORM_MIN_GAMES`, for a goalie (G) line and for a
+ * game that ended early.
+ */
+export const PLAYER_NORM_STATS = ['goals', 'assists', 'points', 'shots', 'hits'] as const
+export type PlayerNormStat = (typeof PLAYER_NORM_STATS)[number]
+export const PLAYER_NORM_MIN_GAMES = 10
+/**
+ * Against the player's own sample: above his 80th percentile = `big for him`,
+ * under his 20th = `quiet for him` (never on shots for a D or G), else
+ * `typical`.
+ */
+export const PLAYER_LABELS = ['typical', 'big for him', 'quiet for him'] as const
+export type PlayerLabel = (typeof PLAYER_LABELS)[number]
+
+export interface NewsPlayerNorm {
+  /** Games in the sample. */
+  games: number
+  /** Per-game averages over the sample, one decimal. May be quoted. */
+  perGame: Record<PlayerNormStat, number>
+  /** Per-game averages over the sample's last 10 games, one decimal. May be quoted. */
+  last10: { goals: number; assists: number; points: number }
+  /** This game's numbers against the sample (words; a non-stat key). */
+  labels: Record<PlayerNormStat, PlayerLabel>
+}
+
+/**
+ * `season high <stat>`: more than in any earlier counted game of this title in
+ * the same mode (5+ earlier games); `career high <stat>`: more than in any
+ * earlier counted game the site has a box score for, every title, same mode
+ * (20+ earlier games) — it replaces the season high of that stat. Minimum
+ * values: goals 2, assists 2, points 3, shots 5, hits 5. Not for goalies.
+ */
+export const PLAYER_BESTS = [
+  'season high goals',
+  'season high assists',
+  'season high points',
+  'season high shots',
+  'season high hits',
+  'career high goals',
+  'career high assists',
+  'career high points',
+  'career high shots',
+  'career high hits',
+] as const
+export type PlayerBest = (typeof PLAYER_BESTS)[number]
+
+/**
+ * Points per game over the last 5 counted games of the title in this mode
+ * (this one included) against the season sample (`norm.perGame.points`):
+ * `heating up` at 1.5x and +0.6 or more, `cooling off` at half and -0.6 or
+ * less. Needs a norm.
+ */
+export const PLAYER_FORMS = ['heating up', 'cooling off'] as const
+export type PlayerForm = (typeof PLAYER_FORMS)[number]
+
+/**
+ * Title-wide (all modes; every earlier row of the title counts, DNF too, as
+ * the title totals). `first point of the season` only when it is not also the
+ * first goal or first assist.
+ */
+export const PLAYER_FIRSTS = [
+  'first goal of the season',
+  'first assist of the season',
+  'first point of the season',
+  'first hat trick of the season',
+] as const
+export type PlayerFirst = (typeof PLAYER_FIRSTS)[number]
+
+/** A title milestone (`milestoneCrossed` tiers) the player is `remaining` (1-3) away from after this game. */
+export interface NewsApproaching {
+  stat: 'goals' | 'assists' | 'points' | 'games'
+  value: number
+  remaining: number
+}
+
+/** The C2 fields of a player line with nothing in them (older web apps, builders, fixtures). */
+export function emptyPlayerExtras(): Pick<
+  NewsPlayerLine,
+  'norm' | 'bests' | 'form' | 'firsts' | 'approaching'
+> {
+  return { norm: null, bests: [], form: null, firsts: [], approaching: [] }
 }
 
 /** A period as the match page names it. EASHL has no shootout: periods 4-6 are OT, OT2, OT3. */
@@ -446,6 +543,53 @@ function parsePlayerLine(v: unknown, path: string): NewsPlayerLine {
     goalsAgainst: nullable(o['goalsAgainst'], `${path}.goalsAgainst`, int),
     savePct: nullable(o['savePct'], `${path}.savePct`, num),
     star,
+    // C2.3; missing (an older web app) reads as none.
+    norm: opt(o, 'norm', null, () => nullable(o['norm'], `${path}.norm`, parsePlayerNorm)),
+    bests: opt(o, 'bests', [], () =>
+      arr(o['bests'], `${path}.bests`, (x, p) => oneOf(x, p, PLAYER_BESTS)),
+    ),
+    form: opt(o, 'form', null, () =>
+      nullable(o['form'], `${path}.form`, (x, p) => oneOf(x, p, PLAYER_FORMS)),
+    ),
+    firsts: opt(o, 'firsts', [], () =>
+      arr(o['firsts'], `${path}.firsts`, (x, p) => oneOf(x, p, PLAYER_FIRSTS)),
+    ),
+    approaching: opt(o, 'approaching', [], () =>
+      arr(o['approaching'], `${path}.approaching`, parseApproaching),
+    ),
+  }
+}
+
+function parsePlayerNorm(v: unknown, path: string): NewsPlayerNorm {
+  const o = obj(v, path)
+  const per = obj(o['perGame'], `${path}.perGame`)
+  const l10 = obj(o['last10'], `${path}.last10`)
+  const lab = obj(o['labels'], `${path}.labels`)
+  const record = <T>(f: (k: PlayerNormStat) => T): Record<PlayerNormStat, T> => ({
+    goals: f('goals'),
+    assists: f('assists'),
+    points: f('points'),
+    shots: f('shots'),
+    hits: f('hits'),
+  })
+  return {
+    games: nonNegInt(o['games'], `${path}.games`),
+    perGame: record((k) => num(per[k], `${path}.perGame.${k}`)),
+    last10: {
+      goals: num(l10['goals'], `${path}.last10.goals`),
+      assists: num(l10['assists'], `${path}.last10.assists`),
+      points: num(l10['points'], `${path}.last10.points`),
+    },
+    labels: record((k) => oneOf(lab[k], `${path}.labels.${k}`, PLAYER_LABELS)),
+  }
+}
+
+function parseApproaching(v: unknown, path: string): NewsApproaching {
+  const o = obj(v, path)
+  return {
+    stat: oneOf(o['stat'], `${path}.stat`, ['goals', 'assists', 'points', 'games']),
+    value: nonNegInt(o['value'], `${path}.value`),
+    remaining: nonNegInt(o['remaining'], `${path}.remaining`),
   }
 }
 

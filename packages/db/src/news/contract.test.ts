@@ -59,6 +59,11 @@ function sample(): NewsFactsResponse {
               goalsAgainst: null,
               savePct: null,
               star: 3,
+              norm: null,
+              bests: [],
+              form: null,
+              firsts: [],
+              approaching: [],
             },
             {
               playerId: 9,
@@ -75,6 +80,11 @@ function sample(): NewsFactsResponse {
               goalsAgainst: 6,
               savePct: 79.31,
               star: null,
+              norm: null,
+              bests: [],
+              form: null,
+              firsts: [],
+              approaching: [],
             },
           ],
           aiGoalieInNet: false,
@@ -779,5 +789,65 @@ void test('contract: context labels have a fixed vocabulary (C2.2)', () => {
       ((s.facts.games[0]!['headToHead']!['lastMeeting'] as Record<string, unknown>)['night'] =
         'May 1'),
     /headToHead\.lastMeeting\.night/,
+  )
+})
+
+function playerFactsSample(): NewsFactsResponse {
+  const s = sample()
+  const p = s.facts.games[0]!.players[0]!
+  p.norm = {
+    games: 14,
+    perGame: { goals: 0.4, assists: 0.6, points: 1, shots: 3.2, hits: 2.1 },
+    last10: { goals: 0.5, assists: 0.7, points: 1.2 },
+    labels: {
+      goals: 'big for him',
+      assists: 'typical',
+      points: 'typical',
+      shots: 'quiet for him',
+      hits: 'typical',
+    },
+  }
+  p.bests = ['season high goals', 'career high hits']
+  p.form = 'heating up'
+  p.firsts = ['first hat trick of the season']
+  p.approaching = [{ stat: 'goals', value: 50, remaining: 2 }]
+  return s
+}
+
+void test('contract: player norms, bests, form, firsts and approaching round-trip; missing ones read as none (C2.3)', () => {
+  const s = playerFactsSample()
+  assert.deepEqual(parseNewsFactsResponse(clone(s)), s)
+  const old = clone(s) as unknown as { facts: { games: { players: Record<string, unknown>[] }[] } }
+  for (const k of ['norm', 'bests', 'form', 'firsts', 'approaching']) {
+    delete old.facts.games[0]!.players[0]![k]
+  }
+  const p = parseNewsFactsResponse(old).facts.games[0]!.players[0]!
+  assert.deepEqual(
+    { norm: p.norm, bests: p.bests, form: p.form, firsts: p.firsts, approaching: p.approaching },
+    { norm: null, bests: [], form: null, firsts: [], approaching: [] },
+  )
+})
+
+void test('contract: player labels, bests, form and firsts have a fixed vocabulary (C2.3)', () => {
+  type P = { facts: { games: { players: Record<string, Record<string, unknown> & object>[] }[] } }
+  const bad = (edit: (p: Record<string, unknown>) => void, re: RegExp) => {
+    const s = clone(playerFactsSample()) as unknown as P
+    edit(s.facts.games[0]!.players[0]!)
+    assert.throws(() => parseNewsFactsResponse(s), re)
+  }
+  bad(
+    (p) => ((p['norm'] as { labels: Record<string, unknown> }).labels['goals'] = 'huge'),
+    /norm\.labels\.goals/,
+  )
+  bad(
+    (p) => delete (p['norm'] as { perGame: Record<string, unknown> }).perGame['hits'],
+    /norm\.perGame\.hits/,
+  )
+  bad((p) => (p['bests'] = ['all-time high goals']), /bests\[0\]/)
+  bad((p) => (p['form'] = 'on fire'), /form/)
+  bad((p) => (p['firsts'] = ['first goal ever']), /firsts\[0\]/)
+  bad(
+    (p) => (p['approaching'] = [{ stat: 'hits', value: 50, remaining: 2 }]),
+    /approaching\[0\]\.stat/,
   )
 })

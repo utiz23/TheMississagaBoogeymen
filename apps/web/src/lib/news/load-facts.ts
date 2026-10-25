@@ -20,6 +20,7 @@ import {
   listNewsHistoryGames,
   listNewsNightMatches,
   listNewsNormGames,
+  listNewsPlayerGames,
   listNewsProfiles,
   listPlayerTitleTotals,
   listRecentNightSummaries,
@@ -63,6 +64,7 @@ import {
 } from './build-facts'
 import { applyNorms, normInputFromRow, type NormGameInput } from './norms'
 import { applyContext, titleGameFromFacts, titleGameFromRow } from './context'
+import { applyPlayerFacts, playerGameFromRow, type PlayerGameInput } from './players'
 
 /** An unlock counts when it lands up to this long after the last game of the sheet. */
 const UNLOCK_WINDOW_AFTER_MINUTES = 10
@@ -309,7 +311,7 @@ async function loadSheet(
 
   const namedIds = people.map((p) => p.playerId)
   const nameById = new Map(people.map((p) => [p.playerId, p.name]))
-  const [results, totals, events, recent, normGames] = await Promise.all([
+  const [results, totals, events, recent, normGames, playerGames] = await Promise.all([
     listTitleResultsUpTo(gameTitleId, last.match.id),
     listPlayerTitleTotals({
       gameTitleId,
@@ -331,6 +333,8 @@ async function loadSheet(
     }),
     // Team norms (spec §12.10): the title's counted games before the sheet's first game.
     listNewsNormGames({ gameTitleId, beforeMatchId: first.match.id }),
+    // Player facts (C2.3/C2.5): the named players' games in every title up to the sheet's last game.
+    listNewsPlayerGames({ playerIds: namedIds, lastMatchId: last.match.id }),
   ])
   const normed = applyNorms(
     games,
@@ -339,8 +343,14 @@ async function loadSheet(
   )
   // Team context, team notes and head-to-head (C2.2): the same earlier games;
   // night and week sheets hold whole nights.
+  const history = new Map<number, PlayerGameInput[]>()
+  for (const r of playerGames) {
+    const list = history.get(r.playerId) ?? []
+    list.push(playerGameFromRow(r))
+    history.set(r.playerId, list)
+  }
   const withContext = applyContext(
-    normed.games,
+    applyPlayerFacts(normed.games, history, gameTitleId),
     normed.games.map(titleGameFromFacts),
     normGames.map(titleGameFromRow),
     { nightComplete: kind !== 'game' },

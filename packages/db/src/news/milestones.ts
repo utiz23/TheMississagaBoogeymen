@@ -41,6 +41,16 @@ export function milestoneCrossed(
   return top > 0 && top > Math.floor(before / step) * step ? top : null
 }
 
+/**
+ * The next milestone above a title total (the same tiers as
+ * `milestoneCrossed`), or null past the last games milestone.
+ */
+export function nextMilestone(stat: MilestoneStat, total: number): number | null {
+  if (stat === 'games') return GAMES_MILESTONES.find((t) => t > total) ?? null
+  const step = STEP[stat]
+  return (Math.floor(total / step) + 1) * step
+}
+
 /** 0 = a multiple of 100, 1 = of 50, 2 = any other value. */
 function tier(value: number): number {
   return value % 100 === 0 ? 0 : value % 50 === 0 ? 1 : 2

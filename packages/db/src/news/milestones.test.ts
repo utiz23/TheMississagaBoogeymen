@@ -5,6 +5,7 @@ import {
   MAX_SHEET_MILESTONES,
   compareMilestones,
   milestoneCrossed,
+  nextMilestone,
   rankMilestones,
 } from './index.js'
 
@@ -72,4 +73,14 @@ void test('rankMilestones: at most 3 per sheet, best first; ties keep the input 
   assert.deepEqual(rankMilestones([]), [])
   // The input is not changed.
   assert.equal(list[0]!.name, 'A')
+})
+
+void test('nextMilestone: the next tier above a title total (C2.3 approaching)', () => {
+  assert.equal(nextMilestone('points', 97), 100)
+  assert.equal(nextMilestone('points', 100), 200)
+  assert.equal(nextMilestone('goals', 48), 50)
+  assert.equal(nextMilestone('assists', 0), 50)
+  assert.equal(nextMilestone('games', 99), 100)
+  assert.equal(nextMilestone('games', 100), 250)
+  assert.equal(nextMilestone('games', 1000), null)
 })
