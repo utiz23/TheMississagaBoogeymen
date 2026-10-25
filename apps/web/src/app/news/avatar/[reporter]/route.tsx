@@ -1,5 +1,6 @@
 import { ImageResponse } from 'next/og'
 import { REPORTERS, REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
+import { initialsColor } from '@/lib/news/avatar-color'
 
 const SIZE = 256
 
@@ -8,8 +9,9 @@ function isReporterId(id: string): id is ReporterId {
 }
 
 /**
- * A reporter's picture: initials in white on their tint, 256x256 PNG. The
- * Discord webhook sends this URL as the avatar, so the URL must stay as it is.
+ * A reporter's picture: initials on their tint (dark, or white when white is
+ * readable), 256x256 PNG. The Discord webhook sends this URL as the avatar,
+ * so the URL must stay as it is.
  */
 export async function GET(
   _request: Request,
@@ -27,7 +29,7 @@ export async function GET(
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: r.tint,
-        color: '#ffffff',
+        color: initialsColor(r.tint),
         fontSize: 120,
         fontWeight: 700,
         letterSpacing: 4,

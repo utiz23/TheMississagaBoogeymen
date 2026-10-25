@@ -1,7 +1,9 @@
-import { nightLabel, type NewsFacts, type Reporter } from '@eanhl/db/news'
+import { REPORTERS, REPORTER_IDS, nightLabel, type NewsFacts, type Reporter } from '@eanhl/db/news'
 
 const MAX_UNLOCKS = 12
 const MAX_MILESTONES = 10
+/** 0 = a multiple of 100, 1 = of 50, 2 = any other milestone. */
+const milestoneTier = (value: number): number => (value % 100 === 0 ? 0 : value % 50 === 0 ? 1 : 2)
 const MILESTONE_STAT_ORDER: Record<NewsFacts['milestones'][number]['stat'], number> = {
   points: 0,
   goals: 1,
@@ -28,16 +30,20 @@ export function stableStringify(value: unknown): string {
 
 /**
  * The sheet as the model sees it: at most 12 unlocks (card unlocks first, then
- * badges) and 10 milestones (largest value first; points, goals, assists,
- * games on a tie). The fact CHECK still uses the full sheet.
+ * badges) and 10 milestones (100s, then 50s, then the rest; points, goals,
+ * assists, games; then the larger value). The fact CHECK still uses the full sheet.
  */
 export function capFactsForPrompt(facts: NewsFacts): NewsFacts {
   const isCard = (u: { text: string }) => /card/i.test(u.text)
   const unlocks = [...facts.unlocks.filter(isCard), ...facts.unlocks.filter((u) => !isCard(u))]
-  // Biggest milestones first (so 100s and 50s survive the cap), points before
-  // goals before assists before games on a tie, then the sheet's order (stable sort).
+  // Spec 12.7: round numbers first (100s, then 50s, then the rest), points
+  // before goals before assists before games, then the larger value, then the
+  // sheet's order (stable sort).
   const milestones = [...facts.milestones].sort(
-    (a, b) => b.value - a.value || MILESTONE_STAT_ORDER[a.stat] - MILESTONE_STAT_ORDER[b.stat],
+    (a, b) =>
+      milestoneTier(a.value) - milestoneTier(b.value) ||
+      MILESTONE_STAT_ORDER[a.stat] - MILESTONE_STAT_ORDER[b.stat] ||
+      b.value - a.value,
   )
   return {
     ...facts,
@@ -196,7 +202,7 @@ export function buildReviewPrompt(args: { facts: NewsFacts; text: string }): str
     '1. An invented quote from a teammate or an opponent. (A fictional reporter quoting another reporter is fine.)',
     '2. An invented event: a shot off the post, a save, a pass, a line change, a mood or argument in the room, any play-by-play that the sheet does not support. Opinion that follows from the stats is fine. Facts from a game\'s "goals" timeline are allowed: the period and clock of a goal, who scored it for us, who assisted, and that an opponent scored. How a goal was scored is not on the sheet.',
     '3. Personal criticism: anything about real life, looks, family, work, health or the person instead of their hockey. Also: harsh criticism of a player whose pressLevel is "easy", and praise or blame for an AI goalie as if it were a teammate.',
-    "4. A person named in the text who is not in the sheet's people[].name list and is not one of the seven reporters (Wade Barlow, Talia Voss, Dex Mercer, June Halberd, Rico Vale, Mara Quill, Father Rink). Opponent players, guests and real-life names are problems.",
+    `4. A person named in the text who is not in the sheet's people[].name list and is not one of the desk's reporters (${REPORTER_IDS.map((id) => REPORTERS[id].name).join(', ')}). Opponent players, guests and real-life names are problems.`,
     '5. A stat stated in words that the program does not read, such as "hat trick", "dozen", "twice", "shutout", "brace", that the sheet does not support.',
     '6. A club that is not in games[].opponentName. Only those clubs (and the Boogeymen) are allowed.',
     '7. A reference to an off-ice event or place that the sheet does not support: a group chat, a practice, the locker room, the bench, travel.',

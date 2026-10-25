@@ -65,7 +65,7 @@ void test('capFactsForPrompt: 12 unlocks (card first), 10 milestones; originals 
   assert.equal(big.milestones.length, 15)
 })
 
-void test('capFactsForPrompt: milestones by value, points before goals before assists before games (A5)', () => {
+void test('capFactsForPrompt: round milestones survive the cap; ties keep sheet order (A5)', () => {
   const f = oct12Facts()
   const m = (stat: 'goals' | 'assists' | 'points' | 'games', value: number, playerId = 1) => ({
     playerId,
@@ -98,6 +98,7 @@ void test('capFactsForPrompt: milestones by value, points before goals before as
       ['assists', 50, 1],
     ],
   )
+  // (Spec 12.7 tiers give the same head here: 100s, then 50s, points first.)
   // Ties keep the sheet order.
   assert.deepEqual(
     capped.milestones.slice(5).map((x) => x.playerId),
@@ -288,6 +289,72 @@ void test('system prompt: the goal timeline may be used, with no play details (B
       'When a game has a goal timeline, you may say in which period and at which clock time a goal came, who scored it for us and who assisted, and that an opponent scored. clockMeaning says whether the clock counts up (elapsed) or down (remaining). Do not describe how a goal was scored — the timeline has no play details.',
     ),
   )
+})
+
+void test('review prompt: every reporter of the cast may be named (rev 2 fix)', () => {
+  const p = buildReviewPrompt({ facts: oct12Facts(), text: 'x' })
+  for (const id of REPORTER_IDS) assert.ok(p.includes(REPORTERS[id].name), id)
+  assert.ok(p.includes('Gord Pettibone'))
+  assert.ok(p.includes('Lyle Bergstrom'))
+  assert.ok(!/seven reporters/.test(p))
+})
+
+void test('capFactsForPrompt: 100s, then 50s, then the rest; points first; then value (spec 12.7)', () => {
+  const m = (stat: 'goals' | 'assists' | 'points' | 'games', value: number) => ({
+    playerId: 1,
+    name: 'Skater A',
+    stat,
+    value,
+  })
+  const ten: NewsFacts = {
+    ...oct12Facts(),
+    milestones: [
+      m('games', 125),
+      m('goals', 75),
+      m('goals', 50),
+      m('games', 200),
+      m('points', 100),
+      m('points', 75),
+      m('assists', 150),
+      m('points', 150),
+      m('goals', 100),
+      m('assists', 25),
+    ],
+  }
+  const label = (x: { stat: string; value: number }) => `${x.stat} ${String(x.value)}`
+  const order = capFactsForPrompt(ten).milestones.map(label)
+  assert.deepEqual(order, [
+    'points 100',
+    'goals 100',
+    'games 200',
+    'points 150',
+    'goals 50',
+    'assists 150',
+    'points 75',
+    'goals 75',
+    'assists 25',
+    'games 125',
+  ])
+  assert.ok(order.indexOf('games 125') > order.indexOf('points 100'))
+  assert.ok(order.indexOf('games 125') > order.indexOf('goals 50'))
+  // Over the cap, the plain ones go first: games 125 is dropped, every 100 and 50 stays.
+  const twelve: NewsFacts = {
+    ...ten,
+    milestones: [...ten.milestones, m('points', 25), m('goals', 25)],
+  }
+  const capped = capFactsForPrompt(twelve).milestones.map(label)
+  assert.equal(capped.length, 10)
+  assert.ok(!capped.includes('games 125'))
+  for (const keep of [
+    'points 100',
+    'goals 100',
+    'games 200',
+    'points 150',
+    'goals 50',
+    'assists 150',
+  ]) {
+    assert.ok(capped.includes(keep), keep)
+  }
 })
 
 void test('review prompt: goal timeline facts are allowed (B1)', () => {
