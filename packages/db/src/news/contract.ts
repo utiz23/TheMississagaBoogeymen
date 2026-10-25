@@ -590,9 +590,11 @@ export interface NewsFacts {
 
 /**
  * Open threads (C2.8, spec §12.17-3): derived, never stored. A label that
- * persisted on 3+ nights (`THREAD_MIN_NIGHTS`: the label was on at a game of
- * each of 3 distinct nights) opens a thread; it is `closed-tonight` when a
- * game of this sheet ended it. Kinds and the label each one follows:
+ * persists across nights opens a thread: the label is on at the run's last
+ * game and the whole run covers `THREAD_MIN_NIGHTS` (2) distinct nights (C2
+ * fix I1); a rival needs losses on `RIVAL_MIN_NIGHTS` (3) nights. It is
+ * `closed-tonight` when a game of this sheet ended it. Kinds and the label
+ * each one follows:
  * - `winning-streak` (5+ wins in a row, the `rolling` label),
  *   `losing-streak` (3+ losses in a row, the `slide` label);
  * - `pp-drought`: 3+ games in a row with a power-play chance and no
@@ -617,7 +619,8 @@ export const THREAD_KINDS = [
   'winning-streak',
 ] as const
 export type ThreadKind = (typeof THREAD_KINDS)[number]
-export const THREAD_MIN_NIGHTS = 3
+export const THREAD_MIN_NIGHTS = 2
+export const RIVAL_MIN_NIGHTS = 3
 
 export interface NewsThread {
   key: string

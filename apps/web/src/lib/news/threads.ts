@@ -6,6 +6,7 @@
 import {
   SLUMP_MIN,
   STREAK_MIN,
+  RIVAL_MIN_NIGHTS,
   THREAD_MIN_NIGHTS,
   runMinimum,
   type NewsGameFacts,
@@ -67,12 +68,12 @@ interface Run<T> {
 }
 
 /**
- * The label is on from the `labelMin`-th item of a run; it persisted when the
- * items from there cover `THREAD_MIN_NIGHTS` distinct nights.
+ * The label is on at the run's last item (the run is at least `labelMin`
+ * long) and the whole run covers `THREAD_MIN_NIGHTS` distinct nights (C2 fix I1).
  */
 export function persisted(items: readonly Item[], labelMin: number): boolean {
   if (items.length < labelMin) return false
-  return new Set(items.slice(labelMin - 1).map((i) => i.night)).size >= THREAD_MIN_NIGHTS
+  return new Set(items.map((i) => i.night)).size >= THREAD_MIN_NIGHTS
 }
 
 /**
@@ -195,7 +196,7 @@ export function rivalThreads(
     const losses = standing.filter((x) => x.result !== 'WIN')
     const wins = standing.length - losses.length
     const lossNights = new Set(losses.map((x) => x.night)).size
-    if (lossNights < THREAD_MIN_NIGHTS || wins >= losses.length) continue
+    if (lossNights < RIVAL_MIN_NIGHTS || wins >= losses.length) continue
     const name = g.opponentName.replace(/\s+/g, ' ').trim()
     out.push(
       thread(

@@ -29,12 +29,12 @@ const tg = (
 })
 const nights = (...spec: [string, ThreadTeamGame['result']][]) => spec.map(([d, r]) => tg(d, r))
 
-void test('persisted: the label is on from the labelMin-th item and must cover 3 nights', () => {
+void test('persisted: the label is on at the last item and the whole run covers 2 nights (C2 fix I1)', () => {
   const it = (night: string) => ({ night, inSheet: false })
-  assert.equal(persisted([it('a'), it('b'), it('c')], 3), false)
-  assert.equal(persisted([it('a'), it('b'), it('c'), it('d'), it('e')], 3), true)
-  assert.equal(persisted([it('a'), it('a'), it('b'), it('c')], 1), true)
-  assert.equal(persisted([it('a'), it('a'), it('a'), it('b'), it('b')], 3), false)
+  assert.equal(persisted([it('a'), it('b')], 3), false)
+  assert.equal(persisted([it('a'), it('a'), it('b')], 3), true)
+  assert.equal(persisted([it('a'), it('a'), it('a')], 3), false)
+  assert.equal(persisted([it('a'), it('b')], 1), true)
 })
 
 void test('threadRuns: open at the end; closed tonight only when a sheet item ends it', () => {
@@ -56,7 +56,7 @@ void test('threadRuns: open at the end; closed tonight only when a sheet item en
   )
 })
 
-void test('teamThreads: a losing streak with the slide label on 3 nights opens; a win tonight closes it; a win streak needs 5 with the label on 3 nights', () => {
+void test('teamThreads: a losing streak with the slide label over 2+ nights opens; a win tonight closes it; a win streak needs 5 over 2+ nights', () => {
   const prior = nights(
     ['2026-05-01', 'WIN'],
     ['2026-05-01', 'LOSS'],
@@ -76,20 +76,28 @@ void test('teamThreads: a losing streak with the slide label on 3 nights opens; 
       summary: 'lost 5 straight',
     },
   ])
-  // Four losses on four nights: the label (from the 3rd) is on 2 nights only.
+  // Two losses: no slide label yet; three losses over two nights: a thread.
   assert.deepEqual(
-    teamThreads(prior, []).filter((t) => t.kind === 'losing-streak'),
+    teamThreads(prior.slice(0, 3), []).filter((t) => t.kind === 'losing-streak'),
     [],
+  )
+  assert.equal(
+    teamThreads(prior.slice(0, 4), []).filter((t) => t.kind === 'losing-streak')[0]?.summary,
+    'lost 3 straight',
   )
   const closed = teamThreads([...prior, ...sheet], [tg('2026-05-06', 'WIN')]).filter(
     (t) => t.kind === 'losing-streak',
   )
   assert.equal(closed[0]!.status, 'closed-tonight')
   assert.equal(closed[0]!.summary, 'a 5-game losing streak ended')
-  // Five wins on two nights: the label (from the 5th) is on one night only.
-  const wins = nights(['a1', 'WIN'], ['a1', 'WIN'], ['a1', 'WIN'], ['a2', 'WIN'], ['a2', 'WIN'])
+  // Five wins on one night: no thread; four wins on two nights: no rolling label yet.
+  const wins = nights(['a1', 'WIN'], ['a1', 'WIN'], ['a1', 'WIN'], ['a1', 'WIN'], ['a1', 'WIN'])
   assert.deepEqual(
     teamThreads(wins, []).filter((t) => t.kind === 'winning-streak'),
+    [],
+  )
+  assert.deepEqual(
+    teamThreads(nights(['b1', 'WIN'], ['b1', 'WIN'], ['b2', 'WIN'], ['b2', 'WIN']), []),
     [],
   )
   const longer = [...wins, tg('a3', 'WIN'), tg('a4', 'WIN')]
