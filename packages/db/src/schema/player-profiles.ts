@@ -1,10 +1,8 @@
 import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { players } from './players.js'
 import type { PlayerArchetype } from './player-archetype.js'
-
-/** How much the news desk may write about a player. Default 'full' (migration 0071). */
-export const PRESS_LEVELS = ['full', 'easy', 'out'] as const
-export type PressLevel = (typeof PRESS_LEVELS)[number]
+import type { PressLevel } from './press-levels.js'
+export { PRESS_LEVELS, type PressLevel } from './press-levels.js'
 export type PressLevelSetBy = 'self' | 'admin'
 
 /**

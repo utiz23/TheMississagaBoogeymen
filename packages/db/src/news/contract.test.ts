@@ -182,6 +182,18 @@ void test('contract: rejects bad enums, star values and non-objects', () => {
   assert.throws(() => parseNewsFactsResponse([]), /root/)
 })
 
+void test('contract: rejects a key or night that is not YYYY-MM-DD', () => {
+  const a = clone(sample())
+  a.facts.key = 'tonight'
+  assert.throws(() => parseNewsFactsResponse(a), /facts\.key/)
+  const b = clone(sample())
+  b.facts.games[0]!.night = '2026-10-12T00:00:00Z'
+  assert.throws(() => parseNewsFactsResponse(b), /games\[0\]\.night/)
+  const c = clone(sample())
+  c.facts.recentNights[0]!.night = '10/10/2026'
+  assert.throws(() => parseNewsFactsResponse(c), /recentNights\[0\]\.night/)
+})
+
 void test('contract: rejects a missing nested number', () => {
   const s = clone(sample()) as unknown as {
     facts: { games: { team: Record<string, unknown> }[] }

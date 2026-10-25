@@ -131,6 +131,11 @@ function str(v: unknown, path: string): string {
   if (typeof v !== 'string') fail(path, 'is not a string')
   return v
 }
+function night(v: unknown, path: string): string {
+  const s = str(v, path)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) fail(path, 'is not a YYYY-MM-DD date')
+  return s
+}
 function bool(v: unknown, path: string): boolean {
   if (typeof v !== 'boolean') fail(path, 'is not a boolean')
   return v
@@ -198,7 +203,7 @@ function parseGame(v: unknown, path: string): NewsGameFacts {
   const o = obj(v, path)
   return {
     matchId: int(o['matchId'], `${path}.matchId`),
-    night: str(o['night'], `${path}.night`),
+    night: night(o['night'], `${path}.night`),
     playedAt: str(o['playedAt'], `${path}.playedAt`),
     gameTitleName: str(o['gameTitleName'], `${path}.gameTitleName`),
     gameMode: nullable(o['gameMode'], `${path}.gameMode`, (x, p) => oneOf(x, p, ['3s', '6s'])),
@@ -247,7 +252,7 @@ function parseFacts(v: unknown, path: string): NewsFacts {
   const tp = `${path}.nightTotals`
   return {
     kind: oneOf(o['kind'], `${path}.kind`, ['game', 'night', 'week']),
-    key: str(o['key'], `${path}.key`),
+    key: night(o['key'], `${path}.key`),
     gameTitleName: str(o['gameTitleName'], `${path}.gameTitleName`),
     games: arr(o['games'], `${path}.games`, parseGame),
     nightTotals: {
@@ -281,7 +286,7 @@ function parseFacts(v: unknown, path: string): NewsFacts {
     recentNights: arr(o['recentNights'], `${path}.recentNights`, (x, p) => {
       const n = obj(x, p)
       return {
-        night: str(n['night'], `${p}.night`),
+        night: night(n['night'], `${p}.night`),
         wins: int(n['wins'], `${p}.wins`),
         losses: int(n['losses'], `${p}.losses`),
         otl: int(n['otl'], `${p}.otl`),
