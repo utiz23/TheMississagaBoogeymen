@@ -332,3 +332,79 @@ Text only for all of them; no voice.
   the stated range.
 - The fact-check method.
 - Page sizes for infinite scroll and older posts.
+
+## 12. Revision 2 — content lineup (operator, 2026-10-25)
+
+Supersedes §4 where they differ. Decided in conversation after the trial content
+and the NHL 26 backfill preview.
+
+### 12.1 Content types
+
+| Type                      | Where                | When                                       | Length           | Notes                                                                                              |
+| ------------------------- | -------------------- | ------------------------------------------ | ---------------- | -------------------------------------------------------------------------------------------------- |
+| Game recap post           | The Wire (+ Discord) | after each counted game                    | ≤ 280 characters | One per game: result, score, who scored, one key number. Written by the reporter whose turn it is. |
+| Reaction / reply post     | The Wire (+ Discord) | sometimes, after a recap post              | ≤ 280 characters | A second reporter reacts or replies (relationship map). Not every game.                            |
+| Night recap (trend)       | Article              | when the night ends (90 min)               | 250–450 words    | As before.                                                                                         |
+| Weekly feature (in depth) | Article              | Mondays from 12:00, if the week had a game | 600–900 words    | Replaces the weekly piece. Kinds rotate (§12.3).                                                   |
+
+Goal timeline facts (period, clock, scorer, assists) may be used in every type
+when the sheet has them (§ backfill brief B1).
+
+### 12.2 Reporters — two new characters
+
+The cast grows to nine. The two new reporters are fictional characters inspired
+by Canadian hockey-media styles; they never use or imitate real people's names
+or catchphrases.
+
+- **Gord Pettibone — The Daily Slapshot.** Big-market tabloid columnist; blunt,
+  polarising, never apologises, loves a list. Signature: the notes column, 10–15
+  short separate items, one always a jab. Words: frankly, overrated, the truth
+  is, soft, embarrassing. Byline: "Notes by Gord Pettibone, The Daily Slapshot".
+- **Lyle Bergstrom — Big Country Hockey.** Senior writer who has seen it all;
+  plain-spoken, old-school (compete, character, playoff-style hockey), suspicious
+  of fancy numbers but fair, takes the long view. Signature: big picture → the
+  night's numbers as evidence → a firm verdict. Words: compete, honest, the room,
+  this time of year, in my experience. Byline: "Lyle Bergstrom, Big Country
+  Hockey".
+- Relationships: Pettibone mocks Quill's spreadsheets and Quill fact-checks him;
+  Pettibone and Mercer compete for outrage; Bergstrom respects Barlow and has no
+  patience for Vale's theatrics.
+- Same rules as everyone (§5.1, §7.2): hockey-only criticism, facts from the sheet.
+
+### 12.3 Weekly feature kinds (rotation)
+
+1. **Trend column — Mara Quill:** the numbers across the last 4 weeks (per-week
+   history added to the week sheet).
+2. **Player spotlight — Talia Voss:** one named player with a milestone or the
+   best week (that player's week and title numbers on the sheet).
+3. **Notes column — Gord Pettibone:** 10–15 items about the week.
+4. **Big-picture column — Lyle Bergstrom.**
+5. **Father Rink**, now and then (his 14-day limit still applies).
+
+### 12.4 Reporter mixing
+
+The reporter who wrote last moves to the end of the queue — separately for game
+recap posts and for night recaps — within the reporters that fit the situation.
+Nobody writes two night recaps in a row. Mercer and Rink keep their limits.
+
+### 12.5 Pile-on limit (operator)
+
+At most one harsh piece about the same player per night. Each item records the
+players it criticises harshly; later pieces that night get that list and must
+take another angle on those players. The review step checks it.
+
+### 12.6 Predictions and receipts (operator)
+
+Every weekly feature ends with one short prediction about the next week, with no
+numbers in it. The next weekly feature (any reporter) gets last week's
+prediction and the new week's facts, and says in one or two sentences whether it
+came true — only from the sheet. Predictions are stored with the feature.
+
+### 12.7 Smaller decisions
+
+- The Wire shows 10 posts at a time (was 20) — Claude's call, so it is closer to
+  the stories column; easy to change.
+- Fact-sheet fixes: game scores rounded as the site shows them; goals not
+  accounted for by player rows count as unnamed goals; when milestones are capped,
+  round numbers (100s, then 50s) and points first.
+- The NHL 26 backfill is redone in this format, without the Claude API.
