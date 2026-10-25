@@ -128,6 +128,7 @@ services:
   # source as `discord`, different entry point. Defaults to TEST MODE: set
   # NEWS_DRY_RUN=0 in .env to post for real. ANTHROPIC_API_KEY and
   # NEWS_WEBHOOK_URL live only in the server .env.
+  # It covers only games that the `discord` result poster has settled: stopping `discord` stops news.
   news:
     profiles: ['news']
     build:
