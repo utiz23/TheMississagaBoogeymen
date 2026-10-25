@@ -32,6 +32,10 @@ const {
   listPlayerTitleTotalsSql,
   listNewsHistoryGamesSql,
   recentReporterSummariesSql,
+  reporterActivitySql,
+  lastFeatureSql,
+  nightCriticizedSql,
+  rowToActivity,
   skipBacklogGamesSql,
   skipBacklogNightsSql,
   skipBacklogWeeksSql,
@@ -141,6 +145,74 @@ void test('recent reporter summaries: real, not deleted, never an item that name
   )
   assert.match(s, /order by n\.id desc limit \$2/)
   assert.deepEqual(q.params, ['quill', 3])
+})
+
+void test('reporter activity: real, not deleted, since; kind = feature, night, recap or reaction (rev 2, B2)', () => {
+  const q = dialect.sqlToQuery(reporterActivitySql(new Date('2026-10-10T00:00:00Z')))
+  const s = flat(q.sql)
+  assert.match(s, /select n\.reporter, n\.night, n\.created_at,/)
+  assert.match(
+    s,
+    /case when n\.kind = 'article' and n\.week_start is not null then 'feature' when n\.kind = 'article' then 'night' when n\.reply_to is null and not exists \( ?select 1 from news_items p where p\.kind = 'post' and p\.is_test = false and p\.match_id = n\.match_id and p\.id < n\.id ?\) then 'recap' else 'reaction' end as kind/,
+  )
+  assert.match(s, /from news_items n where n\.is_test = false and n\.deleted_at is null/)
+  assert.match(s, /and n\.created_at >= \$1::timestamptz order by n\.id asc/)
+  assert.deepEqual(q.params, ['2026-10-10T00:00:00.000Z'])
+})
+
+void test('reporter activity rows: night as a day, created_at as a Date, unknown kinds dropped', () => {
+  assert.deepEqual(
+    rowToActivity({
+      reporter: 'quill',
+      night: '2026-10-12',
+      created_at: '2026-10-13T04:00:00.000Z',
+      kind: 'recap',
+    }),
+    {
+      reporter: 'quill',
+      night: '2026-10-12',
+      createdAt: new Date('2026-10-13T04:00:00.000Z'),
+      kind: 'recap',
+    },
+  )
+  assert.deepEqual(
+    rowToActivity({
+      reporter: 'vale',
+      night: null,
+      created_at: new Date('2026-10-13T04:00:00.000Z'),
+      kind: 'feature',
+    })?.night,
+    null,
+  )
+  assert.equal(
+    rowToActivity({ reporter: 'vale', night: null, created_at: new Date(), kind: 'other' }),
+    null,
+  )
+})
+
+void test('last feature: the newest real, not deleted item with a feature kind (rev 2, B5)', () => {
+  const q = dialect.sqlToQuery(lastFeatureSql())
+  const s = flat(q.sql)
+  assert.match(s, /select n\.feature_kind, n\.prediction, n\.week_start from news_items n/)
+  assert.match(
+    s,
+    /where n\.is_test = false and n\.deleted_at is null and n\.feature_kind is not null order by n\.id desc limit 1/,
+  )
+  assert.deepEqual(q.params, [])
+})
+
+void test("night criticized: the night's not-deleted items; test items only when asked (rev 2, B4)", () => {
+  const real = dialect.sqlToQuery(nightCriticizedSql('2026-10-12', false))
+  const s = flat(real.sql)
+  assert.match(
+    s,
+    /select n\.criticized from news_items n where n\.night = \$1::date and n\.deleted_at is null and \(n\.is_test = false or \$2\) order by n\.id asc/,
+  )
+  assert.deepEqual(real.params, ['2026-10-12', false])
+  assert.deepEqual(dialect.sqlToQuery(nightCriticizedSql('2026-10-12', true)).params, [
+    '2026-10-12',
+    true,
+  ])
 })
 
 void test('switch-on back-fill: skipped game and night jobs for the last 3 days, never overwriting a job', () => {

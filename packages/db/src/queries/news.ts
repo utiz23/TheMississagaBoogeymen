@@ -15,6 +15,7 @@ import {
   type PressLevel,
   type PressLevelSetBy,
 } from '../schema/index.js'
+import type { FeatureKind } from '../news/features.js'
 import { MEMBER_CONDITION } from './club-members.js'
 import { DISCORD_MAX_ATTEMPTS } from './discord-posts.js'
 import type { UnlockEventRow } from './discord-unlock-posts.js'
@@ -363,24 +364,130 @@ export async function monthNewsSpendUsd(now: Date): Promise<number> {
   return Number(rows[0]?.total ?? 0)
 }
 
-/** Items per reporter since `since` (real, not deleted) — for the frequency limits. */
-export async function reporterActivity(args: {
-  since: Date
-}): Promise<{ reporter: string; night: string | null; createdAt: Date }[]> {
-  return db
-    .select({
-      reporter: newsItems.reporter,
-      night: newsItems.night,
-      createdAt: newsItems.createdAt,
-    })
-    .from(newsItems)
-    .where(
-      and(
-        publicNewsItemWhere(),
-        sql`${newsItems.createdAt} >= ${args.since.toISOString()}::timestamptz`,
-      ),
-    )
-    .orderBy(asc(newsItems.id))
+/** What an item was, for the rotation queues (rev 2, spec §12.4). */
+export const NEWS_ACTIVITY_KINDS = ['recap', 'reaction', 'night', 'feature'] as const
+export type NewsActivityKind = (typeof NEWS_ACTIVITY_KINDS)[number]
+
+export interface NewsActivity {
+  reporter: string
+  night: string | null
+  createdAt: Date
+  kind: NewsActivityKind
+}
+
+/**
+ * Items per reporter since `since` (real, not deleted) — for the frequency
+ * limits and the rotation queues. The kind: an article with a week is a
+ * `feature`, any other article a `night` recap; a post is the game's `recap`
+ * when no earlier real post of the same match exists (deleted ones count, so a
+ * reaction never turns into a recap), else a `reaction`. Raw SQL with aliases:
+ * the correlated subquery must not bind to the inner table.
+ */
+export function reporterActivitySql(since: Date): SQL {
+  return sql`
+    select n.reporter, n.night, n.created_at,
+      case
+        when n.kind = 'article' and n.week_start is not null then 'feature'
+        when n.kind = 'article' then 'night'
+        when n.reply_to is null and not exists (
+          select 1 from news_items p
+          where p.kind = 'post'
+            and p.is_test = false
+            and p.match_id = n.match_id
+            and p.id < n.id
+        ) then 'recap'
+        else 'reaction'
+      end as kind
+    from news_items n
+    where n.is_test = false
+      and n.deleted_at is null
+      and n.created_at >= ${since.toISOString()}::timestamptz
+    order by n.id asc`
+}
+
+type RawActivity = {
+  reporter: string
+  night: string | Date | null
+  created_at: string | Date
+  kind: string
+}
+
+/** One activity row, or null for a kind this code does not know. */
+export function rowToActivity(r: RawActivity): NewsActivity | null {
+  if (!(NEWS_ACTIVITY_KINDS as readonly string[]).includes(r.kind)) return null
+  return {
+    reporter: r.reporter,
+    night: toDay(r.night),
+    createdAt: toDate(r.created_at),
+    kind: r.kind as NewsActivityKind,
+  }
+}
+
+export async function reporterActivity(args: { since: Date }): Promise<NewsActivity[]> {
+  const rows = await db.execute<RawActivity>(reporterActivitySql(args.since))
+  return rows.flatMap((r) => {
+    const a = rowToActivity(r)
+    return a === null ? [] : [a]
+  })
+}
+
+/** The newest real, not deleted weekly feature (rev 2, B5): its kind, prediction and week. */
+export function lastFeatureSql(): SQL {
+  return sql`
+    select n.feature_kind, n.prediction, n.week_start
+    from news_items n
+    where n.is_test = false
+      and n.deleted_at is null
+      and n.feature_kind is not null
+    order by n.id desc
+    limit 1`
+}
+
+export async function lastFeature(): Promise<{
+  kind: FeatureKind
+  prediction: string | null
+  weekStart: string | null
+} | null> {
+  const rows = await db.execute<{
+    feature_kind: FeatureKind
+    prediction: string | null
+    week_start: string | Date | null
+  }>(lastFeatureSql())
+  const r = rows[0]
+  return r
+    ? { kind: r.feature_kind, prediction: r.prediction, weekStart: toDay(r.week_start) }
+    : null
+}
+
+/**
+ * The `criticized` lists of a night's items, oldest first (rev 2, B4 pile-on
+ * limit). Deleted items do not count; test items only when `includeTest`.
+ */
+export function nightCriticizedSql(night: string, includeTest: boolean): SQL {
+  return sql`
+    select n.criticized
+    from news_items n
+    where n.night = ${night}::date
+      and n.deleted_at is null
+      and (n.is_test = false or ${includeTest})
+    order by n.id asc`
+}
+
+/** Every name criticised harshly in the night's items so far, each once, in first-seen order. */
+export async function nightCriticized(night: string, includeTest: boolean): Promise<string[]> {
+  const rows = await db.execute<{ criticized: string[] | string | null }>(
+    nightCriticizedSql(night, includeTest),
+  )
+  const out: string[] = []
+  for (const r of rows) {
+    const list =
+      typeof r.criticized === 'string' ? (JSON.parse(r.criticized) as unknown) : r.criticized
+    if (!Array.isArray(list)) continue
+    for (const name of list) {
+      if (typeof name === 'string' && !out.includes(name)) out.push(name)
+    }
+  }
+  return out
 }
 
 /**
