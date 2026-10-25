@@ -6,6 +6,7 @@ import {
   newsJobs,
   newsSettings,
   playerProfiles,
+  players,
   type NewNewsItem,
   type NewNewsUsage,
   type NewsItemKind,
@@ -16,6 +17,7 @@ import {
 } from '../schema/index.js'
 import { MEMBER_CONDITION } from './club-members.js'
 import { DISCORD_MAX_ATTEMPTS } from './discord-posts.js'
+import type { UnlockEventRow } from './discord-unlock-posts.js'
 import { updatePlayerProfile } from './profiles.js'
 
 export type {
@@ -568,4 +570,259 @@ export async function listNewsProfiles(
     out.set(r.playerId, { name: name === '' ? null : name, pressLevel: r.pressLevel })
   }
   return out
+}
+
+// ── Fact sheets ─────────────────────────────────────────────────────────────
+
+const idList = (ids: readonly number[]): SQL =>
+  sql.join(
+    ids.map((id) => sql`${id}`),
+    sql`, `,
+  )
+
+/**
+ * Counted (non-DNF, active-title) games whose night key is in `nights`,
+ * oldest first. Quarantined or archived titles are never active, so they never
+ * appear.
+ */
+export function listNewsNightMatchesSql(nights: readonly string[]): SQL {
+  return sql`
+    select m.id, m.game_title_id
+    from matches m
+    join game_titles g on g.id = m.game_title_id and g.is_active
+    where m.result <> 'DNF'
+      and to_char(${nightKeySql('m')}, 'YYYY-MM-DD') in (${sql.join(
+        nights.map((n) => sql`${n}`),
+        sql`, `,
+      )})
+    order by m.played_at, m.id`
+}
+
+export async function listNewsNightMatches(
+  nights: readonly string[],
+): Promise<{ id: number; gameTitleId: number }[]> {
+  if (nights.length === 0) return []
+  const rows = await db.execute<{ id: string | number; game_title_id: number }>(
+    listNewsNightMatchesSql(nights),
+  )
+  return rows.map((r) => ({ id: Number(r.id), gameTitleId: Number(r.game_title_id) }))
+}
+
+/** Which of these players are the worker's AI goalies. */
+export async function listAiGoalieIds(playerIds: readonly number[]): Promise<Set<number>> {
+  if (playerIds.length === 0) return new Set()
+  const rows = await db
+    .select({ id: players.id })
+    .from(players)
+    .where(and(inArray(players.id, [...playerIds]), isNotNull(players.aiGoalieSide)))
+  return new Set(rows.map((r) => r.id))
+}
+
+/**
+ * The title's counted results (WIN, LOSS, OTL) up to and including `lastMatchId`
+ * (compared on played_at inside the database, so no timestamp precision is lost),
+ * newest first. Record and streak are computed from this.
+ */
+export function listTitleResultsSql(gameTitleId: number, lastMatchId: number): SQL {
+  return sql`
+    select m.result
+    from matches m
+    where m.game_title_id = ${gameTitleId}
+      and m.result <> 'DNF'
+      and m.played_at <= (select l.played_at from matches l where l.id = ${lastMatchId})
+    order by m.played_at desc, m.id desc`
+}
+
+export async function listTitleResultsUpTo(
+  gameTitleId: number,
+  lastMatchId: number,
+): Promise<string[]> {
+  const rows = await db.execute<{ result: string }>(listTitleResultsSql(gameTitleId, lastMatchId))
+  return rows.map((r) => r.result)
+}
+
+export interface NewsNightSummary {
+  night: string
+  wins: number
+  losses: number
+  otl: number
+  goalsFor: number
+  goalsAgainst: number
+}
+
+/** The `limit` nights before `before` (a night key) that had a counted game, newest first. */
+export function listRecentNightSummariesSql(args: {
+  gameTitleId: number
+  before: string
+  limit: number
+}): SQL {
+  return sql`
+    select to_char(x.night, 'YYYY-MM-DD') as night,
+      count(*) filter (where x.result = 'WIN') as wins,
+      count(*) filter (where x.result = 'LOSS') as losses,
+      count(*) filter (where x.result = 'OTL') as otl,
+      coalesce(sum(x.score_for), 0) as goals_for,
+      coalesce(sum(x.score_against), 0) as goals_against
+    from (
+      select m.result, m.score_for, m.score_against, ${nightKeySql('m')} as night
+      from matches m
+      where m.game_title_id = ${args.gameTitleId} and m.result <> 'DNF'
+    ) x
+    where x.night < ${args.before}::date
+    group by x.night
+    order by x.night desc
+    limit ${args.limit}`
+}
+
+export async function listRecentNightSummaries(args: {
+  gameTitleId: number
+  before: string
+  limit: number
+}): Promise<NewsNightSummary[]> {
+  const rows = await db.execute<{
+    night: string
+    wins: string | number
+    losses: string | number
+    otl: string | number
+    goals_for: string | number
+    goals_against: string | number
+  }>(listRecentNightSummariesSql(args))
+  return rows.map((r) => ({
+    night: r.night,
+    wins: Number(r.wins),
+    losses: Number(r.losses),
+    otl: Number(r.otl),
+    goalsFor: Number(r.goals_for),
+    goalsAgainst: Number(r.goals_against),
+  }))
+}
+
+/**
+ * Counted card events (same rule as the unlock poster) of the given players in
+ * a title, from the first game's end to `afterMinutes` after the last game's
+ * end. Both bounds come from the matches table so no precision is lost.
+ */
+export function listNewsCardEventsSql(args: {
+  gameTitleId: number
+  playerIds: readonly number[]
+  firstMatchId: number
+  lastMatchId: number
+  afterMinutes: number
+}): SQL {
+  return sql`
+    select ev.id, ev.player_id, ev.game_title_id, p.gamertag, p.ai_goalie_side, ev.kind,
+      ev.family_id, ev.from_value, ev.to_value, cp.mythic_theme
+    from player_card_events ev
+    join players p on p.id = ev.player_id
+    left join player_card_progress cp on cp.player_id = ev.player_id and cp.game_title_id = ev.game_title_id
+    where ev.game_title_id = ${args.gameTitleId}
+      and ev.player_id in (${idList(args.playerIds)})
+      and p.ai_goalie_side is null
+      and ev.occurred_at >= (select f.played_at from matches f where f.id = ${args.firstMatchId})
+      and ev.occurred_at <= (select l.played_at from matches l where l.id = ${args.lastMatchId})
+        + make_interval(mins => ${sql.raw(String(Math.trunc(args.afterMinutes)))})
+      and ((ev.kind = 'badge_level_up' and ev.to_value > ev.from_value)
+           or ev.kind in ('level_up', 'tier_up', 'mythic_awarded'))
+    order by ev.occurred_at, ev.id`
+}
+
+export async function listNewsCardEvents(args: {
+  gameTitleId: number
+  playerIds: readonly number[]
+  firstMatchId: number
+  lastMatchId: number
+  afterMinutes: number
+}): Promise<UnlockEventRow[]> {
+  if (args.playerIds.length === 0) return []
+  const rows = await db.execute<{
+    id: string | number
+    player_id: number
+    game_title_id: number
+    gamertag: string
+    ai_goalie_side: string | null
+    kind: UnlockEventRow['kind']
+    family_id: UnlockEventRow['familyId']
+    from_value: number
+    to_value: number
+    mythic_theme: UnlockEventRow['mythicTheme']
+  }>(listNewsCardEventsSql(args))
+  return rows.map((r) => ({
+    id: Number(r.id),
+    playerId: Number(r.player_id),
+    gameTitleId: Number(r.game_title_id),
+    gamertag: r.gamertag,
+    aiGoalie: r.ai_goalie_side !== null,
+    kind: r.kind,
+    familyId: r.family_id,
+    fromValue: Number(r.from_value),
+    toValue: Number(r.to_value),
+    mythicTheme: r.mythic_theme,
+  }))
+}
+
+export interface NewsPlayerTotals {
+  goals: number
+  assists: number
+  points: number
+  games: number
+}
+
+/**
+ * Title totals (counted games only) for the given players: `before` = games
+ * ended before the first game of the sheet, `after` = through the last game.
+ * Bounds come from the matches table so no precision is lost.
+ */
+export function listPlayerTitleTotalsSql(args: {
+  gameTitleId: number
+  playerIds: readonly number[]
+  firstMatchId: number
+  lastMatchId: number
+}): SQL {
+  const first = sql`(select f.played_at from matches f where f.id = ${args.firstMatchId})`
+  const last = sql`(select l.played_at from matches l where l.id = ${args.lastMatchId})`
+  return sql`
+    select pms.player_id,
+      coalesce(sum(pms.goals) filter (where m.played_at < ${first}), 0) as goals_before,
+      coalesce(sum(pms.assists) filter (where m.played_at < ${first}), 0) as assists_before,
+      count(*) filter (where m.played_at < ${first}) as games_before,
+      coalesce(sum(pms.goals), 0) as goals_after,
+      coalesce(sum(pms.assists), 0) as assists_after,
+      count(*) as games_after
+    from player_match_stats pms
+    join matches m on m.id = pms.match_id
+    where m.game_title_id = ${args.gameTitleId}
+      and m.result <> 'DNF'
+      and pms.player_id in (${idList(args.playerIds)})
+      and m.played_at <= ${last}
+    group by pms.player_id`
+}
+
+export async function listPlayerTitleTotals(args: {
+  gameTitleId: number
+  playerIds: readonly number[]
+  firstMatchId: number
+  lastMatchId: number
+}): Promise<{ before: Map<number, NewsPlayerTotals>; after: Map<number, NewsPlayerTotals> }> {
+  const before = new Map<number, NewsPlayerTotals>()
+  const after = new Map<number, NewsPlayerTotals>()
+  if (args.playerIds.length === 0) return { before, after }
+  const rows = await db.execute<{
+    player_id: number
+    goals_before: string | number
+    assists_before: string | number
+    games_before: string | number
+    goals_after: string | number
+    assists_after: string | number
+    games_after: string | number
+  }>(listPlayerTitleTotalsSql(args))
+  for (const r of rows) {
+    const id = Number(r.player_id)
+    const gb = Number(r.goals_before)
+    const ab = Number(r.assists_before)
+    const ga = Number(r.goals_after)
+    const aa = Number(r.assists_after)
+    before.set(id, { goals: gb, assists: ab, points: gb + ab, games: Number(r.games_before) })
+    after.set(id, { goals: ga, assists: aa, points: ga + aa, games: Number(r.games_after) })
+  }
+  return { before, after }
 }

@@ -21,6 +21,11 @@ const {
   publicNewsItemWhere,
   deleteTestNewsItemsQuery,
   rawToNewsItem,
+  listNewsNightMatchesSql,
+  listTitleResultsSql,
+  listRecentNightSummariesSql,
+  listNewsCardEventsSql,
+  listPlayerTitleTotalsSql,
 } = await import('../news.js')
 const { db } = await import('../../client.js')
 const dialect = new PgDialect()
@@ -196,4 +201,85 @@ void test('raw feed row: mentions and facts parse the same way (text or object, 
 
 void test('db handle exists (builders need no connection)', () => {
   assert.ok(db)
+})
+
+void test('fact sheet matches: active title, not DNF, night key in the list, oldest first', () => {
+  const q = dialect.sqlToQuery(listNewsNightMatchesSql(['2026-10-12', '2026-10-13']))
+  const s = flat(q.sql)
+  assert.match(s, /join game_titles g on g\.id = m\.game_title_id and g\.is_active/)
+  assert.match(s, /m\.result <> 'DNF'/)
+  assert.ok(s.includes(`to_char(${NIGHT('m')}, 'YYYY-MM-DD') in ($1, $2)`))
+  assert.match(s, /order by m\.played_at, m\.id/)
+  assert.deepEqual(q.params, ['2026-10-12', '2026-10-13'])
+})
+
+void test('title results: counted games up to the last game, bound taken from matches, newest first', () => {
+  const q = dialect.sqlToQuery(listTitleResultsSql(4, 900))
+  const s = flat(q.sql)
+  assert.match(s, /m\.game_title_id = \$1/)
+  assert.match(s, /m\.result <> 'DNF'/)
+  assert.match(s, /m\.played_at <= \( ?select l\.played_at from matches l where l\.id = \$2 ?\)/)
+  assert.match(s, /order by m\.played_at desc, m\.id desc/)
+  assert.deepEqual(q.params, [4, 900])
+})
+
+void test('recent nights: counted games grouped by night key, before the given night, newest first', () => {
+  const q = dialect.sqlToQuery(
+    listRecentNightSummariesSql({ gameTitleId: 4, before: '2026-10-12', limit: 3 }),
+  )
+  const s = flat(q.sql)
+  assert.ok(s.includes(NIGHT('m')))
+  assert.match(s, /m\.game_title_id = \$1 and m\.result <> 'DNF'/)
+  assert.match(s, /x\.night < \$2::date/)
+  assert.match(s, /group by x\.night order by x\.night desc limit \$3/)
+  assert.match(s, /count\(\*\) filter \(where x\.result = 'OTL'\)/)
+  assert.deepEqual(q.params, [4, '2026-10-12', 3])
+})
+
+void test('card events: counted kinds only, no AI goalies, window from the matches table', () => {
+  const q = dialect.sqlToQuery(
+    listNewsCardEventsSql({
+      gameTitleId: 4,
+      playerIds: [7, 8],
+      firstMatchId: 900,
+      lastMatchId: 902,
+      afterMinutes: 10,
+    }),
+  )
+  const s = flat(q.sql)
+  assert.match(s, /ev\.game_title_id = \$1/)
+  assert.match(s, /ev\.player_id in \(\$2, \$3\)/)
+  assert.match(s, /p\.ai_goalie_side is null/)
+  assert.match(s, /ev\.occurred_at >= \( ?select f\.played_at from matches f where f\.id = \$4 ?\)/)
+  assert.match(
+    s,
+    /ev\.occurred_at <= \( ?select l\.played_at from matches l where l\.id = \$5 ?\) \+ make_interval\(mins => 10\)/,
+  )
+  assert.match(
+    s,
+    /\(\(ev\.kind = 'badge_level_up' and ev\.to_value > ev\.from_value\) or ev\.kind in \('level_up', 'tier_up', 'mythic_awarded'\)\)/,
+  )
+  assert.match(s, /order by ev\.occurred_at, ev\.id/)
+  assert.deepEqual(q.params.slice(0, 3), [4, 7, 8])
+})
+
+void test('title totals: counted games, before the first game and through the last, from matches', () => {
+  const q = dialect.sqlToQuery(
+    listPlayerTitleTotalsSql({
+      gameTitleId: 4,
+      playerIds: [7],
+      firstMatchId: 900,
+      lastMatchId: 902,
+    }),
+  )
+  const s = flat(q.sql)
+  assert.match(s, /from player_match_stats pms join matches m on m\.id = pms\.match_id/)
+  assert.match(s, /m\.game_title_id = \$\d+/)
+  assert.match(s, /m\.result <> 'DNF'/)
+  assert.match(
+    s,
+    /filter \(where m\.played_at < \( ?select f\.played_at from matches f where f\.id = \$\d+ ?\)\)/,
+  )
+  assert.match(s, /m\.played_at <= \( ?select l\.played_at from matches l where l\.id = \$\d+ ?\)/)
+  assert.match(s, /group by pms\.player_id/)
 })

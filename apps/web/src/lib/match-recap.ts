@@ -984,7 +984,7 @@ export function buildBoxScore(
  * Returns null on either side when no usable data is found, so the caller
  * can fall back to EA's headline value.
  */
-function aggregateOcrShots(rows: MatchPeriodSummaryRow[]): {
+export function aggregateOcrShots(rows: MatchPeriodSummaryRow[]): {
   for: number | null
   against: number | null
 } {
