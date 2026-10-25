@@ -32,7 +32,7 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 **Member logins are live** (2026-10-09, `7b76804`): Discord-only, invite-only sign-in; the operator (Silky, player 2) is the one admin and invites teammates on `/admin/accounts`. **Live for members:** Card Locker EQUIP (own card; admin any), Discord picture in the nav, and **EDIT PROFILE** on the player page (`7aa6599`: member edits name, jersey, nationality, bio; admin also position, archetype, club role, on any player). **Admin tools are live** (`/admin`, [plan](docs/superpowers/plans/2026-10-09-admin-tools.md)): accounts, roster pins, sign-everyone-out, titles (view only), mythic cards, and the trophy case editor — **trophies/banners now live in the database** (migration 0066), not `club-awards.ts`.
 
-**Discord poster: live to the real channel** (2026-10-24, `c41b915`): game posts + one message per card unlock (migration 0069). New-card pings built on `feat/discord-pings` (migration 0070), not deployed. Deploy `web` before `discord`; roll back both together (`:rollback-he-2026-10-24-pre-unlocks`). Off = `docker compose stop discord`. [Journal](docs/journal/2026-10.md).
+**Discord poster: live to the real channel** (2026-10-24, `c41b915`): game posts + one message per card unlock (migration 0069). New-card pings live (migration 0070; IDs on `/admin` → Discord pings). Deploy `web` before `discord`; roll back both together (`:rollback-he-2026-10-24-pre-unlocks`). Off = `docker compose stop discord`. [Journal](docs/journal/2026-10.md).
 
 **Awards trophy case is live** (2026-10-08); add trophies/banners (3s/6s/arcade) on `/admin/awards`. Awards rank ALL SKATERS totals (operator choice).
 
@@ -130,7 +130,7 @@ None.
 
 ## Next 1-3 Actions
 
-0. Discord pings: deploy `feat/discord-pings` (0070), enter the operator's Discord IDs on live, live ping check.
+0. Discord: operator's live ping check (award + clear a mythic for a player with an ID).
    Logins/admin open choices: club role display, more flags, a 6v6 banner.
 1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
 2. Polish passes deployed 2026-10-09 (`5269fbe`); every backlog entry has an outcome ([`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md), journal 10-09).
