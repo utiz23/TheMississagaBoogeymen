@@ -40,12 +40,12 @@ function setOrder(l: SeasonLineInput): number {
  * The best season per stat (value > 0). Lines of titles released after the
  * current one are left out (a backfill must not see the future); a tie goes
  * to the season set first, then the lower player id. `nameOf` gives the
- * holder's sheet name or null when the holder may not be named.
+ * holder's sheet name and press level, or null when he may not be named.
  */
 export function buildRecords(
   lines: readonly SeasonLineInput[],
   currentReleaseOrder: number | null,
-  nameOf: (playerId: number) => string | null,
+  nameOf: (playerId: number) => { name: string; pressLevel: 'full' | 'easy' } | null,
 ): ClubRecordState[] {
   const usable = lines.filter(
     (l) =>
@@ -60,9 +60,11 @@ export function buildRecords(
       .filter((l) => l[stat] > 0)
       .sort((a, b) => b[stat] - a[stat] || setOrder(a) - setOrder(b) || a.playerId - b.playerId)[0]
     if (best === undefined) continue
+    const holder = nameOf(best.playerId)
     out.push({
       stat,
-      holder: nameOf(best.playerId),
+      holder: holder?.name ?? null,
+      holderPressLevel: holder?.pressLevel ?? null,
       value: best[stat],
       title: best.title,
       holderId: best.playerId,
@@ -74,7 +76,13 @@ export function buildRecords(
 
 /** The sheet's records without the internal fields. */
 export function publicRecords(records: readonly ClubRecordState[]): NewsClubRecord[] {
-  return records.map(({ stat, holder, value, title }) => ({ stat, holder, value, title }))
+  return records.map(({ stat, holder, holderPressLevel, value, title }) => ({
+    stat,
+    holder,
+    holderPressLevel,
+    value,
+    title,
+  }))
 }
 
 /**
@@ -104,6 +112,8 @@ export function applyNewRecords(
         state.set(stat, {
           stat,
           holder: line.name,
+          // Internal only (the sheet shows the records as before the sheet).
+          holderPressLevel: null,
           value: after,
           title: currentTitle,
           holderId: line.playerId,

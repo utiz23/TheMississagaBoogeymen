@@ -352,10 +352,16 @@ async function loadSheet(
   // Club records (C2.4): a holder is named like a person on the sheet (a
   // member not at press level out: profile name, else gamertag), else null.
   const current = titles.find((t) => t.id === gameTitleId)
-  const holderName = new Map(
+  const holderOf = new Map(
     memberLevels
       .filter((m) => m.pressLevel !== 'out')
-      .map((m) => [m.playerId, m.name?.trim() || m.gamertag.trim()]),
+      .map((m) => [
+        m.playerId,
+        {
+          name: m.name?.trim() || m.gamertag.trim(),
+          pressLevel: m.pressLevel === 'easy' ? ('easy' as const) : ('full' as const),
+        },
+      ]),
   )
   const records = buildRecords(
     [
@@ -385,7 +391,7 @@ async function loadSheet(
       ),
     ],
     current?.releaseOrder ?? null,
-    (id) => holderName.get(id) ?? null,
+    (id) => holderOf.get(id) ?? null,
   )
   const withRecords = applyChemistry(
     applyNewRecords(withContext, records, gameTitleName),

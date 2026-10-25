@@ -15,8 +15,8 @@ const sl = (
   ...over,
 })
 const names = new Map([
-  [1, 'Old Sniper'],
-  [2, 'Skater A'],
+  [1, { name: 'Old Sniper', pressLevel: 'easy' as const }],
+  [2, { name: 'Skater A', pressLevel: 'full' as const }],
 ])
 const nameOf = (id: number) => names.get(id) ?? null
 
@@ -41,9 +41,9 @@ void test('buildRecords: the best season per stat; later titles left out; ties t
     nameOf,
   )
   assert.deepEqual(publicRecords(r), [
-    { stat: 'goals', holder: 'Old Sniper', value: 40, title: 'NHL 24' },
-    { stat: 'assists', holder: 'Skater A', value: 50, title: 'NHL 26' },
-    { stat: 'points', holder: null, value: 85, title: 'NHL 25' },
+    { stat: 'goals', holder: 'Old Sniper', holderPressLevel: 'easy', value: 40, title: 'NHL 24' },
+    { stat: 'assists', holder: 'Skater A', holderPressLevel: 'full', value: 50, title: 'NHL 26' },
+    { stat: 'points', holder: null, holderPressLevel: null, value: 85, title: 'NHL 25' },
   ])
   assert.equal(r[1]!.current, true)
   // No positive season: no record.

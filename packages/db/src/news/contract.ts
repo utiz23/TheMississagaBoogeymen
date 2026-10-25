@@ -97,6 +97,11 @@ export type RecordStat = (typeof RECORD_STATS)[number]
 export interface NewsClubRecord {
   stat: RecordStat
   holder: string | null
+  /**
+   * The holder's press level (C2 fix M7): "easy" = criticism stays mild, also
+   * when he did not play and is not in `people`. Null when `holder` is null.
+   */
+  holderPressLevel: 'full' | 'easy' | null
   value: number
   title: string
 }
@@ -820,6 +825,11 @@ function parseClubRecord(v: unknown, path: string): NewsClubRecord {
   return {
     stat: oneOf(o['stat'], `${path}.stat`, RECORD_STATS),
     holder: nullable(o['holder'], `${path}.holder`, str),
+    holderPressLevel: opt(o, 'holderPressLevel', null, () =>
+      nullable(o['holderPressLevel'], `${path}.holderPressLevel`, (x, p) =>
+        oneOf(x, p, ['full', 'easy']),
+      ),
+    ),
     value: nonNegInt(o['value'], `${path}.value`),
     title: str(o['title'], `${path}.title`),
   }

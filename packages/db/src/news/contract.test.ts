@@ -900,7 +900,10 @@ void test('contract: streaks, debut and return round-trip; missing ones read as 
 
 void test('contract: records, new records and season totals round-trip; missing ones read as none (C2.4)', () => {
   const s = sample()
-  s.facts.records = [{ stat: 'goals', holder: null, value: 61, title: 'NHL 24' }]
+  s.facts.records = [
+    { stat: 'goals', holder: null, holderPressLevel: null, value: 61, title: 'NHL 24' },
+    { stat: 'points', holder: 'Silky', holderPressLevel: 'easy', value: 140, title: 'NHL 25' },
+  ]
   s.facts.games[0]!.newRecords = [{ stat: 'points', name: 'Silky', value: 101 }]
   s.facts.games[0]!.players[0]!.seasonTotals = { goals: 40, assists: 61, points: 101, games: 70 }
   assert.deepEqual(parseNewsFactsResponse(clone(s)), s)

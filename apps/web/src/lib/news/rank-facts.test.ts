@@ -195,7 +195,17 @@ void test('rankFacts: a new club record ranks first, with the old record from th
     ],
   })
   const top = rankFacts(
-    sheet([g], { records: [{ stat: 'goals', holder: 'Old Sniper', value: 61, title: 'NHL 24' }] }),
+    sheet([g], {
+      records: [
+        {
+          stat: 'goals',
+          holder: 'Old Sniper',
+          holderPressLevel: 'full',
+          value: 61,
+          title: 'NHL 24',
+        },
+      ],
+    }),
   )
   assert.deepEqual(top[0], {
     id: 'g501:record:goals:Raz',

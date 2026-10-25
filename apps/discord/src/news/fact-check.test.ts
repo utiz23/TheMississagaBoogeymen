@@ -562,8 +562,8 @@ void test('norms: the averages and lead % may be quoted; labels, patterns and th
 void test('club record holders are allowed names; a null holder adds none; holders are not people for criticized (C2.4)', () => {
   const f = oct12Facts('game')
   f.records = [
-    { stat: 'goals', holder: 'Old Sniper', value: 61, title: 'NHL 24' },
-    { stat: 'assists', holder: null, value: 80, title: 'NHL 25' },
+    { stat: 'goals', holder: 'Old Sniper', holderPressLevel: 'full', value: 61, title: 'NHL 24' },
+    { stat: 'assists', holder: null, holderPressLevel: null, value: 80, title: 'NHL 25' },
   ]
   assert.deepEqual(
     problems(
