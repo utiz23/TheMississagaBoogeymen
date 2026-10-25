@@ -434,3 +434,23 @@ Reporters over-use their favourite words. Tone it down a bit:
 - Code check: a post may use at most one of its reporter's signature words, an
   article at most three; above that the item goes back for a rewrite ("lean less
   on your signature words"). Limits are Claude's call.
+
+### 12.10 Team norms (operator, 2026-10-25)
+
+Repeated patterns must read as normal, not as news. Data check on 2026-10-25
+(non-DNF games): the club is out-hit in about 62–65% of games, out-shoots
+opponents in about 72–74%, and has more time on attack in about 77–80%.
+
+- Every fact sheet gets a **norms** section for the current title, computed from
+  the games before this one (game sheet) or before this night/week: the club's
+  average and the opponents' average for hits, shots, time on attack, pass % and
+  power play, and how often the club leads each one.
+- Each game's numbers get a label against the club's own games: typical,
+  unusually high or unusually low (Claude's call: outside the club's 20th–80th
+  percentile = unusual); usual patterns are marked as held or broken (e.g.
+  "out-shot for the first time in 6 games").
+- Norms appear only from the 10th counted game of a title.
+- Writing rule: typical patterns are not news. Mention them now and then as team
+  identity; focus on what was different.
+- A wider stored fact system (storylines, dossiers, GM facts) belongs to the bot
+  project (see docs/planning/2026-10-25-news-desk-bots-notes.md).
