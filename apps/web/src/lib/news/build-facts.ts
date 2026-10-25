@@ -207,7 +207,8 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     overtime: args.overtime,
     scoreFor: match.scoreFor,
     scoreAgainst: match.scoreAgainst,
-    opponentName: match.opponentName,
+    // EA sends club names with repeated spaces; the writer writes them with one.
+    opponentName: match.opponentName.replace(/\s+/g, ' ').trim(),
     team: {
       shotsFor: args.shots.for,
       shotsAgainst: args.shots.against,

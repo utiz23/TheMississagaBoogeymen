@@ -473,3 +473,10 @@ void test('route params: night is a real date; week start is a real Monday', asy
   assert.equal(isWeekStartKey('2026-10-13'), false)
   assert.equal(isWeekStartKey('2026-13-01'), false)
 })
+
+void test('buildGameFacts: opponent club name has whitespace runs collapsed and is trimmed', () => {
+  const g = buildGameFacts(
+    gameArgs({ match: { ...gameArgs().match, opponentName: ' Shake   N   Bake ' } }),
+  )
+  assert.equal(g.opponentName, 'Shake N Bake')
+})
