@@ -23,8 +23,9 @@ export const GAME_POSTS_SCHEMA = {
           text: { type: 'string' },
           mentions: STRING_ARRAY,
           clubs: STRING_ARRAY,
+          criticized: STRING_ARRAY,
         },
-        required: ['reporter', 'text', 'mentions', 'clubs'],
+        required: ['reporter', 'text', 'mentions', 'clubs', 'criticized'],
         additionalProperties: false,
       },
     },
@@ -42,8 +43,9 @@ export const ARTICLE_SCHEMA = {
     summary: { type: 'string' },
     mentions: STRING_ARRAY,
     clubs: STRING_ARRAY,
+    criticized: STRING_ARRAY,
   },
-  required: ['headline', 'dek', 'paragraphs', 'summary', 'mentions', 'clubs'],
+  required: ['headline', 'dek', 'paragraphs', 'summary', 'mentions', 'clubs', 'criticized'],
   additionalProperties: false,
 } as const
 
@@ -91,6 +93,8 @@ export interface GamePost {
   text: string
   mentions: string[]
   clubs: string[]
+  /** People the post criticises harshly (the pile-on limit, rev 2 B4). */
+  criticized: string[]
 }
 
 /**
@@ -107,7 +111,7 @@ export function parseGamePosts(v: unknown, expected: readonly ReporterId[]): { p
   }
   const posts = raw.map((item: unknown, i): GamePost => {
     const p = `posts[${String(i)}]`
-    const o = closedObject(item, p, ['reporter', 'text', 'mentions', 'clubs'])
+    const o = closedObject(item, p, ['reporter', 'text', 'mentions', 'clubs', 'criticized'])
     const reporter = expected[i]!
     if (o['reporter'] !== reporter)
       fail(`${p}.reporter`, `is not the assigned reporter "${reporter}"`)
@@ -116,6 +120,7 @@ export function parseGamePosts(v: unknown, expected: readonly ReporterId[]): { p
       text: text(o['text'], `${p}.text`),
       mentions: strings(o['mentions'], `${p}.mentions`),
       clubs: strings(o['clubs'], `${p}.clubs`),
+      criticized: strings(o['criticized'], `${p}.criticized`),
     }
   })
   return { posts }
@@ -138,17 +143,21 @@ export interface Article {
   summary: string
   mentions: string[]
   clubs: string[]
+  /** People the article criticises harshly (the pile-on limit, rev 2 B4). */
+  criticized: string[]
 }
 
-export function parseArticle(v: unknown): Article {
-  const o = closedObject(v, 'root', [
-    'headline',
-    'dek',
-    'paragraphs',
-    'summary',
-    'mentions',
-    'clubs',
-  ])
+const ARTICLE_KEYS = [
+  'headline',
+  'dek',
+  'paragraphs',
+  'summary',
+  'mentions',
+  'clubs',
+  'criticized',
+] as const
+
+function articleFields(o: Record<string, unknown>): Article {
   const raw = o['paragraphs']
   if (!Array.isArray(raw) || raw.length === 0) fail('paragraphs', 'is not a non-empty array')
   return {
@@ -158,7 +167,12 @@ export function parseArticle(v: unknown): Article {
     summary: text(o['summary'], 'summary'),
     mentions: strings(o['mentions'], 'mentions'),
     clubs: strings(o['clubs'], 'clubs'),
+    criticized: strings(o['criticized'], 'criticized'),
   }
+}
+
+export function parseArticle(v: unknown): Article {
+  return articleFields(closedObject(v, 'root', ARTICLE_KEYS))
 }
 
 export function parseReview(v: unknown): { ok: boolean; problems: string[] } {

@@ -59,6 +59,7 @@ const goodWriter: ModelCall = async (req) => {
           text: `The Boogeymen kept skating, says ${String(id)}.`,
           mentions: [],
           clubs: [],
+          criticized: [],
         })),
       },
     }
@@ -73,6 +74,7 @@ const goodWriter: ModelCall = async (req) => {
         summary: 'The club skated.',
         mentions: [],
         clubs: [],
+        criticized: [],
       },
     }
   }
@@ -221,6 +223,13 @@ function harness(
       }))
     },
     recentReporterSummaries: async () => [],
+    nightCriticized: async (night, includeTest) => [
+      ...new Set(
+        [...items.values()]
+          .filter((i) => i.night === night && i.deletedAt === null && (includeTest || !i.isTest))
+          .flatMap((i) => i.criticized),
+      ),
+    ],
     recordNewsUsage: async (row) => void usage.push(row),
     ...over.store,
   }
@@ -892,4 +901,110 @@ void test('week: after a failed facts fetch the week is not fetched again for 15
   await runNewsCycle(h.deps, h.opts)
   assert.equal(fetches(), 2)
   assert.equal(h.jobs.get('week:2026-10-19')?.status, 'done')
+})
+
+// ── Pile-on limit (rev 2, B4) ───────────────────────────────────────────────
+
+void test("game: the night's harsh list goes into the prompt; a repeat is rewritten; criticized is stored", async () => {
+  const userPrompts: string[] = []
+  let writes = 0
+  const h = harness({
+    candidates: [501],
+    store: { nightCriticized: async () => ['Skater A'] },
+    deps: {
+      writer: async (req) => {
+        if (req.purpose === 'review') {
+          userPrompts.push(req.user)
+          return goodWriter(req)
+        }
+        userPrompts.push(req.user)
+        writes++
+        const ids = [...req.user.matchAll(/\(id "(\w+)"\)/g)].map((m) => m[1])
+        return {
+          refused: false,
+          model: 'claude-opus-5-5',
+          usage: { input_tokens: 1000, output_tokens: 100 },
+          json: {
+            posts: ids.map((id, i) => ({
+              reporter: id,
+              text: `The Boogeymen kept skating, says ${String(id)}.`,
+              mentions: [],
+              clubs: [],
+              // First write: post 1 piles on Skater A. Rewrite: Goalie G, once.
+              criticized: writes === 1 ? ['Skater A'] : i === 0 ? ['Goalie G'] : [],
+            })),
+          },
+        }
+      },
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(userPrompts[0]!.includes('Already criticised harshly tonight: Skater A.'))
+  assert.ok(
+    userPrompts[1]!.includes(
+      'Skater A was already criticised harshly tonight — take another angle.',
+    ),
+  )
+  assert.ok(
+    userPrompts[2]!.includes('The writer listed these people as criticised harshly: Goalie G.'),
+  )
+  const stored = [...h.items.values()]
+  assert.deepEqual(
+    stored.map((i) => i.criticized),
+    [['Goalie G'], []],
+  )
+  assert.equal(h.jobs.get('game:501')?.status, 'done')
+})
+
+void test('game: the second post may not pile on the first post of the same game', async () => {
+  const h = harness({
+    candidates: [501],
+    deps: {
+      writer: async (req) => {
+        if (req.purpose === 'review') return goodWriter(req)
+        const ids = [...req.user.matchAll(/\(id "(\w+)"\)/g)].map((m) => m[1])
+        return {
+          refused: false,
+          model: 'claude-opus-5-5',
+          usage: { input_tokens: 1000, output_tokens: 100 },
+          json: {
+            posts: ids.map((id) => ({
+              reporter: id,
+              text: 'Fine.',
+              mentions: [],
+              clubs: [],
+              criticized: ['Goalie G'],
+            })),
+          },
+        }
+      },
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.items.size, 0)
+  const job = h.jobs.get('game:501')!
+  assert.equal(job.status, 'failed')
+  assert.match(job.error ?? '', /Goalie G was already criticised harshly tonight/)
+})
+
+void test("night: the article's prompt carries the night's harsh list; criticized is stored", async () => {
+  const prompts: string[] = []
+  const h = harness({
+    store: { nightCriticized: async (night) => (night === '2026-10-12' ? ['Goalie G'] : []) },
+    deps: {
+      writer: async (req) => {
+        prompts.push(req.user)
+        const r = await goodWriter(req)
+        if (req.schema === ARTICLE_SCHEMA) {
+          return { ...r, json: { ...(r.json as object), criticized: ['Skater A'] } }
+        }
+        return r
+      },
+    },
+  })
+  h.state.nights = [{ night: '2026-10-12', lastEnd: new Date(NOW.getTime() - 91 * MIN) }]
+  h.state.nightGames['2026-10-12'] = 2
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(prompts[0]!.includes('Already criticised harshly tonight: Goalie G.'))
+  assert.deepEqual(h.items.get(1)!.criticized, ['Skater A'])
 })

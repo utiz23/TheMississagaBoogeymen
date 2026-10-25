@@ -45,7 +45,7 @@ import {
 } from '@eanhl/db/news'
 import type { NewNewsItem, NewsMention } from '@eanhl/db/queries'
 import { assignGamePosts, assignNightRecap, type Activity } from './assign.ts'
-import { checkArticleFacts, checkFacts, type CheckResult } from './fact-check.ts'
+import { checkArticleFacts, checkGamePosts, type CheckResult } from './fact-check.ts'
 import { articleSlug } from './messages.ts'
 import {
   ARTICLE_SCHEMA,
@@ -64,6 +64,7 @@ import {
   buildReviewPrompt,
   buildRewritePrompt,
   buildSystemPrompt,
+  setCriticizedTonight,
 } from './prompts.ts'
 import { classifyGame } from './situation.ts'
 import { fetchNewsFacts } from './web-client.ts'
@@ -174,6 +175,8 @@ export async function planBackfill(args: {
         second: a.second === null ? null : REPORTERS[a.second],
         secondIsReply: a.secondIsReply,
         relationship,
+        // The night's harsh list is known only once earlier jobs are accepted: `check` swaps it in.
+        criticizedTonight: [],
       })
       job.reporters.forEach((r, k) =>
         activity.push({
@@ -204,6 +207,7 @@ export async function planBackfill(args: {
       reporter: REPORTERS[reporter],
       kind: 'night',
       ownRecent: [],
+      criticizedTonight: [],
     })
     activity.push({ reporter, night, createdAt, kind: 'night' })
     jobs.push(article)
@@ -295,32 +299,40 @@ export type GameOutput = { posts: GamePost[] }
 export type JobOutput = GameOutput | Article
 
 export type Evaluation =
-  | { state: 'waiting' }
+  /** `prompt`: the request with the night's real harsh list, when the night has one so far. */
+  | { state: 'waiting'; prompt?: string }
   | { state: 'rewrite'; problems: string[]; rewritePrompt: string }
   | { state: 'review'; reviewPrompt: string; reviewError?: string }
   | { state: 'accepted'; output: JobOutput }
 
-function mergeChecks(results: CheckResult[]): CheckResult {
-  const problems = [...new Set(results.flatMap((r) => (r.ok ? [] : r.problems)))]
-  return problems.length === 0 ? { ok: true } : { ok: false, problems }
+/** The people an accepted output criticises harshly. */
+function criticizedOf(output: JobOutput): string[] {
+  return 'posts' in output ? output.posts.flatMap((p) => p.criticized) : output.criticized
 }
 
 /**
  * The state of one job: its answer is parsed and checked exactly as the live
  * desk does (outputs.ts, fact-check.ts); a passed answer needs a review, and
  * an ok review accepts it. `reviewText` must be null when there is no review
- * for this answer.
+ * for this answer. `criticizedTonight`: the names the night's earlier accepted
+ * jobs criticised harshly (the pile-on limit); the request is rewritten with them.
  */
 export function evaluateJob(
   job: BackfillJob,
   answerText: string | null,
   reviewText: string | null,
+  criticizedTonight: readonly string[] = [],
 ): Evaluation {
-  if (answerText === null) return { state: 'waiting' }
+  const user = setCriticizedTonight(job.user, criticizedTonight)
+  if (answerText === null) {
+    return criticizedTonight.length === 0
+      ? { state: 'waiting' }
+      : { state: 'waiting', prompt: user }
+  }
   const rewrite = (problems: string[]): Evaluation => ({
     state: 'rewrite',
     problems,
-    rewritePrompt: buildRewritePrompt(job.user, problems),
+    rewritePrompt: buildRewritePrompt(user, problems),
   })
   let value: unknown
   try {
@@ -337,12 +349,12 @@ export function evaluateJob(
     if (job.kind === 'game') {
       const out = parseGamePosts(value, job.reporters)
       output = out
-      checked = mergeChecks(out.posts.map((p) => checkFacts(p.text, facts, forbiddenNames, p)))
+      checked = checkGamePosts(out.posts, facts, forbiddenNames, criticizedTonight)
       textForReview = out.posts.map((p) => `${REPORTERS[p.reporter].name}: ${p.text}`).join('\n\n')
     } else {
       const a = parseArticle(value)
       output = a
-      checked = checkArticleFacts(a, facts, forbiddenNames)
+      checked = checkArticleFacts(a, facts, forbiddenNames, criticizedTonight)
       textForReview = [a.headline, a.dek, ...a.paragraphs].join('\n\n')
     }
   } catch (err: unknown) {
@@ -350,7 +362,11 @@ export function evaluateJob(
   }
   if (!checked.ok) return rewrite(checked.problems)
 
-  const reviewPrompt = buildReviewPrompt({ facts, text: textForReview })
+  const reviewPrompt = buildReviewPrompt({
+    facts,
+    text: textForReview,
+    criticized: [...new Set(criticizedOf(output))],
+  })
   if (reviewText === null) return { state: 'review', reviewPrompt }
   let verdict: { ok: boolean; problems: string[] }
   try {
@@ -381,17 +397,29 @@ function readIf(path: string): { text: string; mtimeMs: number } | null {
   return { text: readFileSync(path, 'utf8'), mtimeMs: statSync(path).mtimeMs }
 }
 
-/** Every job with its evaluation, in id order. A review older than its answer is ignored. */
+/**
+ * Every job with its evaluation, in id order. A review older than its answer
+ * is ignored. The pile-on limit of a job counts the earlier ACCEPTED jobs of
+ * the same night (in id order), so write and accept a night's jobs in order.
+ */
 export function evaluateDir(out: string): { job: BackfillJob; evaluation: Evaluation }[] {
   const d = dirs(out)
+  const harsh = new Map<string, string[]>()
   return readJobs(out).map((job) => {
     const answer = readIf(join(d.answers, `${job.id}.json`))
     const review = readIf(join(d.reviews, `${job.id}.json`))
     const freshReview = answer !== null && review !== null && review.mtimeMs >= answer.mtimeMs
-    return {
+    const tonight = harsh.get(job.night) ?? []
+    const evaluation = evaluateJob(
       job,
-      evaluation: evaluateJob(job, answer?.text ?? null, freshReview ? review.text : null),
+      answer?.text ?? null,
+      freshReview ? review.text : null,
+      tonight,
+    )
+    if (evaluation.state === 'accepted') {
+      harsh.set(job.night, [...new Set([...tonight, ...criticizedOf(evaluation.output)])])
     }
+    return { job, evaluation }
   })
 }
 
@@ -414,8 +442,13 @@ export function runCheck(out: string, log: (line: string) => void): CheckSummary
     const file = join(d.status, `${job.id}.json`)
     let detail = job.reporters.join('+')
     if (e.state === 'waiting') {
-      rmSync(file, { force: true })
-      detail += ' — no answer yet'
+      if (e.prompt === undefined) {
+        rmSync(file, { force: true })
+        detail += ' — no answer yet'
+      } else {
+        writeFileSync(file, json(e))
+        detail += ' — no answer yet; write from the prompt in its status file'
+      }
     } else if (e.state === 'rewrite') {
       writeFileSync(file, json(e))
       detail += ` — ${String(e.problems.length)} problem(s): ${e.problems[0] ?? ''}`
@@ -503,6 +536,7 @@ export async function importAccepted(
             replyTo: isReply ? ids[0]! : null,
             body: p.text,
             mentions: mentionsOf(p.mentions, facts),
+            criticized: p.criticized,
             createdAt: itemCreatedAt(job, i),
           }),
         )
@@ -527,6 +561,7 @@ export async function importAccepted(
         body: a.paragraphs.join('\n\n'),
         summary: a.summary,
         mentions: mentionsOf(a.mentions, facts),
+        criticized: a.criticized,
         createdAt: itemCreatedAt(job, 0),
       })
       inserted++

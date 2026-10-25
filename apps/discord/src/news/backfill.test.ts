@@ -199,6 +199,7 @@ function goodAnswer(job: BackfillJob): string {
       text: 'Skater A scored in a 2-6 loss to Shake N Bake.',
       mentions: ['Skater A'],
       clubs: ['Shake N Bake'],
+      criticized: [],
     })),
   })
 }
@@ -222,6 +223,7 @@ void test('check: a failed fact check is a rewrite with the problems and the rew
       text: 'They won 7-1 at 12:34 of the third.',
       mentions: [],
       clubs: [],
+      criticized: [],
     })),
   })
   const e = evaluateJob(job, answer, null)
@@ -246,6 +248,7 @@ void test('check: a passed answer gets the review prompt; review ok = accepted; 
       text: job.reporters
         .map((rep) => `${REPORTERS[rep].name}: Skater A scored in a 2-6 loss to Shake N Bake.`)
         .join('\n\n'),
+      criticized: [],
     }),
   )
   assert.equal(evaluateJob(job, answer, '{"ok": true}').state, 'accepted')
@@ -291,6 +294,93 @@ void test('check files: status per answered job; a review older than the answer 
     utimesSync(join(dir, 'answers', `${job.id}.json`), later, later)
     runCheck(dir, () => {})
     assert.equal(status().state, 'review')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// ── pile-on (rev 2, B4) ──────────────────────────────────────────────────────
+
+function answerCriticizing(job: BackfillJob, criticized: string[]): string {
+  return JSON.stringify({
+    posts: job.reporters.map((r, i) => ({
+      reporter: r,
+      text: 'Skater A scored in a 2-6 loss to Shake N Bake.',
+      mentions: ['Skater A'],
+      clubs: ['Shake N Bake'],
+      criticized: i === 0 ? criticized : [],
+    })),
+  })
+}
+
+void test('check: the pile-on limit against the night so far; the prompt gets the real list', async () => {
+  const job = await oneGameJob()
+  assert.ok(job.user.includes('Already criticised harshly tonight: nobody.'))
+  const e = evaluateJob(job, answerCriticizing(job, ['Skater A']), null, ['Skater A'])
+  assert.equal(e.state, 'rewrite')
+  if (e.state !== 'rewrite') return
+  assert.deepEqual(e.problems, [
+    'Skater A was already criticised harshly tonight — take another angle.',
+  ])
+  assert.ok(e.rewritePrompt.includes('Already criticised harshly tonight: Skater A.'))
+  assert.ok(!e.rewritePrompt.includes('Already criticised harshly tonight: nobody.'))
+  // A waiting job whose night already has a harsh list gets the prompt to write from.
+  const w = evaluateJob(job, null, null, ['Skater A'])
+  assert.equal(w.state, 'waiting')
+  assert.ok(
+    w.state === 'waiting' && w.prompt?.includes('Already criticised harshly tonight: Skater A.'),
+  )
+  // The review sees the writer's list.
+  const r = evaluateJob(job, answerCriticizing(job, ['Goalie G']), null, ['Skater A'])
+  assert.ok(r.state === 'review' && r.reviewPrompt.includes('criticised harshly: Goalie G.'))
+})
+
+void test('check files: earlier ACCEPTED jobs of the same night count, in id order', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'backfill-pileon-'))
+  try {
+    const nights = {
+      '2026-05-08': [
+        { ...base, matchId: 250, night: '2026-05-08', playedAt: at('2026-05-09', '02:00') },
+        { ...base, matchId: 251, night: '2026-05-08', playedAt: at('2026-05-09', '02:40') },
+      ],
+      '2026-05-09': [
+        { ...base, matchId: 260, night: '2026-05-09', playedAt: at('2026-05-10', '02:00') },
+      ],
+    }
+    const plan = await planBackfill({ nights: Object.keys(nights), ...fakeWeb(nights) })
+    writePlan(dir, plan)
+    const [g250, g251, night8, g260] = plan.jobs
+    const put = (job: BackfillJob, answer: string, review: boolean) => {
+      writeFileSync(join(dir, 'answers', `${job.id}.json`), answer)
+      if (review) writeFileSync(join(dir, 'reviews', `${job.id}.json`), '{"ok": true}')
+    }
+    const status = (job: BackfillJob) =>
+      JSON.parse(readFileSync(join(dir, 'status', `${job.id}.json`), 'utf8')) as {
+        state: string
+        problems?: string[]
+        prompt?: string
+      }
+
+    // Game 251 piles on Skater A while game 250 is not accepted yet: no problem yet.
+    put(g250!, answerCriticizing(g250!, ['Skater A']), false)
+    put(g251!, answerCriticizing(g251!, ['Skater A']), false)
+    runCheck(dir, () => {})
+    assert.equal(status(g251!).state, 'review')
+
+    // Game 250 accepted: now 251 is a rewrite, the night article waits with the real list,
+    // and the next night starts clean.
+    put(g250!, answerCriticizing(g250!, ['Skater A']), true)
+    runCheck(dir, () => {})
+    assert.equal(status(g250!).state, 'accepted')
+    assert.equal(status(g251!).state, 'rewrite')
+    assert.deepEqual(status(g251!).problems, [
+      'Skater A was already criticised harshly tonight — take another angle.',
+    ])
+    assert.equal(status(night8!).state, 'waiting')
+    assert.ok(status(night8!).prompt?.includes('Already criticised harshly tonight: Skater A.'))
+    put(g260!, answerCriticizing(g260!, ['Skater A']), true)
+    runCheck(dir, () => {})
+    assert.equal(status(g260!).state, 'accepted')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -344,7 +434,13 @@ async function acceptedNight() {
   assert.equal(plan.jobs[0]!.secondIsReply, true)
   assert.equal(plan.jobs[1]!.secondIsReply, false)
   const posts = (job: BackfillJob, text: string) => ({
-    posts: job.reporters.map((r) => ({ reporter: r, text, mentions: ['Skater A'], clubs: [] })),
+    posts: job.reporters.map((r, i) => ({
+      reporter: r,
+      text,
+      mentions: ['Skater A'],
+      clubs: [],
+      criticized: i === 0 && job.matchId === 250 ? ['Goalie G'] : [],
+    })),
   })
   const article = {
     headline: 'A long night in May',
@@ -353,6 +449,7 @@ async function acceptedNight() {
     summary: 'Two losses.',
     mentions: ['Skater A', 'Nobody'],
     clubs: [],
+    criticized: ['Skater A'],
   }
   return plan.jobs.map((job) => ({
     job,
@@ -402,6 +499,10 @@ void test('import: chronological, created_at from the games, replies linked, nev
   assert.equal(article.summary, 'Two losses.')
   assert.deepEqual(article.mentions, [{ name: 'Skater A', playerId: 1 }])
   assert.equal(article.matchId ?? null, null)
+  // rev 2, B4: the harsh list of every item is stored.
+  assert.deepEqual(rows[0]!.criticized, ['Goalie G'])
+  assert.deepEqual(rows[1]!.criticized, [])
+  assert.deepEqual(article.criticized, ['Skater A'])
 })
 
 void test('import: idempotent; an existing first post still links the reply', async () => {

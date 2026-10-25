@@ -14,6 +14,7 @@ import {
   markNewsItemSkipped,
   markNewsJob,
   monthNewsSpendUsd,
+  nightCriticized,
   recentReporterSummaries,
   recordNewsUsage,
   reporterActivity,
@@ -52,4 +53,5 @@ export const newsDbStore: NewsStore = {
     ),
   recentReporterSummaries,
   recordNewsUsage,
+  nightCriticized,
 }

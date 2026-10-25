@@ -89,6 +89,7 @@ export function buildSystemPrompt(reporters: Reporter[]): string {
     'FORMAT',
     '10. Plain text only. No @ mentions, no links, no hashtags, no emoji, no markdown. Do not write "@everyone" or "@here".',
     '11. Put every person you name in "mentions" and every opponent club you name in "clubs", spelled exactly as in the sheet. Reporter names may be listed in "mentions". Use empty lists when you name nobody.',
+    '11a. Put every person you criticise harshly in "criticized", spelled exactly as in people[].name; use an empty list when you are harsh about nobody. The desk allows at most one harsh piece about the same player per night: a person on the request\'s "Already criticised harshly tonight" list may be named, but not criticised harshly again; take another angle on them. Never criticise a player whose pressLevel is "easy" harshly, and never list one in "criticized".',
     "12. Write as the reporter you are told to write as. Keep the voice of the reporter. Do not repeat a phrase from that reporter's recent pieces.",
   ].join('\n\n')
 
@@ -99,12 +100,32 @@ export function buildSystemPrompt(reporters: Reporter[]): string {
   return `${rules}\n\nTHE REPORTERS\n\n${voices}`
 }
 
+const CRITICIZED_TONIGHT_PREFIX = 'Already criticised harshly tonight:'
+
+/** The pile-on line of a request (rev 2, B4): one line, so the backfill can swap it. */
+export function criticizedTonightLine(names: readonly string[]): string {
+  const who = names.length === 0 ? 'nobody' : names.join(', ')
+  return `${CRITICIZED_TONIGHT_PREFIX} ${who}. Do not criticise these people harshly again tonight; take another angle on them.`
+}
+
+/** The request with its pile-on line replaced by one for `names` (unchanged when it has none). */
+export function setCriticizedTonight(user: string, names: readonly string[]): string {
+  const line = new RegExp(`^${CRITICIZED_TONIGHT_PREFIX}.*$`, 'm')
+  return user.replace(line, () => criticizedTonightLine(names))
+}
+
+/** What a recap post must say (rev 2, B1; spec §12.1). */
+const RECAP_RULES =
+  'The recap of the game says the result and the score, who scored for us, and exactly one key number besides the score. Name a scorer only as in people[].name. A goal for us by someone not named on the sheet: call the scorer "a guest" only when the game\'s unnamedTeammates is 0; otherwise credit the team, never a person. A goal against us was scored by "an opponent"; never name an opponent player. You may use the goal timeline (the period and the clock of a goal).'
+
 export function buildGameUserPrompt(args: {
   facts: NewsFacts
   first: Reporter
   second: Reporter | null
   secondIsReply: boolean
   relationship: string | null
+  /** Names the night's earlier items criticised harshly. */
+  criticizedTonight: readonly string[]
 }): string {
   const { facts, first, second, secondIsReply, relationship } = args
   const lines: string[] = [
@@ -113,28 +134,35 @@ export function buildGameUserPrompt(args: {
     '',
     whenLine(facts),
     '',
-    'Task: write short posts about the game or games on the sheet. Each post is at most 280 characters, one to three sentences, with no line breaks.',
+    'Task: write short posts about the game on the sheet. Each post is at most 280 characters, one to three sentences, with no line breaks.',
   ]
   if (second === null) {
-    lines.push(`Write exactly one post, as ${first.name} (id "${first.id}") of ${first.outlet}.`)
+    lines.push(
+      `Write exactly one post: the recap of the game, as ${first.name} (id "${first.id}") of ${first.outlet}.`,
+    )
   } else {
     lines.push(
       `Write exactly two posts, in this order:`,
-      `1. As ${first.name} (id "${first.id}") of ${first.outlet}.`,
+      `1. The recap, as ${first.name} (id "${first.id}") of ${first.outlet}.`,
     )
     if (secondIsReply) {
       lines.push(
-        `2. As ${second.name} (id "${second.id}") of ${second.outlet}. This post is a reply to the first post, and the reader sees it right under it. Answer ${first.name} directly, in ${second.name}'s own voice.`,
+        `2. A reply, as ${second.name} (id "${second.id}") of ${second.outlet}. This post answers the recap, and the reader sees it right under it. Answer ${first.name} directly, in ${second.name}'s own voice.`,
       )
       if (relationship !== null) lines.push(`How they feel about each other: ${relationship}`)
     } else {
       lines.push(
-        `2. As ${second.name} (id "${second.id}") of ${second.outlet}. This post stands alone. Take a different angle than the first post.`,
+        `2. A reaction, as ${second.name} (id "${second.id}") of ${second.outlet}. This post stands alone and reacts to the game from a different angle.`,
       )
     }
+    lines.push(
+      'Do not repeat the score line or the list of scorers in post 2; give an opinion that follows from one number on the sheet.',
+    )
   }
   lines.push(
-    'Set "reporter" on each post to the id above. Remember: only numbers, names and clubs from the sheet, no invented quotes or events.',
+    RECAP_RULES,
+    criticizedTonightLine(args.criticizedTonight),
+    'Set "reporter" on each post to the id above. List in "criticized" the people the post criticises harshly (an empty list when none). Remember: only numbers, names and clubs from the sheet, no invented quotes or events.',
   )
   return lines.join('\n')
 }
@@ -144,6 +172,8 @@ export function buildArticleUserPrompt(args: {
   reporter: Reporter
   kind: 'night' | 'week'
   ownRecent: { headline: string; summary: string; night: string | null }[]
+  /** Names the night's earlier items criticised harshly. */
+  criticizedTonight: readonly string[]
 }): string {
   const { facts, reporter, kind, ownRecent } = args
   const what =
@@ -164,6 +194,9 @@ export function buildArticleUserPrompt(args: {
     '- paragraphs: the article body, 250 to 450 words in total, as separate paragraphs. No headings, no lists.',
     "- summary: one or two plain sentences saying what the article covers, for the reporter's own memory. Facts from the sheet only.",
     '- mentions and clubs: as in the rules.',
+    '- criticized: the people the article criticises harshly, spelled as in people[].name; an empty list when none.',
+    '',
+    criticizedTonightLine(args.criticizedTonight),
   ]
   if (ownRecent.length > 0) {
     lines.push(
@@ -186,7 +219,13 @@ export function buildRewritePrompt(user: string, problems: readonly string[]): s
   return `${user}\n\nYour previous attempt was rejected for these problems. Write it again and fix all of them:\n${problems.map((p) => `- ${p}`).join('\n')}`
 }
 
-export function buildReviewPrompt(args: { facts: NewsFacts; text: string }): string {
+export function buildReviewPrompt(args: {
+  facts: NewsFacts
+  text: string
+  /** The people the writer listed as criticised harshly. */
+  criticized: readonly string[]
+}): string {
+  const listed = args.criticized.length === 0 ? 'nobody' : args.criticized.join(', ')
   return [
     'You are the second check of a news desk. A fictional reporter wrote the text below from the fact sheet. A program already checked the digits and number words in the text, the names the reporter listed, and the club names the reporter listed. It did not read the text for other names or for stats written in other ways. Check what the program cannot check.',
     '',
@@ -198,6 +237,8 @@ export function buildReviewPrompt(args: { facts: NewsFacts; text: string }): str
     args.text,
     '"""',
     '',
+    `The writer listed these people as criticised harshly: ${listed}.`,
+    '',
     'Find these problems:',
     '1. An invented quote from a teammate or an opponent. (A fictional reporter quoting another reporter is fine.)',
     '2. An invented event: a shot off the post, a save, a pass, a line change, a mood or argument in the room, any play-by-play that the sheet does not support. Opinion that follows from the stats is fine. Facts from a game\'s "goals" timeline are allowed: the period and clock of a goal, who scored it for us, who assisted, and that an opponent scored. How a goal was scored is not on the sheet.',
@@ -207,6 +248,7 @@ export function buildReviewPrompt(args: { facts: NewsFacts; text: string }): str
     '6. A club that is not in games[].opponentName. Only those clubs (and the Boogeymen) are allowed.',
     '7. A reference to an off-ice event or place that the sheet does not support: a group chat, a practice, the locker room, the bench, travel.',
     '8. A claim about what a player wanted, felt or thought.',
+    '9. Harsh criticism of a player who is not on that list. Mild criticism is fine.',
     '',
     'Answer ok = true when you find none of them. Otherwise answer ok = false and list each problem in one short sentence in "problems", naming the words that cause it.',
   ].join('\n')

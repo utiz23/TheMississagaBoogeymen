@@ -135,6 +135,7 @@ void test('checkArticleFacts checks headline and dek for numbers but not length'
       summary: 'S',
       mentions: [],
       clubs: [],
+      criticized: [],
     },
     night,
     FORBIDDEN,
@@ -148,6 +149,7 @@ void test('checkArticleFacts checks headline and dek for numbers but not length'
       summary: 'S',
       mentions: [],
       clubs: [],
+      criticized: [],
     },
     night,
     FORBIDDEN,
@@ -218,6 +220,7 @@ void test('timeline: a clock not on the sheet fails as a game clock (B1)', () =>
       dek: 'x',
       paragraphs: [body],
       summary: 's',
+      criticized: [],
       mentions: [],
       clubs: [],
     },
@@ -233,4 +236,54 @@ void test('timeline: clock digits are not stats (B1)', () => {
   for (const n of [58, 18, 44]) assert.equal(a.has(n), false, String(n))
   assert.equal(checkFacts('They had 58 shots.', f, FORBIDDEN, none).ok, false)
   assert.equal(checkFacts('Forty-four hits.', f, FORBIDDEN, none).ok, false)
+})
+
+void test('criticized: only people on the sheet; never an "easy" player (rev 2, B4)', () => {
+  assert.deepEqual(
+    checkFacts('Fine.', facts, FORBIDDEN, { ...none, criticized: ['Skater A', 'Goalie G'] }),
+    { ok: true },
+  )
+  const stranger = checkFacts('Fine.', facts, FORBIDDEN, { ...none, criticized: ['Igor'] })
+  assert.deepEqual(problems(stranger), ['"Igor" in criticized is not a person on the fact sheet.'])
+  const hidden = checkFacts('Fine.', facts, FORBIDDEN, { ...none, criticized: ['Hidden Hank'] })
+  assert.deepEqual(problems(hidden), [FORBIDDEN_NAME_PROBLEM])
+  // Skater B is at press level "easy": criticism of him stays mild.
+  const easy = checkFacts('Fine.', facts, FORBIDDEN, { ...none, criticized: ['Skater B'] })
+  assert.deepEqual(problems(easy), [
+    'Skater B is at press level "easy": criticism of Skater B must stay mild.',
+  ])
+})
+
+void test('pile-on: a person already criticised harshly tonight fails (rev 2, B4)', () => {
+  const r = checkFacts('Fine.', facts, FORBIDDEN, { ...none, criticized: ['Skater A'] }, [
+    'Goalie G',
+    'skater a',
+  ])
+  assert.deepEqual(problems(r), [
+    'Skater A was already criticised harshly tonight — take another angle.',
+  ])
+  assert.deepEqual(
+    checkFacts('Fine.', facts, FORBIDDEN, { ...none, criticized: ['Skater A'] }, ['Goalie G']),
+    { ok: true },
+  )
+  // Not criticising anyone never fails, whatever happened earlier.
+  assert.deepEqual(checkFacts('Fine.', facts, FORBIDDEN, none, ['Skater A']), { ok: true })
+  const para = Array.from({ length: 300 }, () => 'word').join(' ')
+  const a = checkArticleFacts(
+    {
+      headline: 'H',
+      dek: 'D',
+      paragraphs: [para],
+      summary: 'S',
+      mentions: [],
+      clubs: [],
+      criticized: ['Goalie G'],
+    },
+    night,
+    FORBIDDEN,
+    ['Goalie G'],
+  )
+  assert.deepEqual(problems(a), [
+    'Goalie G was already criticised harshly tonight — take another angle.',
+  ])
 })

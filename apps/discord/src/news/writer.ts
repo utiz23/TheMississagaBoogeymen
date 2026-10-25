@@ -127,6 +127,8 @@ export async function writeChecked<T>(args: {
   parse: (v: unknown) => T
   check: (out: T) => { ok: true } | { ok: false; problems: string[] }
   textForReview: (out: T) => string
+  /** The people the output lists as criticised harshly (shown to the review). */
+  criticizedForReview?: (out: T) => string[]
   facts: NewsFacts
   record: (purpose: 'write' | 'review', model: string, usage: Usage) => Promise<void>
 }): Promise<{ ok: true; out: T } | { ok: false; reason: string }> {
@@ -166,7 +168,11 @@ export async function writeChecked<T>(args: {
     const reviewed = await args.call({
       purpose: 'review',
       system: REVIEW_SYSTEM_PROMPT,
-      user: buildReviewPrompt({ facts: args.facts, text: args.textForReview(out) }),
+      user: buildReviewPrompt({
+        facts: args.facts,
+        text: args.textForReview(out),
+        criticized: args.criticizedForReview?.(out) ?? [],
+      }),
       schema: REVIEW_SCHEMA,
       effort: 'low',
     })

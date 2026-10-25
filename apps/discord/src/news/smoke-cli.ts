@@ -42,11 +42,18 @@ try {
   const result = await writeChecked({
     call,
     system: buildSystemPrompt(Object.values(REPORTERS)),
-    user: buildArticleUserPrompt({ facts, reporter, kind: 'night', ownRecent: [] }),
+    user: buildArticleUserPrompt({
+      facts,
+      reporter,
+      kind: 'night',
+      ownRecent: [],
+      criticizedTonight: [],
+    }),
     schema: ARTICLE_SCHEMA,
     parse: parseArticle,
     check: (a) => checkArticleFacts(a, facts, forbiddenNames),
     textForReview: (a) => [a.headline, a.dek, ...a.paragraphs].join('\n\n'),
+    criticizedForReview: (a) => a.criticized,
     facts,
     record: (purpose, usedModel, usage) => {
       const c = costUsd(usedModel, usage)

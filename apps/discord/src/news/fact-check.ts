@@ -145,12 +145,57 @@ export const FORBIDDEN_NAME_PROBLEM = 'The text names a person who is not on the
 
 type LengthRule = 'post' | 'article' | 'none'
 
+/** What the writer listed with the text. `criticized` is checked only when given. */
+export interface ListedOutput {
+  mentions: string[]
+  clubs: string[]
+  criticized?: string[]
+}
+
+const sameName = (a: string, b: string) => collapse(a).toLowerCase() === collapse(b).toLowerCase()
+
+/**
+ * The people the writer criticises harshly (rev 2, B4): each must be on the
+ * sheet, never at press level "easy", and never one already criticised
+ * harshly tonight (the pile-on limit: one harsh piece per player per night).
+ */
+function criticizedProblems(
+  criticized: readonly string[],
+  facts: NewsFacts,
+  forbiddenNames: string[],
+  tonight: readonly string[],
+): string[] {
+  const problems: string[] = []
+  for (const c of criticized) {
+    const person = facts.people.find((p) => sameName(p.name, c))
+    if (person === undefined) {
+      const isForbidden = forbiddenNames.some((name) => containsName(collapse(c), name))
+      problems.push(
+        isForbidden
+          ? FORBIDDEN_NAME_PROBLEM
+          : `"${c}" in criticized is not a person on the fact sheet.`,
+      )
+      continue
+    }
+    if (person.pressLevel === 'easy') {
+      problems.push(
+        `${person.name} is at press level "easy": criticism of ${person.name} must stay mild.`,
+      )
+    }
+    if (tonight.some((t) => sameName(t, person.name))) {
+      problems.push(`${person.name} was already criticised harshly tonight — take another angle.`)
+    }
+  }
+  return problems
+}
+
 function check(
   text: string,
   facts: NewsFacts,
   forbiddenNames: string[],
-  out: { mentions: string[]; clubs: string[] },
+  out: ListedOutput,
   length: LengthRule,
+  tonight: readonly string[] = [],
 ): string[] {
   const clocks = clockProblems(text, facts)
   const problems = [...clocks.problems, ...numberProblems(clocks.rest, allowedNumbers(facts))]
@@ -174,6 +219,8 @@ function check(
       isForbidden ? FORBIDDEN_NAME_PROBLEM : `"${m}" is not a person on the fact sheet.`,
     )
   }
+
+  problems.push(...criticizedProblems(out.criticized ?? [], facts, forbiddenNames, tonight))
 
   const clubs = new Set(facts.games.map((g) => collapse(g.opponentName).toLowerCase()))
   for (const c of out.clubs) {
@@ -202,15 +249,17 @@ function check(
 
 /**
  * Checks one piece of text against the fact sheet: numbers (digits and words),
- * names, club names, and length. A `game` sheet means a post (at most 280
- * characters); `night` and `week` sheets mean an article body (250 to 450
- * words, paragraphs joined by blank lines).
+ * names, club names, the people it criticises harshly, and length. A `game`
+ * sheet means a post (at most 280 characters); `night` and `week` sheets mean
+ * an article body (250 to 450 words, paragraphs joined by blank lines).
+ * `criticizedTonight`: the names the night's earlier items criticised harshly.
  */
 export function checkFacts(
   text: string,
   facts: NewsFacts,
   forbiddenNames: string[],
-  out: { mentions: string[]; clubs: string[] },
+  out: ListedOutput,
+  criticizedTonight: readonly string[] = [],
 ): CheckResult {
   const problems = check(
     text,
@@ -218,6 +267,7 @@ export function checkFacts(
     forbiddenNames,
     out,
     facts.kind === 'game' ? 'post' : 'article',
+    criticizedTonight,
   )
   return problems.length === 0 ? { ok: true } : { ok: false, problems }
 }
@@ -234,13 +284,22 @@ export function checkArticleFacts(
     summary: string
     mentions: string[]
     clubs: string[]
+    criticized: string[]
   },
   facts: NewsFacts,
   forbiddenNames: string[],
+  criticizedTonight: readonly string[] = [],
 ): CheckResult {
-  const out = { mentions: article.mentions, clubs: article.clubs }
+  const out = { mentions: article.mentions, clubs: article.clubs, criticized: article.criticized }
   const problems = [
-    ...check(article.paragraphs.join('\n\n'), facts, forbiddenNames, out, 'article'),
+    ...check(
+      article.paragraphs.join('\n\n'),
+      facts,
+      forbiddenNames,
+      out,
+      'article',
+      criticizedTonight,
+    ),
     ...check(
       [article.headline, article.dek, article.summary].join('\n'),
       facts,
@@ -249,6 +308,28 @@ export function checkArticleFacts(
       'none',
     ),
   ]
+  const unique = [...new Set(problems)]
+  return unique.length === 0 ? { ok: true } : { ok: false, problems: unique }
+}
+
+/**
+ * The fact check of a game's posts (each post as `checkFacts`). The pile-on
+ * limit counts the night's earlier items and the earlier post of the same game.
+ */
+export function checkGamePosts(
+  posts: readonly { text: string; mentions: string[]; clubs: string[]; criticized: string[] }[],
+  facts: NewsFacts,
+  forbiddenNames: string[],
+  criticizedTonight: readonly string[] = [],
+): CheckResult {
+  const problems: string[] = []
+  posts.forEach((p, i) => {
+    const r = checkFacts(p.text, facts, forbiddenNames, p, [
+      ...criticizedTonight,
+      ...posts.slice(0, i).flatMap((q) => q.criticized),
+    ])
+    if (!r.ok) problems.push(...r.problems)
+  })
   const unique = [...new Set(problems)]
   return unique.length === 0 ? { ok: true } : { ok: false, problems: unique }
 }

@@ -11,7 +11,13 @@ import {
   parseReview,
 } from './outputs.ts'
 
-const post = (reporter: string) => ({ reporter, text: 'Hello.', mentions: [], clubs: [] })
+const post = (reporter: string) => ({
+  reporter,
+  text: 'Hello.',
+  mentions: [],
+  clubs: [],
+  criticized: [],
+})
 
 void test('parseGamePosts accepts the assigned reporters in order', () => {
   const r = parseGamePosts({ posts: [post('mercer'), post('barlow')] }, ['mercer', 'barlow'])
@@ -48,6 +54,7 @@ const article = {
   summary: 'S',
   mentions: ['Skater A'],
   clubs: ['Shake N Bake'],
+  criticized: [],
 }
 
 void test('parseArticle', () => {
@@ -107,4 +114,25 @@ void test('every schema object has additionalProperties false and required for a
   everyObjectIsClosed(ARTICLE_SCHEMA)
   everyObjectIsClosed(REVIEW_SCHEMA)
   assert.equal((GAME_POSTS_SCHEMA as { type: string }).type, 'object')
+})
+
+void test('every post and article lists the people it criticises harshly (rev 2, B4)', () => {
+  const items = GAME_POSTS_SCHEMA.properties.posts.items
+  assert.deepEqual(items.properties.criticized, { type: 'array', items: { type: 'string' } })
+  assert.ok((items.required as readonly string[]).includes('criticized'))
+  assert.deepEqual(ARTICLE_SCHEMA.properties.criticized, {
+    type: 'array',
+    items: { type: 'string' },
+  })
+  assert.ok((ARTICLE_SCHEMA.required as readonly string[]).includes('criticized'))
+  const p = parseGamePosts({ posts: [{ ...post('barlow'), criticized: ['Skater A'] }] }, ['barlow'])
+  assert.deepEqual(p.posts[0]!.criticized, ['Skater A'])
+  const { criticized: _c, ...noList } = post('barlow')
+  assert.throws(() => parseGamePosts({ posts: [noList] }, ['barlow']), /criticized/)
+  assert.throws(() =>
+    parseGamePosts({ posts: [{ ...post('barlow'), criticized: [3] }] }, ['barlow']),
+  )
+  assert.deepEqual(parseArticle({ ...article, criticized: ['Skater A'] }).criticized, ['Skater A'])
+  const { criticized: _a, ...noArticleList } = article
+  assert.throws(() => parseArticle(noArticleList), /criticized/)
 })

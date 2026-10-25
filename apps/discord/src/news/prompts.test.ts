@@ -7,6 +7,8 @@ import {
   buildReviewPrompt,
   buildSystemPrompt,
   capFactsForPrompt,
+  criticizedTonightLine,
+  setCriticizedTonight,
   stableStringify,
   whenLine,
 } from './prompts.ts'
@@ -116,6 +118,7 @@ void test('game prompt: sheet JSON, both reporters, reply note, no forbidden dat
     second: REPORTERS.barlow,
     secondIsReply: true,
     relationship: 'Wade Barlow thinks Dex Mercer is a fraud with good timing.',
+    criticizedTonight: [],
   })
   assert.ok(p.includes(stableStringify(capFactsForPrompt(f))))
   assert.ok(p.includes('Dex Mercer'))
@@ -133,6 +136,7 @@ void test('game prompt with one reporter says so', () => {
     second: null,
     secondIsReply: false,
     relationship: null,
+    criticizedTonight: [],
   })
   assert.ok(p.includes('Wade Barlow'))
   assert.ok(/exactly one post/i.test(p))
@@ -144,6 +148,7 @@ void test('article prompt: reporter, kind, word range, own recent pieces', () =>
     reporter: REPORTERS.quill,
     kind: 'night',
     ownRecent: [{ headline: 'Old Headline', summary: 'Old summary.', night: '2026-10-05' }],
+    criticizedTonight: [],
   })
   assert.ok(p.includes('Mara Quill'))
   assert.ok(p.includes('250'))
@@ -155,13 +160,18 @@ void test('article prompt: reporter, kind, word range, own recent pieces', () =>
     reporter: REPORTERS.quill,
     kind: 'week',
     ownRecent: [],
+    criticizedTonight: [],
   })
   assert.ok(/week/i.test(w))
   assert.ok(!w.includes('Old Headline'))
 })
 
 void test('review prompt: the text, the sheet, the three checks', () => {
-  const p = buildReviewPrompt({ facts: oct12Facts(), text: 'Some text to review.' })
+  const p = buildReviewPrompt({
+    facts: oct12Facts(),
+    text: 'Some text to review.',
+    criticized: [],
+  })
   assert.ok(p.includes('Some text to review.'))
   assert.ok(p.includes(stableStringify(capFactsForPrompt(oct12Facts()))))
   for (const needle of ['quote', 'event', 'personal'])
@@ -250,6 +260,7 @@ void test('game and article prompts carry the night label, never only the ISO ke
     second: null,
     secondIsReply: false,
     relationship: null,
+    criticizedTonight: [],
   })
   assert.ok(game.includes('The night: Monday, October 12.'))
   const article = buildArticleUserPrompt({
@@ -257,6 +268,7 @@ void test('game and article prompts carry the night label, never only the ISO ke
     reporter: REPORTERS.quill,
     kind: 'night',
     ownRecent: [],
+    criticizedTonight: [],
   })
   assert.ok(article.includes('The night: Monday, October 12.'))
 })
@@ -267,13 +279,14 @@ void test('article prompt: headline at most 120 characters, dek at most 160 (M7)
     reporter: REPORTERS.quill,
     kind: 'night',
     ownRecent: [],
+    criticizedTonight: [],
   })
   assert.ok(p.includes('headline: a short headline, at most 120 characters.'))
   assert.ok(p.includes('dek: one line under the headline, at most 160 characters.'))
 })
 
 void test('review prompt: clubs only from games[].opponentName; off-ice places; feelings (M5, c2)', () => {
-  const p = buildReviewPrompt({ facts: oct12Facts(), text: 'x' })
+  const p = buildReviewPrompt({ facts: oct12Facts(), text: 'x', criticized: [] })
   assert.ok(!p.includes('Opponent club names are fine'))
   assert.ok(p.includes('A club that is not in games[].opponentName'))
   for (const needle of ['group chat', 'practice', 'locker room', 'the bench', 'travel']) {
@@ -292,7 +305,7 @@ void test('system prompt: the goal timeline may be used, with no play details (B
 })
 
 void test('review prompt: every reporter of the cast may be named (rev 2 fix)', () => {
-  const p = buildReviewPrompt({ facts: oct12Facts(), text: 'x' })
+  const p = buildReviewPrompt({ facts: oct12Facts(), text: 'x', criticized: [] })
   for (const id of REPORTER_IDS) assert.ok(p.includes(REPORTERS[id].name), id)
   assert.ok(p.includes('Gord Pettibone'))
   assert.ok(p.includes('Lyle Bergstrom'))
@@ -358,10 +371,99 @@ void test('capFactsForPrompt: 100s, then 50s, then the rest; points first; then 
 })
 
 void test('review prompt: goal timeline facts are allowed (B1)', () => {
-  const p = buildReviewPrompt({ facts: oct12Facts(), text: 'x' })
+  const p = buildReviewPrompt({ facts: oct12Facts(), text: 'x', criticized: [] })
   assert.ok(
     p.includes(
       'Facts from a game\'s "goals" timeline are allowed: the period and clock of a goal, who scored it for us, who assisted, and that an opponent scored. How a goal was scored is not on the sheet.',
     ),
   )
+})
+
+void test('game prompt: the first post is the recap — result, score, scorers, one key number (rev 2, B1)', () => {
+  const p = buildGameUserPrompt({
+    facts: oct12Facts(),
+    first: REPORTERS.barlow,
+    second: null,
+    secondIsReply: false,
+    relationship: null,
+    criticizedTonight: [],
+  })
+  assert.ok(/exactly one post/i.test(p))
+  assert.ok(p.includes('the recap of the game'))
+  assert.ok(p.includes('the result and the score'))
+  assert.ok(p.includes('who scored for us'))
+  assert.ok(p.includes('"a guest"'))
+  assert.ok(p.includes('"an opponent"'))
+  assert.ok(p.includes('exactly one key number'))
+  assert.ok(p.includes('goal timeline'))
+})
+
+void test('game prompt: the second post reacts or replies and does not repeat the recap (rev 2, B1)', () => {
+  const standalone = buildGameUserPrompt({
+    facts: oct12Facts(),
+    first: REPORTERS.vale,
+    second: REPORTERS.barlow,
+    secondIsReply: false,
+    relationship: null,
+    criticizedTonight: [],
+  })
+  assert.ok(standalone.includes('1. The recap, as Rico Vale'))
+  assert.ok(standalone.includes('2. A reaction, as Wade Barlow'))
+  assert.ok(standalone.includes('Do not repeat the score line or the list of scorers'))
+  const reply = buildGameUserPrompt({
+    facts: oct12Facts(),
+    first: REPORTERS.mercer,
+    second: REPORTERS.barlow,
+    secondIsReply: true,
+    relationship: 'x',
+    criticizedTonight: [],
+  })
+  assert.ok(reply.includes('2. A reply, as Wade Barlow'))
+  assert.ok(reply.includes('Answer Dex Mercer directly'))
+})
+
+void test('prompts carry the pile-on line; the review checks unlisted harsh criticism (rev 2, B4)', () => {
+  assert.equal(
+    criticizedTonightLine([]),
+    'Already criticised harshly tonight: nobody. Do not criticise these people harshly again tonight; take another angle on them.',
+  )
+  assert.equal(
+    criticizedTonightLine(['Skater A', 'Goalie G']),
+    'Already criticised harshly tonight: Skater A, Goalie G. Do not criticise these people harshly again tonight; take another angle on them.',
+  )
+  const game = buildGameUserPrompt({
+    facts: oct12Facts(),
+    first: REPORTERS.barlow,
+    second: null,
+    secondIsReply: false,
+    relationship: null,
+    criticizedTonight: ['Skater A'],
+  })
+  assert.ok(game.includes(criticizedTonightLine(['Skater A'])))
+  const article = buildArticleUserPrompt({
+    facts: oct12Facts('night'),
+    reporter: REPORTERS.quill,
+    kind: 'night',
+    ownRecent: [],
+    criticizedTonight: [],
+  })
+  assert.ok(article.includes(criticizedTonightLine([])))
+  assert.ok(article.includes('- criticized: '))
+  // The backfill swaps the line once the earlier items of the night are known.
+  assert.equal(
+    setCriticizedTonight(game, ['Goalie G']).split(criticizedTonightLine(['Goalie G'])).length,
+    2,
+  )
+  assert.ok(!setCriticizedTonight(game, ['Goalie G']).includes(criticizedTonightLine(['Skater A'])))
+  assert.equal(setCriticizedTonight('no line here', ['Goalie G']), 'no line here')
+
+  const sys = buildSystemPrompt(all)
+  assert.ok(sys.includes('"criticized"'))
+  assert.ok(sys.includes('at most one harsh piece about the same player per night'))
+
+  const r = buildReviewPrompt({ facts: oct12Facts(), text: 'x', criticized: ['Skater A'] })
+  assert.ok(r.includes('The writer listed these people as criticised harshly: Skater A.'))
+  assert.ok(r.includes('Harsh criticism of a player who is not on that list'))
+  const none = buildReviewPrompt({ facts: oct12Facts(), text: 'x', criticized: [] })
+  assert.ok(none.includes('The writer listed these people as criticised harshly: nobody.'))
 })

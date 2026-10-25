@@ -23,7 +23,7 @@ import {
   type ActivityKind,
 } from './assign.ts'
 import { costUsd } from './cost.ts'
-import { checkArticleFacts, checkFacts, type CheckResult } from './fact-check.ts'
+import { checkArticleFacts, checkGamePosts, type CheckResult } from './fact-check.ts'
 import {
   articleSlug,
   buildArticlePayload,
@@ -94,6 +94,8 @@ export interface NewsStore {
     limit: number,
   ): Promise<{ headline: string; summary: string; night: string | null }[]>
   recordNewsUsage(row: NewNewsUsage): Promise<void>
+  /** Names the night's items criticised harshly so far (not deleted; test items only when asked). */
+  nightCriticized(night: string, includeTest: boolean): Promise<string[]>
 }
 
 export interface NewsDeps {
@@ -156,11 +158,6 @@ const message = (err: unknown) => (err instanceof Error ? err.message : String(e
 const rateLimited = (err: unknown) => /HTTP 429\b/.test(message(err))
 
 const SYSTEM_PROMPT = buildSystemPrompt(Object.values(REPORTERS))
-
-function mergeChecks(results: CheckResult[]): CheckResult {
-  const problems = [...new Set(results.flatMap((r) => (r.ok ? [] : r.problems)))]
-  return problems.length === 0 ? { ok: true } : { ok: false, problems }
-}
 
 /** The people an item names, as stored: sheet names only, one entry per player. */
 function mentionsOf(names: string[], facts: NewsFacts): NewsMention[] {
@@ -346,6 +343,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       parse: (v: unknown) => T
       check: (out: T) => CheckResult
       textForReview: (out: T) => string
+      criticizedForReview: (out: T) => string[]
       facts: NewsFacts
     },
   ): Promise<{ out: T } | 'failed' | 'end'> {
@@ -495,8 +493,10 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     const now = deps.now()
     // The job is claimed: any error before the write must mark it failed, never leave it pending.
     let a: ReturnType<typeof assignGamePosts>
+    let tonight: string[]
     try {
       a = assignGamePosts(classifyGame(game), now, night, await loadActivity(now))
+      tonight = await store.nightCriticized(night, opts.dryRun)
     } catch (err: unknown) {
       await failJob(jobId, tag, `could not prepare: ${message(err)}`)
       return 'go'
@@ -513,13 +513,14 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         second: a.second === null ? null : REPORTERS[a.second],
         secondIsReply: a.secondIsReply,
         relationship,
+        criticizedTonight: tonight,
       }),
       schema: GAME_POSTS_SCHEMA,
       parse: (v) => parseGamePosts(v, order),
-      check: (out) =>
-        mergeChecks(out.posts.map((p) => checkFacts(p.text, facts, forbiddenNames, p))),
+      check: (out) => checkGamePosts(out.posts, facts, forbiddenNames, tonight),
       textForReview: (out) =>
         out.posts.map((p) => `${REPORTERS[p.reporter].name}: ${p.text}`).join('\n\n'),
+      criticizedForReview: (out) => [...new Set(out.posts.flatMap((p) => p.criticized))],
       facts,
     })
     if (written === 'end') return 'end'
@@ -539,6 +540,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           replyTo: isReply ? stored[0]!.id : null,
           body: p.text,
           mentions: mentionsOf(p.mentions, facts),
+          criticized: p.criticized,
           facts,
           isTest: opts.dryRun,
         })
@@ -649,6 +651,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     // The job is claimed: any error before the write must mark it failed, never leave it pending.
     let reporterId: ReporterId
     let ownRecent: Awaited<ReturnType<NewsStore['recentReporterSummaries']>>
+    let tonight: string[] = []
     try {
       const activity = await loadActivity(now)
       reporterId =
@@ -656,17 +659,25 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           ? assignNightRecap(facts, now, activity)
           : assignFeature(null, now, activity).reporter
       ownRecent = await store.recentReporterSummaries(reporterId, OWN_RECENT)
+      if (kind === 'night') tonight = await store.nightCriticized(key, opts.dryRun)
     } catch (err: unknown) {
       await failJob(jobId, tag, `could not prepare: ${message(err)}`)
       return 'go'
     }
     const reporter = REPORTERS[reporterId]
     const written = await write(jobId, tag, {
-      user: buildArticleUserPrompt({ facts, reporter, kind, ownRecent }),
+      user: buildArticleUserPrompt({
+        facts,
+        reporter,
+        kind,
+        ownRecent,
+        criticizedTonight: tonight,
+      }),
       schema: ARTICLE_SCHEMA,
       parse: parseArticle,
-      check: (a) => checkArticleFacts(a, facts, forbiddenNames),
+      check: (a) => checkArticleFacts(a, facts, forbiddenNames, tonight),
       textForReview: (a) => [a.headline, a.dek, ...a.paragraphs].join('\n\n'),
+      criticizedForReview: (a) => a.criticized,
       facts,
     })
     if (written === 'end') return 'end'
@@ -689,6 +700,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         body: a.paragraphs.join('\n\n'),
         summary: a.summary,
         mentions: mentionsOf(a.mentions, facts),
+        criticized: a.criticized,
         facts,
         isTest: opts.dryRun,
       })

@@ -97,6 +97,18 @@ void test('write fails the check, rewrite passes, review ok: 3 calls in order, p
   assert.ok(reqs[2]!.user.includes('good one'))
 })
 
+void test('the review sees who the writer listed as criticised harshly (rev 2, B4)', async () => {
+  const { call, reqs } = fakeCall([{ json: { text: 'good one' } }, REVIEW_OK])
+  const h = harness()
+  await writeChecked({ ...args(call, h), criticizedForReview: () => ['Skater A'] })
+  assert.ok(
+    reqs[1]!.user.includes('The writer listed these people as criticised harshly: Skater A.'),
+  )
+  const plain = fakeCall([{ json: { text: 'good one' } }, REVIEW_OK])
+  await writeChecked(args(plain.call, harness()))
+  assert.ok(plain.reqs[1]!.user.includes('criticised harshly: nobody.'))
+})
+
 void test('MAX_WRITES is 3: the first write and two rewrites', () => {
   assert.equal(MAX_WRITES, 3)
 })
