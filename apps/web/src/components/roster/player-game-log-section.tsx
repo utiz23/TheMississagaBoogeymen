@@ -24,7 +24,8 @@ interface PlayerGameLogRow {
 }
 
 interface PlayerGameLogSectionProps {
-  playerId: number
+  /** This player page's path (`/roster/<slug>`); the filters link back to it. */
+  pagePath: string
   gameMode: GameMode | null
   rows: PlayerGameLogRow[]
   total: number
@@ -34,7 +35,7 @@ interface PlayerGameLogSectionProps {
 }
 
 export function PlayerGameLogSection({
-  playerId,
+  pagePath,
   gameMode,
   rows,
   total,
@@ -54,7 +55,7 @@ export function PlayerGameLogSection({
           subtitle={`Local tracked appearances${gameMode !== null ? ` · filtered to ${gameMode}` : ''}`}
         />
         <div className="flex items-center gap-4">
-          <GameModeFilter playerId={playerId} activeMode={gameMode} />
+          <GameModeFilter pagePath={pagePath} activeMode={gameMode} />
           {total > 0 && (
             <span className="shrink-0 font-condensed text-[11px] font-semibold uppercase tracking-wider tabular-nums text-zinc-600">
               {expanded ? Math.min(rows.length, total) : Math.min(5, rows.length)} / {total}
@@ -70,7 +71,7 @@ export function PlayerGameLogSection({
           </p>
           <Link
             prefetch
-            href={gameLogPageHref(playerId, gameMode, 1)}
+            href={gameLogPageHref(pagePath, gameMode, 1)}
             className="font-condensed text-xs font-semibold uppercase tracking-wider text-accent hover:underline"
           >
             Back to first page
@@ -100,7 +101,7 @@ export function PlayerGameLogSection({
           )}
           {expanded && totalPages > 1 ? (
             <GameLogPaginationNav
-              playerId={playerId}
+              pagePath={pagePath}
               gameMode={gameMode}
               logPage={logPage}
               totalPages={totalPages}
@@ -113,10 +114,10 @@ export function PlayerGameLogSection({
 }
 
 function GameModeFilter({
-  playerId,
+  pagePath,
   activeMode,
 }: {
-  playerId: number
+  pagePath: string
   activeMode: GameMode | null
 }) {
   const modes: { mode: GameMode | null; label: string }[] = [
@@ -133,7 +134,7 @@ function GameModeFilter({
           <Link
             prefetch
             key={label}
-            href={gameLogPageHref(playerId, mode, 1)}
+            href={gameLogPageHref(pagePath, mode, 1)}
             className={[
               'rounded border px-3 py-1 font-condensed text-xs font-semibold uppercase tracking-wider transition-colors',
               isActive
@@ -149,21 +150,21 @@ function GameModeFilter({
   )
 }
 
-function gameLogPageHref(playerId: number, gameMode: GameMode | null, logPage: number): string {
+function gameLogPageHref(pagePath: string, gameMode: GameMode | null, logPage: number): string {
   const qs = new URLSearchParams()
   if (gameMode !== null) qs.set('mode', gameMode)
   if (logPage > 1) qs.set('logPage', logPage.toString())
   const s = qs.toString()
-  return `/roster/${playerId.toString()}${s ? `?${s}` : ''}`
+  return `${pagePath}${s ? `?${s}` : ''}`
 }
 
 function GameLogPaginationNav({
-  playerId,
+  pagePath,
   gameMode,
   logPage,
   totalPages,
 }: {
-  playerId: number
+  pagePath: string
   gameMode: GameMode | null
   logPage: number
   totalPages: number
@@ -174,7 +175,7 @@ function GameLogPaginationNav({
     <div className="flex items-center justify-between gap-3">
       <Link
         prefetch
-        href={gameLogPageHref(playerId, gameMode, Math.max(1, logPage - 1))}
+        href={gameLogPageHref(pagePath, gameMode, Math.max(1, logPage - 1))}
         className={`font-condensed text-xs font-semibold uppercase tracking-wider ${logPage > 1 ? 'text-zinc-300 hover:text-accent' : 'pointer-events-none text-zinc-700'}`}
       >
         ← Older
@@ -184,7 +185,7 @@ function GameLogPaginationNav({
       </span>
       <Link
         prefetch
-        href={gameLogPageHref(playerId, gameMode, Math.min(totalPages, logPage + 1))}
+        href={gameLogPageHref(pagePath, gameMode, Math.min(totalPages, logPage + 1))}
         className={`font-condensed text-xs font-semibold uppercase tracking-wider ${logPage < totalPages ? 'text-zinc-300 hover:text-accent' : 'pointer-events-none text-zinc-700'}`}
       >
         Newer →

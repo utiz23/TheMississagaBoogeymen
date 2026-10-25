@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { playerPath } from '@eanhl/db/lib/player-slug'
 import {
   AUTH_BUTTON_PRIMARY,
   AUTH_BUTTON_SECONDARY,
@@ -38,7 +39,7 @@ export default async function AccountPage({
         {viewer.playerId !== null && (
           <Link
             prefetch
-            href={`/roster/${String(viewer.playerId)}`}
+            href={playerPath({ id: viewer.playerId, gamertag: viewer.gamertag ?? '' })}
             className={AUTH_BUTTON_PRIMARY}
           >
             Your player card

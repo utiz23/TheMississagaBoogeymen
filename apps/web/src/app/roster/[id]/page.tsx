@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  isClubMember,
   getPlayerProfileOverview,
   getPlayerCareerSeasons,
   getPlayerGamertagHistory,
@@ -20,6 +19,9 @@ import {
   getPlayerPositionSeasons,
   getClubSeasonLines,
 } from '@eanhl/db/queries'
+import { MemberLinks } from '@/components/ui/member-links'
+import { getMemberGamertags } from '@/lib/member-gamertags'
+import { resolvePlayerRoute } from '@/lib/player-route'
 import type { GameMode } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import { PlayerGameLogSection } from '@/components/roster/player-game-log-section'
@@ -54,8 +56,24 @@ export const revalidate = 3600
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
 interface Props {
+  /**
+   * The URL segment: the gamertag slug (`/roster/stick-menace`). An id or an
+   * earlier gamertag redirects there (lib/player-route.ts).
+   */
   params: Promise<{ id: string }>
   searchParams: SearchParams
+}
+
+/** The current query string, kept across a redirect to the canonical URL. */
+function queryString(sp: Record<string, string | string[] | undefined>): string {
+  const qs = new URLSearchParams()
+  for (const [key, value] of Object.entries(sp)) {
+    for (const v of Array.isArray(value) ? value : value === undefined ? [] : [value]) {
+      qs.append(key, v)
+    }
+  }
+  const s = qs.toString()
+  return s ? `?${s}` : ''
 }
 
 const LOG_PAGE_SIZE = 20
@@ -78,12 +96,13 @@ function parseRole(raw: string | string[] | undefined): 'skater' | 'goalie' | nu
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id: idStr } = await params
-  const id = parseInt(idStr, 10)
-  if (isNaN(id)) return { title: 'Player Not Found — Club Stats' }
+  const { id: segment } = await params
 
   try {
-    const overview = (await isClubMember(id)) ? await getPlayerProfileOverview(id) : null
+    const route = resolvePlayerRoute(segment, await getMemberGamertags())
+    if (route.kind === 'redirect') return { title: 'Player — Club Stats' }
+    if (route.kind === 'missing') return { title: 'Player Not Found — Club Stats' }
+    const overview = await getPlayerProfileOverview(route.playerId)
     if (!overview) return { title: 'Player Not Found — Club Stats' }
     return { title: `${overview.player.gamertag} — Club Stats` }
   } catch {
@@ -92,24 +111,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function PlayerPage({ params, searchParams }: Props) {
-  const { id: idStr } = await params
+  const { id: segment } = await params
   const sp = await searchParams
   const gameMode = parseGameMode(sp.mode)
   const logPage = parseLogPage(sp.logPage)
   const logOffset = (logPage - 1) * LOG_PAGE_SIZE
   const urlRole = parseRole(sp.role)
-  const id = parseInt(idStr, 10)
 
-  if (isNaN(id)) notFound()
-
-  // Only team members, present and past, have a player page (operator, 2026-10-09).
-  let member = false
+  // Only team members, present and past, have a player page (operator,
+  // 2026-10-09), at `/roster/<gamertag slug>` (2026-10-24).
+  let route: ReturnType<typeof resolvePlayerRoute>
   try {
-    member = await isClubMember(id)
+    route = resolvePlayerRoute(segment, await getMemberGamertags())
   } catch {
     return <ErrorState message="Unable to load player data right now." />
   }
-  if (!member) notFound()
+  if (route.kind === 'missing') notFound()
+  if (route.kind === 'redirect') redirect(`${route.path}${queryString(sp)}`)
+  const id = route.playerId
+  const pagePath = `/roster/${segment}`
 
   let overview: Awaited<ReturnType<typeof getPlayerProfileOverview>> = null
   let careerSeasons: Awaited<ReturnType<typeof getPlayerCareerSeasons>> = []
@@ -300,170 +320,172 @@ export default async function PlayerPage({ params, searchParams }: Props) {
       : null
 
   return (
-    <div className="relative space-y-8">
-      <PlayerRail sheets={railSheets} gamertag={overview.player.gamertag} fileNo={fileNo} />
+    <MemberLinks>
+      <div className="relative space-y-8">
+        <PlayerRail sheets={railSheets} gamertag={overview.player.gamertag} fileNo={fileNo} />
 
-      <Link
-        prefetch
-        href="/roster"
-        className="inline-flex items-center gap-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-300"
-      >
-        <span aria-hidden>←</span> Roster
-      </Link>
+        <Link
+          prefetch
+          href="/roster"
+          className="inline-flex items-center gap-1.5 font-condensed text-xs font-semibold uppercase tracking-wider text-zinc-500 transition-colors hover:text-zinc-300"
+        >
+          <span aria-hidden>←</span> Roster
+        </Link>
 
-      <div id="sheet-hero" className="scroll-mt-24">
-        <ProfileHero
-          overview={overview}
-          career={careerSeasons}
-          history={history}
-          selectedRole={selectedRole}
-          hasSkaterData={hasSkaterData}
-          hasGoalieData={hasGoalieData}
-          gameMode={gameMode}
-          portrait={<HeroCard card={heroCard} locker={lockerView} />}
-          editor={
-            canEditCard ? (
-              <ProfileEditor
-                playerId={id}
-                gamertag={overview.player.gamertag}
-                isAdmin={viewer?.role === 'admin'}
-                values={{
-                  playerName: overview.player.playerName,
-                  jerseyNumber: overview.player.jerseyNumber,
-                  nationality: overview.player.nationality,
-                  bio: overview.player.bio,
-                  preferredPosition: overview.player.preferredPosition,
-                  archetype: overview.player.archetype,
-                  clubRoleLabel: overview.player.clubRoleLabel,
-                }}
-              />
-            ) : null
-          }
-        />
-      </div>
-
-      {hasNoLocalData && (
-        <Panel className="px-4 py-3">
-          <p className="font-condensed text-sm text-zinc-400">
-            <span className="font-semibold uppercase tracking-wider text-zinc-300">
-              No local match history yet.
-            </span>{' '}
-            This player is registered but has not appeared in a tracked match. EA season totals may
-            still show while local sections stay empty.
-          </p>
-        </Panel>
-      )}
-
-      <div id="sheet-record" className="scroll-mt-24">
-        <StatsRecordCard
-          seasonTable={
-            <CareerSeasonsTable
-              table={buildSeasonTable(
-                careerSeasons,
-                eaStats,
-                archiveDetail,
-                selectedRole,
-                positionSeasons,
-              )}
-            />
-          }
-          gameLog={
-            <PlayerGameLogSection
-              playerId={id}
-              gameMode={gameMode}
-              rows={gameLog}
-              total={gameLogTotal}
-              logPage={logPage}
-              totalPages={Math.ceil(gameLogTotal / LOG_PAGE_SIZE)}
-              showMode={gameMode === null}
-            />
-          }
-        />
-      </div>
-
-      {eaStats[0] !== undefined && (
-        <div id="sheet-club-stats" className="scroll-mt-24">
-          <ClubStatsTabs
-            season={eaStats[0]}
-            gamertag={overview.player.gamertag}
-            teammates={teammates}
-            role={selectedRole}
+        <div id="sheet-hero" className="scroll-mt-24">
+          <ProfileHero
+            overview={overview}
+            career={careerSeasons}
+            history={history}
+            selectedRole={selectedRole}
+            hasSkaterData={hasSkaterData}
+            hasGoalieData={hasGoalieData}
+            gameMode={gameMode}
+            portrait={<HeroCard card={heroCard} locker={lockerView} />}
+            editor={
+              canEditCard ? (
+                <ProfileEditor
+                  playerId={id}
+                  gamertag={overview.player.gamertag}
+                  isAdmin={viewer?.role === 'admin'}
+                  values={{
+                    playerName: overview.player.playerName,
+                    jerseyNumber: overview.player.jerseyNumber,
+                    nationality: overview.player.nationality,
+                    bio: overview.player.bio,
+                    preferredPosition: overview.player.preferredPosition,
+                    archetype: overview.player.archetype,
+                    clubRoleLabel: overview.player.clubRoleLabel,
+                  }}
+                />
+              ) : null
+            }
           />
         </div>
-      )}
 
-      <div id="sheet-contribution" className="scroll-mt-24">
-        <ContributionSection
-          selectedRole={selectedRole}
-          skaterSeason={eaStats[0] ?? null}
-          teammates={teammates}
-          playerId={overview.player.id}
-          gamertag={overview.player.gamertag}
-          gameTitleName={eaStats[0]?.gameTitleName}
-          updatedAt={eaStats[0]?.lastFetchedAt}
-        />
-      </div>
+        {hasNoLocalData && (
+          <Panel className="px-4 py-3">
+            <p className="font-condensed text-sm text-zinc-400">
+              <span className="font-semibold uppercase tracking-wider text-zinc-300">
+                No local match history yet.
+              </span>{' '}
+              This player is registered but has not appeared in a tracked match. EA season totals
+              may still show while local sections stay empty.
+            </p>
+          </Panel>
+        )}
 
-      {builds !== null && (
-        <div id="sheet-builds" className="scroll-mt-24">
-          <BuildLocker view={toBuildLockerView(builds)} gamertag={overview.player.gamertag} />
+        <div id="sheet-record" className="scroll-mt-24">
+          <StatsRecordCard
+            seasonTable={
+              <CareerSeasonsTable
+                table={buildSeasonTable(
+                  careerSeasons,
+                  eaStats,
+                  archiveDetail,
+                  selectedRole,
+                  positionSeasons,
+                )}
+              />
+            }
+            gameLog={
+              <PlayerGameLogSection
+                pagePath={pagePath}
+                gameMode={gameMode}
+                rows={gameLog}
+                total={gameLogTotal}
+                logPage={logPage}
+                totalPages={Math.ceil(gameLogTotal / LOG_PAGE_SIZE)}
+                showMode={gameMode === null}
+              />
+            }
+          />
         </div>
-      )}
 
-      {showActionMap && (
-        <div id="sheet-action-map" className="scroll-mt-24">
-          <LazyMount minHeight={660} minHeightSmall={1200} label="Career Action Map">
-            <CareerActionMap events={careerActions} gamertag={overview.player.gamertag} />
+        {eaStats[0] !== undefined && (
+          <div id="sheet-club-stats" className="scroll-mt-24">
+            <ClubStatsTabs
+              season={eaStats[0]}
+              gamertag={overview.player.gamertag}
+              teammates={teammates}
+              role={selectedRole}
+            />
+          </div>
+        )}
+
+        <div id="sheet-contribution" className="scroll-mt-24">
+          <ContributionSection
+            selectedRole={selectedRole}
+            skaterSeason={eaStats[0] ?? null}
+            teammates={teammates}
+            playerId={overview.player.id}
+            gamertag={overview.player.gamertag}
+            gameTitleName={eaStats[0]?.gameTitleName}
+            updatedAt={eaStats[0]?.lastFetchedAt}
+          />
+        </div>
+
+        {builds !== null && (
+          <div id="sheet-builds" className="scroll-mt-24">
+            <BuildLocker view={toBuildLockerView(builds)} gamertag={overview.player.gamertag} />
+          </div>
+        )}
+
+        {showActionMap && (
+          <div id="sheet-action-map" className="scroll-mt-24">
+            <LazyMount minHeight={660} minHeightSmall={1200} label="Career Action Map">
+              <CareerActionMap events={careerActions} gamertag={overview.player.gamertag} />
+            </LazyMount>
+          </div>
+        )}
+
+        {showShotMap && (
+          <div id="sheet-shot-map" className="scroll-mt-24">
+            {selectedRole === 'skater' && focalEaRow !== undefined && (
+              <ShotMap
+                role="skater"
+                player={focalEaRow.shotLocations}
+                teamAverage={teamAverage ?? emptyShotLocations()}
+                hasData={teamAverage !== null && focalEaRow.shotLocations !== null}
+                titleName={focalEaRow.gameTitleName}
+                gamertag={overview.player.gamertag}
+                playerGp={focalEaRow.skaterGp}
+                updatedDate={formatDataDay(focalEaRow.lastFetchedAt)}
+              />
+            )}
+            {selectedRole === 'goalie' && focalEaRow !== undefined && (
+              <ShotMap
+                role="goalie"
+                player={focalEaRow.goalieShotLocations}
+                teamAverage={teamGoalieAverage ?? emptyShotLocations()}
+                hasData={teamGoalieAverage !== null && focalEaRow.goalieShotLocations !== null}
+                titleName={focalEaRow.gameTitleName}
+                gamertag={overview.player.gamertag}
+                playerGp={focalEaRow.goalieGp}
+                updatedDate={formatDataDay(focalEaRow.lastFetchedAt)}
+              />
+            )}
+          </div>
+        )}
+
+        <div id="sheet-badges" className="scroll-mt-24">
+          <LazyMount minHeight={720} label="Badges">
+            <PlayerBadges
+              gamertag={overview.player.gamertag}
+              seasonName={cardProgress?.gameTitle?.name ?? null}
+              aiGoalie={cardProgress?.aiGoalie ?? false}
+              rows={cardProgress?.badges ?? []}
+            />
           </LazyMount>
         </div>
-      )}
 
-      {showShotMap && (
-        <div id="sheet-shot-map" className="scroll-mt-24">
-          {selectedRole === 'skater' && focalEaRow !== undefined && (
-            <ShotMap
-              role="skater"
-              player={focalEaRow.shotLocations}
-              teamAverage={teamAverage ?? emptyShotLocations()}
-              hasData={teamAverage !== null && focalEaRow.shotLocations !== null}
-              titleName={focalEaRow.gameTitleName}
-              gamertag={overview.player.gamertag}
-              playerGp={focalEaRow.skaterGp}
-              updatedDate={formatDataDay(focalEaRow.lastFetchedAt)}
-            />
-          )}
-          {selectedRole === 'goalie' && focalEaRow !== undefined && (
-            <ShotMap
-              role="goalie"
-              player={focalEaRow.goalieShotLocations}
-              teamAverage={teamGoalieAverage ?? emptyShotLocations()}
-              hasData={teamGoalieAverage !== null && focalEaRow.goalieShotLocations !== null}
-              titleName={focalEaRow.gameTitleName}
-              gamertag={overview.player.gamertag}
-              playerGp={focalEaRow.goalieGp}
-              updatedDate={formatDataDay(focalEaRow.lastFetchedAt)}
-            />
-          )}
-        </div>
-      )}
-
-      <div id="sheet-badges" className="scroll-mt-24">
-        <LazyMount minHeight={720} label="Badges">
-          <PlayerBadges
-            gamertag={overview.player.gamertag}
-            seasonName={cardProgress?.gameTitle?.name ?? null}
-            aiGoalie={cardProgress?.aiGoalie ?? false}
-            rows={cardProgress?.badges ?? []}
-          />
-        </LazyMount>
+        {awards.items.length > 0 && (
+          <div id="sheet-awards" className="scroll-mt-24">
+            <PlayerAwards gamertag={overview.player.gamertag} awards={awards} />
+          </div>
+        )}
       </div>
-
-      {awards.items.length > 0 && (
-        <div id="sheet-awards" className="scroll-mt-24">
-          <PlayerAwards gamertag={overview.player.gamertag} awards={awards} />
-        </div>
-      )}
-    </div>
+    </MemberLinks>
   )
 }
 

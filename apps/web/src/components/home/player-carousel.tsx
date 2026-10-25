@@ -4,6 +4,7 @@ import { useRef, useState, type PointerEvent } from 'react'
 import { PlayerCard } from '@/components/cards/player-card'
 import { PlayerCardCompact, type CompactCardSize } from '@/components/cards/player-card-compact'
 import type { CardViewModel } from '@/components/cards/card-model'
+import { usePlayerHref } from '@/components/ui/player-link'
 import { colorForPosition } from '@/lib/position-colors'
 import './player-carousel.css'
 
@@ -28,6 +29,7 @@ interface PlayerCarouselProps {
  * for interactivity (activeIndex state + transitions).
  */
 export function PlayerCarousel({ cards }: PlayerCarouselProps) {
+  const playerHref = usePlayerHref()
   const [activeIndex, setActiveIndex] = useState(0)
   const swipe = useRef<{ x: number | null; dragged: boolean }>({ x: null, dragged: false })
   const total = cards.length
@@ -142,7 +144,7 @@ export function PlayerCarousel({ cards }: PlayerCarouselProps) {
                   card={card}
                   context="list"
                   active={isActive}
-                  href={`/roster/${String(card.front.playerId)}`}
+                  href={playerHref(card.front.playerId)}
                 />
               )}
             </FanSlot>
@@ -402,6 +404,7 @@ function CompactFan({
   top: string
   onPromote: (index: number) => void
 }) {
+  const playerHref = usePlayerHref()
   return (
     <>
       {cards.map((card, index) => (
@@ -418,7 +421,7 @@ function CompactFan({
             <PlayerCardCompact
               card={card.front}
               size={size}
-              href={`/roster/${String(card.front.playerId)}`}
+              href={playerHref(card.front.playerId)}
             />
           )}
         </FanSlot>

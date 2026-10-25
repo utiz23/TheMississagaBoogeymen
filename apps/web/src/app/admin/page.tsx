@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { playerPath } from '@eanhl/db/lib/player-slug'
 import { listPinCandidates, listPinnedPlayers } from '@eanhl/db/queries'
 import {
   AUTH_BUTTON_PRIMARY,
@@ -90,11 +91,7 @@ export default async function AdminPage({
             <ul className="flex flex-col divide-y divide-border-subtle border-y border-border-subtle">
               {pinned.map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-3 py-2">
-                  <Link
-                    prefetch
-                    href={`/roster/${String(p.id)}`}
-                    className="text-sm text-fg-1 hover:underline"
-                  >
+                  <Link prefetch href={playerPath(p)} className="text-sm text-fg-1 hover:underline">
                     {p.gamertag}
                   </Link>
                   <form action={unpinPlayerAction}>

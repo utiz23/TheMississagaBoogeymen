@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { CARD_THEME_NAMES, MYTHIC_THEMES } from '@eanhl/db/cards'
+import { playerPath } from '@eanhl/db/lib/player-slug'
 import {
   listInvitablePlayers,
   listMythicCards,
@@ -133,7 +134,7 @@ export default async function AdminCardsPage({
                     <td className={ADMIN_TD}>
                       <Link
                         prefetch
-                        href={`/roster/${String(m.playerId)}`}
+                        href={playerPath({ id: m.playerId, gamertag: m.gamertag })}
                         className="text-fg-1 hover:underline"
                       >
                         {m.gamertag}

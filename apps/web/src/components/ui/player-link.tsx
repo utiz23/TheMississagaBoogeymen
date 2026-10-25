@@ -6,21 +6,35 @@ import Link from 'next/link'
 /**
  * Only team members, present and past, have player pages (operator,
  * 2026-10-09). A page that can show guests (game sheets, stats, leaders)
- * wraps its content in MemberLinksProvider with the member ids; PlayerLink
- * then links members and renders guests as plain text. Outside a provider
- * every id links (member-only lists such as the depth chart).
+ * wraps its content in MemberLinksProvider with each member's page path;
+ * PlayerLink then links members to `/roster/<gamertag slug>` and renders guests
+ * as plain text. Outside a provider every id links, by number — the player
+ * page redirects that to the slug (member-only lists such as the depth chart).
  */
-const MemberIds = createContext<ReadonlySet<number> | null>(null)
+const MemberPaths = createContext<ReadonlyMap<number, string> | null>(null)
 
-export function MemberLinksProvider({ ids, children }: { ids: number[]; children: ReactNode }) {
-  const set = useMemo(() => new Set(ids), [ids])
-  return <MemberIds.Provider value={set}>{children}</MemberIds.Provider>
+export function MemberLinksProvider({
+  paths,
+  children,
+}: {
+  /** [player id, page path] for every member (player-route.ts `memberPaths`). */
+  paths: [number, string][]
+  children: ReactNode
+}) {
+  const map = useMemo(() => new Map(paths), [paths])
+  return <MemberPaths.Provider value={map}>{children}</MemberPaths.Provider>
 }
 
 /** Whether a player id gets a player-page link here. */
 export function useHasPlayerPage(): (playerId: number) => boolean {
-  const ids = useContext(MemberIds)
-  return (playerId) => ids === null || ids.has(playerId)
+  const paths = useContext(MemberPaths)
+  return (playerId) => paths === null || paths.has(playerId)
+}
+
+/** A player's page path: the gamertag slug inside a provider, else the id. */
+export function usePlayerHref(): (playerId: number) => string {
+  const paths = useContext(MemberPaths)
+  return (playerId) => paths?.get(playerId) ?? `/roster/${String(playerId)}`
 }
 
 export function PlayerLink({
@@ -46,6 +60,7 @@ export function PlayerLink({
   'aria-live'?: 'polite' | 'off' | 'assertive'
 }) {
   const hasPage = useHasPlayerPage()
+  const playerHref = usePlayerHref()
   if (!hasPage(playerId)) {
     if (fallback !== undefined) return <>{fallback}</>
     return (
@@ -55,13 +70,7 @@ export function PlayerLink({
     )
   }
   return (
-    <Link
-      prefetch
-      href={`/roster/${String(playerId)}`}
-      className={className}
-      title={title}
-      {...events}
-    >
+    <Link prefetch href={playerHref(playerId)} className={className} title={title} {...events}>
       {children}
     </Link>
   )

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
+import { playerPath } from '@eanhl/db/lib/player-slug'
 import type { RosterMenuMember } from '@eanhl/db/queries'
 import { NAV_MENU_HEADING, NavMenu, NavMenuChevron, navMenuItemClass } from './nav-menu'
 import { NavPendingCue } from './nav-pending-cue'
@@ -140,7 +141,7 @@ export function NavLinks({ members }: { members: RosterMenuMember[] }) {
                   <div aria-hidden className="mx-4 my-1.5 border-t border-border" />
                   <p className={NAV_MENU_HEADING}>Team</p>
                   {members.map((m) => {
-                    const memberHref = `/roster/${String(m.id)}`
+                    const memberHref = playerPath(m)
                     const current = pathname === memberHref
                     return (
                       <Link

@@ -37,7 +37,8 @@ export async function equipCardTheme(
 
   await setPlayerCardPref({ playerId, theme, userId: viewer.id })
   // Every surface that shows the card: the player page, the roster, home.
-  revalidatePath(`/roster/${String(playerId)}`)
+  // Player pages live at their gamertag slug; revalidate the route, not one path.
+  revalidatePath('/roster/[id]', 'page')
   revalidatePath('/roster')
   revalidatePath('/')
   return { ok: true }

@@ -1,4 +1,5 @@
 import type { getEARoster } from '@eanhl/db/queries'
+import { playerPath } from '@eanhl/db/lib/player-slug'
 import { PlayerCard } from '@/components/cards/player-card'
 import { PlayerCardCompact } from '@/components/cards/player-card-compact'
 import { cardFromRosterRow, type CardSummaryInput } from '@/components/cards/card-adapters'
@@ -218,7 +219,7 @@ function RowRail({ label, num, className }: { label: string; num: string; classN
 function SlotCell({ slot, positionLabel }: { slot: DepthSlot | null; positionLabel: string }) {
   if (slot === null) return <OpenSlot positionLabel={positionLabel} />
   const card = cardFromRosterRow(slot.player, slot.card, positionLabel)
-  const href = `/roster/${String(slot.player.playerId)}`
+  const href = playerPath({ id: slot.player.playerId, gamertag: slot.player.gamertag })
   // Full card on desktop; the compact sizes take over per tier (depth-chart.css
   // shows exactly one of the four — no JS, so the server renders them all).
   return (

@@ -29,6 +29,34 @@ export async function isClubMember(playerId: number): Promise<boolean> {
   return rows.length > 0
 }
 
+export interface MemberGamertag {
+  playerId: number
+  gamertag: string
+  /** False for an earlier gamertag from `player_gamertag_history`. */
+  current: boolean
+}
+
+/**
+ * Every team member's current gamertag, then their earlier ones (most recent
+ * first) — what player page URLs are resolved against (lib/player-slug.ts).
+ */
+export async function listMemberGamertags(): Promise<MemberGamertag[]> {
+  const rows = await db.execute<{ id: number; gamertag: string; current: boolean }>(
+    sql`select id, gamertag, current from (
+          select p.id, p.gamertag, true as current, null::timestamptz as seen_until
+          from players p
+          where ${MEMBER_CONDITION}
+          union all
+          select p.id, gh.gamertag, false, coalesce(gh.seen_until, gh.seen_from)
+          from player_gamertag_history gh
+          join players p on p.id = gh.player_id
+          where gh.gamertag <> p.gamertag and ${MEMBER_CONDITION}
+        ) t
+        order by current desc, seen_until desc nulls last, id`,
+  )
+  return rows.map((r) => ({ playerId: Number(r.id), gamertag: r.gamertag, current: r.current }))
+}
+
 export interface RosterMenuMember {
   id: number
   gamertag: string

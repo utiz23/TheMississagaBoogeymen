@@ -1,8 +1,9 @@
+import { playerPath } from '@eanhl/db/lib/player-slug'
 import { getViewer } from '@/lib/auth'
 
 /**
  * The signed-in member, for the nav's account menu (nav-account.tsx): name,
- * picture, role and player id — or `null` when signed out. Only the caller's
+ * picture, role and player page path — or `null` when signed out. Only the caller's
  * own record, through the same `getViewer` gate as the pages, so a disabled or
  * unlinked user reads as signed out here too.
  *
@@ -16,7 +17,7 @@ type MeBody = {
   name: string
   image: string | null
   role: 'user' | 'admin'
-  playerId: number
+  playerPath: string
 } | null
 
 export async function GET(): Promise<Response> {
@@ -28,7 +29,7 @@ export async function GET(): Promise<Response> {
         name: viewer.name,
         image: viewer.image,
         role: viewer.role === 'admin' ? 'admin' : 'user',
-        playerId: viewer.playerId,
+        playerPath: playerPath({ id: viewer.playerId, gamertag: viewer.gamertag ?? '' }),
       }
     }
   } catch {

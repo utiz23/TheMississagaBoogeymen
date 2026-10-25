@@ -12,7 +12,7 @@ type MeBody = {
   name: string
   image: string | null
   role: 'user' | 'admin'
-  playerId: number
+  playerPath: string
 } | null
 
 type SessionState =
@@ -23,7 +23,7 @@ type SessionState =
 function parseMe(body: unknown): SessionState {
   if (body === null || typeof body !== 'object') return { status: 'out' }
   const me = body as Record<string, unknown>
-  if (typeof me.name !== 'string' || typeof me.playerId !== 'number') {
+  if (typeof me.name !== 'string' || typeof me.playerPath !== 'string') {
     return { status: 'out' }
   }
   return {
@@ -31,7 +31,7 @@ function parseMe(body: unknown): SessionState {
     name: me.name,
     image: typeof me.image === 'string' ? me.image : null,
     role: me.role === 'admin' ? 'admin' : 'user',
-    playerId: me.playerId,
+    playerPath: me.playerPath,
   }
 }
 
@@ -116,7 +116,7 @@ function AccountMenuItems({ session }: { session: Extract<SessionState, { status
   const [signingOut, setSigningOut] = useState(false)
   const links = [
     { href: '/account', label: 'Your account' },
-    { href: `/roster/${String(session.playerId)}`, label: 'Your player card' },
+    { href: session.playerPath, label: 'Your player card' },
     ...(session.role === 'admin' ? [{ href: '/admin', label: 'Admin tools' }] : []),
   ]
 
