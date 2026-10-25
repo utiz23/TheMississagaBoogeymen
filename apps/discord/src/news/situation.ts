@@ -16,7 +16,8 @@ export function classifyGame(g: NewsGameFacts): GameSituation {
   if (g.result === 'OTL' || (g.result === 'LOSS' && g.overtime)) return 'ot_loss'
   if (g.result === 'WIN') {
     if (g.overtime) return 'ot_win'
-    if (g.team.shotsAgainst >= g.team.shotsFor + 10) return 'goalie_steal'
+    // A game that ended early has no team numbers (spec §12.12-3).
+    if (g.team !== null && g.team.shotsAgainst >= g.team.shotsFor + 10) return 'goalie_steal'
     if (g.scoreFor + g.scoreAgainst <= 3) return 'quiet_win'
     return 'routine_win'
   }

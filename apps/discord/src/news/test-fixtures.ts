@@ -70,6 +70,7 @@ const game1: NewsGameFacts = {
   ],
   aiGoalieInNet: false,
   aiGoalie: null,
+  endedEarly: false,
   guestCount: 0,
   unnamedTeammates: 0,
   unnamedGoals: 0,
@@ -85,7 +86,7 @@ const game2: NewsGameFacts = {
   scoreFor: 0,
   scoreAgainst: 6,
   opponentName: 'WestKent Creamers',
-  team: { ...game1.team, shotsFor: 3, shotsAgainst: 16, hitsFor: 6, hitsAgainst: 6 },
+  team: { ...game1.team!, shotsFor: 3, shotsAgainst: 16, hitsFor: 6, hitsAgainst: 6 },
   players: [
     line({ playerId: 1, name: 'Skater A', shots: 1, hits: 3 }),
     line({ playerId: 2, name: 'Skater B', shots: 2, hits: 3 }),

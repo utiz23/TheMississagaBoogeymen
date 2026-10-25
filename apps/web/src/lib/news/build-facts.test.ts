@@ -1101,3 +1101,57 @@ void test('buildAiGoalieWeek: week totals per AI goalie, most games first (C1.1)
   ])
   assert.deepEqual(buildAiGoalieWeek([none]), [])
 })
+
+// ── Part C1: games that ended early (spec 12.12-3) ───────────────────────────
+
+void test('buildGameFacts: endedEarly when the score is above the credited goals; team numbers dropped (C1.3)', () => {
+  const ok = buildGameFacts(gameArgs())
+  assert.equal(ok.endedEarly, false)
+  assert.notEqual(ok.team, null)
+  // Score 4: Hero 2 + OutGuy 1 are credited; one goal is on no row.
+  const g = buildGameFacts(gameArgs({ match: { ...gameArgs().match, scoreFor: 4 } }))
+  assert.equal(g.endedEarly, true)
+  assert.equal(g.team, null)
+  // Score and named scorers stay; the fallback still counts the missing goal as unnamed.
+  assert.equal(g.scoreFor, 4)
+  assert.equal(g.players[0]?.goals, 2)
+  assert.equal(g.unnamedGoals, 2)
+  // Rows above the score: not ended early.
+  const over = buildGameFacts(gameArgs({ match: { ...gameArgs().match, scoreFor: 2 } }))
+  assert.equal(over.endedEarly, false)
+})
+
+void test('buildGameFacts: endedEarly under 240 s time on attack or under 10 shots in all (C1.3)', () => {
+  const toa = (s: number | null) =>
+    buildGameFacts(gameArgs({ match: { ...gameArgs().match, timeOnAttack: s } })).endedEarly
+  assert.equal(toa(239), true)
+  assert.equal(toa(240), false)
+  assert.equal(toa(null), false) // unknown is not "under"
+  const shots = (f: number, a: number) =>
+    buildGameFacts(gameArgs({ shots: { for: f, against: a } })).endedEarly
+  assert.equal(shots(5, 4), true)
+  assert.equal(shots(6, 4), false)
+})
+
+void test('buildFacts: night totals leave out the shots of a game that ended early (C1.3)', () => {
+  const full = buildGameFacts(gameArgs()) // shots 30-21
+  const early = buildGameFacts(
+    gameArgs({ match: { ...gameArgs().match, id: 901, timeOnAttack: 100 } }),
+  )
+  const facts = buildFacts({
+    kind: 'night',
+    key: '2026-10-12',
+    gameTitleName: 'NHL 27',
+    games: [full, early],
+    record: { wins: 2, losses: 0, otl: 0 },
+    streak: null,
+    unlocks: [],
+    milestones: [],
+    recentNights: [],
+    people: [],
+  })
+  assert.equal(facts.nightTotals.goalsFor, 6)
+  assert.equal(facts.nightTotals.shotsFor, 30)
+  assert.equal(facts.nightTotals.shotsAgainst, 21)
+  assert.equal(facts.nightTotals.wins, 2)
+})

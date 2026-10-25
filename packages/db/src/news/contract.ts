@@ -77,6 +77,17 @@ export interface NewsAiGoalieWeek extends NewsAiGoalieLine {
   games: number
 }
 
+export interface NewsTeamStats {
+  shotsFor: number
+  shotsAgainst: number
+  hitsFor: number
+  hitsAgainst: number
+  ppGoals: number | null
+  ppOpportunities: number | null
+  passPct: number | null
+  timeOnAttackSeconds: number | null
+}
+
 export interface NewsGameFacts {
   matchId: number
   night: string
@@ -88,16 +99,14 @@ export interface NewsGameFacts {
   scoreFor: number
   scoreAgainst: number
   opponentName: string
-  team: {
-    shotsFor: number
-    shotsAgainst: number
-    hitsFor: number
-    hitsAgainst: number
-    ppGoals: number | null
-    ppOpportunities: number | null
-    passPct: number | null
-    timeOnAttackSeconds: number | null
-  }
+  /** Team numbers; null when the game ended early (`endedEarly`): only the score and scorers count then. */
+  team: NewsTeamStats | null
+  /**
+   * The game ended early (spec §12.12-3): the score is above the goals the
+   * player rows credit, or time on attack under 240 s, or under 10 shots in
+   * all. Its team numbers are not on the sheet.
+   */
+  endedEarly: boolean
   periods: { period: number; goalsFor: number; goalsAgainst: number }[] | null
   players: NewsPlayerLine[]
   aiGoalieInNet: boolean
@@ -286,7 +295,7 @@ function parsePlayerLine(v: unknown, path: string): NewsPlayerLine {
   }
 }
 
-function parseTeam(v: unknown, path: string): NewsGameFacts['team'] {
+function parseTeam(v: unknown, path: string): NewsTeamStats {
   const o = obj(v, path)
   return {
     shotsFor: int(o['shotsFor'], `${path}.shotsFor`),
@@ -317,6 +326,20 @@ function parseAiGoalieWeek(v: unknown, path: string): NewsAiGoalieWeek {
     ...parseAiGoalie(o, path),
     games: nonNegInt(o['games'], `${path}.games`),
   }
+}
+
+/** `endedEarly` (missing: false) and `team`: null exactly when the game ended early. */
+function parseTeamAndEnd(
+  o: Record<string, unknown>,
+  path: string,
+): Pick<NewsGameFacts, 'team' | 'endedEarly'> {
+  const endedEarly =
+    o['endedEarly'] === undefined ? false : bool(o['endedEarly'], `${path}.endedEarly`)
+  if (endedEarly) {
+    if (o['team'] !== null) fail(`${path}.team`, 'must be null when the game ended early')
+    return { team: null, endedEarly }
+  }
+  return { team: parseTeam(o['team'], `${path}.team`), endedEarly }
 }
 
 function parseGoal(v: unknown, path: string): NewsGoal {
@@ -368,7 +391,7 @@ function parseGame(v: unknown, path: string): NewsGameFacts {
     scoreFor: int(o['scoreFor'], `${path}.scoreFor`),
     scoreAgainst: int(o['scoreAgainst'], `${path}.scoreAgainst`),
     opponentName: str(o['opponentName'], `${path}.opponentName`),
-    team: parseTeam(o['team'], `${path}.team`),
+    ...parseTeamAndEnd(o, path),
     periods: nullable(o['periods'], `${path}.periods`, (x, p) =>
       arr(x, p, (r, rp) => {
         const po = obj(r, rp)

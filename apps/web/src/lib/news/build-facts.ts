@@ -357,6 +357,29 @@ function playerLine(p: GamePlayerInput, person: NewsPerson): NewsPlayerLine {
   }
 }
 
+/** Under this much time on attack (seconds) a game ended early (spec §12.12-3). */
+export const ENDED_EARLY_TOA_SECONDS = 240
+/** Under this many shots (both teams) a game ended early. */
+export const ENDED_EARLY_TOTAL_SHOTS = 10
+
+/**
+ * A game that ended early (a quit, a disconnect): the score is above the goals
+ * the player rows credit, or time on attack is under 240 s, or both teams
+ * together have under 10 shots. An unknown time on attack is not "under".
+ */
+export function isEndedEarly(g: {
+  scoreFor: number
+  creditedGoals: number
+  timeOnAttack: number | null
+  shots: { for: number; against: number }
+}): boolean {
+  return (
+    g.scoreFor > g.creditedGoals ||
+    (g.timeOnAttack !== null && g.timeOnAttack < ENDED_EARLY_TOA_SECONDS) ||
+    g.shots.for + g.shots.against < ENDED_EARLY_TOTAL_SHOTS
+  )
+}
+
 /**
  * One game's part of the sheet. Only named people get a player line. Unnamed
  * club members (press level `out`) count towards `unnamedTeammates`; everyone
@@ -366,6 +389,8 @@ function playerLine(p: GamePlayerInput, person: NewsPerson): NewsPlayerLine {
  * Goals of the score that no player row accounts for (EA rows short of the
  * score) are unnamed goals too: `unnamedGoals` = the larger of the unnamed
  * rows' goals and the score minus the named goals. Assists come only from rows.
+ * A game that ended early (`isEndedEarly`, with the goals the rows credit,
+ * before that fallback) gets no team numbers.
  */
 export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
   const { match } = args
@@ -394,6 +419,13 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     else guestCount += 1
   }
   const namedGoals = players.reduce((n, p) => n + p.goals, 0)
+  // Before the fallback below: the goals the player rows credit.
+  const endedEarly = isEndedEarly({
+    scoreFor: match.scoreFor,
+    creditedGoals: namedGoals + unnamedGoals,
+    timeOnAttack: match.timeOnAttack,
+    shots: args.shots,
+  })
   unnamedGoals = Math.max(unnamedGoals, match.scoreFor - namedGoals, 0)
   return {
     matchId: match.id,
@@ -407,16 +439,19 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     scoreAgainst: match.scoreAgainst,
     // EA sends club names with repeated spaces; the writer writes them with one.
     opponentName: match.opponentName.replace(/\s+/g, ' ').trim(),
-    team: {
-      shotsFor: args.shots.for,
-      shotsAgainst: args.shots.against,
-      hitsFor: match.hitsFor,
-      hitsAgainst: match.hitsAgainst,
-      ppGoals: match.ppGoals,
-      ppOpportunities: match.ppOpportunities,
-      passPct: args.passPct,
-      timeOnAttackSeconds: match.timeOnAttack,
-    },
+    team: endedEarly
+      ? null
+      : {
+          shotsFor: args.shots.for,
+          shotsAgainst: args.shots.against,
+          hitsFor: match.hitsFor,
+          hitsAgainst: match.hitsAgainst,
+          ppGoals: match.ppGoals,
+          ppOpportunities: match.ppOpportunities,
+          passPct: args.passPct,
+          timeOnAttackSeconds: match.timeOnAttack,
+        },
+    endedEarly,
     periods: args.periods,
     players,
     aiGoalieInNet,
@@ -676,8 +711,9 @@ export function buildFacts(args: {
   for (const g of args.games) {
     nightTotals.goalsFor += g.scoreFor
     nightTotals.goalsAgainst += g.scoreAgainst
-    nightTotals.shotsFor += g.team.shotsFor
-    nightTotals.shotsAgainst += g.team.shotsAgainst
+    // A game that ended early has no team numbers: its shots are not counted.
+    nightTotals.shotsFor += g.team?.shotsFor ?? 0
+    nightTotals.shotsAgainst += g.team?.shotsAgainst ?? 0
     if (g.result === 'WIN') nightTotals.wins += 1
     else if (g.result === 'LOSS') nightTotals.losses += 1
     else nightTotals.otl += 1

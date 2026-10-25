@@ -11,7 +11,7 @@ function game(over: Partial<NewsGameFacts> & { shots?: [number, number] }): News
     ...base,
     ...rest,
     team: {
-      ...base.team,
+      ...base.team!,
       shotsFor: shots?.[0] ?? 20,
       shotsAgainst: shots?.[1] ?? 20,
     },
@@ -54,4 +54,17 @@ void test('classifyNight', () => {
   assert.equal(night(1, 1, 1), 'losing')
   assert.equal(night(1, 0, 1), 'even')
   assert.equal(night(0, 2, 1), 'winless')
+})
+
+void test('classifyGame: an ended-early win without team numbers is never a goalie steal (C1.3)', () => {
+  const base = oct12Facts().games[0]!
+  const g: NewsGameFacts = {
+    ...base,
+    result: 'WIN',
+    scoreFor: 1,
+    scoreAgainst: 0,
+    endedEarly: true,
+    team: null,
+  }
+  assert.equal(classifyGame(g), 'quiet_win')
 })

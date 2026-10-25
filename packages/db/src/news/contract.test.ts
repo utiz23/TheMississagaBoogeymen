@@ -76,6 +76,7 @@ function sample(): NewsFactsResponse {
           ],
           aiGoalieInNet: false,
           aiGoalie: null,
+          endedEarly: false,
           guestCount: 1,
           unnamedTeammates: 1,
           unnamedGoals: 1,
@@ -117,6 +118,7 @@ function sample(): NewsFactsResponse {
             goalsAgainst: 4,
             savePct: 75,
           },
+          endedEarly: false,
           guestCount: 0,
           unnamedTeammates: 0,
           unnamedGoals: 0,
@@ -569,4 +571,28 @@ void test('contract: rejects a bad AI goalie line or week row (C1.1)', () => {
   bad((s) => delete s.facts.games[1]!.aiGoalie['shotsAgainst'], /aiGoalie\.shotsAgainst/)
   bad((s) => (s.facts.aiGoalieWeek[0]!['games'] = 0.5), /aiGoalieWeek\[0\]\.games/)
   bad((s) => (s.facts.aiGoalieWeek = {} as never), /aiGoalieWeek is not an array/)
+})
+
+void test('contract: an ended-early game has no team numbers; endedEarly defaults to false (C1.3)', () => {
+  type G = { facts: { games: Record<string, unknown>[] } }
+  const s = clone(sample()) as unknown as G
+  s.facts.games[1]!['endedEarly'] = true
+  s.facts.games[1]!['team'] = null
+  const parsed = parseNewsFactsResponse(s)
+  assert.equal(parsed.facts.games[1]!.endedEarly, true)
+  assert.equal(parsed.facts.games[1]!.team, null)
+  assert.equal(parsed.facts.games[0]!.endedEarly, false)
+  const old = clone(sample()) as unknown as G
+  delete old.facts.games[0]!['endedEarly']
+  assert.equal(parseNewsFactsResponse(old).facts.games[0]!.endedEarly, false)
+  const bad = clone(sample()) as unknown as G
+  bad.facts.games[0]!['endedEarly'] = 'yes'
+  assert.throws(() => parseNewsFactsResponse(bad), /games\[0\]\.endedEarly/)
+  // Team numbers only when the game did not end early.
+  const both = clone(sample()) as unknown as G
+  both.facts.games[0]!['endedEarly'] = true
+  assert.throws(() => parseNewsFactsResponse(both), /games\[0\]\.team must be null/)
+  const missing = clone(sample()) as unknown as G
+  missing.facts.games[0]!['team'] = null
+  assert.throws(() => parseNewsFactsResponse(missing), /games\[0\]\.team is not an object/)
 })
