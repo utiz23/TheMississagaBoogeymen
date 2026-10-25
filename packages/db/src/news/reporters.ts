@@ -408,3 +408,27 @@ export const RELATIONSHIPS: readonly { from: ReporterId; to: ReporterId; note: s
     note: "Lyle Bergstrom has no patience for Rico Vale's theatrics.",
   },
 ]
+
+/**
+ * Generic attitudes for the pairs without a written relationship (spec
+ * §12.11): hockey arguments only, never motives, clicks or careers.
+ */
+export const GENERIC_ATTITUDES: readonly string[] = [
+  'treats {to} as a friendly rival on the beat',
+  'sees {to} as a sparring partner and likes to argue the numbers',
+  'respects {to} but rarely agrees on what a game meant',
+  'thinks {to} reads too much into one game',
+  'likes to needle {to} about which number matters',
+  'thinks {to} is too quick to judge a result',
+  'enjoys taking the other side of whatever {to} says',
+]
+
+/** How `from` feels about `to`: the written relationship, else a generic attitude (stable per pair). */
+export function pairAttitude(from: ReporterId, to: ReporterId): string {
+  const written = RELATIONSHIPS.find((r) => r.from === from && r.to === to)
+  if (written !== undefined) return written.note
+  const i =
+    (REPORTER_IDS.indexOf(from) * REPORTER_IDS.length + REPORTER_IDS.indexOf(to)) %
+    GENERIC_ATTITUDES.length
+  return `${REPORTERS[from].name} ${GENERIC_ATTITUDES[i]!.replace('{to}', REPORTERS[to].name)}.`
+}

@@ -44,6 +44,9 @@ const {
   lastFeatureSql,
   nightCriticizedSql,
   nightZeroCalledSql,
+  recentReporterPiecesSql,
+  rowToOwnPiece,
+  listGameArticleRetriesSql,
   activeTakesForPlayersQuery,
   takesUsedSinceSql,
   rowsToNightZeroCalled,
@@ -164,12 +167,15 @@ void test('recent reporter summaries: real, not deleted, never an item that name
 void test('reporter activity: real, not deleted, since; kind = feature, night, recap or reaction (rev 2, B2)', () => {
   const q = dialect.sqlToQuery(reporterActivitySql(new Date('2026-10-10T00:00:00Z')))
   const s = flat(q.sql)
-  assert.match(s, /select n\.reporter, n\.night, n\.created_at,/)
+  assert.match(s, /select n\.reporter, n\.night, n\.created_at, t\.reporter as reply_to,/)
   assert.match(
     s,
-    /case when n\.kind = 'article' and n\.week_start is not null then 'feature' when n\.kind = 'article' then 'night' when n\.reply_to is null and not exists \( ?select 1 from news_items p where p\.kind = 'post' and p\.is_test = false and p\.match_id = n\.match_id and p\.id < n\.id ?\) then 'recap' else 'reaction' end as kind/,
+    /case when n\.kind = 'article' and n\.week_start is not null then 'feature' when n\.kind = 'article' and n\.match_id is not null then 'game' when n\.kind = 'article' then 'night' when n\.reply_to is null and not exists \( ?select 1 from news_items p where p\.kind = 'post' and p\.is_test = false and p\.match_id = n\.match_id and p\.id < n\.id ?\) then 'recap' else 'reaction' end as kind/,
   )
-  assert.match(s, /from news_items n where n\.is_test = false and n\.deleted_at is null/)
+  assert.match(
+    s,
+    /from news_items n left join news_items t on t\.id = n\.reply_to where n\.is_test = false and n\.deleted_at is null/,
+  )
   assert.match(s, /and n\.created_at >= \$1::timestamptz order by n\.id asc/)
   assert.deepEqual(q.params, ['2026-10-10T00:00:00.000Z'])
 })
@@ -187,7 +193,22 @@ void test('reporter activity rows: night as a day, created_at as a Date, unknown
       night: '2026-10-12',
       createdAt: new Date('2026-10-13T04:00:00.000Z'),
       kind: 'recap',
+      replyTo: null,
     },
+  )
+  assert.equal(
+    rowToActivity({
+      reporter: 'barlow',
+      night: '2026-10-12',
+      created_at: '2026-10-13T04:00:00.000Z',
+      kind: 'reaction',
+      reply_to: 'mercer',
+    })?.replyTo,
+    'mercer',
+  )
+  assert.equal(
+    rowToActivity({ reporter: 'barlow', night: null, created_at: new Date(), kind: 'game' })?.kind,
+    'game',
   )
   assert.deepEqual(
     rowToActivity({
@@ -210,7 +231,7 @@ void test('last feature: the newest real, not deleted item with a feature kind (
   assert.match(s, /select n\.feature_kind, n\.prediction, n\.week_start from news_items n/)
   assert.match(
     s,
-    /where n\.is_test = false and n\.deleted_at is null and n\.feature_kind is not null order by n\.week_start desc nulls last, n\.id desc limit 1/,
+    /where n\.is_test = false and n\.deleted_at is null and n\.feature_kind is not null and n\.week_start is not null order by n\.week_start desc nulls last, n\.id desc limit 1/,
   )
   assert.deepEqual(q.params, [])
 })
@@ -1100,4 +1121,59 @@ void test('migration 0071: news_reporter_takes (C3a.6), idempotent checks, casca
   assert.ok(text.includes(`CHECK ("spread" IN ('some', 'a few', 'most'))`))
   assert.ok(text.includes('CREATE INDEX IF NOT EXISTS "news_reporter_takes_player_idx"'))
   assert.ok(raw.includes('DROP TABLE IF EXISTS "news_reporter_takes";'))
+})
+
+void test('recent reporter pieces (C3a.3): posts and articles, newest first; test items only when asked; never an "out" mention', () => {
+  const q = dialect.sqlToQuery(recentReporterPiecesSql('quill', 5, false))
+  const s = flat(q.sql)
+  assert.match(
+    s,
+    /select n\.kind, n\.body, n\.headline, n\.summary, n\.night from news_items n where \(n\.is_test = false or \$1\) and n\.deleted_at is null and n\.reporter = \$2 and not exists/,
+  )
+  assert.match(s, /where pp\.press_level = 'out' ?\) order by n\.id desc limit \$3/)
+  assert.deepEqual(q.params, [false, 'quill', 5])
+  assert.deepEqual(
+    rowToOwnPiece({
+      kind: 'post',
+      body: 'A post.',
+      headline: null,
+      summary: null,
+      night: '2026-10-12',
+    }),
+    { kind: 'post', text: 'A post.', night: '2026-10-12' },
+  )
+  assert.deepEqual(
+    rowToOwnPiece({ kind: 'article', body: 'b', headline: 'H', summary: 'S.', night: null }),
+    { kind: 'article', text: 'H — S.', night: null },
+  )
+})
+
+void test('game article retries (C3a.8): failed game_article jobs under the cap since a time', () => {
+  const q = dialect.sqlToQuery(
+    listGameArticleRetriesSql({ since: new Date('2026-10-24T00:00:00Z'), limit: 5 }),
+  )
+  assert.match(
+    flat(q.sql),
+    /select j\.job_key from news_jobs j where j\.kind = 'game_article' and j\.status = 'failed' and j\.attempts < 3 and j\.updated_at >= \$1::timestamptz order by j\.id asc limit \$2/,
+  )
+  assert.deepEqual(q.params, ['2026-10-24T00:00:00.000Z', 5])
+})
+
+void test('migration 0071: the job kind check gains game_article by drop and re-add (C3a.8)', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const raw = await readFile(
+    new URL('../../../migrations/0071_news_desk.sql', import.meta.url),
+    'utf8',
+  )
+  const text = flat(
+    raw
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('--'))
+      .join('\n'),
+  )
+  assert.ok(
+    text.includes(
+      `DO $$ BEGIN ALTER TABLE "news_jobs" DROP CONSTRAINT IF EXISTS "news_jobs_kind_check"; ALTER TABLE "news_jobs" ADD CONSTRAINT "news_jobs_kind_check" CHECK ("kind" IN ('game', 'night', 'week', 'game_article')); END $$;`,
+    ),
+  )
 })

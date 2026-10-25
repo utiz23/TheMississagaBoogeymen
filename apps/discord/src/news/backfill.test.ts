@@ -5,11 +5,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   REPORTERS,
+  planBuzz,
   type NewsFactsResponse,
   type NewsGameFacts,
   type ReporterId,
 } from '@eanhl/db/news'
-import type { NewNewsItem } from '@eanhl/db/queries'
+import type { NewNewsItem, NewNewsStance } from '@eanhl/db/queries'
+import { assignGamePosts } from './assign.ts'
+import { classifyGame } from './situation.ts'
 import {
   ARTICLE_DELAY_MS,
   edmontonNoon,
@@ -27,12 +30,63 @@ import {
   type BackfillStore,
 } from './backfill.ts'
 import { FEATURE_SCHEMA } from './outputs.ts'
-import { buildReviewPrompt, buildSystemPrompt, REVIEW_SYSTEM_PROMPT } from './prompts.ts'
+import {
+  EMPTY_DESK_CONTEXT,
+  buildReviewPrompt,
+  buildSystemPrompt,
+  REVIEW_SYSTEM_PROMPT,
+} from './prompts.ts'
 import { oct12Facts } from './test-fixtures.ts'
 
 // ── Fakes ────────────────────────────────────────────────────────────────────
 
 const base = oct12Facts('game').games[0]!
+const at = (day: string, hhmm: string) => `${day}T${hhmm}:00.000Z`
+
+/**
+ * A 2-3 overtime loss in 6s with a close margin: normal buzz (2 posts), Mercer's recap
+ * (ot_loss). `REPLY_ID` is a match id whose seeded second post replies to the recap.
+ */
+function replyGame(matchId: number, night: string, playedAt: string): NewsGameFacts {
+  return {
+    ...base,
+    matchId,
+    night,
+    playedAt,
+    result: 'OTL',
+    overtime: true,
+    scoreFor: 2,
+    scoreAgainst: 3,
+    context: {
+      result: 'normal',
+      streakBefore: null,
+      streakAfter: { kind: 'L', count: 1 },
+      last10: { wins: 6, losses: 3, otl: 1 },
+      margin: 'close',
+      surprise: 'expected',
+      night: [],
+    },
+  }
+}
+
+const REPLY_ID = (() => {
+  for (let id = 250; id < 700; id++) {
+    const facts = { ...oct12Facts('game'), key: '2026-05-08' }
+    const game = replyGame(id, '2026-05-08', at('2026-05-09', '02:00'))
+    facts.games = [game]
+    const p = assignGamePosts({
+      game,
+      facts,
+      situation: classifyGame(game),
+      plan: planBuzz(game, facts),
+      now: new Date(game.playedAt),
+      night: '2026-05-08',
+      activity: [],
+    })
+    if (p.length === 2 && p[1]!.replyTo === 0) return id
+  }
+  throw new Error('no reply game')
+})()
 
 /** A 0-6 loss (blowout_loss: Mercer is first choice) ending at `playedAt`. */
 function loss(matchId: number, night: string, playedAt: string): NewsGameFacts {
@@ -66,8 +120,6 @@ function fakeWeb(nights: Record<string, NewsGameFacts[]>) {
   }
   return { calls, fetchFacts }
 }
-
-const at = (day: string, hhmm: string) => `${day}T${hhmm}:00.000Z`
 
 function reportersByNight(jobs: BackfillJob[]): Map<string, ReporterId[]> {
   const out = new Map<string, ReporterId[]>()
@@ -112,10 +164,14 @@ void test('plan: nights in date order, game jobs then the night article, sortabl
   assert.equal(g.matchId, 250)
   assert.equal(g.night, '2026-05-08')
   assert.equal(g.sheet.facts.kind, 'game')
-  assert.equal(g.reporters.length, 2) // a blowout loss gets two posts
-  assert.equal(typeof g.secondIsReply, 'boolean')
+  // A plain 0-6 loss is a quiet game (buzz): one post, the recap.
+  assert.equal(g.reporters.length, 1)
+  assert.deepEqual(
+    g.posts?.map((p) => p.angle),
+    ['recap'],
+  )
   assert.ok(g.user.includes('Fact sheet (JSON):'))
-  assert.ok(g.user.includes('exactly two posts'))
+  assert.ok(g.user.includes('exactly one post'))
   const n = plan.jobs[2]!
   assert.equal(n.kind, 'night')
   assert.equal(n.matchId, undefined)
@@ -335,7 +391,8 @@ function answerCriticizing(job: BackfillJob, criticized: string[]): string {
 void test('check: the pile-on limit against the night so far; the prompt gets the real list', async () => {
   const job = await oneGameJob()
   assert.ok(job.user.includes('Already criticised harshly tonight: nobody.'))
-  const e = evaluateJob(job, answerCriticizing(job, ['Skater A']), null, ['Skater A'])
+  const tonight = { ...EMPTY_DESK_CONTEXT, criticizedTonight: ['Skater A'] }
+  const e = evaluateJob(job, answerCriticizing(job, ['Skater A']), null, tonight)
   assert.equal(e.state, 'rewrite')
   if (e.state !== 'rewrite') return
   assert.deepEqual(e.problems, [
@@ -344,13 +401,13 @@ void test('check: the pile-on limit against the night so far; the prompt gets th
   assert.ok(e.rewritePrompt.includes('Already criticised harshly tonight: Skater A.'))
   assert.ok(!e.rewritePrompt.includes('Already criticised harshly tonight: nobody.'))
   // A waiting job whose night already has a harsh list gets the prompt to write from.
-  const w = evaluateJob(job, null, null, ['Skater A'])
+  const w = evaluateJob(job, null, null, tonight)
   assert.equal(w.state, 'waiting')
   assert.ok(
     w.state === 'waiting' && w.prompt?.includes('Already criticised harshly tonight: Skater A.'),
   )
   // The review sees the writer's list.
-  const r = evaluateJob(job, answerCriticizing(job, ['Goalie G']), null, ['Skater A'])
+  const r = evaluateJob(job, answerCriticizing(job, ['Goalie G']), null, tonight)
   assert.ok(r.state === 'review' && r.reviewPrompt.includes('criticised harshly: Goalie G.'))
 })
 
@@ -409,6 +466,7 @@ void test('check files: earlier ACCEPTED jobs of the same night count, in id ord
 
 function fakeStore() {
   const rows: (NewNewsItem & { id: number })[] = []
+  const stances: NewNewsStance[] = []
   const store: BackfillStore = {
     findPost: ({ matchId, reporter, body }) =>
       Promise.resolve(
@@ -426,32 +484,28 @@ function fakeStore() {
       rows.push({ ...item, id })
       return Promise.resolve(id)
     },
+    insertStance: (st) => {
+      stances.push(st)
+      return Promise.resolve(stances.length)
+    },
   }
-  return { rows, store }
+  return { rows, store, stances }
 }
 
 async function acceptedNight() {
   const nights = {
     '2026-05-08': [
-      // A 2-3 overtime loss: Dex Mercer's recap, then Wade Barlow's reply to him.
-      {
-        ...base,
-        matchId: 250,
-        night: '2026-05-08',
-        playedAt: at('2026-05-09', '02:00'),
-        result: 'OTL' as const,
-        overtime: true,
-        scoreAgainst: 3,
-      },
-      // A 0-6 loss: Mercer already wrote tonight, so Quill's recap and Voss's reaction, no reply.
+      // A 2-3 overtime loss, normal buzz: Dex Mercer's recap, then a reply to him.
+      replyGame(REPLY_ID, '2026-05-08', at('2026-05-09', '02:00')),
+      // A 0-6 loss, quiet: one recap, no reply.
       loss(251, '2026-05-08', at('2026-05-09', '02:40')),
     ],
   }
   const plan = await planBackfill({ nights: ['2026-05-08'], ...fakeWeb(nights) })
-  assert.deepEqual(plan.jobs[0]!.reporters, ['mercer', 'barlow'])
-  assert.deepEqual(plan.jobs[1]!.reporters, ['quill', 'voss'])
-  assert.equal(plan.jobs[0]!.secondIsReply, true)
-  assert.equal(plan.jobs[1]!.secondIsReply, false)
+  assert.equal(plan.jobs[0]!.reporters[0], 'mercer')
+  assert.equal(plan.jobs[0]!.reporters.length, 2)
+  assert.equal(plan.jobs[0]!.posts![1]!.replyTo, 0)
+  assert.equal(plan.jobs[1]!.reporters.length, 1)
   const posts = (job: BackfillJob, text: string) => ({
     posts: job.reporters.map((r, i) => ({
       reporter: r,
@@ -459,7 +513,7 @@ async function acceptedNight() {
       mentions: ['Skater A'],
       clubs: [],
       // Other spellings: the import stores the sheet's (C1.9, Q7).
-      criticized: i === 0 && job.matchId === 250 ? ['goalie g'] : [],
+      criticized: i === 0 && job.matchId === REPLY_ID ? ['goalie g'] : [],
       zeroCalled: [],
       stances: [],
       takesUsed: [],
@@ -511,13 +565,13 @@ void test('import: chronological, created_at from the games, replies linked, nev
   }
   const post = rows[0]!
   assert.equal(post.kind, 'post')
-  assert.equal(post.matchId, 250)
-  assert.equal(post.body, 'Post for 250.')
+  assert.equal(post.matchId, REPLY_ID)
+  assert.equal(post.body, `Post for ${String(REPLY_ID)}.`)
   assert.deepEqual(post.mentions, [{ name: 'Skater A', playerId: 1 }])
   assert.deepEqual(post.facts, first.sheet.facts)
   assert.equal(rows[0]!.replyTo, null)
-  assert.equal(rows[1]!.replyTo, rows[0]!.id) // Barlow answers Mercer
-  assert.equal(rows[3]!.replyTo, null) // game 251: two separate posts
+  assert.equal(rows[1]!.replyTo, rows[0]!.id) // the reply answers Mercer
+  assert.equal(rows[2]!.replyTo, null) // game 251: one recap
   const article = rows[rows.length - 1]!
   assert.equal(article.kind, 'article')
   assert.equal(article.slug, '2026-05-08-a-long-night-in-may')
@@ -786,7 +840,7 @@ void test('import: a feature has its week, kind, prediction, slug and the follow
     assert.equal(f.featureKind, 'spotlight')
     assert.equal(f.prediction, 'Someone finally beats the goalie.')
     assert.deepEqual(f.criticized, ['Skater A'])
-    assert.equal(f.slug, '2026-05-11-the-week-in-numbers')
+    assert.equal(f.slug, 'week-2026-05-11-the-week-in-numbers')
     assert.equal(f.createdAt?.toISOString(), '2026-05-18T18:00:00.000Z')
     assert.equal(
       f.body,
@@ -811,4 +865,234 @@ void test('CLI: next-feature needs --week, the web app and the token', async () 
     await main(['next-feature', '--out', '/nowhere', '--week', '2026-05-04'], {}, () => {}),
     2,
   )
+})
+
+// ── C3a.11: buzz, big-game articles, desk context, takes, stances ───────────
+
+/** The huge version of the reply game: overtime, blowout, big upset, blip (+ the sheet's milestone). */
+function hugeGame(matchId: number, night: string, playedAt: string): NewsGameFacts {
+  const g = replyGame(matchId, night, playedAt)
+  return {
+    ...g,
+    context: { ...g.context!, margin: 'blowout', surprise: 'big upset', result: 'blip' },
+  }
+}
+
+void test('C3a.11 plan: a huge game gets its buzz count of posts and article jobs; files round-trip', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'backfill-huge-'))
+  try {
+    const nights = { '2026-05-08': [hugeGame(701, '2026-05-08', at('2026-05-09', '02:00'))] }
+    const plan = await planBackfill({ nights: ['2026-05-08'], ...fakeWeb(nights) })
+    const ids = plan.jobs.map((j) => j.id)
+    assert.equal(ids[0], '2026-05-08-a01-g701')
+    assert.equal(ids[1], '2026-05-08-a01-h701-1-game')
+    assert.ok(
+      ids[2] === '2026-05-08-a01-h701-2-spotlight' || ids[2] === '2026-05-08-a01-h701-2-column',
+    )
+    assert.deepEqual(ids, [...ids].sort())
+    assert.equal(ids[3], '2026-05-08-z-night')
+    const posts = plan.jobs[0]!
+    assert.ok(posts.reporters.length >= 6 && posts.reporters.length <= 8)
+    assert.equal(new Set(posts.posts!.map((p) => p.angle)).size, posts.reporters.length)
+    const story = plan.jobs[1]!
+    assert.equal(story.kind, 'game-article')
+    assert.equal(story.articleKind, 'game')
+    assert.equal(story.matchId, 701)
+    assert.ok(story.user.includes('200 to 350 words'))
+    assert.ok(plan.jobs[2]!.user.includes('400 to 700 words'))
+    // Article dates: a minute per kind after the game.
+    assert.equal(
+      itemCreatedAt(story, 0).toISOString(),
+      new Date(Date.parse(at('2026-05-09', '02:00')) + 60_000).toISOString(),
+    )
+    writePlan(dir, plan)
+    assert.deepEqual(readJobs(dir), plan.jobs)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+void test('C3a.11 check: zero call-outs, own pieces and the night posts come from accepted jobs in id order', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'backfill-ctx-'))
+  try {
+    const nights = {
+      '2026-05-08': [
+        loss(250, '2026-05-08', at('2026-05-09', '02:00')),
+        loss(251, '2026-05-08', at('2026-05-09', '02:40')),
+      ],
+      '2026-05-09': [loss(260, '2026-05-09', at('2026-05-10', '02:00'))],
+    }
+    const plan = await planBackfill({ nights: Object.keys(nights), ...fakeWeb(nights) })
+    writePlan(dir, plan)
+    const [g250, g251, night8, g260] = plan.jobs
+    const said: Record<number, string> = {
+      250: 'Skater A had 0 points as the club took 14 shots.',
+      251: 'Skater A had 0 points as the club allowed 29 shots.',
+      260: 'Skater A had 0 points with Goalie G making 23 saves.',
+    }
+    const answer = (job: BackfillJob, zeroCalled: string[]) =>
+      JSON.stringify({
+        posts: job.reporters.map((r) => ({
+          reporter: r,
+          text: said[job.matchId!]!,
+          mentions: ['Skater A'],
+          clubs: [],
+          criticized: [],
+          zeroCalled,
+          stances: [],
+          takesUsed: [],
+        })),
+      })
+    const put = (job: BackfillJob, text: string) => {
+      writeFileSync(join(dir, 'answers', `${job.id}.json`), text)
+      writeFileSync(join(dir, 'reviews', `${job.id}.json`), '{"ok": true}')
+    }
+    const status = (job: BackfillJob) =>
+      JSON.parse(readFileSync(join(dir, 'status', `${job.id}.json`), 'utf8')) as {
+        state: string
+        problems?: string[]
+        prompt?: string
+      }
+    put(g250!, answer(g250!, ['Skater A']))
+    put(g251!, answer(g251!, ['Skater A']))
+    runCheck(dir, () => {})
+    assert.equal(status(g250!).state, 'accepted')
+    // One zero call-out per night: the second game's is refused.
+    assert.equal(status(g251!).state, 'rewrite')
+    assert.ok(status(g251!).problems!.some((p) => /at most one per night/.test(p)))
+    // The night article waits with the night's posts and the zero call-out in its prompt.
+    const n8 = status(night8!)
+    assert.equal(n8.state, 'waiting')
+    assert.ok(n8.prompt!.includes(said[250]!))
+    assert.ok(!n8.prompt!.includes(said[251]!), 'only accepted posts')
+    assert.ok(n8.prompt!.includes('Zero call-outs tonight: Skater A.'))
+    // The next night: Skater A was called out last night, never two nights in a row.
+    put(g260!, answer(g260!, ['Skater A']))
+    runCheck(dir, () => {})
+    assert.ok(status(g260!).problems!.some((p) => /two nights in a row/.test(p)))
+    // And the reporter's own last pieces reach his next prompt.
+    const recapper = g260!.reporters[0]!
+    const own = plan.jobs
+      .filter((j) => j.id < g260!.id && j.kind === 'game' && j.reporters.includes(recapper))
+      .map((j) => said[j.matchId!]!)
+    if (own.length > 0) {
+      const p = JSON.parse(readFileSync(join(dir, 'status', `${g260!.id}.json`), 'utf8')) as {
+        rewritePrompt: string
+      }
+      assert.ok(p.rewritePrompt.includes(own[0]!))
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+void test('C3a.11 takes: offered from the sheet, at most once a week in the plan; imported with stances and zero call-outs', async () => {
+  const take = {
+    id: 7,
+    reporter: 'mercer' as const,
+    critics: [
+      'voss',
+      'barlow',
+      'halberd',
+      'vale',
+      'quill',
+      'rink',
+      'pettibone',
+      'bergstrom',
+    ] as ReporterId[],
+    defender: null,
+    playerId: 1,
+    player: 'Skater A',
+    take: 'INVENTED TAKE for a test.',
+    spread: 'some' as const,
+    dataAngle: null,
+    intensity: 0,
+    mild: false,
+  }
+  const games = {
+    '2026-05-08': [replyGame(REPLY_ID, '2026-05-08', at('2026-05-09', '02:00'))],
+    '2026-05-10': [replyGame(REPLY_ID + 1000, '2026-05-10', at('2026-05-11', '02:00'))],
+  }
+  const web = fakeWeb(games)
+  const fetchFacts = async (kind: 'game' | 'night' | 'week', key: string) => ({
+    ...(await web.fetchFacts(kind, key)),
+    takes: [take],
+  })
+  const plan = await planBackfill({ nights: Object.keys(games), fetchFacts })
+  const offered = plan.jobs.filter(
+    (j) => j.posts?.some((p) => p.takeId === 7) || (j.offeredTakes ?? []).includes(7),
+  )
+  assert.equal(offered.length, 1, 'once in 7 days')
+  assert.ok(offered[0]!.user.includes('Take 7 on Skater A: INVENTED TAKE'))
+  assert.ok(!plan.jobs.find((j) => j !== offered[0])!.user.includes('Take 7'))
+
+  // Import: stances, zero call-outs and takes used are stored.
+  const job = offered[0]!
+  const thread = {
+    key: 'pp-drought@2026-05-01',
+    kind: 'pp-drought' as const,
+    subject: null,
+    since: '2026-05-01',
+    status: 'open' as const,
+    summary: 'No PP goal.',
+  }
+  job.sheet = { ...job.sheet, facts: { ...job.sheet.facts, threads: [thread] } }
+  const out = {
+    posts: job.reporters.map((r, i) => ({
+      reporter: r,
+      text: 'Post.',
+      mentions: [],
+      clubs: [],
+      criticized: [],
+      zeroCalled: i === 0 ? ['skater a'] : [],
+      stances: i === 0 ? [{ threadKey: thread.key, stance: 'It ends.' }] : [],
+      takesUsed: job.posts![i]!.takeId === 7 ? [7] : [],
+    })),
+  }
+  const { rows, store, stances } = fakeStore()
+  await importAccepted([{ job, output: out }], store, () => {})
+  assert.deepEqual(rows[0]!.zeroCalled, ['Skater A'])
+  assert.ok(rows.some((r) => (r.takesUsed ?? []).includes(7)))
+  assert.deepEqual(stances, [
+    {
+      threadKey: thread.key,
+      reporter: job.reporters[0],
+      stance: 'It ends.',
+      night: job.night,
+      itemId: 1,
+    },
+  ])
+})
+
+void test('C3a.11 import: a big game article keeps its match and kind; a feature its verdict', async () => {
+  const nights = { '2026-05-08': [hugeGame(701, '2026-05-08', at('2026-05-09', '02:00'))] }
+  const plan = await planBackfill({ nights: ['2026-05-08'], ...fakeWeb(nights) })
+  const story = plan.jobs.find((j) => j.kind === 'game-article' && j.articleKind === 'game')!
+  const extra = plan.jobs.find((j) => j.kind === 'game-article' && j.articleKind !== 'game')!
+  const article = {
+    headline: 'Big night',
+    dek: 'A dek.',
+    paragraphs: ['Body.'],
+    summary: 'S.',
+    mentions: [],
+    clubs: [],
+    criticized: [],
+    zeroCalled: [],
+    stances: [],
+    takesUsed: [],
+  }
+  const { rows, store } = fakeStore()
+  await importAccepted(
+    [
+      { job: story, output: article },
+      { job: extra, output: { ...article, headline: 'Bigger night' } },
+    ],
+    store,
+    () => {},
+  )
+  assert.equal(rows[0]!.matchId, 701)
+  assert.equal(rows[0]!.slug, '2026-05-08-g701-big-night')
+  assert.equal(rows[0]!.featureKind, null)
+  assert.equal(rows[0]!.weekStart, null)
+  assert.equal(rows[1]!.featureKind, extra.articleKind === 'spotlight' ? 'spotlight' : 'bigpicture')
 })

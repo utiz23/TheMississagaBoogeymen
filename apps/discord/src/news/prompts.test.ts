@@ -11,10 +11,34 @@ import {
   capFactsForPrompt,
   criticizedTonightLine,
   setCriticizedTonight,
+  EMPTY_DESK_CONTEXT,
+  DESK_CONTEXT_END,
+  DESK_CONTEXT_START,
+  buildGameArticleUserPrompt,
+  deskContextBlock,
+  setDeskContext,
+  storyFacts,
   stableStringify,
   whenLine,
 } from './prompts.ts'
 import { oct12Facts } from './test-fixtures.ts'
+import type { PostAssignment } from './assign.ts'
+
+const recap = (reporter: PostAssignment['reporter']): PostAssignment => ({
+  reporter,
+  angle: 'recap',
+  replyTo: null,
+  factId: null,
+  takeId: null,
+})
+const one = (reporter: PostAssignment['reporter']) => [recap(reporter)]
+const reply = (reporter: PostAssignment['reporter'], to: number): PostAssignment => ({
+  reporter,
+  angle: 'reply',
+  replyTo: to,
+  factId: null,
+  takeId: null,
+})
 
 const all = REPORTER_IDS.map((id) => REPORTERS[id])
 
@@ -114,15 +138,8 @@ void test('capFactsForPrompt: round milestones survive the cap; ties keep sheet 
 
 void test('game prompt: sheet JSON, both reporters, reply note, no forbidden data', () => {
   const f = oct12Facts()
-  const p = buildGameUserPrompt({
-    facts: f,
-    first: REPORTERS.mercer,
-    second: REPORTERS.barlow,
-    secondIsReply: true,
-    relationship: 'Wade Barlow thinks Dex Mercer is a fraud with good timing.',
-    criticizedTonight: [],
-  })
-  assert.ok(p.includes(stableStringify(capFactsForPrompt(f))))
+  const p = buildGameUserPrompt({ facts: f, posts: [recap('mercer'), reply('barlow', 0)] })
+  assert.ok(p.includes(stableStringify({ ...capFactsForPrompt(f), topFacts: [] })))
   assert.ok(p.includes('Dex Mercer'))
   assert.ok(p.includes('Wade Barlow'))
   assert.ok(p.includes('fraud with good timing'))
@@ -132,14 +149,7 @@ void test('game prompt: sheet JSON, both reporters, reply note, no forbidden dat
 })
 
 void test('game prompt with one reporter says so', () => {
-  const p = buildGameUserPrompt({
-    facts: oct12Facts(),
-    first: REPORTERS.barlow,
-    second: null,
-    secondIsReply: false,
-    relationship: null,
-    criticizedTonight: [],
-  })
+  const p = buildGameUserPrompt({ facts: oct12Facts(), posts: one('barlow') })
   assert.ok(p.includes('Wade Barlow'))
   assert.ok(/exactly one post/i.test(p))
 })
@@ -148,24 +158,24 @@ void test('article prompt: reporter, kind, word range, own recent pieces', () =>
   const p = buildArticleUserPrompt({
     facts: oct12Facts('night'),
     reporter: REPORTERS.quill,
-    kind: 'night',
-    ownRecent: [{ headline: 'Old Headline', summary: 'Old summary.', night: '2026-10-05' }],
-    criticizedTonight: [],
+    ctx: {
+      ...EMPTY_DESK_CONTEXT,
+      ownRecent: {
+        quill: [{ kind: 'article', text: 'Old Headline — Old summary.', night: '2026-10-05' }],
+      },
+    },
   })
   assert.ok(p.includes('Mara Quill'))
   assert.ok(p.includes('250'))
   assert.ok(p.includes('450'))
   assert.ok(p.includes('Old Headline'))
   assert.ok(p.includes('2026-10-05'))
-  const w = buildArticleUserPrompt({
-    facts: oct12Facts('week'),
-    reporter: REPORTERS.quill,
-    kind: 'week',
-    ownRecent: [],
-    criticizedTonight: [],
-  })
-  assert.ok(/week/i.test(w))
-  assert.ok(!w.includes('Old Headline'))
+  // A one-game night is shorter (spec §12.12-7).
+  const single = oct12Facts('night')
+  single.games = [single.games[0]!]
+  assert.ok(
+    buildArticleUserPrompt({ facts: single, reporter: REPORTERS.quill }).includes('120 to 200'),
+  )
 })
 
 void test('review prompt: the text, the sheet, the three checks', () => {
@@ -253,35 +263,16 @@ void test('whenLine: the night in words; a week names its start and its game nig
 })
 
 void test('game and article prompts carry the night label, never only the ISO key (c1)', () => {
-  const game = buildGameUserPrompt({
-    facts: oct12Facts(),
-    first: REPORTERS.barlow,
-    second: null,
-    secondIsReply: false,
-    relationship: null,
-    criticizedTonight: [],
-  })
+  const game = buildGameUserPrompt({ facts: oct12Facts(), posts: one('barlow') })
   assert.ok(game.includes('The night: Monday, October 12.'))
-  const article = buildArticleUserPrompt({
-    facts: oct12Facts('night'),
-    reporter: REPORTERS.quill,
-    kind: 'night',
-    ownRecent: [],
-    criticizedTonight: [],
-  })
+  const article = buildArticleUserPrompt({ facts: oct12Facts('night'), reporter: REPORTERS.quill })
   assert.ok(article.includes('The night: Monday, October 12.'))
 })
 
 void test('article prompt: headline at most 120 characters, dek at most 160 (M7)', () => {
-  const p = buildArticleUserPrompt({
-    facts: oct12Facts('night'),
-    reporter: REPORTERS.quill,
-    kind: 'night',
-    ownRecent: [],
-    criticizedTonight: [],
-  })
-  assert.ok(p.includes('headline: a short headline, at most 120 characters.'))
-  assert.ok(p.includes('dek: one line under the headline, at most 160 characters.'))
+  const p = buildArticleUserPrompt({ facts: oct12Facts('night'), reporter: REPORTERS.quill })
+  assert.ok(p.includes('headline: a short headline, at most 120 characters, in sentence case'))
+  assert.ok(p.includes('dek: one line under the headline, at most 160 characters'))
 })
 
 void test('review prompt: clubs only from games[].opponentName; off-ice places; feelings (M5, c2)', () => {
@@ -379,14 +370,7 @@ void test('review prompt: goal timeline facts are allowed (B1)', () => {
 })
 
 void test('game prompt: the first post is the recap — result, score, scorers, one key number (rev 2, B1)', () => {
-  const p = buildGameUserPrompt({
-    facts: oct12Facts(),
-    first: REPORTERS.barlow,
-    second: null,
-    secondIsReply: false,
-    relationship: null,
-    criticizedTonight: [],
-  })
+  const p = buildGameUserPrompt({ facts: oct12Facts(), posts: one('barlow') })
   assert.ok(/exactly one post/i.test(p))
   assert.ok(p.includes('the recap of the game'))
   assert.ok(p.includes('the result and the score'))
@@ -400,25 +384,20 @@ void test('game prompt: the first post is the recap — result, score, scorers, 
 void test('game prompt: the second post reacts or replies and does not repeat the recap (rev 2, B1)', () => {
   const standalone = buildGameUserPrompt({
     facts: oct12Facts(),
-    first: REPORTERS.vale,
-    second: REPORTERS.barlow,
-    secondIsReply: false,
-    relationship: null,
-    criticizedTonight: [],
+    posts: [recap('vale'), { ...recap('barlow'), angle: 'number' }],
   })
   assert.ok(standalone.includes('1. The recap, as Rico Vale'))
-  assert.ok(standalone.includes('2. A reaction, as Wade Barlow'))
-  assert.ok(standalone.includes('Do not repeat the score line or the list of scorers'))
-  const reply = buildGameUserPrompt({
+  assert.ok(
+    standalone.includes('2. As Wade Barlow (id "barlow") of Boogeymen Beat, angle "number"'),
+  )
+  assert.ok(standalone.includes('do not repeat the score line or the list of scorers'))
+  const replied = buildGameUserPrompt({
     facts: oct12Facts(),
-    first: REPORTERS.mercer,
-    second: REPORTERS.barlow,
-    secondIsReply: true,
-    relationship: 'x',
-    criticizedTonight: [],
+    posts: [recap('mercer'), reply('barlow', 0)],
   })
-  assert.ok(reply.includes('2. A reply, as Wade Barlow'))
-  assert.ok(reply.includes('Answer Dex Mercer directly'))
+  assert.ok(replied.includes('angle "reply": a reply to the post named below'))
+  assert.ok(replied.includes('It answers post 1 by Dex Mercer directly'))
+  assert.ok(replied.includes('Wade Barlow thinks Dex Mercer is a fraud with good timing.'))
 })
 
 void test('prompts carry the pile-on line; the review checks unlisted harsh criticism (rev 2, B4)', () => {
@@ -432,22 +411,13 @@ void test('prompts carry the pile-on line; the review checks unlisted harsh crit
   )
   const game = buildGameUserPrompt({
     facts: oct12Facts(),
-    first: REPORTERS.barlow,
-    second: null,
-    secondIsReply: false,
-    relationship: null,
-    criticizedTonight: ['Skater A'],
+    posts: one('barlow'),
+    ctx: { ...EMPTY_DESK_CONTEXT, criticizedTonight: ['Skater A'] },
   })
   assert.ok(game.includes(criticizedTonightLine(['Skater A'])))
-  const article = buildArticleUserPrompt({
-    facts: oct12Facts('night'),
-    reporter: REPORTERS.quill,
-    kind: 'night',
-    ownRecent: [],
-    criticizedTonight: [],
-  })
+  const article = buildArticleUserPrompt({ facts: oct12Facts('night'), reporter: REPORTERS.quill })
   assert.ok(article.includes(criticizedTonightLine([])))
-  assert.ok(article.includes('- criticized: '))
+  assert.ok(article.includes('- criticized, zeroCalled, stances, takesUsed: '))
   // The backfill swaps the line once the earlier items of the night are known.
   assert.equal(
     setCriticizedTonight(game, ['Goalie G']).split(criticizedTonightLine(['Goalie G'])).length,
@@ -509,9 +479,9 @@ void test('spotlight: the named player with a milestone this week, else the most
 
 void test('feature prompt: kind instructions, 600-900 words, prediction and receipt (rev 2, B3)', () => {
   const facts = oct12Facts('week')
-  const base = { facts, ownRecent: [], previousPrediction: null }
+  const base = { facts, previousPrediction: null }
   const trend = buildFeatureUserPrompt({ ...base, reporter: REPORTERS.quill, kind: 'trend' })
-  assert.ok(trend.includes(stableStringify(capFactsForPrompt(facts))))
+  assert.ok(trend.includes(stableStringify({ ...capFactsForPrompt(facts), topFacts: [] })))
   assert.ok(trend.includes('The week starts on Monday, October 12.'))
   assert.ok(trend.includes('as Mara Quill (id "quill")'))
   assert.ok(trend.includes('"history"'))
@@ -520,7 +490,7 @@ void test('feature prompt: kind instructions, 600-900 words, prediction and rece
   assert.ok(trend.includes('no digits and no number words'))
   assert.ok(trend.includes("Last week's prediction: none."))
   assert.ok(trend.includes('- receipt: an empty string'))
-  assert.ok(!trend.includes('Already criticised harshly tonight'))
+  assert.ok(trend.includes('- receiptVerdict: "none".'))
 
   const spot = buildFeatureUserPrompt({ ...base, reporter: REPORTERS.voss, kind: 'spotlight' })
   assert.ok(spot.includes('Spotlight player: Skater B.'))
@@ -541,8 +511,15 @@ void test('feature prompt: kind instructions, 600-900 words, prediction and rece
     previousPrediction: 'Someone finally beats the goalie.',
   })
   assert.ok(withPrev.includes(`Last week's prediction: "Someone finally beats the goalie."`))
-  assert.ok(withPrev.includes('- receipt: one or two sentences'))
+  assert.ok(
+    withPrev.includes("- receipt: one or two sentences that restate last week's prediction"),
+  )
   assert.ok(withPrev.includes('only from this sheet'))
+  assert.ok(
+    withPrev.includes(
+      '- receiptVerdict: "hit" when the prediction came true, "miss" when it did not.',
+    ),
+  )
 })
 
 void test('system prompt (C3a.2): every writing rule of spec §12.8-§12.19', () => {
@@ -596,4 +573,172 @@ void test('system prompt (C3a.2): every writing rule of spec §12.8-§12.19', ()
   // The old "no praise or blame" AI goalie rule is gone, and no rule says "us".
   assert.ok(!s.includes('get no praise or blame'))
   assert.ok(!/for us\b|against us\b/.test(s))
+})
+
+// ── C3a.3: prompt context ───────────────────────────────────────────────────
+
+function ranked(n: number): NewsFacts {
+  const f = oct12Facts('game')
+  f.topFacts = Array.from({ length: n }, (_, i) => ({
+    id: `f${String(i)}`,
+    text: `Ranked fact ${String(i)}`,
+    weight: 100 - i,
+    subject: i === 0 ? 'Skater A' : null,
+  }))
+  return f
+}
+
+void test('C3a.3 story: the top 5 facts are the story, the rest background; the sheet JSON has no topFacts', () => {
+  const f = ranked(8)
+  const p = buildArticleUserPrompt({ facts: { ...f, kind: 'night' }, reporter: REPORTERS.quill })
+  const story = p.slice(p.indexOf('The story'), p.indexOf('Background facts'))
+  for (let i = 0; i < 5; i++) assert.ok(story.includes(`Ranked fact ${String(i)}`), String(i))
+  assert.ok(!story.includes('Ranked fact 5'))
+  assert.ok(p.slice(p.indexOf('Background facts')).includes('Ranked fact 7'))
+  assert.ok(!p.includes('"topFacts":[{'))
+  assert.deepEqual(
+    storyFacts(f, 5, new Set(['f0', 'f2'])).map((x) => x.id),
+    ['f1', 'f3', 'f4', 'f5', 'f6'],
+  )
+})
+
+void test("C3a.3 game posts: each extra post names its own fact; the story starts with the posts' facts", () => {
+  const f = ranked(10)
+  const p = buildGameUserPrompt({
+    facts: f,
+    posts: [
+      { ...recap('barlow'), factId: 'f0' },
+      { reporter: 'quill', angle: 'number', replyTo: null, factId: 'f1', takeId: null },
+      { reporter: 'vale', angle: 'joke', replyTo: null, factId: 'f2', takeId: null },
+    ],
+  })
+  assert.ok(
+    p.includes(
+      'angle "number": one number on the sheet and what it says. Its fact: "Ranked fact 1".',
+    ),
+  )
+  assert.ok(p.includes('angle "joke"'))
+  assert.ok(p.includes('Its fact: "Ranked fact 2".'))
+  assert.ok(p.includes('Write exactly 3 posts, in this order:'))
+})
+
+void test('C3a.3 threads and stances; takes only for the request reporters, mild for Go easy', () => {
+  const f = oct12Facts('game')
+  f.threads = [
+    {
+      key: 'pp-drought@2026-10-08',
+      kind: 'pp-drought',
+      subject: null,
+      since: '2026-10-08',
+      status: 'open',
+      summary: 'No PP goal in 3 games.',
+    },
+  ]
+  f.stances = [
+    {
+      threadKey: 'pp-drought@2026-10-08',
+      reporter: 'quill',
+      stance: 'It ends soon.',
+      night: '2026-10-08',
+    },
+  ]
+  const take = {
+    id: 9,
+    reporter: 'mercer' as const,
+    critics: ['pettibone' as const],
+    defender: 'quill' as const,
+    playerId: 2,
+    player: 'Skater B',
+    take: 'Invented: he hides in the big games.',
+    spread: 'a few' as const,
+    dataAngle: 'points in one-goal games',
+    intensity: 1,
+    mild: true,
+  }
+  const p = buildGameUserPrompt({
+    facts: f,
+    posts: one('pettibone'),
+    ctx: { ...EMPTY_DESK_CONTEXT, takes: [take] },
+  })
+  assert.ok(p.includes('- pp-drought@2026-10-08: No PP goal in 3 games. (open)'))
+  assert.ok(p.includes('- Mara Quill on pp-drought@2026-10-08: "It ends soon."'))
+  assert.ok(p.includes('- Take 9 on Skater B: Invented: he hides in the big games.'))
+  assert.ok(p.includes('critics: Dex Mercer, Gord Pettibone (a few of the desk share it)'))
+  assert.ok(p.includes('defender: Mara Quill'))
+  assert.ok(p.includes('data angle: points in one-goal games'))
+  assert.ok(p.includes('Skater B is at press level "easy": keep it mild'))
+  // Not for a reporter who neither holds nor answers it.
+  const other = buildGameUserPrompt({
+    facts: f,
+    posts: one('barlow'),
+    ctx: { ...EMPTY_DESK_CONTEXT, takes: [take] },
+  })
+  assert.ok(!other.includes('Take 9'))
+})
+
+void test('C3a.3 desk context: own last 5 pieces, zero call-outs, the night posts; swapped as one block', () => {
+  const own = Array.from({ length: 7 }, (_, i) => ({
+    kind: 'post' as const,
+    text: `Old post ${String(i)}`,
+    night: '2026-10-05',
+  }))
+  const ctx = {
+    criticizedTonight: ['Skater A'],
+    zeroCalledTonight: [],
+    zeroCalledPrevious: ['Skater B'],
+    ownRecent: { quill: own },
+    nightPosts: [{ reporter: 'barlow', text: 'Barlow said 14 shots.' }],
+  }
+  const block = deskContextBlock(ctx, ['quill'])
+  assert.ok(block.startsWith(DESK_CONTEXT_START))
+  assert.ok(block.endsWith(DESK_CONTEXT_END))
+  assert.ok(
+    block.includes("Mara Quill's own last pieces, newest first. Do not repeat their phrasing"),
+  )
+  assert.ok(block.includes('Old post 4'))
+  assert.ok(!block.includes('Old post 5'), 'at most 5')
+  assert.ok(block.includes('Zero call-outs tonight: nobody.'))
+  assert.ok(block.includes('Zero call-outs last night: Skater B.'))
+  assert.ok(
+    block.includes(
+      "Tonight's posts, oldest first. Reuse their numbers only to draw a new conclusion:",
+    ),
+  )
+  assert.ok(block.includes('- Wade Barlow: Barlow said 14 shots.'))
+  const night = buildArticleUserPrompt({ facts: oct12Facts('night'), reporter: REPORTERS.quill })
+  assert.ok(night.includes("Tonight's posts: none."))
+  const swapped = setDeskContext(night, ctx, ['quill'])
+  assert.ok(swapped.includes('Barlow said 14 shots.'))
+  assert.equal(swapped.split(DESK_CONTEXT_START).length, 2)
+  assert.equal(setDeskContext('no block', ctx, ['quill']), 'no block')
+})
+
+void test('C3a.7 game article prompts: story 200-350 words, spotlight/column 400-700, the spotlight player', () => {
+  const f = ranked(6)
+  const story = buildGameArticleUserPrompt({ facts: f, reporter: REPORTERS.barlow, kind: 'game' })
+  assert.ok(story.includes('the game story'))
+  assert.ok(story.includes('200 to 350 words'))
+  const spot = buildGameArticleUserPrompt({ facts: f, reporter: REPORTERS.voss, kind: 'spotlight' })
+  assert.ok(spot.includes('400 to 700 words'))
+  assert.ok(spot.includes('Spotlight player: Skater A.'))
+  const col = buildGameArticleUserPrompt({
+    facts: f,
+    reporter: REPORTERS.bergstrom,
+    kind: 'column',
+  })
+  assert.ok(col.includes('a column'))
+  assert.ok(col.includes(DESK_CONTEXT_START))
+})
+
+void test('C3a.9 feature prompt: scorecards and the receipt that restates the prediction', () => {
+  const facts = oct12Facts('week')
+  facts.scorecards = [{ reporter: 'quill', hits: 4, misses: 3, judged: 7 }]
+  const p = buildFeatureUserPrompt({
+    facts,
+    reporter: REPORTERS.quill,
+    kind: 'trend',
+    previousPrediction: 'X.',
+  })
+  assert.ok(p.includes('Prediction scorecards: Mara Quill 4 for 7.'))
+  assert.ok(p.includes("restate last week's prediction"))
 })

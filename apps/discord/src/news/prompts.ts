@@ -3,10 +3,16 @@ import {
   REPORTER_IDS,
   compareMilestones,
   nightLabel,
+  pairAttitude,
   type FeatureKind,
+  type GameArticleKind,
   type NewsFacts,
+  type NewsTake,
+  type NewsTopFact,
   type Reporter,
+  type ReporterId,
 } from '@eanhl/db/news'
+import { ANGLE_TEXT, type PostAssignment } from './assign.ts'
 
 const MAX_UNLOCKS = 12
 const MAX_MILESTONES = 10
@@ -48,8 +54,12 @@ export function capFactsForPrompt(facts: NewsFacts): NewsFacts {
   }
 }
 
+/**
+ * The sheet JSON of a request. The ranked facts are not in it: they come as
+ * "the story" and the background lines (C3a.3), so the prompt stays short.
+ */
 function sheet(facts: NewsFacts): string {
-  return stableStringify(capFactsForPrompt(facts))
+  return stableStringify({ ...capFactsForPrompt(facts), topFacts: [] })
 }
 
 /**
@@ -131,6 +141,53 @@ export function buildSystemPrompt(reporters: Reporter[]): string {
   return `${rules}\n\nTHE REPORTERS\n\n${voices}`
 }
 
+// ── Request context (C3a.3) ─────────────────────────────────────────────────
+
+/** How many top facts make "the story" of a piece (spec §12.17-2). */
+export const STORY_FACTS = 5
+/** How many of the reporter's own last pieces a request shows. */
+export const OWN_RECENT_PIECES = 5
+
+/** One of the reporter's own recent pieces (a post's text, or an article's headline and summary). */
+export interface OwnPiece {
+  kind: 'post' | 'article'
+  text: string
+  night: string | null
+}
+
+/** One post of the night so far, for the night article. */
+export interface NightPost {
+  reporter: string
+  text: string
+}
+
+/**
+ * The parts of a request that depend on what the desk already wrote: they sit
+ * in one block (between `DESK_CONTEXT_START` and `DESK_CONTEXT_END`) so the
+ * backfill can swap it once the earlier jobs are accepted.
+ */
+export interface DeskContext {
+  criticizedTonight: readonly string[]
+  zeroCalledTonight: readonly string[]
+  zeroCalledPrevious: readonly string[]
+  /** Per reporter of the request, its own last pieces (newest first). */
+  ownRecent: Readonly<Partial<Record<ReporterId, readonly OwnPiece[]>>>
+  /** Night articles: the night's posts, oldest first. */
+  nightPosts?: readonly NightPost[]
+  /** The reporter takes due for this request's reporters (spec §12.19); none when absent. */
+  takes?: readonly NewsTake[]
+}
+
+export const EMPTY_DESK_CONTEXT: DeskContext = {
+  criticizedTonight: [],
+  zeroCalledTonight: [],
+  zeroCalledPrevious: [],
+  ownRecent: {},
+}
+
+export const DESK_CONTEXT_START = 'DESK CONTEXT (what the desk already wrote)'
+export const DESK_CONTEXT_END = 'END OF DESK CONTEXT'
+
 const CRITICIZED_TONIGHT_PREFIX = 'Already criticised harshly tonight:'
 
 /** The pile-on line of a request (rev 2, B4): one line, so the backfill can swap it. */
@@ -145,99 +202,294 @@ export function setCriticizedTonight(user: string, names: readonly string[]): st
   return user.replace(line, () => criticizedTonightLine(names))
 }
 
+const list = (names: readonly string[]) => (names.length === 0 ? 'nobody' : names.join(', '))
+
+/** The desk context block for the reporters of a request. */
+export function deskContextBlock(ctx: DeskContext, reporters: readonly ReporterId[]): string {
+  const lines = [
+    DESK_CONTEXT_START,
+    criticizedTonightLine(ctx.criticizedTonight),
+    `Zero call-outs tonight: ${list(ctx.zeroCalledTonight)}.`,
+    `Zero call-outs last night: ${list(ctx.zeroCalledPrevious)}.`,
+  ]
+  if (ctx.nightPosts !== undefined) {
+    if (ctx.nightPosts.length === 0) {
+      lines.push("Tonight's posts: none.")
+    } else {
+      lines.push(
+        "Tonight's posts, oldest first. Reuse their numbers only to draw a new conclusion:",
+        ...ctx.nightPosts.map((p) => {
+          const r = REPORTER_IDS.find((id) => id === p.reporter)
+          return `- ${r === undefined ? p.reporter : REPORTERS[r].name}: ${p.text}`
+        }),
+      )
+    }
+  }
+  for (const id of [...new Set(reporters)]) {
+    const own = ctx.ownRecent[id] ?? []
+    const name = REPORTERS[id].name
+    if (own.length === 0) {
+      lines.push(`${name}'s own last pieces: none yet.`)
+      continue
+    }
+    lines.push(`${name}'s own last pieces, newest first. Do not repeat their phrasing or images:`)
+    for (const piece of own.slice(0, OWN_RECENT_PIECES)) {
+      lines.push(
+        `- ${piece.night === null ? 'undated' : piece.night} (${piece.kind}): ${piece.text}`,
+      )
+    }
+  }
+  const takes = takesBlock(ctx.takes ?? [], reporters)
+  if (takes !== null) lines.push(takes)
+  lines.push(DESK_CONTEXT_END)
+  return lines.join('\n')
+}
+
+/** The request with its desk context block replaced (unchanged when it has none). */
+export function setDeskContext(
+  user: string,
+  ctx: DeskContext,
+  reporters: readonly ReporterId[],
+): string {
+  const start = user.indexOf(DESK_CONTEXT_START)
+  const end = user.indexOf(DESK_CONTEXT_END)
+  if (start < 0 || end < start) return user
+  return (
+    user.slice(0, start) +
+    deskContextBlock(ctx, reporters) +
+    user.slice(end + DESK_CONTEXT_END.length)
+  )
+}
+
+/** The top facts not in `exclude`, at most `n`, in rank order. */
+export function storyFacts(
+  facts: NewsFacts,
+  n: number = STORY_FACTS,
+  exclude: ReadonlySet<string> = new Set(),
+): NewsTopFact[] {
+  return facts.topFacts.filter((f) => !exclude.has(f.id)).slice(0, n)
+}
+
+/** "The story" (top facts) and the background facts of a request. */
+export function storyBlock(story: readonly NewsTopFact[], facts: NewsFacts): string {
+  const inStory = new Set(story.map((f) => f.id))
+  const background = facts.topFacts.filter((f) => !inStory.has(f.id))
+  const lines = ['The story (the top facts for this piece; build on them):']
+  if (story.length === 0) lines.push('- (no ranked facts: use the sheet)')
+  for (const f of story) lines.push(`- ${f.text}`)
+  if (background.length > 0) {
+    lines.push('Background facts (use only when they help):')
+    for (const f of background) lines.push(`- ${f.text}`)
+  }
+  return lines.join('\n')
+}
+
+/** Open threads and earlier stances (spec §12.17-3). Empty when the sheet has none. */
+export function threadsBlock(facts: NewsFacts): string | null {
+  if (facts.threads.length === 0) return null
+  const lines = ['Threads (key: summary):']
+  for (const t of facts.threads) {
+    lines.push(`- ${t.key}: ${t.summary} (${t.status === 'open' ? 'open' : 'closed tonight'})`)
+  }
+  if (facts.stances.length > 0) {
+    lines.push('Stances so far, oldest first:')
+    for (const st of facts.stances) {
+      lines.push(`- ${REPORTERS[st.reporter].name} on ${st.threadKey}: "${st.stance}"`)
+    }
+  }
+  return lines.join('\n')
+}
+
+/**
+ * The reporter takes a request may use (spec §12.19), only those of the
+ * request's reporters (as critic or defender). GM-only lore: never quoted.
+ */
+export function takesBlock(
+  takes: readonly NewsTake[],
+  reporters: readonly ReporterId[],
+): string | null {
+  const mine = takes.filter(
+    (t) =>
+      reporters.includes(t.reporter) ||
+      t.critics.some((c) => reporters.includes(c)) ||
+      (t.defender !== null && reporters.includes(t.defender)),
+  )
+  if (mine.length === 0) return null
+  const lines = [
+    'Reporter takes (private desk notes; never quote them or say they are notes; at most one per piece; put its id in "takesUsed"):',
+  ]
+  for (const t of mine) {
+    const critics = [t.reporter, ...t.critics].map((c) => REPORTERS[c].name).join(', ')
+    const parts = [
+      `- Take ${String(t.id)} on ${t.player}: ${t.take}`,
+      `critics: ${critics} (${t.spread} of the desk share it)`,
+      t.defender === null ? 'no defender' : `defender: ${REPORTERS[t.defender].name}`,
+      t.dataAngle === null ? null : `data angle: ${t.dataAngle}`,
+      `intensity ${String(t.intensity)} (-2 soft .. +2 hard)`,
+      t.mild ? `${t.player} is at press level "easy": keep it mild` : null,
+    ].filter((x): x is string => x !== null)
+    lines.push(parts.join('; '))
+  }
+  return lines.join('\n')
+}
+
+/** Prediction scorecards on a week sheet ("Quill is 4 for 7"). */
+export function scorecardsLine(facts: NewsFacts): string | null {
+  if (facts.scorecards.length === 0) return null
+  return `Prediction scorecards: ${facts.scorecards
+    .map((c) => `${REPORTERS[c.reporter].name} ${String(c.hits)} for ${String(c.judged)}`)
+    .join('; ')}.`
+}
+
+function header(facts: NewsFacts): string[] {
+  return ['Fact sheet (JSON):', sheet(facts), '', whenLine(facts), '']
+}
+
 /** What a recap post must say (rev 2, B1; spec §12.1). */
 const RECAP_RULES =
   'The recap of the game says the result and the score, who scored for the Boogeymen, and exactly one key number besides the score. Name a scorer only as in people[].name. A goal for the Boogeymen by someone not named on the sheet: call the scorer "a guest" only when the game\'s unnamedTeammates is 0; otherwise credit the team, never a person. A goal against the Boogeymen was scored by "an opponent"; never name an opponent player. You may use the goal timeline (the period and the clock of a goal).'
 
+const PIECE_FIELDS_NOTE =
+  'List in "criticized" the people the piece criticises harshly, in "zeroCalled" a player it calls out for a zero, in "stances" any stance on a thread (by its key), and in "takesUsed" the id of a take it voiced; an empty list when none. Remember: only numbers, names and clubs from the sheet, no invented quotes or events.'
+
+/**
+ * The game's posts (C3a.3/C3a.8): one numbered line per assigned post with
+ * its reporter, angle and fact; post 1 is the recap.
+ */
 export function buildGameUserPrompt(args: {
   facts: NewsFacts
-  first: Reporter
-  second: Reporter | null
-  secondIsReply: boolean
-  relationship: string | null
-  /** Names the night's earlier items criticised harshly. */
-  criticizedTonight: readonly string[]
+  posts: readonly PostAssignment[]
+  ctx?: DeskContext
 }): string {
-  const { facts, first, second, secondIsReply, relationship } = args
+  const { facts, posts } = args
+  const ctx = args.ctx ?? EMPTY_DESK_CONTEXT
+  const reporters = posts.map((p) => p.reporter)
+  const factText = (id: string | null) => facts.topFacts.find((f) => f.id === id)?.text ?? null
+  const used = new Set(posts.flatMap((p) => (p.factId === null ? [] : [p.factId])))
+  const story = [
+    ...posts.flatMap((p) => {
+      const f = facts.topFacts.find((x) => x.id === p.factId)
+      return f === undefined ? [] : [f]
+    }),
+    ...storyFacts(facts, STORY_FACTS, used),
+  ].slice(0, Math.max(STORY_FACTS, used.size))
   const lines: string[] = [
-    'Fact sheet (JSON):',
-    sheet(facts),
-    '',
-    whenLine(facts),
-    '',
-    'Task: write short posts about the game on the sheet. Each post is at most 280 characters, one to three sentences, with no line breaks.',
+    ...header(facts),
+    'Task: write short posts about the game on the sheet. Each post is at most 280 characters, one to three sentences, with no line breaks, and makes one point.',
   ]
-  if (second === null) {
+  if (posts.length === 1) {
+    const r = REPORTERS[posts[0]!.reporter]
     lines.push(
-      `Write exactly one post: the recap of the game, as ${first.name} (id "${first.id}") of ${first.outlet}.`,
+      `Write exactly one post: the recap of the game, as ${r.name} (id "${r.id}") of ${r.outlet}.`,
     )
   } else {
+    lines.push(`Write exactly ${String(posts.length)} posts, in this order:`)
+    posts.forEach((p, i) => {
+      const r = REPORTERS[p.reporter]
+      if (i === 0) {
+        lines.push(`1. The recap, as ${r.name} (id "${r.id}") of ${r.outlet}.`)
+        return
+      }
+      const parts = [
+        `${String(i + 1)}. As ${r.name} (id "${r.id}") of ${r.outlet}, angle "${p.angle}": ${ANGLE_TEXT[p.angle]}.`,
+      ]
+      const fact = factText(p.factId)
+      if (fact !== null) parts.push(`Its fact: "${fact}".`)
+      if (p.replyTo !== null) {
+        const to = posts[p.replyTo]!
+        parts.push(
+          `It answers post ${String(p.replyTo + 1)} by ${REPORTERS[to.reporter].name} directly, and the reader sees it right under it. How they feel about each other: ${pairAttitude(p.reporter, to.reporter)}`,
+        )
+      }
+      if (p.takeId !== null) parts.push(`It may voice take ${String(p.takeId)} (below).`)
+      lines.push(parts.join(' '))
+    })
     lines.push(
-      `Write exactly two posts, in this order:`,
-      `1. The recap, as ${first.name} (id "${first.id}") of ${first.outlet}.`,
-    )
-    if (secondIsReply) {
-      lines.push(
-        `2. A reply, as ${second.name} (id "${second.id}") of ${second.outlet}. This post answers the recap, and the reader sees it right under it. Answer ${first.name} directly, in ${second.name}'s own voice.`,
-      )
-      if (relationship !== null) lines.push(`How they feel about each other: ${relationship}`)
-    } else {
-      lines.push(
-        `2. A reaction, as ${second.name} (id "${second.id}") of ${second.outlet}. This post stands alone and reacts to the game from a different angle.`,
-      )
-    }
-    lines.push(
-      'Do not repeat the score line or the list of scorers in post 2; give an opinion that follows from one number on the sheet.',
+      'Posts 2 and later do not repeat the score line or the list of scorers; each gives an opinion that follows from its own fact. No two posts make the same point.',
     )
   }
+  lines.push('', storyBlock(story, facts))
+  const threads = threadsBlock(facts)
+  if (threads !== null) lines.push('', threads)
   lines.push(
+    '',
     RECAP_RULES,
-    criticizedTonightLine(args.criticizedTonight),
-    'Set "reporter" on each post to the id above. List in "criticized" the people the post criticises harshly (an empty list when none). Remember: only numbers, names and clubs from the sheet, no invented quotes or events.',
+    'Set "reporter" on each post to the id above.',
+    PIECE_FIELDS_NOTE,
+    '',
+    deskContextBlock(ctx, reporters),
   )
   return lines.join('\n')
 }
 
+function articleFields(words: string): string[] {
+  return [
+    'Output fields:',
+    '- headline: a short headline, at most 120 characters, in sentence case, naming one story.',
+    '- dek: one line under the headline, at most 160 characters; the record goes here or in the body, once; never repeat the headline.',
+    `- paragraphs: the article body, ${words} in total, as separate paragraphs. No headings, no lists. Never open with the date and the record.`,
+    "- summary: one or two plain sentences saying what the article covers, for the reporter's own memory. Facts from the sheet only.",
+    '- mentions and clubs: as in the rules.',
+    '- criticized, zeroCalled, stances, takesUsed: as in the rules; empty lists when none.',
+  ]
+}
+
+/** The night article (night sheets; C3a.3: story, threads, the night's posts, own pieces). */
 export function buildArticleUserPrompt(args: {
   facts: NewsFacts
   reporter: Reporter
-  kind: 'night' | 'week'
-  ownRecent: { headline: string; summary: string; night: string | null }[]
-  /** Names the night's earlier items criticised harshly. */
-  criticizedTonight: readonly string[]
+  ctx?: DeskContext
 }): string {
-  const { facts, reporter, kind, ownRecent } = args
-  const what =
-    kind === 'night'
-      ? 'one article about the whole night of games on the sheet'
-      : 'one weekly piece about the whole week of games on the sheet (the sheet lists the games of the week)'
+  const { facts, reporter } = args
+  const ctx = args.ctx ?? EMPTY_DESK_CONTEXT
+  const single = facts.games.length === 1
   const lines: string[] = [
-    'Fact sheet (JSON):',
-    sheet(facts),
+    ...header(facts),
+    `Task: write one article about the whole night of games on the sheet, as ${reporter.name} (id "${reporter.id}") of ${reporter.outlet}. Use ${reporter.name}'s article format from the reporter notes.`,
     '',
-    whenLine(facts),
+    ...articleFields(single ? '120 to 200 words (a one-game night)' : '250 to 450 words'),
     '',
-    `Task: write ${what}, as ${reporter.name} (id "${reporter.id}") of ${reporter.outlet}. Use ${reporter.name}'s article format from the reporter notes.`,
-    '',
-    'Output fields:',
-    '- headline: a short headline, at most 120 characters.',
-    '- dek: one line under the headline, at most 160 characters.',
-    '- paragraphs: the article body, 250 to 450 words in total, as separate paragraphs. No headings, no lists.',
-    "- summary: one or two plain sentences saying what the article covers, for the reporter's own memory. Facts from the sheet only.",
-    '- mentions and clubs: as in the rules.',
-    '- criticized: the people the article criticises harshly, spelled as in people[].name; an empty list when none.',
-    '',
-    criticizedTonightLine(args.criticizedTonight),
+    storyBlock(storyFacts(facts), facts),
   ]
-  if (ownRecent.length > 0) {
-    lines.push(
-      '',
-      `${reporter.name}'s own recent pieces, newest first. Refer back to them if it helps. Do not repeat their images or lines:`,
-    )
-    for (const r of ownRecent) {
-      lines.push(`- ${r.night === null ? 'undated' : r.night}: "${r.headline}" - ${r.summary}`)
-    }
-  }
+  const threads = threadsBlock(facts)
+  if (threads !== null) lines.push('', threads)
+  lines.push('', deskContextBlock({ ...ctx, nightPosts: ctx.nightPosts ?? [] }, [reporter.id]))
+  return lines.join('\n')
+}
+
+/** What each big-game article is (C3a.7, spec §12.18-1). */
+const GAME_ARTICLE_TASK: Record<GameArticleKind, string> = {
+  game: 'the game story: the one game on the sheet as a news story, built on its top facts',
+  spotlight:
+    'a player spotlight on the one player who made this game, by his line and his labels on the sheet',
+  column: "a column: the reporter's opinion of what this game means, argued from the sheet",
+}
+
+/** A big game's article (C3a.7): game story 200-350 words, spotlight or column 400-700. */
+export function buildGameArticleUserPrompt(args: {
+  facts: NewsFacts
+  reporter: Reporter
+  kind: GameArticleKind
+  ctx?: DeskContext
+}): string {
+  const { facts, reporter, kind } = args
+  const ctx = args.ctx ?? EMPTY_DESK_CONTEXT
+  const story = storyFacts(facts)
+  const spotlight = story.find((f) => facts.people.some((p) => p.name === f.subject))?.subject
+  const lines: string[] = [
+    ...header(facts),
+    `Task: write ${GAME_ARTICLE_TASK[kind]}, as ${reporter.name} (id "${reporter.id}") of ${reporter.outlet}. Use ${reporter.name}'s article format from the reporter notes.`,
+  ]
+  if (kind === 'spotlight' && spotlight !== undefined) lines.push(`Spotlight player: ${spotlight}.`)
+  lines.push(
+    '',
+    ...articleFields(kind === 'game' ? '200 to 350 words' : '400 to 700 words'),
+    '',
+    storyBlock(story, facts),
+  )
+  const threads = threadsBlock(facts)
+  if (threads !== null) lines.push('', threads)
+  lines.push('', deskContextBlock(ctx, [reporter.id]))
   return lines.join('\n')
 }
 
@@ -282,50 +534,50 @@ function featureTask(kind: FeatureKind, facts: NewsFacts): string[] {
   }
 }
 
-/** The weekly feature request (rev 2, B3; spec §12.3, §12.6). */
+/** The weekly feature request (rev 2, B3; spec §12.3, §12.6; C3a.9). */
 export function buildFeatureUserPrompt(args: {
   facts: NewsFacts
   reporter: Reporter
   kind: FeatureKind
-  ownRecent: { headline: string; summary: string; night: string | null }[]
   /** Last week's prediction, or null when there is none. */
   previousPrediction: string | null
+  ctx?: DeskContext
 }): string {
-  const { facts, reporter, kind, ownRecent, previousPrediction } = args
+  const { facts, reporter, kind, previousPrediction } = args
+  const ctx = args.ctx ?? EMPTY_DESK_CONTEXT
   const lines: string[] = [
-    'Fact sheet (JSON):',
-    sheet(facts),
-    '',
-    whenLine(facts),
-    '',
+    ...header(facts),
     `Task: write this week's in-depth feature about the whole week of games on the sheet, as ${reporter.name} (id "${reporter.id}") of ${reporter.outlet}.`,
     ...featureTask(kind, facts),
     '',
     previousPrediction === null
       ? "Last week's prediction: none."
       : `Last week's prediction: "${previousPrediction}"`,
+  ]
+  const cards = scorecardsLine(facts)
+  if (cards !== null) lines.push(cards)
+  lines.push(
     '',
     'Output fields:',
-    '- headline: a short headline, at most 120 characters.',
-    '- dek: one line under the headline, at most 160 characters.',
-    '- paragraphs: the feature body, 600 to 900 words in total, as separate paragraphs. No headings, no lists.',
+    '- headline: a short headline, at most 120 characters, in sentence case, naming one story.',
+    '- dek: one line under the headline, at most 160 characters; never repeat the headline.',
+    '- paragraphs: the feature body, 600 to 900 words in total, as separate paragraphs. No headings, no lists. Never open with the date and the record.',
     "- summary: one or two plain sentences saying what the feature covers, for the reporter's own memory. Facts from the sheet only.",
     '- mentions and clubs: as in the rules.',
-    '- criticized: the people the feature criticises harshly, spelled as in people[].name; an empty list when none.',
+    '- criticized, zeroCalled, stances, takesUsed: as in the rules; empty lists when none.',
     '- prediction: one short prediction about next week, in the reporter\'s voice, with no digits and no number words. It is printed as the last paragraph; do not repeat it in "paragraphs".',
     previousPrediction === null
       ? '- receipt: an empty string (there was no prediction last week).'
-      : '- receipt: one or two sentences saying whether last week\'s prediction came true, judged only from this sheet. It is printed as the first paragraph; do not repeat it in "paragraphs".',
-  ]
-  if (ownRecent.length > 0) {
-    lines.push(
-      '',
-      `${reporter.name}'s own recent pieces, newest first. Refer back to them if it helps. Do not repeat their images or lines:`,
-    )
-    for (const r of ownRecent) {
-      lines.push(`- ${r.night === null ? 'undated' : r.night}: "${r.headline}" - ${r.summary}`)
-    }
-  }
+      : '- receipt: one or two sentences that restate last week\'s prediction and say whether it came true, judged only from this sheet. It is printed as the first paragraph; do not repeat it in "paragraphs".',
+    previousPrediction === null
+      ? '- receiptVerdict: "none".'
+      : '- receiptVerdict: "hit" when the prediction came true, "miss" when it did not.',
+    '',
+    storyBlock(storyFacts(facts), facts),
+  )
+  const threads = threadsBlock(facts)
+  if (threads !== null) lines.push('', threads)
+  lines.push('', deskContextBlock(ctx, [reporter.id]))
   return lines.join('\n')
 }
 
@@ -343,6 +595,8 @@ export function buildReviewPrompt(args: {
   text: string
   /** The people the writer listed as criticised harshly. */
   criticized: readonly string[]
+  /** The reporter takes the piece was offered (C3a.10). */
+  takes?: readonly NewsTake[]
 }): string {
   const listed = args.criticized.length === 0 ? 'nobody' : args.criticized.join(', ')
   return [

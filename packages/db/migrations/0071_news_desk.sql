@@ -60,10 +60,12 @@ CREATE TABLE IF NOT EXISTS "news_jobs" (
   CONSTRAINT "news_jobs_kind_job_key_uniq" UNIQUE ("kind", "job_key")
 );
 
+-- Part C3a: game_article = a big game's article (job_key '<matchId>:<kind>').
+-- Drop and re-add by name, so a database with the older check upgrades.
 DO $$ BEGIN
+  ALTER TABLE "news_jobs" DROP CONSTRAINT IF EXISTS "news_jobs_kind_check";
   ALTER TABLE "news_jobs" ADD CONSTRAINT "news_jobs_kind_check"
-    CHECK ("kind" IN ('game', 'night', 'week'));
-EXCEPTION WHEN duplicate_object THEN NULL;
+    CHECK ("kind" IN ('game', 'night', 'week', 'game_article'));
 END $$;
 
 DO $$ BEGIN

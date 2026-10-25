@@ -468,7 +468,7 @@ export async function monthNewsSpendUsd(now: Date): Promise<number> {
 }
 
 /** What an item was, for the rotation queues (rev 2, spec §12.4). */
-export const NEWS_ACTIVITY_KINDS = ['recap', 'reaction', 'night', 'feature'] as const
+export const NEWS_ACTIVITY_KINDS = ['recap', 'reaction', 'night', 'game', 'feature'] as const
 export type NewsActivityKind = (typeof NEWS_ACTIVITY_KINDS)[number]
 
 export interface NewsActivity {
@@ -476,21 +476,25 @@ export interface NewsActivity {
   night: string | null
   createdAt: Date
   kind: NewsActivityKind
+  /** A reply's target reporter (C3a.8, recent reply pairs weigh less); null otherwise. */
+  replyTo: string | null
 }
 
 /**
  * Items per reporter since `since` (real, not deleted) — for the frequency
  * limits and the rotation queues. The kind: an article with a week is a
- * `feature`, any other article a `night` recap; a post is the game's `recap`
+ * `feature`, an article with a match a big game's `game` article (C3a.8),
+ * any other article a `night` recap; a post is the game's `recap`
  * when no earlier real post of the same match exists (deleted ones count, so a
  * reaction never turns into a recap), else a `reaction`. Raw SQL with aliases:
  * the correlated subquery must not bind to the inner table.
  */
 export function reporterActivitySql(since: Date): SQL {
   return sql`
-    select n.reporter, n.night, n.created_at,
+    select n.reporter, n.night, n.created_at, t.reporter as reply_to,
       case
         when n.kind = 'article' and n.week_start is not null then 'feature'
+        when n.kind = 'article' and n.match_id is not null then 'game'
         when n.kind = 'article' then 'night'
         when n.reply_to is null and not exists (
           select 1 from news_items p
@@ -502,6 +506,7 @@ export function reporterActivitySql(since: Date): SQL {
         else 'reaction'
       end as kind
     from news_items n
+    left join news_items t on t.id = n.reply_to
     where n.is_test = false
       and n.deleted_at is null
       and n.created_at >= ${since.toISOString()}::timestamptz
@@ -513,6 +518,7 @@ type RawActivity = {
   night: string | Date | null
   created_at: string | Date
   kind: string
+  reply_to?: string | null
 }
 
 /** One activity row, or null for a kind this code does not know. */
@@ -523,6 +529,7 @@ export function rowToActivity(r: RawActivity): NewsActivity | null {
     night: toDay(r.night),
     createdAt: toDate(r.created_at),
     kind: r.kind as NewsActivityKind,
+    replyTo: r.reply_to ?? null,
   }
 }
 
@@ -535,7 +542,8 @@ export async function reporterActivity(args: { since: Date }): Promise<NewsActiv
 }
 
 /**
- * The real, not deleted weekly feature of the latest week (rev 2, B5): its
+ * The real, not deleted weekly feature of the latest week (rev 2, B5; a big
+ * game's spotlight or column has a feature kind but no week, C3a.8): its
  * kind, prediction and week. Latest by `week_start` (Part C1.9, Q1: a
  * backfilled older week inserted later must not win), then by id.
  */
@@ -546,6 +554,7 @@ export function lastFeatureSql(): SQL {
     where n.is_test = false
       and n.deleted_at is null
       and n.feature_kind is not null
+      and n.week_start is not null
     order by n.week_start desc nulls last, n.id desc
     limit 1`
 }
@@ -788,6 +797,93 @@ export async function recentReporterSummaries(
       ? []
       : [{ headline: r.headline, summary: r.summary, night: toDay(r.night) }],
   )
+}
+
+/** One of a reporter's own recent pieces (C3a.3: "do not repeat their phrasing"). */
+export interface NewsOwnPiece {
+  kind: NewsItemKind
+  /** A post's text, or an article's headline and summary. */
+  text: string
+  night: string | null
+}
+
+/**
+ * A reporter's last pieces, posts and articles, newest first: not deleted,
+ * real (test items too when `includeTest`), never an item that names a player
+ * now at press level 'out'.
+ */
+export function recentReporterPiecesSql(
+  reporter: string,
+  limit: number,
+  includeTest: boolean,
+): SQL {
+  return sql`
+    select n.kind, n.body, n.headline, n.summary, n.night
+    from news_items n
+    where (n.is_test = false or ${includeTest})
+      and n.deleted_at is null
+      and n.reporter = ${reporter}
+      and not exists (
+        select 1
+        from jsonb_array_elements(n.mentions) as e(elem)
+        join player_profiles pp on pp.player_id = (e.elem->>'playerId')::int
+        where pp.press_level = 'out'
+      )
+    order by n.id desc
+    limit ${limit}`
+}
+
+export function rowToOwnPiece(r: {
+  kind: NewsItemKind
+  body: string
+  headline: string | null
+  summary: string | null
+  night: string | Date | null
+}): NewsOwnPiece {
+  const text =
+    r.kind === 'post'
+      ? r.body
+      : [r.headline, r.summary].filter((x): x is string => x !== null && x !== '').join(' — ')
+  return { kind: r.kind, text, night: toDay(r.night) }
+}
+
+export async function recentReporterPieces(
+  reporter: string,
+  limit: number,
+  includeTest: boolean,
+): Promise<NewsOwnPiece[]> {
+  const rows = await db.execute<{
+    kind: NewsItemKind
+    body: string
+    headline: string | null
+    summary: string | null
+    night: string | Date | null
+  }>(recentReporterPiecesSql(reporter, limit, includeTest))
+  return rows.map(rowToOwnPiece)
+}
+
+/**
+ * Failed big-game article jobs under the cap (C3a.8), so they are written
+ * again: job_key `<matchId>:<kind>`, updated since `since`, oldest first.
+ */
+export function listGameArticleRetriesSql(args: { since: Date; limit: number }): SQL {
+  return sql`
+    select j.job_key
+    from news_jobs j
+    where j.kind = 'game_article'
+      and j.status = 'failed'
+      and j.attempts < ${MAX}
+      and j.updated_at >= ${args.since.toISOString()}::timestamptz
+    order by j.id asc
+    limit ${args.limit}`
+}
+
+export async function listGameArticleRetries(args: {
+  since: Date
+  limit: number
+}): Promise<string[]> {
+  const rows = await db.execute<{ job_key: string }>(listGameArticleRetriesSql(args))
+  return rows.map((r) => r.job_key)
 }
 
 export async function getNewsEnabled(): Promise<boolean> {

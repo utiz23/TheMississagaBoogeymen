@@ -1,4 +1,11 @@
-import { REPORTER_IDS, type NewsFacts, type ReporterId } from '@eanhl/db/news'
+import type { NewNewsStance } from '@eanhl/db/queries'
+import {
+  REPORTER_IDS,
+  type FeatureKind,
+  type GameArticleKind,
+  type NewsFacts,
+  type ReporterId,
+} from '@eanhl/db/news'
 
 /**
  * JSON schemas for `output_config.format` and the hand-written parsers for
@@ -347,4 +354,29 @@ export function criticizedAsOnSheet(names: readonly string[], facts: NewsFacts):
     if (name !== '' && !out.includes(name)) out.push(name)
   }
   return out
+}
+
+/**
+ * The feature kind stored with a big game's article (C3a.7: spotlight and
+ * column reuse the feature kinds; a game story has none). A game article has
+ * a match and no week, so it never counts as the weekly feature.
+ */
+export const GAME_ARTICLE_FEATURE_KIND: Record<GameArticleKind, FeatureKind | null> = {
+  game: null,
+  spotlight: 'spotlight',
+  column: 'bigpicture',
+}
+
+/** The stances a piece took on threads of the sheet (unknown keys are dropped; the check rejects them). */
+export function stancesToStore(
+  stances: readonly PieceStance[],
+  facts: NewsFacts,
+  reporter: ReporterId,
+  night: string | null,
+  itemId: number,
+): NewNewsStance[] {
+  const keys = new Set(facts.threads.map((t) => t.key))
+  return stances
+    .filter((st) => keys.has(st.threadKey))
+    .map((st) => ({ threadKey: st.threadKey, reporter, stance: st.stance.trim(), night, itemId }))
 }

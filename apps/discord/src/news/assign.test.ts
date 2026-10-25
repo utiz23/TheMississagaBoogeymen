@@ -1,18 +1,29 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  PAIR_WEIGHT_RECENT,
+  PAIR_WEIGHT_RELATIONSHIP,
   assignFeature,
+  assignGameArticles,
   assignGamePosts,
   assignNightRecap,
+  assignRecap,
   isAllowed,
   nextFeatureKind,
+  pairWeight,
   predictionToJudge,
-  REACTION_SITUATIONS,
   type Activity,
   type ActivityKind,
 } from './assign.ts'
 import { oct12Facts } from './test-fixtures.ts'
-import { FEATURE_REPORTER, type FeatureKind, type NewsFacts, type ReporterId } from '@eanhl/db/news'
+import {
+  FEATURE_REPORTER,
+  REPORTER_IDS,
+  type FeatureKind,
+  type NewsFacts,
+  type NewsTake,
+  type ReporterId,
+} from '@eanhl/db/news'
 import type { GameSituation } from './situation.ts'
 
 const NOW = new Date('2026-10-13T04:00:00.000Z')
@@ -47,36 +58,15 @@ void test('Mercer: one per night, three per 7 days', () => {
   assert.equal(isAllowed('barlow', NOW, NIGHT, three), true)
 })
 
-// ── Game posts: recap + optional reaction ───────────────────────────────────
+// ── Game posts: the recap, then the buzz's extra posts (C3a.8) ──────────────
 
-void test('a second post only for ot_win, ot_loss, blowout_loss and goalie_steal (rev 2, B1)', () => {
-  assert.deepEqual([...REACTION_SITUATIONS].sort(), [
-    'blowout_loss',
-    'goalie_steal',
-    'ot_loss',
-    'ot_win',
-  ])
-  for (const s of ['loss', 'routine_win', 'quiet_win'] as const) {
-    assert.equal(assignGamePosts(s, NOW, NIGHT, []).second, null, s)
-  }
-  for (const s of REACTION_SITUATIONS) {
-    const r = assignGamePosts(s, NOW, NIGHT, [])
-    assert.notEqual(r.second, null, s)
-    assert.notEqual(r.second, r.first, s)
-  }
-})
-
-void test('clean record: the first fitting reporter writes the recap, the next one reacts', () => {
-  assert.deepEqual(assignGamePosts('blowout_loss', NOW, NIGHT, []), {
-    first: 'mercer',
-    second: 'quill',
-    secondIsReply: false,
-  })
-  const ot = assignGamePosts('ot_loss', NOW, NIGHT, [])
-  assert.deepEqual(ot, { first: 'mercer', second: 'barlow', secondIsReply: true }) // Barlow answers Mercer
-  assert.equal(assignGamePosts('routine_win', NOW, NIGHT, []).first, 'barlow')
-  assert.equal(assignGamePosts('quiet_win', NOW, NIGHT, []).first, 'quill')
-  assert.equal(assignGamePosts('loss', NOW, NIGHT, []).first, 'barlow')
+void test('clean record: the first fitting reporter writes the recap', () => {
+  assert.equal(assignRecap('blowout_loss', NOW, NIGHT, []), 'mercer')
+  assert.equal(assignRecap('ot_loss', NOW, NIGHT, []), 'mercer')
+  assert.equal(assignRecap('routine_win', NOW, NIGHT, []), 'barlow')
+  assert.equal(assignRecap('quiet_win', NOW, NIGHT, []), 'quill')
+  assert.equal(assignRecap('loss', NOW, NIGHT, []), 'barlow')
+  assert.equal(assignRecap('goalie_steal', NOW, NIGHT, []), 'voss')
 })
 
 void test('recap queue: the fitting reporter whose LAST recap is oldest writes (never = oldest)', () => {
@@ -87,49 +77,229 @@ void test('recap queue: the fitting reporter whose LAST recap is oldest writes (
     act('quill', 'recap', daysAgo(2), '2026-10-10'),
     act('pettibone', 'recap', daysAgo(0.5), '2026-10-12'),
   ]
-  assert.equal(assignGamePosts('loss', NOW, NIGHT, activity).first, 'mercer')
+  assert.equal(assignRecap('loss', NOW, NIGHT, activity), 'mercer')
   // Pettibone has never written a recap: he is the oldest.
-  assert.equal(assignGamePosts('loss', NOW, NIGHT, activity.slice(0, 3)).first, 'pettibone')
+  assert.equal(assignRecap('loss', NOW, NIGHT, activity.slice(0, 3)), 'pettibone')
   // A reaction or a night recap does not count in the recap queue.
   const other: Activity = [
     act('barlow', 'reaction', daysAgo(0.1), NIGHT),
     act('barlow', 'night', daysAgo(0.2), '2026-10-11'),
   ]
-  assert.equal(assignGamePosts('routine_win', NOW, NIGHT, other).first, 'barlow')
+  assert.equal(assignRecap('routine_win', NOW, NIGHT, other), 'barlow')
 })
 
-void test('recap queue: Mercer and Rink limits still apply', () => {
-  // Mercer wrote tonight already: not him, even with the oldest recap.
+void test('recap: Mercer limits apply; Rink is never on a game list unless the game is historic', () => {
   const activity: Activity = [
     act('mercer', 'reaction', daysAgo(0.05), NIGHT),
     act('quill', 'recap', daysAgo(1), '2026-10-11'),
     act('voss', 'recap', daysAgo(2), '2026-10-10'),
     act('pettibone', 'recap', daysAgo(3), '2026-10-09'),
   ]
-  assert.equal(assignGamePosts('blowout_loss', NOW, NIGHT, activity).first, 'pettibone')
-  // Rink wrote 3 days ago: goalie_steal never gives him a slot.
-  const rinkRecent: Activity = [
-    act('rink', 'night', daysAgo(3), '2026-10-09'),
-    act('voss', 'recap', daysAgo(1), '2026-10-11'),
-    act('quill', 'recap', daysAgo(1), '2026-10-11'),
-    act('bergstrom', 'recap', daysAgo(1), '2026-10-11'),
-  ]
-  const r = assignGamePosts('goalie_steal', NOW, NIGHT, rinkRecent)
-  assert.notEqual(r.first, 'rink')
-  assert.notEqual(r.second, 'rink')
+  assert.equal(assignRecap('blowout_loss', NOW, NIGHT, activity), 'pettibone')
+  // Historic waives the limits: Mercer's oldest recap wins again.
+  assert.equal(assignRecap('blowout_loss', NOW, NIGHT, activity, true), 'mercer')
+  // ot_win lists Rink; with everyone else's recap recent he still never gets a normal game ...
+  const recent: Activity = ['vale', 'barlow', 'bergstrom'].map((r) =>
+    act(r as ReporterId, 'recap', daysAgo(0.5), '2026-10-12'),
+  )
+  assert.notEqual(assignRecap('ot_win', NOW, NIGHT, recent), 'rink')
+  // ... but he does on a historic one (his limit waived too).
+  const rinkRecent = [...recent, act('rink', 'night', daysAgo(3), '2026-10-09')]
+  assert.equal(assignRecap('ot_win', NOW, NIGHT, rinkRecent, true), 'rink')
 })
 
-void test('reaction queue: separate from the recap queue, never the recap writer', () => {
+function gameSetup(topFacts = 12) {
+  const facts = oct12Facts('game')
+  facts.topFacts = Array.from({ length: topFacts }, (_, i) => ({
+    id: `f${String(i)}`,
+    text: `Fact ${String(i)}`,
+    weight: 100 - i,
+    subject: null,
+  }))
+  return { facts, game: facts.games[0]! }
+}
+
+const posts = (
+  level: 'quiet' | 'normal' | 'big' | 'huge' | 'historic',
+  count: number,
+  over: Partial<Parameters<typeof assignGamePosts>[0]> = {},
+) => {
+  const { facts, game } = gameSetup()
+  return assignGamePosts({
+    game,
+    facts,
+    situation: 'loss',
+    plan: { level, posts: count },
+    now: NOW,
+    night: NIGHT,
+    activity: [],
+    ...over,
+  })
+}
+
+void test('assignGamePosts: the buzz count, distinct reporters, distinct angles and top facts', () => {
+  assert.deepEqual(
+    posts('quiet', 1).map((p) => [p.reporter, p.angle, p.factId]),
+    [['barlow', 'recap', 'f0']],
+  )
+  for (let id = 1; id < 40; id++) {
+    const { facts, game } = gameSetup()
+    const big = assignGamePosts({
+      game: { ...game, matchId: id },
+      facts,
+      situation: 'loss',
+      plan: { level: 'huge', posts: 8 },
+      now: NOW,
+      night: NIGHT,
+      activity: [],
+    })
+    assert.equal(big.length, 8)
+    assert.equal(new Set(big.map((p) => p.reporter)).size, 8)
+    assert.equal(big[0]!.angle, 'recap')
+    assert.equal(new Set(big.map((p) => p.angle)).size, 8, 'no two posts share an angle')
+    const factIds = big.flatMap((p) => (p.factId === null ? [] : [p.factId]))
+    assert.equal(new Set(factIds).size, factIds.length, 'no two posts share a top fact')
+    assert.ok(!big.some((p) => p.reporter === 'rink'), 'Rink only on historic games')
+    big.forEach((p, i) => {
+      const reply = p.angle === 'reply' || p.angle === 'counterpoint'
+      assert.equal(p.replyTo !== null, reply)
+      if (p.replyTo !== null) assert.ok(p.replyTo < i)
+    })
+    // Seeded: the same game gives the same posts.
+    assert.deepEqual(
+      assignGamePosts({
+        game: { ...game, matchId: id },
+        facts,
+        situation: 'loss',
+        plan: { level: 'huge', posts: 8 },
+        now: NOW,
+        night: NIGHT,
+        activity: [],
+      }),
+      big,
+    )
+  }
+})
+
+void test('assignGamePosts: a historic game gets all nine, Mercer and Rink limits waived', () => {
   const activity: Activity = [
-    act('vale', 'recap', daysAgo(5), '2026-10-07'),
-    act('barlow', 'reaction', daysAgo(1), '2026-10-11'),
+    act('mercer', 'recap', daysAgo(0.1), NIGHT),
+    act('rink', 'night', daysAgo(2), '2026-10-10'),
   ]
-  // ot_win fits vale, barlow, bergstrom, rink. Barlow, Bergstrom and Rink never wrote a
-  // recap, so they are older than Vale; a tie goes by list order. Barlow's reaction does not count.
-  const r = assignGamePosts('ot_win', NOW, NIGHT, activity)
-  assert.equal(r.first, 'barlow')
-  // Reaction: not barlow; vale, bergstrom and rink never reacted -> vale (list order).
-  assert.equal(r.second, 'vale')
+  const all = posts('historic', 9, { activity })
+  assert.deepEqual([...all.map((p) => p.reporter)].sort(), [...REPORTER_IDS].sort())
+  // A non-historic game with Mercer's item tonight leaves him out, and never has Rink.
+  const big = posts('huge', 8, { activity })
+  assert.ok(!big.some((p) => p.reporter === 'mercer' || p.reporter === 'rink'))
+  assert.equal(big.length, 7) // only seven reporters are allowed
+  // A benched reporter never writes.
+  assert.ok(!posts('huge', 8, { disabled: ['vale'] }).some((p) => p.reporter === 'vale'))
+})
+
+void test('assignGamePosts: a due take gives its critic the take angle; at most one take per game', () => {
+  const take: NewsTake = {
+    id: 7,
+    reporter: 'mercer',
+    critics: REPORTER_IDS.filter((r) => r !== 'mercer'),
+    defender: null,
+    playerId: 1,
+    player: 'Skater A',
+    take: 'Invented take for a test.',
+    spread: 'some',
+    dataAngle: 'shots per game',
+    intensity: 0,
+    mild: false,
+  }
+  const p = posts('big', 4, { takes: [take] })
+  const withTake = p.filter((x) => x.takeId !== null)
+  assert.equal(withTake.length, 1)
+  assert.equal(withTake[0]!.angle, 'take')
+  assert.equal(withTake[0]!.takeId, 7)
+  assert.equal(withTake[0]!.factId, null)
+  // The recap never carries a take.
+  assert.equal(p[0]!.takeId, null)
+})
+
+void test('pair weights: a written relationship 3x, a recent pair 0.2x, others 1', () => {
+  const none = new Set<string>()
+  assert.equal(pairWeight('barlow', 'mercer', none), PAIR_WEIGHT_RELATIONSHIP)
+  assert.equal(pairWeight('halberd', 'vale', none), 1)
+  assert.equal(pairWeight('barlow', 'mercer', new Set(['barlow>mercer'])), 3 * PAIR_WEIGHT_RECENT)
+  assert.equal(PAIR_WEIGHT_RELATIONSHIP, 3)
+  assert.equal(PAIR_WEIGHT_RECENT, 0.2)
+})
+
+void test('replies: relationship pairs answer more often; a recent pair less (seeded draw)', () => {
+  const { facts, game } = gameSetup()
+  const count = (activity: Activity) => {
+    let pairs = 0
+    for (let id = 1; id < 400; id++) {
+      const p = assignGamePosts({
+        game: { ...game, matchId: id },
+        facts,
+        situation: 'ot_loss', // recap: Mercer
+        plan: { level: 'normal', posts: 2 },
+        now: NOW,
+        night: '2026-10-20',
+        activity,
+      })
+      if (p[1]!.replyTo === 0 && p[1]!.reporter === 'barlow') pairs++
+    }
+    return pairs
+  }
+  const fresh = count([])
+  const recent = count(
+    Array.from({ length: 3 }, (_, i) => ({
+      reporter: 'barlow' as const,
+      night: '2026-10-11',
+      createdAt: daysAgo(1 + i),
+      kind: 'reaction' as const,
+      replyTo: 'mercer' as const,
+    })),
+  )
+  assert.ok(fresh > 0)
+  assert.ok(recent <= fresh, `${String(recent)} <= ${String(fresh)}`)
+})
+
+void test('assignGameArticles: distinct writers; a game story, Voss spotlights, a columnist column', () => {
+  const a = assignGameArticles({
+    kinds: ['game', 'spotlight', 'column'],
+    situation: 'routine_win',
+    historic: true,
+    now: NOW,
+    night: NIGHT,
+    activity: [],
+  })
+  assert.deepEqual(
+    a.map((x) => x.kind),
+    ['game', 'spotlight', 'column'],
+  )
+  assert.equal(a[0]!.reporter, 'barlow')
+  assert.equal(a[1]!.reporter, 'voss')
+  assert.equal(a[2]!.reporter, 'bergstrom')
+  // The game queue: Barlow's recent game story sends the next one to Halberd.
+  const next = assignGameArticles({
+    kinds: ['game'],
+    situation: 'routine_win',
+    historic: false,
+    now: NOW,
+    night: NIGHT,
+    activity: [act('barlow', 'game', daysAgo(1), '2026-10-11')],
+  })
+  assert.equal(next[0]!.reporter, 'halberd')
+  // Disabled reporters are skipped.
+  assert.notEqual(
+    assignGameArticles({
+      kinds: ['spotlight'],
+      situation: 'loss',
+      historic: false,
+      now: NOW,
+      night: NIGHT,
+      activity: [],
+      disabled: ['voss'],
+    })[0]!.reporter,
+    'voss',
+  )
 })
 
 // ── Night recaps ────────────────────────────────────────────────────────────
@@ -211,17 +381,26 @@ function simulate(): { recaps: ReporterId[]; nights: ReporterId[]; activity: Act
       const s = SITUATIONS[k++ % SITUATIONS.length]!
       if (s.endsWith('win') || s === 'goalie_steal') wins++
       const at = new Date(start + n * 86_400_000 + g * 3_600_000)
-      const a = assignGamePosts(s, at, night, activity)
-      recaps.push(a.first)
-      activity.push({ reporter: a.first, kind: 'recap', night, createdAt: at })
-      if (a.second !== null) {
+      const { facts, game } = gameSetup()
+      const a = assignGamePosts({
+        game: { ...game, matchId: k },
+        facts,
+        situation: s,
+        plan: { level: 'normal', posts: 1 + (k % 3) },
+        now: at,
+        night,
+        activity,
+      })
+      recaps.push(a[0]!.reporter)
+      a.forEach((p, i) =>
         activity.push({
-          reporter: a.second,
-          kind: 'reaction',
+          reporter: p.reporter,
+          kind: i === 0 ? 'recap' : 'reaction',
           night,
-          createdAt: new Date(at.getTime() + 1000),
-        })
-      }
+          createdAt: new Date(at.getTime() + 1000 * i),
+          replyTo: p.replyTo === null ? null : a[p.replyTo]!.reporter,
+        }),
+      )
     }
     const at = new Date(start + n * 86_400_000 + games * 3_600_000 + 5_400_000)
     const r = assignNightRecap(nightFacts(wins, games - wins, 0, games), at, activity)

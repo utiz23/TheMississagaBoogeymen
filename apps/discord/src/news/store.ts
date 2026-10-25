@@ -16,7 +16,10 @@ import {
   markNewsJob,
   monthNewsSpendUsd,
   nightCriticized,
-  recentReporterSummaries,
+  recentReporterPieces,
+  nightPostsForPrompt,
+  takesUsedSince,
+  listGameArticleRetries,
   recordNewsUsage,
   reporterActivity,
   nightZeroCalled,
@@ -52,9 +55,24 @@ export const newsDbStore: NewsStore = {
   markNewsItemSkipped,
   reporterActivity: async (args) =>
     (await reporterActivity(args)).flatMap((a) =>
-      isReporter(a.reporter) ? [{ ...a, reporter: a.reporter }] : [],
+      isReporter(a.reporter)
+        ? [
+            {
+              ...a,
+              reporter: a.reporter,
+              replyTo: a.replyTo !== null && isReporter(a.replyTo) ? a.replyTo : null,
+            },
+          ]
+        : [],
     ),
-  recentReporterSummaries,
+  recentReporterPieces,
+  nightPostsForPrompt: async (night, includeTest) =>
+    (await nightPostsForPrompt(night, includeTest)).map((p) => ({
+      reporter: p.reporter,
+      text: p.text,
+    })),
+  takesUsedSince,
+  listGameArticleRetries,
   recordNewsUsage,
   lastFeature,
   nightCriticized,

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { NewsFacts } from '@eanhl/db/news'
+import type { NewsFacts, NewsTake } from '@eanhl/db/news'
 import type { Usage } from './cost.ts'
 import { REVIEW_SYSTEM_PROMPT, buildReviewPrompt, buildRewritePrompt } from './prompts.ts'
 import { REVIEW_SCHEMA, parseReview } from './outputs.ts'
@@ -129,6 +129,8 @@ export async function writeChecked<T>(args: {
   textForReview: (out: T) => string
   /** The people the output lists as criticised harshly (shown to the review). */
   criticizedForReview?: (out: T) => string[]
+  /** The reporter takes the piece was offered (shown to the review, C3a.10). */
+  takesForReview?: readonly NewsTake[]
   facts: NewsFacts
   record: (purpose: 'write' | 'review', model: string, usage: Usage) => Promise<void>
 }): Promise<{ ok: true; out: T } | { ok: false; reason: string }> {
@@ -172,6 +174,7 @@ export async function writeChecked<T>(args: {
         facts: args.facts,
         text: args.textForReview(out),
         criticized: args.criticizedForReview?.(out) ?? [],
+        takes: args.takesForReview ?? [],
       }),
       schema: REVIEW_SCHEMA,
       effort: 'low',

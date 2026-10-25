@@ -1,7 +1,14 @@
 import {
+  GAME_ARTICLE_KINDS,
   REPORTERS,
-  RELATIONSHIPS,
+  TAKE_REUSE_DAYS,
+  dueTakes,
   nightsOfWeek,
+  planBuzz,
+  takeCritics,
+  type BuzzPlan,
+  type GameArticleKind,
+  type NewsTake,
   type NewsFacts,
   type NewsFactsResponse,
   type FeatureKind,
@@ -19,9 +26,11 @@ import type {
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
   assignFeature,
+  assignGameArticles,
   assignGamePosts,
   assignNightRecap,
   predictionToJudge,
+  type PostAssignment,
   type Activity,
   type ActivityKind,
 } from './assign.ts'
@@ -48,14 +57,20 @@ import {
   parseFeature,
   featureBody,
   parseGamePosts,
+  GAME_ARTICLE_FEATURE_KIND,
+  stancesToStore,
   type Article,
-  type PieceStance,
 } from './outputs.ts'
 import {
+  OWN_RECENT_PIECES,
   buildArticleUserPrompt,
   buildFeatureUserPrompt,
+  buildGameArticleUserPrompt,
   buildGameUserPrompt,
   buildSystemPrompt,
+  type DeskContext,
+  type NightPost,
+  type OwnPiece,
 } from './prompts.ts'
 import { classifyGame } from './situation.ts'
 import {
@@ -86,7 +101,6 @@ export const WEEK_FETCH_PAUSE_MS = 900_000
 const DELETE_LIMIT = 20
 const UNDELIVERED_LIMIT = 10
 const ACTIVITY_MS = 14 * 86_400_000
-const OWN_RECENT = 3
 
 type Kind = NewsJobKind
 
@@ -114,10 +128,18 @@ export interface NewsStore {
   markNewsItemSkipped(id: number, reason: string): Promise<void>
   /** Real items since `since`, each with what it was (recap, reaction, night, feature). */
   reporterActivity(args: { since: Date }): Promise<Activity>
-  recentReporterSummaries(
+  /** The reporter's last pieces, posts and articles, newest first (C3a.3). */
+  recentReporterPieces(
     reporter: ReporterId,
     limit: number,
-  ): Promise<{ headline: string; summary: string; night: string | null }[]>
+    includeTest: boolean,
+  ): Promise<OwnPiece[]>
+  /** The night's posts, oldest first (the night article's prompt, C3a.3). */
+  nightPostsForPrompt(night: string, includeTest: boolean): Promise<NightPost[]>
+  /** When each take was last voiced since `since` (C3a.6). */
+  takesUsedSince(since: Date, includeTest: boolean): Promise<{ takeId: number; lastUsed: Date }[]>
+  /** Failed big-game article jobs under the cap (C3a.8): `<matchId>:<kind>`. */
+  listGameArticleRetries(args: { since: Date; limit: number }): Promise<string[]>
   recordNewsUsage(row: NewNewsUsage): Promise<void>
   /** The newest real, not deleted weekly feature, or null (rev 2, B5). */
   lastFeature(): Promise<LastFeature | null>
@@ -135,7 +157,7 @@ export interface NewsStore {
 export interface NewsDeps {
   store: NewsStore
   /** The fact sheet from the web app's internal route. Any error (404 included) ⇒ retry next pass. */
-  fetchFacts(kind: Kind, key: string): Promise<NewsFactsResponse>
+  fetchFacts(kind: 'game' | 'night' | 'week', key: string): Promise<NewsFactsResponse>
   /** The Claude call (Task 5's `anthropicModelCall`). */
   writer: ModelCall
   send(payload: NewsWebhookPayload): Promise<string | null>
@@ -212,20 +234,6 @@ function mentionsOf(names: string[], facts: NewsFacts): NewsMention[] {
     }
   }
   return out
-}
-
-/** The stances a piece took on threads of the sheet (unknown keys are dropped; the check rejects them). */
-export function stancesToStore(
-  stances: readonly PieceStance[],
-  facts: NewsFacts,
-  reporter: ReporterId,
-  night: string | null,
-  itemId: number,
-): NewNewsStance[] {
-  const keys = new Set(facts.threads.map((t) => t.key))
-  return stances
-    .filter((st) => keys.has(st.threadKey))
-    .map((st) => ({ threadKey: st.threadKey, reporter, stance: st.stance.trim(), night, itemId }))
 }
 
 const EDMONTON = new Intl.DateTimeFormat('en-US', {
@@ -310,8 +318,15 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     return opts.dryRun ? [...rows, ...state.testActivity] : rows
   }
 
-  function noteWritten(reporter: ReporterId, night: string | null, kind: ActivityKind): void {
-    if (opts.dryRun) state.testActivity.push({ reporter, night, createdAt: deps.now(), kind })
+  function noteWritten(
+    reporter: ReporterId,
+    night: string | null,
+    kind: ActivityKind,
+    replyTo: ReporterId | null = null,
+  ): void {
+    if (opts.dryRun) {
+      state.testActivity.push({ reporter, night, createdAt: deps.now(), kind, replyTo })
+    }
   }
 
   async function failJob(jobId: number, tag: string, reason: string): Promise<void> {
@@ -401,6 +416,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       check: (out: T) => CheckResult
       textForReview: (out: T) => string
       criticizedForReview: (out: T) => string[]
+      /** The takes the piece was offered (shown to the review, C3a.10). */
+      takesForReview?: readonly NewsTake[]
       facts: NewsFacts
     },
   ): Promise<{ out: T } | 'failed' | 'end'> {
@@ -507,10 +524,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
   // ── 5. Game posts ─────────────────────────────────────────────────────────
   async function gamePass(): Promise<Step> {
     const now = deps.now()
-    const ids = await store.listGameJobCandidates({
-      since: new Date(now.getTime() - NEWS_GAME_WINDOW_MS),
-      limit: NEWS_GAME_LIMIT,
-    })
+    const since = new Date(now.getTime() - NEWS_GAME_WINDOW_MS)
+    const ids = await store.listGameJobCandidates({ since, limit: NEWS_GAME_LIMIT })
     for (const matchId of ids) {
       if (!(await moneyLeft())) return 'end'
       const key = String(matchId)
@@ -534,9 +549,47 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         }
         continue
       }
-      if ((await writeGame(jobId, tag, res, game)) === 'end') return 'end'
+      const plan = planBuzz(game, res.facts)
+      if ((await writeGame(jobId, tag, res, game, plan)) === 'end') return 'end'
+      if ((await gameArticles(res, game, plan, plan.articles)) === 'end') return 'end'
+    }
+    // Big-game articles whose job failed earlier (C3a.8): written again under the cap.
+    for (const jobKey of await store.listGameArticleRetries({ since, limit: NEWS_GAME_LIMIT })) {
+      const [matchKey, kind] = jobKey.split(':')
+      if (!(GAME_ARTICLE_KINDS as readonly string[]).includes(kind ?? '')) continue
+      if (!(await moneyLeft())) return 'end'
+      let res: NewsFactsResponse
+      try {
+        res = await deps.fetchFacts('game', matchKey!)
+      } catch (err: unknown) {
+        log(`game ${matchKey!}: facts unavailable, will retry (${message(err)})`)
+        continue
+      }
+      const game = res.facts.games.find((g) => String(g.matchId) === matchKey)
+      if (game === undefined) continue
+      const plan = planBuzz(game, res.facts)
+      if ((await gameArticles(res, game, plan, [kind as GameArticleKind])) === 'end') return 'end'
     }
     return 'go'
+  }
+
+  /** The reporters' own last pieces (C3a.3), for every reporter of a request. */
+  async function ownRecentOf(
+    reporters: readonly ReporterId[],
+  ): Promise<Partial<Record<ReporterId, OwnPiece[]>>> {
+    const out: Partial<Record<ReporterId, OwnPiece[]>> = {}
+    for (const r of new Set(reporters)) {
+      out[r] = await store.recentReporterPieces(r, OWN_RECENT_PIECES, opts.dryRun)
+    }
+    return out
+  }
+
+  /** The takes due on the sheet's players (spec §12.19: about once a week per take). */
+  async function takesDue(res: NewsFactsResponse, now: Date): Promise<NewsTake[]> {
+    if (res.takes.length === 0) return []
+    const since = new Date(now.getTime() - TAKE_REUSE_DAYS * 86_400_000)
+    const used = await store.takesUsedSince(since, opts.dryRun)
+    return dueTakes(res.takes, new Map(used.map((u) => [u.takeId, u.lastUsed])), now)
   }
 
   async function writeGame(
@@ -544,64 +597,72 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     tag: string,
     res: NewsFactsResponse,
     game: NewsGameFacts,
+    plan: BuzzPlan,
   ): Promise<Step> {
     const { facts, forbiddenNames } = res
     const night = facts.key // a game sheet's key is its night (R12)
     const now = deps.now()
     // The job is claimed: any error before the write must mark it failed, never leave it pending.
-    let a: ReturnType<typeof assignGamePosts>
-    let tonight: string[]
-    let zero: { tonight: string[]; previous: string[] }
+    let posts: PostAssignment[]
+    let ctx: DeskContext
+    let takes: NewsTake[]
     try {
-      a = assignGamePosts(classifyGame(game), now, night, await loadActivity(now))
-      tonight = await store.nightCriticized(night, opts.dryRun)
-      zero = await store.nightZeroCalled(night, opts.dryRun)
+      takes = await takesDue(res, now)
+      posts = assignGamePosts({
+        game,
+        facts,
+        situation: classifyGame(game),
+        plan,
+        now,
+        night,
+        activity: await loadActivity(now),
+        takes,
+      })
+      const zero = await store.nightZeroCalled(night, opts.dryRun)
+      ctx = {
+        criticizedTonight: await store.nightCriticized(night, opts.dryRun),
+        zeroCalledTonight: zero.tonight,
+        zeroCalledPrevious: zero.previous,
+        ownRecent: await ownRecentOf(posts.map((p) => p.reporter)),
+      }
     } catch (err: unknown) {
       await failJob(jobId, tag, `could not prepare: ${message(err)}`)
       return 'go'
     }
-    const order: ReporterId[] = a.second === null ? [a.first] : [a.first, a.second]
-    const relationship =
-      a.second !== null && a.secondIsReply
-        ? (RELATIONSHIPS.find((r) => r.from === a.second && r.to === a.first)?.note ?? null)
-        : null
+    const order = posts.map((p) => p.reporter)
+    const offered = posts.map((p) => (p.takeId === null ? [] : [p.takeId]))
     const written = await write(jobId, tag, {
-      user: buildGameUserPrompt({
-        facts,
-        first: REPORTERS[a.first],
-        second: a.second === null ? null : REPORTERS[a.second],
-        secondIsReply: a.secondIsReply,
-        relationship,
-        criticizedTonight: tonight,
-      }),
+      user: buildGameUserPrompt({ facts, posts, ctx: { ...ctx, takes } }),
       schema: GAME_POSTS_SCHEMA,
       parse: (v) => parseGamePosts(v, order),
       check: (out) =>
-        checkGamePosts(out.posts, facts, forbiddenNames, tonight, {
-          replies: [false, a.secondIsReply],
-          zeroCalledTonight: zero.tonight,
-          zeroCalledPrevious: zero.previous,
+        checkGamePosts(out.posts, facts, forbiddenNames, ctx.criticizedTonight, {
+          replies: posts.map((p) => p.replyTo !== null),
+          zeroCalledTonight: ctx.zeroCalledTonight,
+          zeroCalledPrevious: ctx.zeroCalledPrevious,
+          offeredTakes: offered,
         }),
       textForReview: (out) =>
         out.posts.map((p) => `${REPORTERS[p.reporter].name}: ${p.text}`).join('\n\n'),
       criticizedForReview: (out) => [...new Set(out.posts.flatMap((p) => p.criticized))],
+      takesForReview: takes.filter((t) => offered.flat().includes(t.id)),
       facts,
     })
     if (written === 'end') return 'end'
     if (written === 'failed') return 'go'
 
-    const posts = written.out.posts
-    const stored: { id: number; reporter: ReporterId; text: string; isReply: boolean }[] = []
+    const out = written.out.posts
+    const stored: { id: number; reporter: ReporterId; text: string; replyTo: number | null }[] = []
     try {
-      for (const [i, p] of posts.entries()) {
-        const isReply = i === 1 && a.secondIsReply
+      for (const [i, p] of out.entries()) {
+        const target = posts[i]!.replyTo
         const id = await store.insertNewsItem({
           jobId,
           kind: 'post',
           reporter: p.reporter,
           matchId: game.matchId,
           night,
-          replyTo: isReply ? stored[0]!.id : null,
+          replyTo: target === null ? null : stored[target]!.id,
           body: p.text,
           mentions: mentionsOf(p.mentions, facts),
           criticized: criticizedAsOnSheet(p.criticized, facts),
@@ -610,9 +671,14 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           facts,
           isTest: opts.dryRun,
         })
-        stored.push({ id, reporter: p.reporter, text: p.text, isReply })
+        stored.push({ id, reporter: p.reporter, text: p.text, replyTo: target })
         await saveStances(stancesToStore(p.stances, facts, p.reporter, night, id), tag)
-        noteWritten(p.reporter, night, i === 0 ? 'recap' : 'reaction')
+        noteWritten(
+          p.reporter,
+          night,
+          i === 0 ? 'recap' : 'reaction',
+          target === null ? null : out[target]!.reporter,
+        )
       }
     } catch (err: unknown) {
       if (stored.length === 0) {
@@ -621,21 +687,143 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       }
       // Some posts exist: a retry would write them twice. Leave the job pending.
       log(
-        `${tag}: stored ${String(stored.length)} of ${String(posts.length)} posts — job left pending, not retried (${message(err)})`,
+        `${tag}: stored ${String(stored.length)} of ${String(out.length)} posts — job left pending, not retried (${message(err)})`,
       )
     }
-    if (stored.length === posts.length) await markDone(jobId, tag)
+    if (stored.length === out.length) await markDone(jobId, tag)
 
     for (const s of stored) {
       const payload = buildNewsPostPayload({
         reporter: REPORTERS[s.reporter],
         text: s.text,
-        replyToName: s.isReply ? REPORTERS[a.first].name : null,
+        replyToName: s.replyTo === null ? null : REPORTERS[stored[s.replyTo]!.reporter].name,
         siteUrl: opts.siteUrl,
       })
       await deliver(s.id, payload, `${tag} item ${String(s.id)}`)
     }
     return sendingStopped ? 'end' : 'go'
+  }
+
+  /**
+   * A big game's articles (C3a.7/C3a.8): one job each (`game_article`,
+   * `<matchId>:<kind>`), so a failed article never rewrites the posts. The
+   * writers come from the `game` queue; a game story 200-350 words, a
+   * spotlight or column 400-700.
+   */
+  async function gameArticles(
+    res: NewsFactsResponse,
+    game: NewsGameFacts,
+    plan: BuzzPlan,
+    kinds: readonly GameArticleKind[],
+  ): Promise<Step> {
+    if (kinds.length === 0) return 'go'
+    const { facts, forbiddenNames } = res
+    const night = facts.key
+    const now = deps.now()
+    let writers: { kind: GameArticleKind; reporter: ReporterId }[]
+    try {
+      writers = assignGameArticles({
+        kinds,
+        situation: classifyGame(game),
+        historic: plan.level === 'historic',
+        now,
+        night,
+        activity: await loadActivity(now),
+      })
+    } catch (err: unknown) {
+      log(`game ${String(game.matchId)}: articles not assigned (${message(err)})`)
+      return 'go'
+    }
+    for (const w of writers) {
+      if (!(await moneyLeft())) return 'end'
+      const key = `${String(game.matchId)}:${w.kind}`
+      const tag = `game article ${key}`
+      const jobId = await store.claimNewsJob('game_article', key, opts.dryRun)
+      if (jobId === null) continue
+      let ctx: DeskContext
+      let takes: NewsTake[]
+      try {
+        takes = await takesDue(res, deps.now())
+        const zero = await store.nightZeroCalled(night, opts.dryRun)
+        ctx = {
+          criticizedTonight: await store.nightCriticized(night, opts.dryRun),
+          zeroCalledTonight: zero.tonight,
+          zeroCalledPrevious: zero.previous,
+          ownRecent: await ownRecentOf([w.reporter]),
+        }
+      } catch (err: unknown) {
+        await failJob(jobId, tag, `could not prepare: ${message(err)}`)
+        continue
+      }
+      const reporter = REPORTERS[w.reporter]
+      const mine = takes.filter(
+        (t) => takeCritics(t).includes(w.reporter) || t.defender === w.reporter,
+      )
+      const written = await write(jobId, tag, {
+        user: buildGameArticleUserPrompt({
+          facts,
+          reporter,
+          kind: w.kind,
+          ctx: { ...ctx, takes: mine },
+        }),
+        schema: ARTICLE_SCHEMA,
+        parse: parseArticle,
+        check: (x) =>
+          checkArticleFacts(x, facts, forbiddenNames, ctx.criticizedTonight, {
+            reporter: w.reporter,
+            length: w.kind === 'game' ? 'game-story' : 'game-feature',
+            zeroCalledTonight: ctx.zeroCalledTonight,
+            zeroCalledPrevious: ctx.zeroCalledPrevious,
+            offeredTakes: mine.map((t) => t.id),
+          }),
+        textForReview: (x) => [x.headline, x.dek, ...x.paragraphs].join('\n\n'),
+        criticizedForReview: (x) => x.criticized,
+        takesForReview: mine,
+        facts,
+      })
+      if (written === 'end') return 'end'
+      if (written === 'failed') continue
+      const a = written.out
+      const slug = articleSlug(`${night}-g${String(game.matchId)}`, a.headline)
+      let id: number
+      try {
+        id = await store.insertNewsItem({
+          jobId,
+          kind: 'article',
+          reporter: w.reporter,
+          matchId: game.matchId,
+          night,
+          slug,
+          headline: a.headline,
+          dek: a.dek,
+          body: a.paragraphs.join('\n\n'),
+          summary: a.summary,
+          mentions: mentionsOf(a.mentions, facts),
+          criticized: criticizedAsOnSheet(a.criticized, facts),
+          zeroCalled: zeroCalledAsOnSheet(a.zeroCalled, facts),
+          takesUsed: a.takesUsed,
+          featureKind: GAME_ARTICLE_FEATURE_KIND[w.kind],
+          facts,
+          isTest: opts.dryRun,
+        })
+      } catch (err: unknown) {
+        await failJob(jobId, tag, `could not store: ${message(err)}`)
+        continue
+      }
+      await saveStances(stancesToStore(a.stances, facts, w.reporter, night, id), tag)
+      noteWritten(w.reporter, night, 'game')
+      await markDone(jobId, tag)
+      const payload = buildArticlePayload({
+        reporter,
+        headline: a.headline,
+        dek: a.dek,
+        url: `${opts.siteUrl}/news/${slug}`,
+        siteUrl: opts.siteUrl,
+      })
+      await deliver(id, payload, `${tag} item ${String(id)}`)
+      if (sendingStopped) return 'end'
+    }
+    return 'go'
   }
 
   /** Stances are a side record: a failed insert is logged, never fails the item. */
@@ -728,17 +916,20 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     const now = deps.now()
     // The job is claimed: any error before the write must mark it failed, never leave it pending.
     let reporterId: ReporterId
-    let ownRecent: Awaited<ReturnType<NewsStore['recentReporterSummaries']>>
-    let tonight: string[] = []
-    let zero: { tonight: string[]; previous: string[] } = { tonight: [], previous: [] }
+    let ctx: DeskContext
+    let mine: NewsTake[]
     /** Week jobs: the feature kind and the prediction to judge (rev 2, B3/B5). */
     let feature: { kind: FeatureKind; previousPrediction: string | null } | null = null
     try {
       const activity = await loadActivity(now)
+      let zero = { tonight: [] as string[], previous: [] as string[] }
+      let tonight: string[] = []
+      let nightPosts: NightPost[] | undefined
       if (kind === 'night') {
         reporterId = assignNightRecap(facts, now, activity)
         tonight = await store.nightCriticized(key, opts.dryRun)
         zero = await store.nightZeroCalled(key, opts.dryRun)
+        nightPosts = await store.nightPostsForPrompt(key, opts.dryRun)
       } else {
         const last =
           opts.dryRun && state.testLastFeature !== null
@@ -748,7 +939,17 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         reporterId = next.reporter
         feature = { kind: next.kind, previousPrediction: predictionToJudge(key, last) }
       }
-      ownRecent = await store.recentReporterSummaries(reporterId, OWN_RECENT)
+      ctx = {
+        criticizedTonight: tonight,
+        zeroCalledTonight: zero.tonight,
+        zeroCalledPrevious: zero.previous,
+        ownRecent: await ownRecentOf([reporterId]),
+        ...(nightPosts === undefined ? {} : { nightPosts }),
+      }
+      const who = reporterId
+      mine = (await takesDue(res, now)).filter(
+        (t) => takeCritics(t).includes(who) || t.defender === who,
+      )
     } catch (err: unknown) {
       await failJob(jobId, tag, `could not prepare: ${message(err)}`)
       return 'go'
@@ -763,23 +964,19 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     } | null = null
     if (feature === null) {
       const written = await write(jobId, tag, {
-        user: buildArticleUserPrompt({
-          facts,
-          reporter,
-          kind,
-          ownRecent,
-          criticizedTonight: tonight,
-        }),
+        user: buildArticleUserPrompt({ facts, reporter, ctx: { ...ctx, takes: mine } }),
         schema: ARTICLE_SCHEMA,
         parse: parseArticle,
         check: (x) =>
-          checkArticleFacts(x, facts, forbiddenNames, tonight, {
+          checkArticleFacts(x, facts, forbiddenNames, ctx.criticizedTonight, {
             reporter: reporterId,
-            zeroCalledTonight: zero.tonight,
-            zeroCalledPrevious: zero.previous,
+            zeroCalledTonight: ctx.zeroCalledTonight,
+            zeroCalledPrevious: ctx.zeroCalledPrevious,
+            offeredTakes: mine.map((t) => t.id),
           }),
         textForReview: (x) => [x.headline, x.dek, ...x.paragraphs].join('\n\n'),
         criticizedForReview: (x) => x.criticized,
+        takesForReview: mine,
         facts,
       })
       if (written === 'end') return 'end'
@@ -792,15 +989,19 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           facts,
           reporter,
           kind: rules.kind,
-          ownRecent,
           previousPrediction: rules.previousPrediction,
+          ctx: { ...ctx, takes: mine },
         }),
         schema: FEATURE_SCHEMA,
         parse: parseFeature,
         check: (f) =>
-          checkFeatureFacts(f, facts, forbiddenNames, rules, [], { reporter: reporterId }),
+          checkFeatureFacts(f, facts, forbiddenNames, rules, [], {
+            reporter: reporterId,
+            offeredTakes: mine.map((t) => t.id),
+          }),
         textForReview: (f) => [f.headline, f.dek, featureBody(f, f)].join('\n\n'),
         criticizedForReview: (f) => f.criticized,
+        takesForReview: mine,
         facts,
       })
       if (written === 'end') return 'end'

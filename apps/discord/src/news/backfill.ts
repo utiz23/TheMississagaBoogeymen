@@ -11,27 +11,35 @@
  *   node apps/discord/src/news/backfill.ts check --out <dir>
  *   DATABASE_URL=… node apps/discord/src/news/backfill.ts import --out <dir>
  *
- * `plan` makes the game and night jobs only. Weekly features (rev 2) are made
- * one week at a time with `next-feature`, after the previous feature is
- * accepted: the kind and last week's prediction come from the latest accepted
- * feature job in <dir>.
+ * `plan` makes the game, big-game article and night jobs (C3a.11: the buzz
+ * decides the post count and the articles of each game, every post has its
+ * angle and top fact, reporter takes come from the internal route's sheet).
+ * Weekly features are made one week at a time with `next-feature`, after the
+ * previous feature is accepted: the kind and last week's prediction come from
+ * the latest accepted feature job in <dir>.
  *
- * Files in <dir>:
+ * Files in <dir> (git-ignored; job files hold the GM-only takes of the sheet):
  *   system.txt            the system prompt for every write (all reporters)
  *   review-system.txt     the system prompt for every review
  *   review-schema.json    the JSON schema of a review answer
- *   jobs/<id>.json        one item to write: { id, kind, night, matchId?, reporters,
- *                         secondIsReply?, featureKind?, previousPrediction?, user,
- *                         schema, sheet }; a feature's `night` is its week's Monday
- *   status/<id>.json      also for a waiting job when its night already has a harsh
- *                         list: { state: 'waiting', prompt } (write from that prompt)
- *   answers/<id>.json     the model's JSON answer to `user` (written outside)
+ *   jobs/<id>.json        one item to write (ids: <night>-aNN-g<match> posts,
+ *                         <night>-aNN-h<match>-K-<kind> big-game articles,
+ *                         <night>-z-night, <monday+7>-0-feature): { id, kind, night, matchId?, reporters,
+ *                         posts?, articleKind?, offeredTakes?, featureKind?,
+ *                         previousPrediction?, user, schema, sheet }; a feature's
+ *                         `night` is its week's Monday
+ *   answers/<id>.json     the model's JSON answer (written outside)
  *   reviews/<id>.json     the review answer, { "ok": true } or { "ok": false, "problems": [...] }
- *   status/<id>.json      written by `check`: rewrite / review / accepted
+ *   status/<id>.json      written by `check`: waiting (with the prompt to write from,
+ *                         when the desk context changed) / rewrite / review / accepted
  *
- * A review counts only when its file is not older than the answer file.
- * The import never touches news_jobs or news_ai_usage, and every item gets
- * discord_status 'skipped', so the live desk never sends it.
+ * The desk context of a job (the night's harsh list and zero call-outs, the
+ * previous night's zero call-outs, each reporter's last 5 pieces, the night's
+ * posts, the takes still due) comes from the ACCEPTED earlier jobs in id
+ * order, so write and accept the jobs in order. A review counts only when its
+ * file is not older than the answer file. The import never touches news_jobs
+ * or news_ai_usage, and every item gets discord_status 'skipped', so the live
+ * desk never sends it.
  */
 import {
   existsSync,
@@ -47,23 +55,31 @@ import { pathToFileURL } from 'node:url'
 import {
   FEATURE_KINDS,
   FEATURE_REPORTER,
+  GAME_ARTICLE_KINDS,
   REPORTERS,
   REPORTER_IDS,
-  RELATIONSHIPS,
+  dueTakes,
   parseNewsFactsResponse,
+  planBuzz,
+  takeCritics,
   weekStart as mondayOf,
   type FeatureKind,
+  type GameArticleKind,
   type NewsFacts,
   type NewsFactsResponse,
+  type NewsTake,
   type ReporterId,
 } from '@eanhl/db/news'
-import type { NewNewsItem, NewsMention } from '@eanhl/db/queries'
+import type { NewNewsItem, NewNewsStance, NewsMention } from '@eanhl/db/queries'
 import {
+  POST_ANGLES,
+  assignGameArticles,
   assignGamePosts,
   assignNightRecap,
   nextFeatureKind,
   predictionToJudge,
   type Activity,
+  type PostAssignment,
 } from './assign.ts'
 import {
   checkArticleFacts,
@@ -83,19 +99,28 @@ import {
   parseFeature,
   parseGamePosts,
   parseReview,
+  zeroCalledAsOnSheet,
+  GAME_ARTICLE_FEATURE_KIND,
+  stancesToStore,
   type Article,
   type Feature,
   type GamePost,
 } from './outputs.ts'
 import {
+  EMPTY_DESK_CONTEXT,
+  OWN_RECENT_PIECES,
   REVIEW_SYSTEM_PROMPT,
   buildArticleUserPrompt,
   buildFeatureUserPrompt,
+  buildGameArticleUserPrompt,
   buildGameUserPrompt,
   buildReviewPrompt,
   buildRewritePrompt,
   buildSystemPrompt,
-  setCriticizedTonight,
+  setDeskContext,
+  type DeskContext,
+  type NightPost,
+  type OwnPiece,
 } from './prompts.ts'
 import { classifyGame } from './situation.ts'
 import { fetchNewsFacts } from './web-client.ts'
@@ -104,16 +129,27 @@ import { fetchNewsFacts } from './web-client.ts'
 export const ARTICLE_DELAY_MS = 90 * 60_000
 /** Posts of one game are dated one second apart, in order. */
 const POST_STEP_MS = 1000
+/** A big game's articles are dated a minute apart after the game. */
+const GAME_ARTICLE_STEP_MS = 60_000
+const DAY_MS = 86_400_000
+const TAKE_WINDOW_MS = 7 * DAY_MS
 const SITE_ONLY = 'backfill: site only, never sent to Discord'
+
+export type BackfillJobKind = 'game' | 'game-article' | 'night' | 'feature'
 
 export interface BackfillJob {
   id: string
-  kind: 'game' | 'night' | 'feature'
+  kind: BackfillJobKind
   /** A game's or night's night; for a feature, the Monday of its week. */
   night: string
   matchId?: number
   reporters: ReporterId[]
-  secondIsReply?: boolean
+  /** Game jobs (C3a.8): each post's reporter, angle, reply target, fact and take. */
+  posts?: PostAssignment[]
+  /** Big-game article jobs (C3a.7). */
+  articleKind?: GameArticleKind
+  /** Article and feature jobs: the takes offered at plan time (C3a.6). */
+  offeredTakes?: number[]
   /** Features only (rev 2, B6). */
   featureKind?: FeatureKind
   /** Features only: last week's prediction to judge, or null. */
@@ -166,30 +202,41 @@ export function featureCreatedAt(weekStart: string): Date {
 }
 
 /**
- * When the item is dated: a post at its game's end (+1 s per post), a night
- * article 90 min after the night's last game, a feature on the following
- * Monday at 12:00 Edmonton.
+ * When the item is dated: a post at its game's end (+1 s per post), a big
+ * game's article a minute after per kind, a night article 90 min after the
+ * night's last game, a feature on the following Monday at 12:00 Edmonton.
  */
 export function itemCreatedAt(job: BackfillJob, index: number): Date {
   if (job.kind === 'feature') return featureCreatedAt(job.night)
   const games = job.sheet.facts.games
-  if (job.kind === 'game') {
+  if (job.kind === 'game' || job.kind === 'game-article') {
     const game = games.find((g) => g.matchId === job.matchId)
     if (!game) throw new Error(`job ${job.id}: the sheet has no game ${String(job.matchId)}`)
-    return new Date(Date.parse(game.playedAt) + index * POST_STEP_MS)
+    const step =
+      job.kind === 'game'
+        ? index * POST_STEP_MS
+        : (1 + GAME_ARTICLE_KINDS.indexOf(job.articleKind!)) * GAME_ARTICLE_STEP_MS
+    return new Date(Date.parse(game.playedAt) + step)
   }
   const last = Math.max(...games.map((g) => Date.parse(g.playedAt)))
   if (!Number.isFinite(last)) throw new Error(`job ${job.id}: the night sheet has no game`)
   return new Date(last + ARTICLE_DELAY_MS)
 }
 
+/** The takes of the sheet a reporter may voice or answer (critic or defender). */
+function takesOf(takes: readonly NewsTake[], reporter: ReporterId): NewsTake[] {
+  return takes.filter((t) => takeCritics(t).includes(reporter) || t.defender === reporter)
+}
+
 // ── plan ─────────────────────────────────────────────────────────────────────
 
 /**
- * Jobs for the nights, in date order: each counted game's posts, then the
- * night article. Reporters are assigned with the live desk's rules against a
- * simulated activity list that grows as the plan goes, so the frequency limits
- * hold across the whole backfill. Any fetch failure stops the plan.
+ * Jobs for the nights, in date order: each counted game's posts (the buzz
+ * count), its articles (big games), then the night article. Reporters are
+ * assigned with the live desk's rules against a simulated activity list that
+ * grows as the plan goes, so the frequency limits and the rotation hold across
+ * the whole backfill; a take offered in the plan counts as used then (the
+ * 7-day rule). Any fetch failure stops the plan.
  */
 export async function planBackfill(args: {
   nights: readonly string[]
@@ -200,6 +247,7 @@ export async function planBackfill(args: {
   }
   const nights = [...new Set(args.nights)].sort()
   const activity: Activity = []
+  const takeUsed = new Map<number, Date>()
   const jobs: BackfillJob[] = []
 
   const fetchOr = async (kind: 'game' | 'night', key: string, what: string) => {
@@ -208,6 +256,9 @@ export async function planBackfill(args: {
     } catch (err: unknown) {
       throw new Error(`${what}: ${message(err)}`)
     }
+  }
+  const offer = (takes: readonly NewsTake[], at: Date) => {
+    for (const t of takes) takeUsed.set(t.id, at)
   }
 
   for (const night of nights) {
@@ -222,8 +273,9 @@ export async function planBackfill(args: {
       if (sheet.facts.kind !== 'game' || !game) {
         throw new Error(`night ${night} game ${String(g.matchId)}: the game sheet has no such game`)
       }
+      const base = `${night}-a${pad2(i + 1)}-g${String(g.matchId)}`
       const job: BackfillJob = {
-        id: `${night}-a${pad2(i + 1)}-g${String(g.matchId)}`,
+        id: base,
         kind: 'game',
         night,
         matchId: g.matchId,
@@ -232,31 +284,75 @@ export async function planBackfill(args: {
         schema: GAME_POSTS_SCHEMA,
         sheet,
       }
-      const a = assignGamePosts(classifyGame(game), itemCreatedAt(job, 0), night, activity)
-      job.reporters = a.second === null ? [a.first] : [a.first, a.second]
-      job.secondIsReply = a.secondIsReply
-      const relationship =
-        a.second !== null && a.secondIsReply
-          ? (RELATIONSHIPS.find((r) => r.from === a.second && r.to === a.first)?.note ?? null)
-          : null
+      const at = itemCreatedAt(job, 0)
+      const plan = planBuzz(game, sheet.facts)
+      const situation = classifyGame(game)
+      const due = dueTakes(sheet.takes, takeUsed, at)
+      const posts = assignGamePosts({
+        game,
+        facts: sheet.facts,
+        situation,
+        plan,
+        now: at,
+        night,
+        activity,
+        takes: due,
+      })
+      job.posts = posts
+      job.reporters = posts.map((p) => p.reporter)
+      const offered = due.filter((t) => posts.some((p) => p.takeId === t.id))
+      offer(offered, at)
       job.user = buildGameUserPrompt({
         facts: sheet.facts,
-        first: REPORTERS[a.first],
-        second: a.second === null ? null : REPORTERS[a.second],
-        secondIsReply: a.secondIsReply,
-        relationship,
-        // The night's harsh list is known only once earlier jobs are accepted: `check` swaps it in.
-        criticizedTonight: [],
+        posts,
+        // The desk context is known only once earlier jobs are accepted: `check` swaps it in.
+        ctx: { ...EMPTY_DESK_CONTEXT, takes: offered },
       })
-      job.reporters.forEach((r, k) =>
+      posts.forEach((p, k) =>
         activity.push({
-          reporter: r,
+          reporter: p.reporter,
           night,
           createdAt: itemCreatedAt(job, k),
           kind: k === 0 ? 'recap' : 'reaction',
+          replyTo: p.replyTo === null ? null : posts[p.replyTo]!.reporter,
         }),
       )
       jobs.push(job)
+
+      const writers = assignGameArticles({
+        kinds: plan.articles,
+        situation,
+        historic: plan.level === 'historic',
+        now: at,
+        night,
+        activity,
+      })
+      for (const [k, w] of writers.entries()) {
+        // `h` sorts after the game's `g` job and before the next game (file and id order).
+        const article: BackfillJob = {
+          id: `${night}-a${pad2(i + 1)}-h${String(g.matchId)}-${String(k + 1)}-${w.kind}`,
+          kind: 'game-article',
+          night,
+          matchId: g.matchId,
+          reporters: [w.reporter],
+          articleKind: w.kind,
+          user: '',
+          schema: ARTICLE_SCHEMA,
+          sheet,
+        }
+        const when = itemCreatedAt(article, 0)
+        const mine = takesOf(dueTakes(sheet.takes, takeUsed, when), w.reporter)
+        article.offeredTakes = mine.map((t) => t.id)
+        offer(mine, when)
+        article.user = buildGameArticleUserPrompt({
+          facts: sheet.facts,
+          reporter: REPORTERS[w.reporter],
+          kind: w.kind,
+          ctx: { ...EMPTY_DESK_CONTEXT, takes: mine },
+        })
+        activity.push({ reporter: w.reporter, night, createdAt: when, kind: 'game' })
+        jobs.push(article)
+      }
     }
 
     const article: BackfillJob = {
@@ -271,13 +367,13 @@ export async function planBackfill(args: {
     const createdAt = itemCreatedAt(article, 0)
     const reporter = assignNightRecap(nightSheet.facts, createdAt, activity)
     article.reporters = [reporter]
-    // The reporter's own recent pieces are not known before they are written.
+    const mine = takesOf(dueTakes(nightSheet.takes, takeUsed, createdAt), reporter)
+    article.offeredTakes = mine.map((t) => t.id)
+    offer(mine, createdAt)
     article.user = buildArticleUserPrompt({
       facts: nightSheet.facts,
       reporter: REPORTERS[reporter],
-      kind: 'night',
-      ownRecent: [],
-      criticizedTonight: [],
+      ctx: { ...EMPTY_DESK_CONTEXT, nightPosts: [], takes: mine },
     })
     activity.push({ reporter, night, createdAt, kind: 'night' })
     jobs.push(article)
@@ -313,6 +409,31 @@ export function writePlan(out: string, plan: BackfillPlan): void {
   for (const job of plan.jobs) writeFileSync(join(d.jobs, `${job.id}.json`), json(job))
 }
 
+const isReporter = (r: unknown): r is ReporterId => (REPORTER_IDS as readonly unknown[]).includes(r)
+
+function parsePosts(v: unknown, bad: (why: string) => never): PostAssignment[] {
+  if (!Array.isArray(v) || v.length < 1 || v.length > REPORTER_IDS.length) bad('posts are invalid')
+  return v.map((x: unknown, i): PostAssignment => {
+    const o = x as Partial<PostAssignment> | null
+    if (typeof o !== 'object' || o === null) bad(`posts[${String(i)}] is not an object`)
+    if (!isReporter(o.reporter)) bad(`posts[${String(i)}].reporter is invalid`)
+    const angle = o.angle
+    if (angle !== 'recap' && !(POST_ANGLES as readonly unknown[]).includes(angle)) {
+      bad(`posts[${String(i)}].angle is invalid`)
+    }
+    const replyTo = o.replyTo ?? null
+    if (replyTo !== null && !(Number.isSafeInteger(replyTo) && replyTo >= 0 && replyTo < i)) {
+      bad(`posts[${String(i)}].replyTo is invalid`)
+    }
+    const factId = o.factId ?? null
+    if (factId !== null && typeof factId !== 'string') bad(`posts[${String(i)}].factId is invalid`)
+    const takeId = o.takeId ?? null
+    if (takeId !== null && !Number.isSafeInteger(takeId))
+      bad(`posts[${String(i)}].takeId is invalid`)
+    return { reporter: o.reporter, angle: angle!, replyTo, factId, takeId }
+  })
+}
+
 function parseJob(v: unknown, file: string): BackfillJob {
   const o = v as Partial<BackfillJob> & Record<string, unknown>
   const bad = (why: string): never => {
@@ -320,22 +441,43 @@ function parseJob(v: unknown, file: string): BackfillJob {
   }
   if (typeof o !== 'object' || o === null) bad('is not an object')
   if (typeof o.id !== 'string' || `${o.id}.json` !== file) bad('id does not match the file name')
-  if (o.kind !== 'game' && o.kind !== 'night' && o.kind !== 'feature') {
-    bad('kind is not game, night or feature')
+  const kinds: readonly BackfillJobKind[] = ['game', 'game-article', 'night', 'feature']
+  if (!kinds.includes(o.kind as BackfillJobKind)) {
+    bad('kind is not game, game-article, night or feature')
   }
   if (typeof o.night !== 'string' || !NIGHT.test(o.night)) bad('night is not YYYY-MM-DD')
-  if (o.kind === 'game' && !Number.isSafeInteger(o.matchId)) bad('matchId is missing')
+  if ((o.kind === 'game' || o.kind === 'game-article') && !Number.isSafeInteger(o.matchId)) {
+    bad('matchId is missing')
+  }
   const reporters = o.reporters
   if (
     !Array.isArray(reporters) ||
     reporters.length < 1 ||
-    reporters.length > 2 ||
-    !reporters.every((r) => (REPORTER_IDS as readonly unknown[]).includes(r))
+    reporters.length > REPORTER_IDS.length ||
+    !reporters.every(isReporter)
   ) {
     bad('reporters are invalid')
   }
+  if (o.kind !== 'game' && reporters!.length !== 1) bad(`a ${o.kind!} job has one reporter`)
+  let posts: PostAssignment[] | undefined
+  if (o.kind === 'game') {
+    posts = parsePosts(o.posts, bad)
+    if (posts.map((p) => p.reporter).join() !== reporters!.join()) {
+      bad('reporters do not match the posts')
+    }
+  }
+  if (
+    o.kind === 'game-article' &&
+    !(GAME_ARTICLE_KINDS as readonly unknown[]).includes(o.articleKind)
+  ) {
+    bad('articleKind is invalid')
+  }
+  if (o.offeredTakes !== undefined) {
+    if (!Array.isArray(o.offeredTakes) || !o.offeredTakes.every((x) => Number.isSafeInteger(x))) {
+      bad('offeredTakes are invalid')
+    }
+  }
   if (o.kind === 'feature') {
-    if (reporters!.length !== 1) bad('a feature has one reporter')
     if (!(FEATURE_KINDS as readonly unknown[]).includes(o.featureKind))
       bad('featureKind is invalid')
     if (o.previousPrediction !== null && typeof o.previousPrediction !== 'string') {
@@ -357,10 +499,10 @@ function parseJob(v: unknown, file: string): BackfillJob {
           : ARTICLE_SCHEMA,
     sheet: parseNewsFactsResponse(o.sheet),
   }
-  if (o.kind === 'game') {
-    job.matchId = o.matchId!
-    job.secondIsReply = o.secondIsReply === true
-  }
+  if (o.kind === 'game' || o.kind === 'game-article') job.matchId = o.matchId!
+  if (posts !== undefined) job.posts = posts
+  if (o.kind === 'game-article') job.articleKind = o.articleKind!
+  if (o.offeredTakes !== undefined) job.offeredTakes = o.offeredTakes
   if (o.kind === 'feature') {
     job.featureKind = o.featureKind!
     job.previousPrediction = o.previousPrediction ?? null
@@ -373,7 +515,9 @@ function parseJob(v: unknown, file: string): BackfillJob {
       'night',
       'matchId',
       'reporters',
-      'secondIsReply',
+      'posts',
+      'articleKind',
+      'offeredTakes',
       'featureKind',
       'previousPrediction',
       'user',
@@ -396,7 +540,6 @@ export function readJobs(out: string): BackfillJob[] {
 
 // ── next-feature ─────────────────────────────────────────────────────────────
 
-const DAY_MS = 86_400_000
 const RINK_GAP_MS = 14 * DAY_MS
 
 /** What the dir's jobs will be, dated as the import dates them (for Father Rink's limit). */
@@ -411,9 +554,11 @@ function activityOf(jobs: readonly BackfillJob[]): Activity {
           ? ('feature' as const)
           : job.kind === 'night'
             ? ('night' as const)
-            : k === 0
-              ? ('recap' as const)
-              : ('reaction' as const),
+            : job.kind === 'game-article'
+              ? ('game' as const)
+              : k === 0
+                ? ('recap' as const)
+                : ('reaction' as const),
     })),
   )
 }
@@ -473,27 +618,28 @@ export async function planNextFeature(args: {
   }
 
   const id = `${addDays(week, 7)}-0-feature`
-  const at = featureCreatedAt(week).getTime()
+  const at = featureCreatedAt(week)
   const rinkNearby = activityOf(evaluated.map((e) => e.job)).some(
-    (a) => a.reporter === 'rink' && Math.abs(a.createdAt.getTime() - at) < RINK_GAP_MS,
+    (a) => a.reporter === 'rink' && Math.abs(a.createdAt.getTime() - at.getTime()) < RINK_GAP_MS,
   )
   const kind = nextFeatureKind(last?.kind ?? null, !rinkNearby)
   const reporter = FEATURE_REPORTER[kind]
   const previousPrediction = predictionToJudge(week, last)
+  const mine = takesOf(dueTakes(sheet.takes, takesUsedBefore(evaluated, at), at), reporter)
   const job: BackfillJob = {
     id,
     kind: 'feature',
     night: week,
     reporters: [reporter],
+    offeredTakes: mine.map((t) => t.id),
     featureKind: kind,
     previousPrediction,
-    // The reporter's own recent pieces are not known before they are written.
     user: buildFeatureUserPrompt({
       facts: sheet.facts,
       reporter: REPORTERS[reporter],
       kind,
-      ownRecent: [],
       previousPrediction,
+      ctx: { ...EMPTY_DESK_CONTEXT, takes: mine },
     }),
     schema: FEATURE_SCHEMA,
     sheet,
@@ -502,13 +648,30 @@ export async function planNextFeature(args: {
   return job
 }
 
+/** When each take was last used by an accepted job dated before `at`. */
+function takesUsedBefore(
+  evaluated: readonly { job: BackfillJob; evaluation: Evaluation }[],
+  at: Date,
+): Map<number, Date> {
+  const used = new Map<number, Date>()
+  for (const { job, evaluation } of evaluated) {
+    if (evaluation.state !== 'accepted') continue
+    for (const { takeId, createdAt } of takesOfOutput(job, evaluation.output)) {
+      if (createdAt >= at) continue
+      const prev = used.get(takeId)
+      if (prev === undefined || prev < createdAt) used.set(takeId, createdAt)
+    }
+  }
+  return used
+}
+
 // ── check ────────────────────────────────────────────────────────────────────
 
 export type GameOutput = { posts: GamePost[] }
 export type JobOutput = GameOutput | Article | Feature
 
 export type Evaluation =
-  /** `prompt`: the request with the night's real harsh list, when the night has one so far. */
+  /** `prompt`: the request with the desk context of the accepted earlier jobs, when it changed. */
   | { state: 'waiting'; prompt?: string }
   | { state: 'rewrite'; problems: string[]; rewritePrompt: string }
   | { state: 'review'; reviewPrompt: string; reviewError?: string }
@@ -519,24 +682,77 @@ function criticizedOf(output: JobOutput): string[] {
   return 'posts' in output ? output.posts.flatMap((p) => p.criticized) : output.criticized
 }
 
+/** The players an accepted output called out for a zero. */
+function zeroCalledOf(output: JobOutput): string[] {
+  return 'posts' in output ? output.posts.flatMap((p) => p.zeroCalled) : output.zeroCalled
+}
+
+/** The takes an accepted output voiced, each with its item's date. */
+function takesOfOutput(job: BackfillJob, output: JobOutput): { takeId: number; createdAt: Date }[] {
+  if ('posts' in output) {
+    return output.posts.flatMap((p, i) =>
+      p.takesUsed.map((takeId) => ({ takeId, createdAt: itemCreatedAt(job, i) })),
+    )
+  }
+  return output.takesUsed.map((takeId) => ({ takeId, createdAt: itemCreatedAt(job, 0) }))
+}
+
+/** The pieces an accepted output adds to its reporters' "own recent" lists (newest last). */
+function piecesOf(
+  job: BackfillJob,
+  output: JobOutput,
+): { reporter: ReporterId; piece: OwnPiece }[] {
+  if ('posts' in output) {
+    return output.posts.map((p) => ({
+      reporter: p.reporter,
+      piece: { kind: 'post', text: p.text, night: job.night },
+    }))
+  }
+  return [
+    {
+      reporter: job.reporters[0]!,
+      piece: {
+        kind: 'article',
+        text: `${output.headline} — ${output.summary}`,
+        night: job.kind === 'feature' ? null : job.night,
+      },
+    },
+  ]
+}
+
+/** The takes offered to each post of a game job, or to the job's one piece. */
+function offeredOf(job: BackfillJob, due: ReadonlySet<number>): number[][] {
+  if (job.kind === 'game') {
+    return (job.posts ?? []).map((p) => (p.takeId !== null && due.has(p.takeId) ? [p.takeId] : []))
+  }
+  return [(job.offeredTakes ?? []).filter((id) => due.has(id))]
+}
+
 /**
  * The state of one job: its answer is parsed and checked exactly as the live
  * desk does (outputs.ts, fact-check.ts); a passed answer needs a review, and
  * an ok review accepts it. `reviewText` must be null when there is no review
- * for this answer. `criticizedTonight`: the names the night's earlier accepted
- * jobs criticised harshly (the pile-on limit); the request is rewritten with them.
+ * for this answer. `ctx`: the desk context of the night's earlier ACCEPTED
+ * jobs (pile-on, zero call-outs, own pieces, the night's posts, the takes
+ * still due); the request is rewritten with it.
  */
 export function evaluateJob(
   job: BackfillJob,
   answerText: string | null,
   reviewText: string | null,
-  criticizedTonight: readonly string[] = [],
+  ctx: DeskContext = EMPTY_DESK_CONTEXT,
 ): Evaluation {
-  const user = setCriticizedTonight(job.user, criticizedTonight)
+  const due = new Set((ctx.takes ?? []).map((t) => t.id))
+  const offered = offeredOf(job, due)
+  const takes = (ctx.takes ?? []).filter((t) => offered.flat().includes(t.id))
+  const full: DeskContext = {
+    ...ctx,
+    takes,
+    ...(job.kind === 'night' ? { nightPosts: ctx.nightPosts ?? [] } : {}),
+  }
+  const user = setDeskContext(job.user, full, job.reporters)
   if (answerText === null) {
-    return criticizedTonight.length === 0
-      ? { state: 'waiting' }
-      : { state: 'waiting', prompt: user }
+    return user === job.user ? { state: 'waiting' } : { state: 'waiting', prompt: user }
   }
   const rewrite = (problems: string[]): Evaluation => ({
     state: 'rewrite',
@@ -551,6 +767,10 @@ export function evaluateJob(
   }
 
   const { facts, forbiddenNames } = job.sheet
+  const zero = {
+    zeroCalledTonight: full.zeroCalledTonight,
+    zeroCalledPrevious: full.zeroCalledPrevious,
+  }
   let output: JobOutput
   let checked: CheckResult
   let textForReview: string
@@ -558,20 +778,38 @@ export function evaluateJob(
     if (job.kind === 'game') {
       const out = parseGamePosts(value, job.reporters)
       output = out
-      checked = checkGamePosts(out.posts, facts, forbiddenNames, criticizedTonight)
+      checked = checkGamePosts(out.posts, facts, forbiddenNames, full.criticizedTonight, {
+        replies: (job.posts ?? []).map((p) => p.replyTo !== null),
+        ...zero,
+        offeredTakes: offered,
+      })
       textForReview = out.posts.map((p) => `${REPORTERS[p.reporter].name}: ${p.text}`).join('\n\n')
     } else if (job.kind === 'feature') {
       const f = parseFeature(value)
       output = f
-      checked = checkFeatureFacts(f, facts, forbiddenNames, {
-        kind: job.featureKind!,
-        previousPrediction: job.previousPrediction ?? null,
-      })
+      checked = checkFeatureFacts(
+        f,
+        facts,
+        forbiddenNames,
+        { kind: job.featureKind!, previousPrediction: job.previousPrediction ?? null },
+        [],
+        { reporter: job.reporters[0]!, offeredTakes: offered[0] ?? [] },
+      )
       textForReview = [f.headline, f.dek, featureBody(f, f)].join('\n\n')
     } else {
       const a = parseArticle(value)
       output = a
-      checked = checkArticleFacts(a, facts, forbiddenNames, criticizedTonight)
+      checked = checkArticleFacts(a, facts, forbiddenNames, full.criticizedTonight, {
+        reporter: job.reporters[0]!,
+        ...zero,
+        offeredTakes: offered[0] ?? [],
+        ...(job.kind === 'game-article'
+          ? {
+              length:
+                job.articleKind === 'game' ? ('game-story' as const) : ('game-feature' as const),
+            }
+          : {}),
+      })
       textForReview = [a.headline, a.dek, ...a.paragraphs].join('\n\n')
     }
   } catch (err: unknown) {
@@ -583,6 +821,7 @@ export function evaluateJob(
     facts,
     text: textForReview,
     criticized: [...new Set(criticizedOf(output))],
+    takes,
   })
   if (reviewText === null) return { state: 'review', reviewPrompt }
   let verdict: { ok: boolean; problems: string[] }
@@ -616,29 +855,72 @@ function readIf(path: string): { text: string; mtimeMs: number } | null {
 
 /**
  * Every job with its evaluation, in id order. A review older than its answer
- * is ignored. The pile-on limit of a job counts the earlier ACCEPTED jobs of
- * the same night (in id order), so write and accept a night's jobs in order.
+ * is ignored. The desk context of a job comes from the earlier ACCEPTED jobs
+ * (in id order): the night's harsh list and zero call-outs, the previous
+ * night's zero call-outs, each reporter's last pieces, the night's posts
+ * (night jobs), and the takes still due (not used in the 7 days before).
  */
 export function evaluateDir(out: string): { job: BackfillJob; evaluation: Evaluation }[] {
   const d = dirs(out)
   const harsh = new Map<string, string[]>()
-  return readJobs(out).map((job) => {
+  const zero = new Map<string, string[]>()
+  const posts = new Map<string, NightPost[]>()
+  const pieces = new Map<ReporterId, OwnPiece[]>()
+  const used = new Map<number, Date>()
+  const result: { job: BackfillJob; evaluation: Evaluation }[] = []
+  for (const job of readJobs(out)) {
     const answer = readIf(join(d.answers, `${job.id}.json`))
     const review = readIf(join(d.reviews, `${job.id}.json`))
     const freshReview = answer !== null && review !== null && review.mtimeMs >= answer.mtimeMs
-    // A feature has no night: the pile-on limit does not apply to it.
-    const tonight = job.kind === 'feature' ? [] : (harsh.get(job.night) ?? [])
-    const evaluation = evaluateJob(
-      job,
-      answer?.text ?? null,
-      freshReview ? review.text : null,
-      tonight,
-    )
-    if (evaluation.state === 'accepted' && job.kind !== 'feature') {
-      harsh.set(job.night, [...new Set([...tonight, ...criticizedOf(evaluation.output)])])
+    const isNight = job.kind !== 'feature'
+    const at = itemCreatedAt(job, 0)
+    const previousNight = [...zero.keys()]
+      .filter((n) => n < job.night)
+      .sort()
+      .at(-1)
+    const ownRecent: Partial<Record<ReporterId, OwnPiece[]>> = {}
+    for (const r of job.reporters) {
+      ownRecent[r] = [...(pieces.get(r) ?? [])].reverse().slice(0, OWN_RECENT_PIECES)
     }
-    return { job, evaluation }
-  })
+    const ctx: DeskContext = {
+      // A feature has no night: the pile-on limit and zero call-outs do not apply to it.
+      criticizedTonight: isNight ? (harsh.get(job.night) ?? []) : [],
+      zeroCalledTonight: isNight ? (zero.get(job.night) ?? []) : [],
+      zeroCalledPrevious:
+        isNight && previousNight !== undefined ? (zero.get(previousNight) ?? []) : [],
+      ownRecent,
+      ...(job.kind === 'night' ? { nightPosts: posts.get(job.night) ?? [] } : {}),
+      takes: dueTakes(
+        job.sheet.takes,
+        new Map(
+          [...used].filter(
+            ([, when]) => when < at && at.getTime() - when.getTime() < TAKE_WINDOW_MS,
+          ),
+        ),
+        at,
+      ),
+    }
+    const evaluation = evaluateJob(job, answer?.text ?? null, freshReview ? review.text : null, ctx)
+    if (evaluation.state === 'accepted') {
+      const o = evaluation.output
+      if (isNight) {
+        harsh.set(job.night, [...new Set([...ctx.criticizedTonight, ...criticizedOf(o)])])
+        zero.set(job.night, [...new Set([...ctx.zeroCalledTonight, ...zeroCalledOf(o)])])
+      }
+      if ('posts' in o) {
+        posts.set(job.night, [
+          ...(posts.get(job.night) ?? []),
+          ...o.posts.map((p) => ({ reporter: p.reporter, text: p.text })),
+        ])
+      }
+      for (const { reporter, piece } of piecesOf(job, o)) {
+        pieces.set(reporter, [...(pieces.get(reporter) ?? []), piece])
+      }
+      for (const t of takesOfOutput(job, o)) used.set(t.takeId, t.createdAt)
+    }
+    result.push({ job, evaluation })
+  }
+  return result
 }
 
 export interface CheckSummary {
@@ -653,7 +935,7 @@ export function runCheck(out: string, log: (line: string) => void): CheckSummary
   const d = dirs(out)
   mkdirSync(d.status, { recursive: true })
   const summary: CheckSummary = { waiting: 0, rewrite: 0, review: 0, accepted: 0 }
-  const width = 24
+  const width = 30
   log(`${'job'.padEnd(width)}  ${'state'.padEnd(9)}  reporters / detail`)
   for (const { job, evaluation: e } of evaluateDir(out)) {
     summary[e.state]++
@@ -692,6 +974,8 @@ export interface BackfillStore {
   /** An item with this slug (any state, deleted included), or null. */
   findArticle(slug: string): Promise<number | null>
   insert(item: NewNewsItem): Promise<number>
+  /** Stores a stance an imported item took (C3a.11). */
+  insertStance(stance: NewNewsStance): Promise<number>
 }
 
 /** The people an item names, as stored: sheet names only, one entry per player (as the cycle). */
@@ -706,11 +990,20 @@ function mentionsOf(names: string[], facts: NewsFacts): NewsMention[] {
   return out
 }
 
+/** The slug of an article job: night `<night>-…`, big game `<night>-g<match>-…`, feature `week-<monday>-…`. */
+export function jobSlug(job: BackfillJob, headline: string): string {
+  if (job.kind === 'feature') return articleSlug(`week-${job.night}`, headline)
+  if (job.kind === 'game-article')
+    return articleSlug(`${job.night}-g${String(job.matchId)}`, headline)
+  return articleSlug(job.night, headline)
+}
+
 /**
  * Inserts the accepted items in job-id (chronological) order: real items
  * (`is_test` false), `discord_status` 'skipped' so they are never sent, no
- * news job. An item that already exists (same match + reporter + body, or
- * same slug) is not inserted again; an existing first post still gets its reply linked.
+ * news job; each with its zero call-outs, takes used and stances. An item
+ * that already exists (same match + reporter + body, or same slug) is not
+ * inserted again; an existing earlier post still gets its replies linked.
  */
 export async function importAccepted(
   entries: readonly { job: BackfillJob; output: JobOutput }[],
@@ -722,6 +1015,15 @@ export async function importAccepted(
   )
   let inserted = 0
   let existing = 0
+  const stances = async (
+    st: { threadKey: string; stance: string }[],
+    facts: NewsFacts,
+    reporter: ReporterId,
+    night: string | null,
+    id: number,
+  ) => {
+    for (const row of stancesToStore(st, facts, reporter, night, id)) await store.insertStance(row)
+  }
   for (const { job, output } of sorted) {
     const facts = job.sheet.facts
     const common = {
@@ -744,73 +1046,64 @@ export async function importAccepted(
           existing++
           continue
         }
-        const isReply = i === 1 && job.secondIsReply === true
-        ids.push(
-          await store.insert({
-            ...common,
-            kind: 'post',
-            reporter: p.reporter,
-            matchId,
-            replyTo: isReply ? ids[0]! : null,
-            body: p.text,
-            mentions: mentionsOf(p.mentions, facts),
-            criticized: criticizedAsOnSheet(p.criticized, facts),
-            createdAt: itemCreatedAt(job, i),
-          }),
-        )
+        const target = job.posts?.[i]?.replyTo ?? null
+        const id = await store.insert({
+          ...common,
+          kind: 'post',
+          reporter: p.reporter,
+          matchId,
+          replyTo: target === null ? null : ids[target]!,
+          body: p.text,
+          mentions: mentionsOf(p.mentions, facts),
+          criticized: criticizedAsOnSheet(p.criticized, facts),
+          zeroCalled: zeroCalledAsOnSheet(p.zeroCalled, facts),
+          takesUsed: p.takesUsed,
+          createdAt: itemCreatedAt(job, i),
+        })
+        ids.push(id)
+        await stances(p.stances, facts, p.reporter, job.night, id)
         inserted++
       }
       log(`${job.id}: ${String(posts.length)} post(s)`)
-    } else if (job.kind === 'feature') {
-      const f = output as Feature
-      const slug = articleSlug(job.night, f.headline) // <weekStart>-<words>
-      if ((await store.findArticle(slug)) !== null) {
-        existing++
-        log(`${job.id}: feature ${slug} already exists`)
-        continue
-      }
-      await store.insert({
-        ...common,
-        kind: 'article',
-        night: null,
-        weekStart: job.night,
-        slug,
-        headline: f.headline,
-        dek: f.dek,
-        body: featureBody(f, f),
-        summary: f.summary,
-        mentions: mentionsOf(f.mentions, facts),
-        criticized: criticizedAsOnSheet(f.criticized, facts),
-        featureKind: job.featureKind!,
-        prediction: f.prediction,
-        createdAt: itemCreatedAt(job, 0),
-      })
-      inserted++
-      log(`${job.id}: feature ${slug}`)
-    } else {
-      const a = output as Article
-      const slug = articleSlug(job.night, a.headline)
-      if ((await store.findArticle(slug)) !== null) {
-        existing++
-        log(`${job.id}: article ${slug} already exists`)
-        continue
-      }
-      await store.insert({
-        ...common,
-        kind: 'article',
-        weekStart: null,
-        slug,
-        headline: a.headline,
-        dek: a.dek,
-        body: a.paragraphs.join('\n\n'),
-        summary: a.summary,
-        mentions: mentionsOf(a.mentions, facts),
-        criticized: criticizedAsOnSheet(a.criticized, facts),
-        createdAt: itemCreatedAt(job, 0),
-      })
-      inserted++
-      log(`${job.id}: article ${slug}`)
+      continue
     }
+    const a = output as Article | Feature
+    const slug = jobSlug(job, a.headline)
+    if ((await store.findArticle(slug)) !== null) {
+      existing++
+      log(`${job.id}: ${job.kind} ${slug} already exists`)
+      continue
+    }
+    const night = job.kind === 'feature' ? null : job.night
+    const feature = job.kind === 'feature' ? (a as Feature) : null
+    const id = await store.insert({
+      ...common,
+      kind: 'article',
+      night,
+      weekStart: feature === null ? null : job.night,
+      ...(job.kind === 'game-article' ? { matchId: job.matchId! } : {}),
+      slug,
+      headline: a.headline,
+      dek: a.dek,
+      body: feature === null ? a.paragraphs.join('\n\n') : featureBody(feature, feature),
+      summary: a.summary,
+      mentions: mentionsOf(a.mentions, facts),
+      criticized: criticizedAsOnSheet(a.criticized, facts),
+      zeroCalled: zeroCalledAsOnSheet(a.zeroCalled, facts),
+      takesUsed: a.takesUsed,
+      featureKind:
+        feature !== null
+          ? job.featureKind!
+          : job.kind === 'game-article'
+            ? GAME_ARTICLE_FEATURE_KIND[job.articleKind!]
+            : null,
+      prediction: feature?.prediction ?? null,
+      receiptVerdict: feature?.receiptVerdict ?? null,
+      createdAt: itemCreatedAt(job, 0),
+    })
+    await stances(a.stances, facts, job.reporters[0]!, night, id)
+    inserted++
+    log(`${job.id}: ${job.kind} ${slug}`)
   }
   return { jobs: sorted.length, inserted, existing }
 }
@@ -901,7 +1194,12 @@ export async function main(
   try {
     const r = await importAccepted(
       accepted,
-      { findPost: q.findNewsPostId, findArticle: q.findNewsArticleId, insert: q.insertNewsItem },
+      {
+        findPost: q.findNewsPostId,
+        findArticle: q.findNewsArticleId,
+        insert: q.insertNewsItem,
+        insertStance: q.insertStance,
+      },
       log,
     )
     log(

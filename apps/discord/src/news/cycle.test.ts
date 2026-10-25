@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { NewNewsItem, NewNewsStance, NewNewsUsage, NewsItemRow } from '@eanhl/db/queries'
-import type { NewsFactsResponse, NewsGameFacts } from '@eanhl/db/news'
+import { planBuzz, type NewsFactsResponse, type NewsGameFacts } from '@eanhl/db/news'
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
   createNewsCycleState,
@@ -11,7 +11,8 @@ import {
   type NewsDeps,
   type NewsStore,
 } from './cycle.ts'
-import type { ActivityKind } from './assign.ts'
+import { assignGamePosts, type ActivityKind } from './assign.ts'
+import { classifyGame } from './situation.ts'
 import type { NewsWebhookPayload } from './messages.ts'
 import { ARTICLE_SCHEMA, FEATURE_SCHEMA, GAME_POSTS_SCHEMA, REVIEW_SCHEMA } from './outputs.ts'
 import { oct12Response } from './test-fixtures.ts'
@@ -29,16 +30,54 @@ type Job = {
   error: string | null
 }
 
-/** A 2-3 overtime loss: Dex Mercer's recap, Wade Barlow replies (barlow → mercer relationship). */
+/**
+ * A 2-3 overtime loss in 6s: buzz "normal" (overtime 2 + close 1 + the
+ * sheet's milestone 2, x1.25 = 6.25), so 2 posts: Dex Mercer's recap and one more.
+ */
 function lossGame(matchId: number): NewsGameFacts {
   const base = oct12Response('game').facts.games[0]!
-  return { ...base, matchId, result: 'OTL', overtime: true, scoreFor: 2, scoreAgainst: 3 }
+  return {
+    ...base,
+    matchId,
+    result: 'OTL',
+    overtime: true,
+    scoreFor: 2,
+    scoreAgainst: 3,
+    context: {
+      result: 'normal',
+      streakBefore: null,
+      streakAfter: { kind: 'L', count: 1 },
+      last10: { wins: 8, losses: 1, otl: 1 },
+      margin: 'close',
+      surprise: 'expected',
+      night: [],
+    },
+  }
 }
 
 function gameResponse(matchId: number): NewsFactsResponse {
   const r = oct12Response('game')
   return { ...r, facts: { ...r.facts, games: [lossGame(matchId)] } }
 }
+
+/** The first match id from 501 whose second post is a reply to the recap (the seeded draw). */
+const REPLY_GAME = (() => {
+  for (let id = 501; id < 900; id++) {
+    const facts = gameResponse(id).facts
+    const game = facts.games[0]!
+    const p = assignGamePosts({
+      game,
+      facts,
+      situation: classifyGame(game),
+      plan: planBuzz(game, facts),
+      now: NOW,
+      night: '2026-10-12',
+      activity: [],
+    })
+    if (p.length === 2 && p[1]!.replyTo === 0) return id
+  }
+  throw new Error('no reply game')
+})()
 
 const FILLER = Array.from({ length: 300 }, () => 'hockey').join(' ')
 
@@ -252,7 +291,19 @@ function harness(
         kind: kindOf(i),
       }))
     },
-    recentReporterSummaries: async () => [],
+    recentReporterPieces: async () => [],
+    nightPostsForPrompt: async (night, includeTest) =>
+      [...items.values()]
+        .filter(
+          (i) =>
+            i.kind === 'post' &&
+            i.night === night &&
+            i.deletedAt === null &&
+            (includeTest || !i.isTest),
+        )
+        .map((i) => ({ reporter: i.reporter, text: i.body })),
+    takesUsedSince: async () => [],
+    listGameArticleRetries: async () => [],
     lastFeature: async () => {
       const f = [...items.values()]
         .filter((i) => !i.isTest && i.deletedAt === null && i.featureKind !== null)
@@ -329,31 +380,36 @@ const logs = (events: string[]) => events.filter((e) => e.startsWith('log:'))
 // ── Game jobs ───────────────────────────────────────────────────────────────
 
 void test('game: two candidates ⇒ two jobs, posts sent in order with a pause between sends, jobs done', async () => {
-  const h = harness({ candidates: [501, 502] })
+  const h = harness({ candidates: [REPLY_GAME, 9502] })
   const s = await runNewsCycle(h.deps, h.opts)
   assert.ok(h.events.includes(`candidates:${String(NEWS_GAME_WINDOW_MS)}:5`))
   assert.equal(NEWS_GAME_WINDOW_MS, 86_400_000)
-  assert.equal(h.jobs.get('game:501')?.status, 'done')
-  assert.equal(h.jobs.get('game:502')?.status, 'done')
-  assert.deepEqual(
-    h.sent.map((p) => p.username),
-    // Same night: Dex Mercer has had his one item, so Barlow's recap and Mara Quill's reaction.
-    ['Dex Mercer', 'Wade Barlow', 'Wade Barlow', 'Mara Quill'],
-  )
+  assert.equal(h.jobs.get(`game:${String(REPLY_GAME)}`)?.status, 'done')
+  assert.equal(h.jobs.get('game:9502')?.status, 'done')
+  const names = h.sent.map((p) => p.username)
+  // Game 1: Mercer's recap and a seeded draw that replies to him. Game 2, same night:
+  // Mercer has had his one item, so Barlow's recap and a draw.
+  assert.equal(names.length, 4)
+  assert.equal(names[0], 'Dex Mercer')
+  assert.equal(names[2], 'Wade Barlow')
+  assert.ok(!names.slice(1).includes('Dex Mercer'))
+  assert.deepEqual([names[0], names[2]], ['Dex Mercer', 'Wade Barlow'])
   // A pause before every send but the first, each at least 2.1 s.
   const sendIdx = h.events.flatMap((e, i) => (e.startsWith('send:') ? [i] : []))
   for (const i of sendIdx.slice(1)) assert.match(h.events[i - 1]!, /^pause:(\d+)$/)
   for (const e of h.events.filter((x) => x.startsWith('pause:'))) {
     assert.ok(Number(e.slice(6)) >= 2100)
   }
-  // 501 is claimed, written and sent before 502 is touched.
-  assert.ok(h.events.indexOf('claim:game:501') < h.events.indexOf('fetch:game:502'))
+  // The first game is claimed, written and sent before 9502 is touched.
+  assert.ok(
+    h.events.indexOf(`claim:game:${String(REPLY_GAME)}`) < h.events.indexOf('fetch:game:9502'),
+  )
   assert.equal(s.posted, 4)
 
   const [first, second] = [h.items.get(1)!, h.items.get(2)!]
   assert.equal(first.night, '2026-10-12')
   assert.equal(second.night, '2026-10-12')
-  assert.equal(first.matchId, 501)
+  assert.equal(first.matchId, REPLY_GAME)
   assert.equal(first.replyTo, null)
   assert.equal(second.replyTo, first.id)
   assert.equal(first.isTest, false)
@@ -466,13 +522,13 @@ void test('game: a failed job is claimed again on a later pass (attempts < 3)', 
 })
 
 void test('game: dry run ⇒ items is_test, files written, nothing sent', async () => {
-  const h = harness({ candidates: [501] })
+  const h = harness({ candidates: [REPLY_GAME] })
   const s = await runNewsCycle(h.deps, { ...h.opts, dryRun: true })
   assert.equal(h.sent.length, 0)
   assert.equal(h.dry.length, 2)
   assert.ok(h.dry[1]!.payload.content.startsWith('↪ to Dex Mercer: '))
   assert.ok([...h.items.values()].every((i) => i.isTest && i.discordStatus === 'skipped'))
-  assert.equal(h.jobs.get('game:501')?.status, 'done')
+  assert.equal(h.jobs.get(`game:${String(REPLY_GAME)}`)?.status, 'done')
   assert.equal(s.dryRun, 2)
   assert.ok(!h.events.some((e) => e.startsWith('pause:')))
 })
@@ -1049,7 +1105,7 @@ void test('game: a failed "skipped" mark after the claim marks the job failed in
 void test('night: a DB error after the claim (own recent pieces) marks the job failed (I1.3)', async () => {
   const h = harness({
     store: {
-      recentReporterSummaries: async () => {
+      recentReporterPieces: async () => {
         throw new Error('connection reset')
       },
     },
@@ -1062,7 +1118,7 @@ void test('night: a DB error after the claim (own recent pieces) marks the job f
   assert.match(job.error ?? '', /could not prepare: connection reset/)
   assert.equal(h.writerCalls.length, 0)
   // Failed under the cap: the next pass claims it again and writes it.
-  h.deps.store.recentReporterSummaries = async () => []
+  h.deps.store.recentReporterPieces = async () => []
   await runNewsCycle(h.deps, h.opts)
   assert.equal(h.jobs.get('night:2026-10-12')?.status, 'done')
   assert.equal(h.jobs.get('night:2026-10-12')?.attempts, 2)
@@ -1282,4 +1338,188 @@ void test("C3a.5: the night's and the previous night's zero call-outs reach the 
   })
   await runNewsCycle(lastNight.deps, lastNight.opts)
   assert.match(lastNight.jobs.get('game:501')!.error!, /two nights in a row/)
+})
+
+// ── C3a.7/C3a.8: buzz post counts and big-game articles ─────────────────────
+
+function hugeGame(matchId: number): NewsGameFacts {
+  const g = lossGame(matchId)
+  // overtime 2 + blowout 3 + big upset 3 + blip 2 + the milestone 2 = 12, x1.25 = 15: huge.
+  return {
+    ...g,
+    context: { ...g.context!, margin: 'blowout', surprise: 'big upset', result: 'blip' },
+  }
+}
+
+const longWriter: ModelCall = async (req) => {
+  const r = await goodWriter(req)
+  if (req.schema !== ARTICLE_SCHEMA) return r
+  const words = req.user.includes('400 to 700 words') ? 500 : 300
+  return {
+    ...r,
+    json: {
+      ...(r.json as object),
+      paragraphs: [Array.from({ length: words }, () => 'hockey').join(' ')],
+    },
+  }
+}
+
+void test('C3a.7: a huge game gets 6-8 posts and a game story plus a spotlight or column', async () => {
+  const h = harness({
+    candidates: [701],
+    deps: {
+      fetchFacts: async (kind, key) => {
+        const r = gameResponse(Number(key))
+        return { ...r, facts: { ...r.facts, games: [hugeGame(Number(key))] } }
+      },
+      writer: longWriter,
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.deepEqual(logs(h.events), [])
+  const posts = [...h.items.values()].filter((i) => i.kind === 'post')
+  const plan = planBuzz(hugeGame(701), gameResponse(701).facts)
+  assert.equal(plan.level, 'huge')
+  assert.equal(posts.length, plan.posts)
+  assert.ok(posts.length >= 6 && posts.length <= 8)
+  assert.equal(new Set(posts.map((p) => p.reporter)).size, posts.length)
+  const articles = [...h.items.values()].filter((i) => i.kind === 'article')
+  assert.equal(articles.length, 2)
+  for (const a of articles) {
+    assert.equal(a.matchId, 701)
+    assert.equal(a.night, '2026-10-12')
+    assert.equal(a.weekStart, null)
+    assert.ok(a.slug!.startsWith('2026-10-12-g701-'))
+  }
+  assert.equal(articles[0]!.featureKind, null) // the game story
+  assert.ok(['spotlight', 'bigpicture'].includes(articles[1]!.featureKind ?? ''))
+  assert.equal(h.jobs.get('game_article:701:game')?.status, 'done')
+  assert.equal([...h.jobs.keys()].filter((k) => k.startsWith('game_article:701:')).length, 2)
+  // Discord gets each article as headline, dek, link.
+  assert.ok(h.sent.some((p) => p.content.includes('/news/2026-10-12-g701-')))
+})
+
+void test('C3a.8: a failed game article is written again on a later pass, posts are not', async () => {
+  let fail = true
+  const h = harness({
+    candidates: [701],
+    deps: {
+      fetchFacts: async (kind, key) => {
+        const r = gameResponse(Number(key))
+        return { ...r, facts: { ...r.facts, games: [hugeGame(Number(key))] } }
+      },
+      writer: async (req) =>
+        fail && req.schema === ARTICLE_SCHEMA ? goodWriter(req) : longWriter(req),
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  const failed = [...h.jobs.values()].filter(
+    (j) => j.kind === 'game_article' && j.status === 'failed',
+  )
+  assert.ok(failed.length >= 1)
+  const postsBefore = [...h.items.values()].filter((i) => i.kind === 'post').length
+  fail = false
+  h.state.candidates = []
+  h.deps.store.listGameArticleRetries = async () =>
+    [...h.jobs.values()]
+      .filter((j) => j.kind === 'game_article' && j.status === 'failed' && j.attempts < 3)
+      .map((j) => j.key)
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(
+    [...h.jobs.values()].filter((j) => j.kind === 'game_article').every((j) => j.status === 'done'),
+  )
+  assert.equal([...h.items.values()].filter((i) => i.kind === 'post').length, postsBefore)
+})
+
+// ── C3a.6: reporter takes ───────────────────────────────────────────────────
+
+const TAKE = {
+  id: 7,
+  reporter: 'mercer' as const,
+  critics: [
+    'voss',
+    'barlow',
+    'halberd',
+    'vale',
+    'quill',
+    'rink',
+    'pettibone',
+    'bergstrom',
+  ] as const,
+  defender: null,
+  playerId: 1,
+  player: 'Skater A',
+  take: 'INVENTED TAKE TEXT for a test.',
+  spread: 'some' as const,
+  dataAngle: 'shots per game',
+  intensity: 0,
+  mild: false,
+}
+
+void test('C3a.6: a due take reaches the prompt, takesUsed is stored; never in facts or Discord; not due after use', async () => {
+  const prompts: string[] = []
+  let used: { takeId: number; lastUsed: Date }[] = []
+  const h = harness({
+    candidates: [REPLY_GAME],
+    store: { takesUsedSince: async () => used },
+    deps: {
+      fetchFacts: async (kind, key) => ({
+        ...gameResponse(Number(key)),
+        takes: [{ ...TAKE, critics: [...TAKE.critics] }],
+      }),
+      writer: async (req) => {
+        if (req.purpose === 'write') prompts.push(req.user)
+        const r = await goodWriter(req)
+        if (req.schema !== GAME_POSTS_SCHEMA) return r
+        const posts = (r.json as { posts: Record<string, unknown>[] }).posts.map((p, i) =>
+          i === 1 && req.user.includes('Take 7 on') ? { ...p, takesUsed: [7] } : p,
+        )
+        return { ...r, json: { posts } }
+      },
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.deepEqual(logs(h.events), [])
+  assert.ok(prompts[0]!.includes('Take 7 on Skater A: INVENTED TAKE TEXT'))
+  const second = h.items.get(2)!
+  assert.deepEqual(second.takesUsed, [7])
+  for (const i of h.items.values()) assert.ok(!JSON.stringify(i.facts).includes('INVENTED TAKE'))
+  for (const p of h.sent) assert.ok(!JSON.stringify(p).includes('INVENTED TAKE'))
+  // Used two days ago: not due, so a later game's prompt has no take.
+  used = [{ takeId: 7, lastUsed: new Date(NOW.getTime() - 2 * 86_400_000) }]
+  h.state.candidates = [9701]
+  const before = prompts.length
+  await runNewsCycle(h.deps, h.opts)
+  assert.deepEqual(logs(h.events), [])
+  assert.equal(prompts.length, before + 1)
+  assert.ok(!prompts.at(-1)!.includes('Take 7'), prompts.at(-1))
+})
+
+void test("C3a.3: the night article sees the night posts and each prompt the reporter's own pieces", async () => {
+  const prompts: string[] = []
+  const h = harness({
+    candidates: [REPLY_GAME],
+    store: {
+      recentReporterPieces: async (r) => [
+        { kind: 'post', text: `OLD PIECE BY ${r}`, night: '2026-10-05' },
+      ],
+    },
+    deps: {
+      writer: async (req) => {
+        if (req.purpose === 'write') prompts.push(req.user)
+        return goodWriter(req)
+      },
+    },
+  })
+  h.state.nights = [{ night: '2026-10-12', lastEnd: new Date(NOW.getTime() - 91 * MIN) }]
+  h.state.nightGames['2026-10-12'] = 2
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(prompts[0]!.includes('OLD PIECE BY mercer'))
+  const night = prompts.find((p) => p.includes('one article about the whole night'))!
+  assert.ok(
+    night.includes(
+      "Tonight's posts, oldest first. Reuse their numbers only to draw a new conclusion:",
+    ),
+  )
+  assert.ok(night.includes('- Dex Mercer: The Boogeymen took 14 shots, says mercer.'))
 })

@@ -20,7 +20,8 @@ import { players } from './players.js'
 import type { DiscordPostStatus } from './discord-posts.js'
 import type { FeatureKind } from '../news/features.js'
 
-export const NEWS_JOB_KINDS = ['game', 'night', 'week'] as const
+/** C3a.8: `game_article` = a big game's article, job_key `<matchId>:<game|spotlight|column>`. */
+export const NEWS_JOB_KINDS = ['game', 'night', 'week', 'game_article'] as const
 export type NewsJobKind = (typeof NEWS_JOB_KINDS)[number]
 
 export const NEWS_JOB_STATUSES = ['pending', 'done', 'failed', 'skipped'] as const
@@ -77,7 +78,7 @@ export const newsJobs = pgTable(
   },
   (table) => [
     unique('news_jobs_kind_job_key_uniq').on(table.kind, table.jobKey),
-    check('news_jobs_kind_check', sql`${table.kind} IN ('game', 'night', 'week')`),
+    check('news_jobs_kind_check', sql`${table.kind} IN ('game', 'night', 'week', 'game_article')`),
     check(
       'news_jobs_status_check',
       sql`${table.status} IN ('pending', 'done', 'failed', 'skipped')`,
