@@ -301,7 +301,7 @@ term, which remains a legal-review question.
   profile picture link when they sign in, and a signed-in member's browser
   loads their own picture from Discord; visitors who do not sign in are
   never sent to Discord by this site.
-- **Anthropic** — the company behind the Claude API, the AI service that
+- **Anthropic** — the company behind Claude, the AI service that
   writes our News posts and articles. We send it team members' profile names
   (or gamertags), their game statistics, club names, and scores. See "News
   posts written by an AI service" below.
@@ -459,7 +459,7 @@ locations each of these providers uses, and we do not claim otherwise.
 Our News pages show short posts and articles about our team's games. Our
 team's Discord channel shows the posts, and links to the articles. The
 reporters who sign them are fictional. The text is written by an AI service,
-Anthropic's Claude API, from our game statistics.
+Anthropic's Claude AI service, from our game statistics.
 
 **What we send.** We send the service the profile names of team members (or
 their gamertags, when a member has no profile name), their game statistics,

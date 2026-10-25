@@ -418,10 +418,10 @@ export const sections: LegalPageSection[] = [
             Discord; visitors who do not sign in are never sent to Discord by this site.
           </LI>
           <LI>
-            <Strong>Anthropic</Strong> — the company behind the Claude API, the AI service that
-            writes our News posts and articles. We send it team members' profile names (or
-            gamertags), their game statistics, club names, and scores. See "News posts written by an
-            AI service" below.
+            <Strong>Anthropic</Strong> — the company behind Claude, the AI service that writes our
+            News posts and articles. We send it team members' profile names (or gamertags), their
+            game statistics, club names, and scores. See "News posts written by an AI service"
+            below.
           </LI>
           <LI>
             <Strong>Electronic Arts (EA)</Strong> — the source of the underlying game data and some
@@ -653,8 +653,8 @@ export const sections: LegalPageSection[] = [
         <P>
           Our News pages show short posts and articles about our team's games. Our team's Discord
           channel shows the posts, and links to the articles. The reporters who sign them are
-          fictional. The text is written by an AI service, Anthropic's Claude API, from our game
-          statistics.
+          fictional. The text is written by an AI service, Anthropic's Claude AI service, from our
+          game statistics.
         </P>
         <P>
           <Strong>What we send.</Strong> We send the service the profile names of team members (or

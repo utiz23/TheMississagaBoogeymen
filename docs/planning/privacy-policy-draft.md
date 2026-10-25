@@ -128,7 +128,7 @@ status messages from our server, not information about visitors),
 News posts, and links to our articles, appear in the team's channel; at
 sign-in it tells us only the
 member's Discord user ID, display name and profile picture link),
-**Anthropic** (its Claude API is the AI service that writes our News posts
+**Anthropic** (its AI service, Claude, writes our News posts
 and articles), **EA's game services** (the source of underlying game data), and
 **community-operated hosting infrastructure based in Alberta, Canada**.
 
@@ -227,7 +227,7 @@ games. The posts, and links to the articles, also appear in our team's
 Discord channel. The reporters who sign them are fictional. An AI service
 writes the text.
 
-To write the posts, we send Anthropic's Claude API the profile names of team
+To write the posts, we send Anthropic's Claude AI service the profile names of team
 members (or their gamertags, when a member has no profile name) and their
 game statistics. We also send club names and scores. We never name guests,
 opponent players, or members who choose "Leave me out", and we do not send

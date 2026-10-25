@@ -169,9 +169,9 @@ export const sections: LegalPageSection[] = [
           from our server, not information about visitors), <Strong>Discord</Strong> (the sign-in
           service team members use, and the place where our News posts, and links to our articles,
           appear in the team's channel; at sign-in it tells us only the member's Discord user ID,
-          display name and profile picture link), <Strong>Anthropic</Strong> (its Claude API is the
-          AI service that writes our News posts and articles), <Strong>EA's game services</Strong>{' '}
-          (the source of underlying game data), and{' '}
+          display name and profile picture link), <Strong>Anthropic</Strong> (its AI service,
+          Claude, writes our News posts and articles), <Strong>EA's game services</Strong> (the
+          source of underlying game data), and{' '}
           <Strong>community-operated hosting infrastructure based in Alberta, Canada</Strong>.
         </P>
         <P>
@@ -310,10 +310,11 @@ export const sections: LegalPageSection[] = [
           who sign them are fictional. An AI service writes the text.
         </P>
         <P>
-          To write the posts, we send Anthropic's Claude API the profile names of team members (or
-          their gamertags, when a member has no profile name) and their game statistics. We also
-          send club names and scores. We never name guests, opponent players, or members who choose
-          "Leave me out", and we do not send their names to the service as people to write about.
+          To write the posts, we send Anthropic's Claude AI service the profile names of team
+          members (or their gamertags, when a member has no profile name) and their game statistics.
+          We also send club names and scores. We never name guests, opponent players, or members who
+          choose "Leave me out", and we do not send their names to the service as people to write
+          about.
         </P>
         <P>
           Each member can set this on EDIT PROFILE, under "Press coverage". The choices are "Full
