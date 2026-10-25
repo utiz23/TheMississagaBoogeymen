@@ -1095,3 +1095,43 @@ void test('C2 re-review: a score never cancels a record claim; a steal needs goa
     assert.deepEqual(labelClaims(t, plain), [], t)
   }
 })
+
+void test('C3a.9 feature: the prediction and the receipt never repeat inside the body; the verdict fits', () => {
+  const judged: { kind: 'trend'; previousPrediction: string | null } = {
+    kind: 'trend',
+    previousPrediction: 'The club wins the week.',
+  }
+  const receipt = 'Last week I said the club wins the week, and it did.'
+  const p = (over: object, rules = judged) =>
+    problems(checkFeatureFacts(feature(over), week, FORBIDDEN, rules))
+  assert.deepEqual(p({ receipt, receiptVerdict: 'hit' }), [])
+  assert.ok(
+    p({
+      receipt,
+      receiptVerdict: 'hit',
+      paragraphs: [words(340), 'The club wins the week.', words(340)],
+    }).some((x) => /prediction is printed on its own/.test(x)),
+  )
+  assert.ok(
+    p({
+      receipt,
+      receiptVerdict: 'hit',
+      paragraphs: [`${receipt} ${words(340)}`, words(340)],
+    }).some((x) => /receipt is printed on its own/.test(x)),
+  )
+  assert.ok(p({ receipt, receiptVerdict: null }).some((x) => /must be "hit" or "miss"/.test(x)))
+  assert.ok(
+    p({ receiptVerdict: 'miss' }, { kind: 'trend', previousPrediction: null }).some((x) =>
+      /must be "none"/.test(x),
+    ),
+  )
+  // A short receipt ("It did.") is no repeat even when the body has those words.
+  assert.deepEqual(
+    p({
+      receipt: 'It did.',
+      receiptVerdict: 'hit',
+      paragraphs: [`It did. ${words(340)}`, words(340)],
+    }),
+    [],
+  )
+})

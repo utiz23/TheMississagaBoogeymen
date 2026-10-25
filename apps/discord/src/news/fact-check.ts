@@ -927,6 +927,15 @@ export function checkGamePosts(
   return unique.length === 0 ? { ok: true } : { ok: false, problems: unique }
 }
 
+/** A prediction or receipt of at least this many words must not come back inside the body. */
+const REPEAT_MIN_WORDS = 4
+
+const normalizedText = (t: string): string =>
+  t
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+
 /** Number words beyond the counted ones, banned in a prediction too. */
 const OTHER_NUMBER_WORDS = /\b(dozens?|twice|thrice|thousands?|millions?)\b/i
 
@@ -970,6 +979,8 @@ export function checkFeatureFacts(
     takesUsed?: number[]
     prediction: string
     receipt: string
+    /** C3a.4: checked when given (null = "none"). */
+    receiptVerdict?: 'hit' | 'miss' | null
   },
   facts: NewsFacts,
   forbiddenNames: string[],
@@ -1016,6 +1027,28 @@ export function checkFeatureFacts(
   const number = firstNumber(feature.prediction)
   if (number !== null) {
     problems.push(`The prediction must have no numbers or number words; it has "${number}".`)
+  }
+  // C3a.9: the receipt opens and the prediction closes the printed piece; the body never repeats them.
+  const body = normalizedText(feature.paragraphs.join(' '))
+  for (const [what, value] of [
+    ['prediction', feature.prediction],
+    ['receipt', feature.receipt],
+  ] as const) {
+    const v = normalizedText(value)
+    if (v.split(' ').length >= REPEAT_MIN_WORDS && body.includes(v)) {
+      problems.push(
+        `The ${what} is printed on its own (${what === 'receipt' ? 'first' : 'last'} paragraph); do not repeat it in "paragraphs".`,
+      )
+    }
+  }
+  if (feature.receiptVerdict !== undefined) {
+    if (rules.previousPrediction === null && feature.receiptVerdict !== null) {
+      problems.push('There was no previous prediction, so receiptVerdict must be "none".')
+    } else if (rules.previousPrediction !== null && feature.receiptVerdict === null) {
+      problems.push(
+        'receiptVerdict must be "hit" or "miss": say whether last week\'s prediction came true.',
+      )
+    }
   }
   const receipt = feature.receipt.trim()
   if (rules.previousPrediction === null) {
