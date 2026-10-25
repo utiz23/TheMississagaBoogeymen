@@ -120,6 +120,40 @@ services:
       web:
         condition: service_started
 
+  # OPT-IN news desk (`--profile news`): fictional reporters write posts and
+  # articles about the club's games with the Claude API. Its own container, so
+  # a news error can never stop the `discord` game-result poster. Same image
+  # source as `discord`, different entry point. Defaults to TEST MODE: set
+  # NEWS_DRY_RUN=0 in .env to post for real. ANTHROPIC_API_KEY and
+  # NEWS_WEBHOOK_URL live only in the server .env.
+  news:
+    profiles: ['news']
+    build:
+      context: .
+      dockerfile: apps/discord/Dockerfile
+    command: ['node', 'dist/news-main.js']
+    restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 512m
+    init: true
+    environment:
+      DATABASE_URL: postgresql://eanhl:${POSTGRES_PASSWORD}@db:5432/eanhl
+      NEWS_WEBHOOK_URL: ${NEWS_WEBHOOK_URL:-}
+      DISCORD_INTERNAL_TOKEN: ${DISCORD_INTERNAL_TOKEN:-}
+      NEWS_DRY_RUN: ${NEWS_DRY_RUN:-1}
+      DISCORD_SITE_URL: ${DISCORD_SITE_URL:-https://boogeymen.app}
+      NEWS_POLL_INTERVAL_MS: ${NEWS_POLL_INTERVAL_MS:-60000}
+      NEWS_MODEL: ${NEWS_MODEL:-claude-opus-5-5}
+      NEWS_MONTHLY_LIMIT_USD: ${NEWS_MONTHLY_LIMIT_USD:-10}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      NEWS_OUT_DIR: /tmp/news-out
+      WEB_INTERNAL_URL: http://web:3000
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+
   # OPT-IN. Not part of the default stack: a host with no tunnel configured runs
   # `docker compose up -d` and gets db/worker/web exactly as before, with no
   # warning and no failing container. A host that publishes the site opts in

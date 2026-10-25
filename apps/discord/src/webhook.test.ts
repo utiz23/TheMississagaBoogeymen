@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { sendWebhook, WebhookOutcomeUnknownError } from './webhook.ts'
+import { deleteWebhookMessage, sendWebhook, WebhookOutcomeUnknownError } from './webhook.ts'
 import type { WebhookPayload } from './message.ts'
 
 const HOOK = 'https://discord.com/api/webhooks/123/SECRET-TOKEN-VALUE'
@@ -68,6 +68,45 @@ void test('connection refused is a definite failure (nothing was sent)', async (
   }) as typeof fetch
   await assert.rejects(sendWebhook(HOOK, payload, null, fake), (err: Error) => {
     assert.ok(!(err instanceof WebhookOutcomeUnknownError))
+    return true
+  })
+})
+
+void test('deleteWebhookMessage: DELETE <url>/messages/<id>; 204 ⇒ done', async () => {
+  let seen = ''
+  let method = ''
+  const fake = (async (url: URL | string, init?: RequestInit) => {
+    seen = String(url)
+    method = init?.method ?? ''
+    return new Response(null, { status: 204 })
+  }) as typeof fetch
+  await deleteWebhookMessage(HOOK, '777', fake)
+  assert.equal(method, 'DELETE')
+  assert.equal(seen, `${HOOK}/messages/777`)
+})
+
+void test('deleteWebhookMessage: 404 (already gone) ⇒ done', async () => {
+  const fake = (async () =>
+    new Response('{"message":"Unknown Message"}', { status: 404 })) as typeof fetch
+  await deleteWebhookMessage(HOOK, '777', fake)
+})
+
+void test('deleteWebhookMessage: 500 throws without the URL in the message', async () => {
+  const fake = (async () => new Response(`{"url":"${HOOK}"}`, { status: 500 })) as typeof fetch
+  await assert.rejects(deleteWebhookMessage(HOOK, '777', fake), (err: Error) => {
+    assert.equal(err.message, 'Discord webhook delete HTTP 500')
+    assert.ok(!err.message.includes('SECRET-TOKEN-VALUE'))
+    return true
+  })
+})
+
+void test('deleteWebhookMessage: a network failure never leaks the URL', async () => {
+  const fake = (async () => {
+    throw new TypeError(`fetch failed for ${HOOK}`)
+  }) as typeof fetch
+  await assert.rejects(deleteWebhookMessage(HOOK, '777', fake), (err: Error) => {
+    assert.ok(!err.message.includes('SECRET-TOKEN-VALUE'))
+    assert.ok(!err.message.includes('/api/webhooks/'))
     return true
   })
 })

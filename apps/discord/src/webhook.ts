@@ -52,3 +52,27 @@ export async function sendWebhook(
   const json = (await res.json().catch(() => null)) as { id?: unknown } | null
   return typeof json?.id === 'string' ? json.id : null
 }
+
+/**
+ * Delete one message this webhook posted (`DELETE <url>/messages/<id>`).
+ * 204, or 404 (already gone), means done. Any other status throws an error
+ * that names the status only; a network error names the error kind only.
+ * The webhook URL never reaches the message.
+ */
+export async function deleteWebhookMessage(
+  webhookUrl: string,
+  messageId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  const url = new URL(webhookUrl)
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/messages/${encodeURIComponent(messageId)}`
+  let res: Response
+  try {
+    res = await fetchImpl(url, { method: 'DELETE', signal: AbortSignal.timeout(15_000) })
+  } catch (err: unknown) {
+    const name = err instanceof Error ? err.name : 'Error'
+    throw new Error(`Discord webhook delete request failed (${name})`)
+  }
+  if (res.status === 204 || res.status === 404 || res.ok) return
+  throw new Error(`Discord webhook delete HTTP ${String(res.status)}`)
+}
