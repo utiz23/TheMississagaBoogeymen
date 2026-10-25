@@ -99,6 +99,15 @@ export interface NewsClubRecord {
   title: string
 }
 
+export interface NewsPairRecord {
+  /** Two names from `people`, ordered by player id. */
+  pair: [string, string]
+  games: number
+  wins: number
+  losses: number
+  otl: number
+}
+
 /**
  * A named player whose title total passed the club record at this game
  * (C2.4): `value` = his new total. Not when the record was already his
@@ -439,6 +448,14 @@ export interface NewsGameFacts {
   headToHead: NewsHeadToHead | null
   /** Club records a named player passed at this game (C2.4); usually empty. */
   newRecords: NewsNewRecord[]
+  /**
+   * Line chemistry (C2.6, spec §12.17-4): the title record of named pairs who
+   * played this game together, from the counted games of the title up to and
+   * including this one in which both played (the stats page's pair rule:
+   * both in the club's rows of the match). At least 5 games together; the 3
+   * pairs with the most games. Numbers may be quoted ("12-3-1 together").
+   */
+  chemistry: NewsPairRecord[]
   /** Club members in the game at press level `out`: teammates who must not be named or singled out. */
   unnamedTeammates: number
   /**
@@ -670,6 +687,19 @@ function parseClubRecord(v: unknown, path: string): NewsClubRecord {
     holder: nullable(o['holder'], `${path}.holder`, str),
     value: nonNegInt(o['value'], `${path}.value`),
     title: str(o['title'], `${path}.title`),
+  }
+}
+
+function parsePairRecord(v: unknown, path: string): NewsPairRecord {
+  const o = obj(v, path)
+  const pair = arr(o['pair'], `${path}.pair`, str)
+  if (pair.length !== 2) fail(`${path}.pair`, 'is not two names')
+  return {
+    pair: [pair[0]!, pair[1]!],
+    games: nonNegInt(o['games'], `${path}.games`),
+    wins: nonNegInt(o['wins'], `${path}.wins`),
+    losses: nonNegInt(o['losses'], `${path}.losses`),
+    otl: nonNegInt(o['otl'], `${path}.otl`),
   }
 }
 
@@ -935,6 +965,9 @@ function parseGame(v: unknown, path: string): NewsGameFacts {
     ),
     newRecords: opt(o, 'newRecords', [], () =>
       arr(o['newRecords'], `${path}.newRecords`, parseNewRecord),
+    ),
+    chemistry: opt(o, 'chemistry', [], () =>
+      arr(o['chemistry'], `${path}.chemistry`, parsePairRecord),
     ),
     guestCount: int(o['guestCount'], `${path}.guestCount`),
     unnamedTeammates: int(o['unnamedTeammates'], `${path}.unnamedTeammates`),

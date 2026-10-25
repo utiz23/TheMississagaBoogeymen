@@ -474,6 +474,8 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     headToHead: null,
     // Set by `applyNewRecords` once the club records are known.
     newRecords: [],
+    // Set by `applyChemistry` once the players' games are known.
+    chemistry: [],
     periods: args.periods,
     players: lines,
     aiGoalieInNet,

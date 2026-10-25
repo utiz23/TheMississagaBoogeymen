@@ -83,6 +83,7 @@ const game1: NewsGameFacts = {
   teamNotes: [],
   headToHead: null,
   newRecords: [],
+  chemistry: [],
   guestCount: 0,
   unnamedTeammates: 0,
   unnamedGoals: 0,

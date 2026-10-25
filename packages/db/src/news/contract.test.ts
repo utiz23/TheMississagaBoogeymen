@@ -100,6 +100,7 @@ function sample(): NewsFactsResponse {
           teamNotes: [],
           headToHead: null,
           newRecords: [],
+          chemistry: [],
           guestCount: 1,
           unnamedTeammates: 1,
           unnamedGoals: 1,
@@ -148,6 +149,7 @@ function sample(): NewsFactsResponse {
           teamNotes: [],
           headToHead: null,
           newRecords: [],
+          chemistry: [],
           guestCount: 0,
           unnamedTeammates: 0,
           unnamedGoals: 0,
@@ -906,4 +908,20 @@ void test('contract: records, new records and season totals round-trip; missing 
   const bad = clone(s) as unknown as { facts: { records: Record<string, unknown>[] } }
   bad.facts.records[0]!['stat'] = 'hits'
   assert.throws(() => parseNewsFactsResponse(bad), /records\[0\]\.stat/)
+})
+
+void test('contract: chemistry round-trips; missing reads as none; a pair is two names (C2.6)', () => {
+  const s = sample()
+  s.facts.games[0]!.chemistry = [
+    { pair: ['Silky', 'Wall'], games: 16, wins: 12, losses: 3, otl: 1 },
+  ]
+  assert.deepEqual(parseNewsFactsResponse(clone(s)), s)
+  const old = clone(s) as unknown as { facts: { games: Record<string, unknown>[] } }
+  delete old.facts.games[0]!['chemistry']
+  assert.deepEqual(parseNewsFactsResponse(old).facts.games[0]!.chemistry, [])
+  const bad = clone(s) as unknown as {
+    facts: { games: { chemistry: Record<string, unknown>[] }[] }
+  }
+  bad.facts.games[0]!.chemistry[0]!['pair'] = ['Silky']
+  assert.throws(() => parseNewsFactsResponse(bad), /chemistry\[0\]\.pair is not two names/)
 })

@@ -67,6 +67,7 @@ import {
 } from './build-facts'
 import { applyNorms, normInputFromRow, type NormGameInput } from './norms'
 import { applyContext, titleGameFromFacts, titleGameFromRow } from './context'
+import { applyChemistry } from './chemistry'
 import { applyNewRecords, buildRecords, publicRecords, type SeasonLineInput } from './records'
 import { applyPlayerFacts, playerGameFromRow, type PlayerGameInput } from './players'
 
@@ -413,7 +414,11 @@ async function loadSheet(
     current?.releaseOrder ?? null,
     (id) => holderName.get(id) ?? null,
   )
-  const withRecords = applyNewRecords(withContext, records, gameTitleName)
+  const withRecords = applyChemistry(
+    applyNewRecords(withContext, records, gameTitleName),
+    history,
+    gameTitleId,
+  )
 
   const unlocks: NewsFacts['unlocks'] = []
   for (const ev of events) {
