@@ -424,3 +424,13 @@ no praise or blame.
   teammates or members and are never called that.
 - Press levels and the pile-on limit do not apply to them (not real people).
 - The NHL 26 backfill uses this rule.
+
+### 12.9 Less repetition of signature words (operator, 2026-10-25)
+
+Reporters over-use their favourite words. Tone it down a bit:
+
+- Each reporter's word list roughly doubles (typical words and phrases), and the
+  voice text says to use one or two at most per piece and vary them.
+- Code check: a post may use at most one of its reporter's signature words, an
+  article at most three; above that the item goes back for a rewrite ("lean less
+  on your signature words"). Limits are Claude's call.
