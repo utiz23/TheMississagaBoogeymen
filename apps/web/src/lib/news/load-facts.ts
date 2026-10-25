@@ -29,12 +29,14 @@ import {
   listTitleResultsUpTo,
   stancesForThreads,
   predictionScorecards,
+  activeTakesForPlayers,
 } from '@eanhl/db/queries'
 import {
   nightKey,
   nightsOfWeek,
   parseNewsFactsResponse,
   previousWeekStarts,
+  takesForSheet,
   type NewsFacts,
   type NewsFactsResponse,
 } from '@eanhl/db/news'
@@ -78,7 +80,12 @@ import {
   threadGameFromRow,
 } from './threads'
 import { applyNewRecords, buildRecords, publicRecords, type SeasonLineInput } from './records'
-import { applyPlayerFacts, playerGameFromRow, type PlayerGameInput } from './players'
+import {
+  applyPlayerFacts,
+  playerGameFromRow,
+  recentPointLabels,
+  type PlayerGameInput,
+} from './players'
 
 /** An unlock counts when it lands up to this long after the last game of the sheet. */
 const UNLOCK_WINDOW_AFTER_MINUTES = 10
@@ -462,8 +469,15 @@ async function loadSheet(
   })
   // Fact ranking (C2.7): every fact of the finished sheet, most important first.
   const ranked: NewsFacts = { ...facts, topFacts: rankFacts(facts) }
+  // Reporter takes (C3a.6, spec §12.19): GM-only lore, next to the facts (never
+  // inside them: facts are stored on every item), only for players named on
+  // this sheet (people already excludes Leave me out); Go easy ⇒ mild. The
+  // data moves the intensity: the player's points labels of his last 5 games.
+  const takes = takesForSheet(await activeTakesForPlayers(namedIds), people, (id) =>
+    recentPointLabels(history.get(id) ?? [], gameTitleId),
+  )
   // The service parses the same shape at its boundary; refuse to emit a sheet it would reject.
-  return parseNewsFactsResponse({ facts: ranked, forbiddenNames })
+  return parseNewsFactsResponse({ facts: ranked, forbiddenNames, takes })
 }
 
 /** Matches of one title for the given nights (the active title unless `includeInactive`), oldest first. */

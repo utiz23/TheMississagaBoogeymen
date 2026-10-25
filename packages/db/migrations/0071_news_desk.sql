@@ -16,7 +16,9 @@
 -- feature's verdict on the previous prediction: hit | miss, spec §12.15-4).
 -- Part C3a (2026-10-25, edited in place): news_items.zero_called (players an
 -- item called out for a zero, spec §12.12-5) and news_items.takes_used (ids of
--- the reporter takes it voiced, spec §12.19), both JSON arrays.
+-- the reporter takes it voiced, spec §12.19), both JSON arrays; and
+-- news_reporter_takes (GM-only lore, spec §12.19: a reporter's running take on
+-- a player; read by the news service and the admin only, never public).
 -- Back-fills a skipped job for every existing game, night and week (Monday
 -- start, from the night key) so launch never covers history.
 --
@@ -31,6 +33,7 @@
 -- no job yet as 'skipped' (the back-fill covers every match without a row).
 -- Re-run only right before the first launch.
 -- ROLLBACK:
+--   DROP TABLE IF EXISTS "news_reporter_takes";
 --   DROP TABLE IF EXISTS "news_stances";
 --   DROP TABLE IF EXISTS "news_ai_usage";
 --   DROP TABLE IF EXISTS "news_items";
@@ -192,6 +195,58 @@ DO $$ BEGIN
 END $$;
 
 CREATE INDEX IF NOT EXISTS "news_stances_thread_key_idx" ON "news_stances" ("thread_key");
+
+-- ── news_reporter_takes (Part C3a) ──────────────────────────────────────────
+-- GM-only lore (spec §12.19): never in git, never on a public page or in
+-- Discord as a list. `reporter` holds the take; `critics` are reporters who
+-- share it, `defender` pushes back with `data_angle`. `intensity` -2..+2
+-- softens or hardens it.
+CREATE TABLE IF NOT EXISTS "news_reporter_takes" (
+  "id" bigserial PRIMARY KEY NOT NULL,
+  "reporter" text NOT NULL,
+  "player_id" integer NOT NULL REFERENCES "players"("id") ON DELETE CASCADE,
+  "take" text NOT NULL,
+  "spread" text DEFAULT 'some' NOT NULL,
+  "critics" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "defender" text,
+  "data_angle" text,
+  "active" boolean DEFAULT true NOT NULL,
+  "intensity" integer DEFAULT 0 NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+DO $$ BEGIN
+  ALTER TABLE "news_reporter_takes" DROP CONSTRAINT IF EXISTS "news_reporter_takes_reporter_check";
+  ALTER TABLE "news_reporter_takes" ADD CONSTRAINT "news_reporter_takes_reporter_check"
+    CHECK ("reporter" IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom'));
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "news_reporter_takes" DROP CONSTRAINT IF EXISTS "news_reporter_takes_defender_check";
+  ALTER TABLE "news_reporter_takes" ADD CONSTRAINT "news_reporter_takes_defender_check"
+    CHECK ("defender" IS NULL OR "defender" IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom'));
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "news_reporter_takes" DROP CONSTRAINT IF EXISTS "news_reporter_takes_spread_check";
+  ALTER TABLE "news_reporter_takes" ADD CONSTRAINT "news_reporter_takes_spread_check"
+    CHECK ("spread" IN ('some', 'a few', 'most'));
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "news_reporter_takes" DROP CONSTRAINT IF EXISTS "news_reporter_takes_intensity_check";
+  ALTER TABLE "news_reporter_takes" ADD CONSTRAINT "news_reporter_takes_intensity_check"
+    CHECK ("intensity" BETWEEN -2 AND 2);
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "news_reporter_takes" DROP CONSTRAINT IF EXISTS "news_reporter_takes_critics_array_check";
+  ALTER TABLE "news_reporter_takes" ADD CONSTRAINT "news_reporter_takes_critics_array_check"
+    CHECK (jsonb_typeof("critics") = 'array');
+END $$;
+
+CREATE INDEX IF NOT EXISTS "news_reporter_takes_player_idx" ON "news_reporter_takes" ("player_id");
 
 -- ── news_ai_usage ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "news_ai_usage" (

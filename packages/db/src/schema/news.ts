@@ -16,6 +16,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
 import { matches } from './matches.js'
+import { players } from './players.js'
 import type { DiscordPostStatus } from './discord-posts.js'
 import type { FeatureKind } from '../news/features.js'
 
@@ -189,6 +190,52 @@ export const newsStances = pgTable(
     ),
   ],
 )
+
+/** How many of the reporters share a take (spec §12.19). */
+export const TAKE_SPREADS = ['some', 'a few', 'most'] as const
+export type TakeSpread = (typeof TAKE_SPREADS)[number]
+
+/**
+ * A reporter's running take on a player (Part C3a, spec §12.19): GM-only
+ * lore, read by the news service and the admin only — never on a public
+ * page, in a feed or in Discord as a list. Migration 0071.
+ */
+export const newsReporterTakes = pgTable(
+  'news_reporter_takes',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    reporter: text('reporter').$type<NewsReporterId>().notNull(),
+    playerId: integer('player_id')
+      .notNull()
+      .references(() => players.id, { onDelete: 'cascade' }),
+    take: text('take').notNull(),
+    spread: text('spread').$type<TakeSpread>().notNull().default('some'),
+    critics: jsonb('critics').$type<NewsReporterId[]>().notNull().default([]),
+    defender: text('defender').$type<NewsReporterId>(),
+    dataAngle: text('data_angle'),
+    active: boolean('active').notNull().default(true),
+    /** -2..+2: softens (negative) or hardens (positive) the take. */
+    intensity: integer('intensity').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('news_reporter_takes_player_idx').on(table.playerId),
+    check(
+      'news_reporter_takes_reporter_check',
+      sql`${table.reporter} IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom')`,
+    ),
+    check(
+      'news_reporter_takes_defender_check',
+      sql`${table.defender} IS NULL OR ${table.defender} IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom')`,
+    ),
+    check('news_reporter_takes_spread_check', sql`${table.spread} IN ('some', 'a few', 'most')`),
+    check('news_reporter_takes_intensity_check', sql`${table.intensity} BETWEEN -2 AND 2`),
+    check('news_reporter_takes_critics_array_check', sql`jsonb_typeof(${table.critics}) = 'array'`),
+  ],
+)
+
+export type NewsReporterTakeRow = typeof newsReporterTakes.$inferSelect
 
 /** One row per Claude call; the sum over a calendar month drives the money limit. */
 export const newsAiUsage = pgTable(

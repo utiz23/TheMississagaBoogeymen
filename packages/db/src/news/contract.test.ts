@@ -195,6 +195,7 @@ function sample(): NewsFactsResponse {
       topFacts: [],
     },
     forbiddenNames: ['Hidden Guy'],
+    takes: [],
   }
 }
 

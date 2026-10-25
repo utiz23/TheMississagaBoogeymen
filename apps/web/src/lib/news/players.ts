@@ -192,6 +192,51 @@ export function playerNorm(
   }
 }
 
+/**
+ * The player's points labels in his last `n` counted games of the title (C3a.6,
+ * for `adjustTakeIntensity`), oldest first: each game against his earlier
+ * games of the same mode and position (the norm's sample rule); a game with
+ * fewer than 10 earlier sample games, a goalie game or one that ended early
+ * gives no label.
+ */
+export function recentPointLabels(
+  history: readonly PlayerGameInput[],
+  gameTitleId: number,
+  n = FORM_GAMES,
+): PlayerLabel[] {
+  const sampleOf = (g: PlayerGameInput, before: readonly PlayerGameInput[]) =>
+    before.filter(
+      (x) =>
+        x.gameTitleId === gameTitleId &&
+        x.gameMode === g.gameMode &&
+        x.position === g.position &&
+        counted(x) &&
+        !x.endedEarly,
+    )
+  const games = history.filter(
+    (g) =>
+      g.gameTitleId === gameTitleId &&
+      counted(g) &&
+      !g.endedEarly &&
+      g.gameMode !== null &&
+      g.position !== 'G',
+  )
+  const out: PlayerLabel[] = []
+  for (const g of games.slice(-n)) {
+    const sample = sampleOf(g, history.slice(0, history.indexOf(g)))
+    if (sample.length < PLAYER_NORM_MIN_GAMES) continue
+    out.push(
+      playerLabel(
+        g.goals + g.assists,
+        sample.map((x) => x.goals + x.assists),
+        'points',
+        g.position,
+      ),
+    )
+  }
+  return out
+}
+
 /** Season and career highs this game set (strictly above every earlier counted game of the mode). */
 export function playerBests(
   line: NewsPlayerLine,

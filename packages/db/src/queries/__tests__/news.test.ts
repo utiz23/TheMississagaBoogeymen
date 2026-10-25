@@ -44,6 +44,8 @@ const {
   lastFeatureSql,
   nightCriticizedSql,
   nightZeroCalledSql,
+  activeTakesForPlayersQuery,
+  takesUsedSinceSql,
   rowsToNightZeroCalled,
   nightPostsForPromptSql,
   rowToNightPost,
@@ -1049,4 +1051,53 @@ void test('migration 0071: zero_called and takes_used arrays (C3a), idempotent c
   }
   const cols = getTableConfig(newsItems).columns.map((c) => c.name)
   assert.ok(cols.includes('zero_called') && cols.includes('takes_used'))
+})
+
+void test('reporter takes (C3a.6): active takes on the players; last use per take from items', () => {
+  const q = activeTakesForPlayersQuery([2, 5]).toSQL()
+  assert.match(
+    flat(q.sql),
+    /from "news_reporter_takes" where \("news_reporter_takes"\."active" = \$1 and "news_reporter_takes"\."player_id" in \(\$2, \$3\)\) order by "news_reporter_takes"\."id" asc/,
+  )
+  assert.deepEqual(q.params, [true, 2, 5])
+  const u = dialect.sqlToQuery(takesUsedSinceSql(new Date('2026-10-18T00:00:00Z'), false))
+  assert.match(
+    flat(u.sql),
+    /select \(e\.value\)::bigint as take_id, max\(n\.created_at\) as last_used from news_items n cross join lateral jsonb_array_elements\(n\.takes_used\) as e\(value\) where n\.deleted_at is null and \(n\.is_test = false or \$1\) and n\.created_at >= \$2::timestamptz group by 1 order by 1/,
+  )
+  assert.deepEqual(u.params, [false, '2026-10-18T00:00:00.000Z'])
+})
+
+void test('migration 0071: news_reporter_takes (C3a.6), idempotent checks, cascade with the player', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const raw = await readFile(
+    new URL('../../../migrations/0071_news_desk.sql', import.meta.url),
+    'utf8',
+  )
+  const text = flat(
+    raw
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('--'))
+      .join('\n'),
+  )
+  assert.ok(text.includes('CREATE TABLE IF NOT EXISTS "news_reporter_takes" ('))
+  assert.ok(
+    text.includes('"player_id" integer NOT NULL REFERENCES "players"("id") ON DELETE CASCADE'),
+  )
+  assert.ok(text.includes(`"spread" text DEFAULT 'some' NOT NULL`))
+  assert.ok(text.includes(`"critics" jsonb DEFAULT '[]'::jsonb NOT NULL`))
+  assert.ok(text.includes('"active" boolean DEFAULT true NOT NULL'))
+  assert.ok(text.includes('"intensity" integer DEFAULT 0 NOT NULL'))
+  for (const c of ['reporter', 'defender', 'spread', 'intensity', 'critics_array']) {
+    assert.ok(
+      text.includes(
+        `ALTER TABLE "news_reporter_takes" DROP CONSTRAINT IF EXISTS "news_reporter_takes_${c}_check";`,
+      ),
+      c,
+    )
+  }
+  assert.ok(text.includes(`CHECK ("intensity" BETWEEN -2 AND 2)`))
+  assert.ok(text.includes(`CHECK ("spread" IN ('some', 'a few', 'most'))`))
+  assert.ok(text.includes('CREATE INDEX IF NOT EXISTS "news_reporter_takes_player_idx"'))
+  assert.ok(raw.includes('DROP TABLE IF EXISTS "news_reporter_takes";'))
 })

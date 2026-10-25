@@ -1,6 +1,7 @@
 import {
   emptyPlayerExtras,
   type NewsFacts,
+  type NewsFactsResponse,
   type NewsGameFacts,
   type NewsPlayerLine,
 } from '@eanhl/db/news'
@@ -154,9 +155,6 @@ export function oct12Facts(kind: NewsFacts['kind'] = 'game'): NewsFacts {
   }
 }
 
-export function oct12Response(kind: NewsFacts['kind'] = 'game'): {
-  facts: NewsFacts
-  forbiddenNames: string[]
-} {
-  return { facts: oct12Facts(kind), forbiddenNames: ['Hidden Hank'] }
+export function oct12Response(kind: NewsFacts['kind'] = 'game'): NewsFactsResponse {
+  return { facts: oct12Facts(kind), forbiddenNames: ['Hidden Hank'], takes: [] }
 }

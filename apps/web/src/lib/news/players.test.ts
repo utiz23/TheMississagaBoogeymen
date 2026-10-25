@@ -14,6 +14,7 @@ import {
   playerStreaks,
   returnAfterDays,
   priorGames,
+  recentPointLabels,
   titleTotalsAfter,
   type PlayerGameInput,
 } from './players.ts'
@@ -390,4 +391,33 @@ void test('playerLabel: goals and assists need the 90th percentile and 1 above t
   assert.equal(playerLabel(3, sample, 'goals', 'F'), 'big for him')
   // Points, shots and hits keep the 80th percentile.
   assert.equal(playerLabel(2, sample, 'points', 'F'), 'big for him')
+})
+
+void test('recentPointLabels (C3a.6): the points label of each of the last 5 games against the games before it', () => {
+  // 10 one-point games, then 3 four-point games and 2 typical ones.
+  const base = many(10, { goals: 0, assists: 1 })
+  const hot = many(3, { goals: 2, assists: 2 })
+  const tail = many(2, { goals: 0, assists: 1 })
+  assert.deepEqual(recentPointLabels([...base, ...hot, ...tail], TITLE), [
+    'big for him',
+    'big for him',
+    'big for him',
+    'typical',
+    'typical',
+  ])
+  // Under 10 earlier games: no label; another title, a goalie or an ended-early game is skipped.
+  assert.deepEqual(recentPointLabels(many(9), TITLE), [])
+  const long = many(15, { goals: 0, assists: 1 })
+  const skipped = [
+    pg({ gameTitleId: 8, goals: 3 }),
+    pg({ position: 'G' }),
+    pg({ endedEarly: true, goals: 5 }),
+  ]
+  assert.deepEqual(recentPointLabels([...long, ...skipped], TITLE), [
+    'typical',
+    'typical',
+    'typical',
+    'typical',
+    'typical',
+  ])
 })

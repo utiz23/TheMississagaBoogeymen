@@ -703,9 +703,43 @@ export interface NewsTopFact {
   subject: string | null
 }
 
+/** How many reporters share a take (spec §12.19). */
+export const NEWS_TAKE_SPREADS = ['some', 'a few', 'most'] as const
+export type NewsTakeSpread = (typeof NEWS_TAKE_SPREADS)[number]
+
+/**
+ * A reporter's running take on a named player (C3a.6, spec §12.19): GM-only
+ * lore. It travels NEXT TO the facts (never inside them: `facts` is stored on
+ * every item), only for players named on the sheet, with press levels
+ * applied (a Go easy player's take is `mild`; Leave me out players have none).
+ * `intensity` is the stored value moved by the data (`adjustTakeIntensity`).
+ */
+export interface NewsTake {
+  id: number
+  /** The reporter who holds the take. */
+  reporter: ReporterId
+  /** Other reporters who share it. */
+  critics: ReporterId[]
+  /** The reporter who pushes back, or null. */
+  defender: ReporterId | null
+  playerId: number
+  /** The player's name as in `people[].name`. */
+  player: string
+  take: string
+  spread: NewsTakeSpread
+  /** The evidence a writer uses (words; numbers come from the sheet). */
+  dataAngle: string | null
+  /** -2 (soft) .. +2 (hard). */
+  intensity: number
+  /** The player is at press level "easy": the take stays mild. */
+  mild: boolean
+}
+
 export interface NewsFactsResponse {
   facts: NewsFacts
   forbiddenNames: string[]
+  /** Reporter takes on the sheet's named players (C3a.6); [] from an older web app. */
+  takes: NewsTake[]
 }
 
 function fail(path: string, why: string): never {
@@ -1296,11 +1330,40 @@ function parseFacts(v: unknown, path: string): NewsFacts {
   }
 }
 
+function parseTake(v: unknown, path: string): NewsTake {
+  const o = obj(v, path)
+  const intensity = int(o['intensity'], `${path}.intensity`)
+  if (intensity < -2 || intensity > 2) fail(`${path}.intensity`, 'is not between -2 and 2')
+  const reporterOf = (x: unknown, p: string) => oneOf(x, p, REPORTER_IDS)
+  return {
+    id: int(o['id'], `${path}.id`),
+    reporter: reporterOf(o['reporter'], `${path}.reporter`),
+    critics: arr(o['critics'], `${path}.critics`, reporterOf),
+    defender: o['defender'] === null ? null : reporterOf(o['defender'], `${path}.defender`),
+    playerId: int(o['playerId'], `${path}.playerId`),
+    player: str(o['player'], `${path}.player`),
+    take: str(o['take'], `${path}.take`),
+    spread: oneOf(o['spread'], `${path}.spread`, NEWS_TAKE_SPREADS),
+    dataAngle: o['dataAngle'] === null ? null : str(o['dataAngle'], `${path}.dataAngle`),
+    intensity,
+    mild: bool(o['mild'], `${path}.mild`),
+  }
+}
+
 /** Throws (with the path of the first bad field) when the value is not a valid fact-sheet response. */
 export function parseNewsFactsResponse(value: unknown): NewsFactsResponse {
   const o = obj(value, 'root')
+  const facts = parseFacts(o['facts'], 'facts')
+  const takes = o['takes'] === undefined ? [] : arr(o['takes'], 'takes', parseTake)
+  // A take is only for a player named on the sheet (press levels applied by the route).
+  takes.forEach((t, i) => {
+    if (!facts.people.some((p) => p.playerId === t.playerId && p.name === t.player)) {
+      fail(`takes[${String(i)}].player`, 'is not a person on the fact sheet')
+    }
+  })
   return {
-    facts: parseFacts(o['facts'], 'facts'),
+    facts,
     forbiddenNames: arr(o['forbiddenNames'], 'forbiddenNames', str),
+    takes,
   }
 }

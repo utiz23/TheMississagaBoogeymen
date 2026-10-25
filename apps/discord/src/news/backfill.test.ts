@@ -48,7 +48,11 @@ function fakeWeb(nights: Record<string, NewsGameFacts[]>) {
     if (kind === 'night') {
       const games = nights[key]
       if (!games) return Promise.reject(new Error('news night facts HTTP 404'))
-      return Promise.resolve({ facts: { ...oct12Facts('night'), key, games }, forbiddenNames })
+      return Promise.resolve({
+        facts: { ...oct12Facts('night'), key, games },
+        forbiddenNames,
+        takes: [],
+      })
     }
     const g = Object.values(nights)
       .flat()
@@ -57,6 +61,7 @@ function fakeWeb(nights: Record<string, NewsGameFacts[]>) {
     return Promise.resolve({
       facts: { ...oct12Facts('game'), key: g.night, games: [g] },
       forbiddenNames,
+      takes: [],
     })
   }
   return { calls, fetchFacts }
@@ -609,6 +614,7 @@ async function plannedDir(extra: Record<string, NewsGameFacts[]> = {}) {
     return Promise.resolve({
       facts: { ...oct12Facts('week'), key },
       forbiddenNames: ['Hidden Hank'],
+      takes: [],
     })
   }
   return { dir, plan, fetchFacts, weekCalls }

@@ -6,11 +6,13 @@ import {
   newsJobs,
   newsSettings,
   newsStances,
+  newsReporterTakes,
   playerProfiles,
   players,
   type NewNewsItem,
   type NewNewsStance,
   type NewNewsUsage,
+  type NewsReporterTakeRow,
   type NewsItemKind,
   type NewsItemRow,
   type NewsJobKind,
@@ -263,6 +265,53 @@ export async function stancesForThreads(keys: readonly string[]): Promise<NewsSt
     stance: r.stance,
     night: r.night,
   }))
+}
+
+// ── Reporter takes (Part C3a, spec §12.19): GM-only lore ────────────────────
+
+/** The active takes on these players, oldest first. Internal: never served publicly. */
+export function activeTakesForPlayersQuery(playerIds: readonly number[]) {
+  return db
+    .select()
+    .from(newsReporterTakes)
+    .where(
+      and(eq(newsReporterTakes.active, true), inArray(newsReporterTakes.playerId, [...playerIds])),
+    )
+    .orderBy(asc(newsReporterTakes.id))
+}
+
+export async function activeTakesForPlayers(
+  playerIds: readonly number[],
+): Promise<NewsReporterTakeRow[]> {
+  if (playerIds.length === 0) return []
+  return activeTakesForPlayersQuery(playerIds)
+}
+
+/**
+ * When each take was last voiced (spec §12.19: at most about once a week per
+ * player): the newest not-deleted item since `since` whose `takes_used` holds
+ * it. Test items only when `includeTest` (a dry run sees its own uses).
+ */
+export function takesUsedSinceSql(since: Date, includeTest: boolean): SQL {
+  return sql`
+    select (e.value)::bigint as take_id, max(n.created_at) as last_used
+    from news_items n
+    cross join lateral jsonb_array_elements(n.takes_used) as e(value)
+    where n.deleted_at is null
+      and (n.is_test = false or ${includeTest})
+      and n.created_at >= ${since.toISOString()}::timestamptz
+    group by 1
+    order by 1`
+}
+
+export async function takesUsedSince(
+  since: Date,
+  includeTest: boolean,
+): Promise<{ takeId: number; lastUsed: Date }[]> {
+  const rows = await db.execute<{ take_id: string | number; last_used: string | Date }>(
+    takesUsedSinceSql(since, includeTest),
+  )
+  return rows.map((r) => ({ takeId: Number(r.take_id), lastUsed: toDate(r.last_used) }))
 }
 
 // ── Backfill lookups (apps/discord/src/news/backfill.ts) ────────────────────
