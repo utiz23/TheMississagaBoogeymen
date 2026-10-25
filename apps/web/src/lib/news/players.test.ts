@@ -10,6 +10,9 @@ import {
   playerGameFromRow,
   playerLabel,
   playerNorm,
+  playerDebut,
+  playerStreaks,
+  returnAfterDays,
   priorGames,
   titleTotalsAfter,
   type PlayerGameInput,
@@ -266,4 +269,89 @@ void test('playerGameFromRow: F/D/G and the ended-early rule', () => {
   assert.equal(playerGameFromRow(row).position, 'D')
   assert.equal(playerGameFromRow(row).endedEarly, false)
   assert.equal(playerGameFromRow({ ...row, creditedGoals: 2 }).endedEarly, true)
+})
+
+void test('playerStreaks: points and goals runs of 3+, slumps of 8+ for forwards; extended or ended (spec 12.15-1)', () => {
+  const pts = many(2, { goals: 0, assists: 1 })
+  assert.deepEqual(playerStreaks(line({ assists: 1 }), TITLE, pts), [
+    { kind: 'points', games: 3, status: 'extended' },
+  ])
+  assert.deepEqual(playerStreaks(line({ assists: 1 }), TITLE, pts.slice(1)), [])
+  // A blank breaks the 3-game run.
+  assert.deepEqual(playerStreaks(line(), TITLE, many(3, { goals: 0, assists: 1 })), [
+    { kind: 'points', games: 3, status: 'ended' },
+  ])
+  // Goals: extended with points.
+  assert.deepEqual(playerStreaks(line({ goals: 1 }), TITLE, many(2, { goals: 1 })), [
+    { kind: 'points', games: 3, status: 'extended' },
+    { kind: 'goals', games: 3, status: 'extended' },
+  ])
+  // Slump: 8 games without a goal (this one included); a goal after 8 ends it.
+  const dry = many(7, { goals: 0, assists: 0 })
+  assert.deepEqual(playerStreaks(line(), TITLE, dry), [
+    { kind: 'noGoal', games: 8, status: 'extended' },
+  ])
+  assert.deepEqual(playerStreaks(line(), TITLE, dry.slice(1)), [])
+  assert.deepEqual(
+    playerStreaks(line({ goals: 1 }), TITLE, [...dry, pg({ goals: 0, assists: 0 })]),
+    [{ kind: 'noGoal', games: 8, status: 'ended' }],
+  )
+  // Defence: no slump; goalies: no streaks at all.
+  assert.deepEqual(playerStreaks(line({ position: 'D' }), TITLE, dry), [])
+  assert.deepEqual(
+    playerStreaks(line({ position: 'G', isGoalie: true, assists: 1 }), TITLE, pts),
+    [],
+  )
+  // DNF games and other titles are not in the run; all modes are.
+  const mixed = [
+    pg({ assists: 1 }),
+    pg({ result: 'DNF', assists: 0 }),
+    pg({ gameTitleId: 6, assists: 0 }),
+    pg({ gameMode: '3s', assists: 1 }),
+  ]
+  assert.deepEqual(playerStreaks(line({ assists: 1 }), TITLE, mixed), [
+    { kind: 'points', games: 3, status: 'extended' },
+  ])
+})
+
+void test('playerDebut and returnAfterDays (spec 12.15-3)', () => {
+  assert.equal(playerDebut(TITLE, [], false), 'club')
+  assert.equal(playerDebut(TITLE, [], true), 'title')
+  assert.equal(playerDebut(TITLE, [pg({ gameTitleId: 6 })], false), 'title')
+  assert.equal(playerDebut(TITLE, [pg({ result: 'DNF' })], false), null)
+  assert.equal(returnAfterDays([], '2026-06-01T01:00:00.000Z'), null)
+  assert.equal(
+    returnAfterDays([pg({ playedAt: '2026-05-02T01:00:00.000Z' })], '2026-06-01T01:00:00.000Z'),
+    30,
+  )
+  assert.equal(
+    returnAfterDays([pg({ playedAt: '2026-05-02T02:00:00.000Z' })], '2026-06-01T01:00:00.000Z'),
+    null,
+  )
+  // Through applyPlayerFacts: absent when not set.
+  const g = {
+    matchId: 77,
+    playedAt: '2026-06-01T01:00:00.000Z',
+    gameMode: '6s',
+    endedEarly: false,
+    players: [line()],
+  } as unknown as NewsGameFacts
+  const back = applyPlayerFacts(
+    [g],
+    new Map([[2, [pg({ gameTitleId: 6, playedAt: '2026-01-01T00:00:00.000Z' })]]]),
+    TITLE,
+  )
+  assert.equal(back[0]!.players[0]!.debut, 'title')
+  assert.equal(back[0]!.players[0]!.returnAfterDays, 151)
+  const regular = applyPlayerFacts(
+    [g],
+    new Map([[2, [pg({ playedAt: '2026-05-30T00:00:00.000Z' })]]]),
+    TITLE,
+  )
+  assert.equal('debut' in regular[0]!.players[0]!, false)
+  assert.equal('returnAfterDays' in regular[0]!.players[0]!, false)
+  const club = applyPlayerFacts([g], new Map([[2, [pg({ matchId: 77 })]]]), TITLE, new Set())
+  assert.equal(club[0]!.players[0]!.debut, 'club')
+  const archived = applyPlayerFacts([g], new Map([[2, [pg({ matchId: 77 })]]]), TITLE, new Set([2]))
+  assert.equal(archived[0]!.players[0]!.debut, 'title')
 })

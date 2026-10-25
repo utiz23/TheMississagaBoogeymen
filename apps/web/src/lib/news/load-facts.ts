@@ -21,6 +21,7 @@ import {
   listNewsNightMatches,
   listNewsNormGames,
   listNewsPlayerGames,
+  listNewsPlayersWithOtherSeasons,
   listNewsProfiles,
   listPlayerTitleTotals,
   listRecentNightSummaries,
@@ -311,31 +312,34 @@ async function loadSheet(
 
   const namedIds = people.map((p) => p.playerId)
   const nameById = new Map(people.map((p) => [p.playerId, p.name]))
-  const [results, totals, events, recent, normGames, playerGames] = await Promise.all([
-    listTitleResultsUpTo(gameTitleId, last.match.id),
-    listPlayerTitleTotals({
-      gameTitleId,
-      playerIds: namedIds,
-      firstMatchId: first.match.id,
-      lastMatchId: last.match.id,
-    }),
-    listNewsCardEvents({
-      gameTitleId,
-      playerIds: namedIds,
-      firstMatchId: first.match.id,
-      lastMatchId: last.match.id,
-      afterMinutes: UNLOCK_WINDOW_AFTER_MINUTES,
-    }),
-    listRecentNightSummaries({
-      gameTitleId,
-      before: nightKey(first.match.playedAt),
-      limit: RECENT_NIGHTS,
-    }),
-    // Team norms (spec §12.10): the title's counted games before the sheet's first game.
-    listNewsNormGames({ gameTitleId, beforeMatchId: first.match.id }),
-    // Player facts (C2.3/C2.5): the named players' games in every title up to the sheet's last game.
-    listNewsPlayerGames({ playerIds: namedIds, lastMatchId: last.match.id }),
-  ])
+  const [results, totals, events, recent, normGames, playerGames, earlierSeasons] =
+    await Promise.all([
+      listTitleResultsUpTo(gameTitleId, last.match.id),
+      listPlayerTitleTotals({
+        gameTitleId,
+        playerIds: namedIds,
+        firstMatchId: first.match.id,
+        lastMatchId: last.match.id,
+      }),
+      listNewsCardEvents({
+        gameTitleId,
+        playerIds: namedIds,
+        firstMatchId: first.match.id,
+        lastMatchId: last.match.id,
+        afterMinutes: UNLOCK_WINDOW_AFTER_MINUTES,
+      }),
+      listRecentNightSummaries({
+        gameTitleId,
+        before: nightKey(first.match.playedAt),
+        limit: RECENT_NIGHTS,
+      }),
+      // Team norms (spec §12.10): the title's counted games before the sheet's first game.
+      listNewsNormGames({ gameTitleId, beforeMatchId: first.match.id }),
+      // Player facts (C2.3/C2.5): the named players' games in every title up to the sheet's last game.
+      listNewsPlayerGames({ playerIds: namedIds, lastMatchId: last.match.id }),
+      // Debuts (C2.5): who has a season in an earlier title.
+      listNewsPlayersWithOtherSeasons({ playerIds: namedIds, gameTitleId }),
+    ])
   const normed = applyNorms(
     games,
     loaded.map((g, i): NormGameInput => normInputOf(g, games[i]?.endedEarly ?? false)),
@@ -350,7 +354,7 @@ async function loadSheet(
     history.set(r.playerId, list)
   }
   const withContext = applyContext(
-    applyPlayerFacts(normed.games, history, gameTitleId),
+    applyPlayerFacts(normed.games, history, gameTitleId, earlierSeasons),
     normed.games.map(titleGameFromFacts),
     normGames.map(titleGameFromRow),
     { nightComplete: kind !== 'game' },

@@ -13,6 +13,9 @@
 // - firsts and approaching: title-wide, every row (DNF too), like the title
 //   totals and the milestones.
 import {
+  RETURN_MIN_DAYS,
+  SLUMP_MIN,
+  STREAK_MIN,
   PLAYER_NORM_MIN_GAMES,
   PLAYER_NORM_STATS,
   emptyPlayerExtras,
@@ -21,6 +24,7 @@ import {
   type NewsGameFacts,
   type NewsPlayerLine,
   type NewsPlayerNorm,
+  type NewsPlayerStreak,
   type NewsPosition,
   type PlayerBest,
   type PlayerFirst,
@@ -278,6 +282,70 @@ export function playerApproaching(totals: {
   return out
 }
 
+/** The length of the run of `hit` games at the newest end of `games`. */
+function runAtEnd<T>(games: readonly T[], hit: (g: T) => boolean): number {
+  let n = 0
+  for (let i = games.length - 1; i >= 0 && hit(games[i]!); i--) n++
+  return n
+}
+
+/**
+ * Runs this game extended or ended (spec §12.15-1): counted games of this
+ * title, all modes, in order. Points and goals in N straight games (N >= 3);
+ * N games without a goal (N >= 8, forwards only). Goalie lines get none.
+ */
+export function playerStreaks(
+  line: NewsPlayerLine,
+  gameTitleId: number,
+  prior: readonly PlayerGameInput[],
+): NewsPlayerStreak[] {
+  if (line.position === 'G') return []
+  const title = prior.filter((g) => g.gameTitleId === gameTitleId && counted(g))
+  const out: NewsPlayerStreak[] = []
+  const run = (
+    kind: NewsPlayerStreak['kind'],
+    hitNow: boolean,
+    hit: (g: PlayerGameInput) => boolean,
+    min: number,
+  ) => {
+    const before = runAtEnd(title, hit)
+    if (hitNow && before + 1 >= min) out.push({ kind, games: before + 1, status: 'extended' })
+    if (!hitNow && before >= min) out.push({ kind, games: before, status: 'ended' })
+  }
+  run('points', line.points > 0, (g) => g.goals + g.assists > 0, STREAK_MIN)
+  run('goals', line.goals > 0, (g) => g.goals > 0, STREAK_MIN)
+  if (line.position === 'F') run('noGoal', line.goals === 0, (g) => g.goals === 0, SLUMP_MIN)
+  return out
+}
+
+/**
+ * `club`: no earlier game in any title and no season row (archive or EA) in
+ * an earlier title; `title`: no earlier game in this title. Every row counts
+ * (DNF too): a game logged is a game played.
+ */
+export function playerDebut(
+  gameTitleId: number,
+  prior: readonly PlayerGameInput[],
+  hasEarlierSeasons: boolean,
+): 'club' | 'title' | null {
+  if (prior.length === 0 && !hasEarlierSeasons) return 'club'
+  if (!prior.some((g) => g.gameTitleId === gameTitleId)) return 'title'
+  return null
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Whole days since the previous game in any title, when at least 30; else null. */
+export function returnAfterDays(
+  prior: readonly PlayerGameInput[],
+  playedAt: string,
+): number | null {
+  const last = prior[prior.length - 1]
+  if (last === undefined) return null
+  const days = Math.floor((Date.parse(playedAt) - Date.parse(last.playedAt)) / DAY_MS)
+  return days >= RETURN_MIN_DAYS ? days : null
+}
+
 /** The player's games strictly before this one (the row of this match and later ones dropped). */
 export function priorGames(
   history: readonly PlayerGameInput[],
@@ -286,6 +354,17 @@ export function priorGames(
   const i = history.findIndex((g) => g.matchId === game.matchId)
   if (i >= 0) return history.slice(0, i)
   return history.filter((g) => g.playedAt < game.playedAt)
+}
+
+/** The optional fields, only when set. */
+function optional(
+  debut: 'club' | 'title' | null,
+  days: number | null,
+): Pick<NewsPlayerLine, 'debut' | 'returnAfterDays'> {
+  return {
+    ...(debut === null ? {} : { debut }),
+    ...(days === null ? {} : { returnAfterDays: days }),
+  }
 }
 
 /**
@@ -297,6 +376,8 @@ export function applyPlayerFacts(
   games: readonly NewsGameFacts[],
   history: ReadonlyMap<number, readonly PlayerGameInput[]>,
   gameTitleId: number,
+  /** Players with a season row (archive or EA) in an earlier title (`listNewsPlayersWithOtherSeasons`). */
+  earlierSeasons: ReadonlySet<number> = new Set(),
 ): NewsGameFacts[] {
   return games.map((game) => ({
     ...game,
@@ -312,6 +393,11 @@ export function applyPlayerFacts(
         form: playerForm(line, norm, game, gameTitleId, prior),
         firsts: playerFirsts(line, gameTitleId, prior),
         approaching: playerApproaching(titleTotalsAfter(line, gameTitleId, prior)),
+        streaks: playerStreaks(line, gameTitleId, prior),
+        ...optional(
+          playerDebut(gameTitleId, prior, earlierSeasons.has(line.playerId)),
+          returnAfterDays(prior, game.playedAt),
+        ),
       }
     }),
   }))

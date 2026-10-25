@@ -58,6 +58,31 @@ export interface NewsPlayerLine {
   firsts: PlayerFirst[]
   /** Title milestones within 3 after this game (C2.3): "2 goals from 50". Numbers may be quoted. */
   approaching: NewsApproaching[]
+  /** Runs this game extended or ended (C2.5, spec §12.15-1). Numbers may be quoted. */
+  streaks: NewsPlayerStreak[]
+  /** `club`: the member's first game for the club; `title`: first game of this title (C2.5). Absent otherwise. */
+  debut?: 'club' | 'title'
+  /** Days since the member's previous game in any title, when 30 or more (C2.5). Absent otherwise. */
+  returnAfterDays?: number
+}
+
+/**
+ * A run (C2.5, spec §12.15-1) over the player's counted games of this title,
+ * all modes, up to and including this game: `points` / `goals` in N straight
+ * games (N >= 3), `noGoal` = N games without a goal (N >= 8, forwards only).
+ * `extended`: this game continued it (N counts this game); `ended`: this game
+ * broke it (N = the run's length before this game). Goalie lines get none.
+ */
+export const STREAK_KINDS = ['points', 'goals', 'noGoal'] as const
+export type StreakKind = (typeof STREAK_KINDS)[number]
+export const STREAK_MIN = 3
+export const SLUMP_MIN = 8
+/** A return: at least this many days since the previous game. */
+export const RETURN_MIN_DAYS = 30
+export interface NewsPlayerStreak {
+  kind: StreakKind
+  games: number
+  status: 'extended' | 'ended'
 }
 
 /**
@@ -142,9 +167,9 @@ export interface NewsApproaching {
 /** The C2 fields of a player line with nothing in them (older web apps, builders, fixtures). */
 export function emptyPlayerExtras(): Pick<
   NewsPlayerLine,
-  'norm' | 'bests' | 'form' | 'firsts' | 'approaching'
+  'norm' | 'bests' | 'form' | 'firsts' | 'approaching' | 'streaks'
 > {
-  return { norm: null, bests: [], form: null, firsts: [], approaching: [] }
+  return { norm: null, bests: [], form: null, firsts: [], approaching: [], streaks: [] }
 }
 
 /** A period as the match page names it. EASHL has no shootout: periods 4-6 are OT, OT2, OT3. */
@@ -557,6 +582,23 @@ function parsePlayerLine(v: unknown, path: string): NewsPlayerLine {
     approaching: opt(o, 'approaching', [], () =>
       arr(o['approaching'], `${path}.approaching`, parseApproaching),
     ),
+    // C2.5; missing reads as none; the optional ones stay absent.
+    streaks: opt(o, 'streaks', [], () => arr(o['streaks'], `${path}.streaks`, parseStreakRun)),
+    ...(o['debut'] === undefined
+      ? {}
+      : { debut: oneOf(o['debut'], `${path}.debut`, ['club', 'title']) }),
+    ...(o['returnAfterDays'] === undefined
+      ? {}
+      : { returnAfterDays: nonNegInt(o['returnAfterDays'], `${path}.returnAfterDays`) }),
+  }
+}
+
+function parseStreakRun(v: unknown, path: string): NewsPlayerStreak {
+  const o = obj(v, path)
+  return {
+    kind: oneOf(o['kind'], `${path}.kind`, STREAK_KINDS),
+    games: nonNegInt(o['games'], `${path}.games`),
+    status: oneOf(o['status'], `${path}.status`, ['extended', 'ended']),
   }
 }
 

@@ -64,6 +64,7 @@ function sample(): NewsFactsResponse {
               form: null,
               firsts: [],
               approaching: [],
+              streaks: [],
             },
             {
               playerId: 9,
@@ -85,6 +86,7 @@ function sample(): NewsFactsResponse {
               form: null,
               firsts: [],
               approaching: [],
+              streaks: [],
             },
           ],
           aiGoalieInNet: false,
@@ -850,4 +852,30 @@ void test('contract: player labels, bests, form and firsts have a fixed vocabula
     (p) => (p['approaching'] = [{ stat: 'hits', value: 50, remaining: 2 }]),
     /approaching\[0\]\.stat/,
   )
+})
+
+void test('contract: streaks, debut and return round-trip; missing ones read as none or stay absent (C2.5)', () => {
+  const s = sample()
+  const p = s.facts.games[0]!.players[0]!
+  p.streaks = [
+    { kind: 'points', games: 5, status: 'extended' },
+    { kind: 'noGoal', games: 9, status: 'ended' },
+  ]
+  p.debut = 'title'
+  p.returnAfterDays = 41
+  assert.deepEqual(parseNewsFactsResponse(clone(s)), s)
+  const none = parseNewsFactsResponse(sample()).facts.games[0]!.players[0]!
+  assert.equal('debut' in none, false)
+  assert.equal('returnAfterDays' in none, false)
+  const old = clone(sample()) as unknown as {
+    facts: { games: { players: Record<string, unknown>[] }[] }
+  }
+  delete old.facts.games[0]!.players[0]!['streaks']
+  assert.deepEqual(parseNewsFactsResponse(old).facts.games[0]!.players[0]!.streaks, [])
+  const bad = clone(s) as unknown as { facts: { games: { players: Record<string, unknown>[] }[] } }
+  bad.facts.games[0]!.players[0]!['debut'] = 'league'
+  assert.throws(() => parseNewsFactsResponse(bad), /debut/)
+  bad.facts.games[0]!.players[0]!['debut'] = 'club'
+  bad.facts.games[0]!.players[0]!['streaks'] = [{ kind: 'assists', games: 3, status: 'extended' }]
+  assert.throws(() => parseNewsFactsResponse(bad), /streaks\[0\]\.kind/)
 })
