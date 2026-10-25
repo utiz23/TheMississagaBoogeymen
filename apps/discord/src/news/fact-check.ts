@@ -507,3 +507,92 @@ export function checkFeatureFacts(
   const unique = [...new Set(problems)]
   return unique.length === 0 ? { ok: true } : { ok: false, problems: unique }
 }
+
+/**
+ * Drama a piece may claim only when a label or fact on the sheet supports it
+ * (C2, spec §12.16: "no drama a label does not support"). Case-insensitive.
+ * - "career high" (also "career-high"): a line's `bests` has a career high;
+ * - "season high": a line's `bests` has a season or career high;
+ * - "slump" (slumps, slumped, slumping): a line's `noGoal` streak or a
+ *   `player-slump` thread;
+ * - "upset" (upsets, "big upset"): a game whose `context.surprise` is not
+ *   `expected` (also catches "upset" as a feeling: rephrase);
+ * - "panic": a game whose `context.result` is `panic`;
+ * - "blowout": a game whose `context.margin` is `blowout`;
+ * - "first ... of the season" (up to 40 characters between, one sentence): a
+ *   line's `firsts` or a title `debut`;
+ * - "record" as an achievement ("club/team/franchise/all-time/new/single-season
+ *   record", "record-breaking", "set/broke ... record"): a game's `newRecords`.
+ *   A plain record such as "a 12-3-1 record" is not a claim.
+ * C3 wires this into the checks.
+ */
+export const LABEL_CLAIMS: readonly {
+  phrase: string
+  pattern: RegExp
+  supported: (facts: NewsFacts) => boolean
+  problem: string
+}[] = [
+  {
+    phrase: 'career high',
+    pattern: /\bcareer[- ]highs?\b/i,
+    supported: (f) => lines(f).some((p) => p.bests.some((b) => b.startsWith('career high'))),
+    problem: 'It says "career high", but no line on the fact sheet has a career high.',
+  },
+  {
+    phrase: 'season high',
+    pattern: /\bseason[- ]highs?\b/i,
+    supported: (f) => lines(f).some((p) => p.bests.length > 0),
+    problem: 'It says "season high", but no line on the fact sheet has a season or career high.',
+  },
+  {
+    phrase: 'slump',
+    pattern: /\bslump(s|ed|ing)?\b/i,
+    supported: (f) =>
+      lines(f).some((p) => p.streaks.some((s) => s.kind === 'noGoal')) ||
+      f.threads.some((t) => t.kind === 'player-slump'),
+    problem: 'It says "slump", but the fact sheet has no slump (8+ games without a goal).',
+  },
+  {
+    phrase: 'upset',
+    pattern: /\bupsets?\b/i,
+    supported: (f) => f.games.some((g) => g.context !== null && g.context.surprise !== 'expected'),
+    problem: 'It says "upset", but no game on the fact sheet is labelled an upset.',
+  },
+  {
+    phrase: 'panic',
+    pattern: /\bpanic(s|ked|king)?\b/i,
+    supported: (f) => f.games.some((g) => g.context?.result === 'panic'),
+    problem: 'It says "panic", but no game on the fact sheet has the panic label.',
+  },
+  {
+    phrase: 'blowout',
+    pattern: /\bblow-?outs?\b/i,
+    supported: (f) => f.games.some((g) => g.context?.margin === 'blowout'),
+    problem: 'It says "blowout", but no game on the fact sheet is labelled a blowout.',
+  },
+  {
+    phrase: 'first ... of the season',
+    pattern: /\bfirst\b[^.!?]{0,40}\bof the season\b/i,
+    supported: (f) => lines(f).some((p) => p.firsts.length > 0 || p.debut === 'title'),
+    problem:
+      'It says "first ... of the season", but no line on the fact sheet has a season first or a title debut.',
+  },
+  {
+    phrase: 'record',
+    pattern:
+      /\b(club|team|franchise|all-time|new|single-season)\s+records?\b|\brecord[- ](breaking|setting|breaker)\b|\b(set|sets|setting|broke|breaks|breaking|smashed|smashes|tied|ties)\s+(a|the|his|their)\s+(\w+\s+){0,2}records?\b/i,
+    supported: (f) => f.games.some((g) => g.newRecords.length > 0),
+    problem: 'It claims a record, but no new club record is on the fact sheet.',
+  },
+]
+
+function lines(f: NewsFacts) {
+  return f.games.flatMap((g) => g.players)
+}
+
+/** The problems for drama the sheet's labels do not support (`LABEL_CLAIMS`). */
+export function labelClaims(text: string, facts: NewsFacts): string[] {
+  return LABEL_CLAIMS.filter((c) => c.pattern.test(text) && !c.supported(facts)).map(
+    (c) => c.problem,
+  )
+}

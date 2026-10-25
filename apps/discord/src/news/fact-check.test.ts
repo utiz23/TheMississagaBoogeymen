@@ -6,6 +6,7 @@ import {
   checkArticleFacts,
   checkFacts,
   checkFeatureFacts,
+  labelClaims,
 } from './fact-check.ts'
 import { oct12Facts } from './test-fixtures.ts'
 
@@ -623,4 +624,61 @@ void test('ranked facts: the text may be quoted; the id and the weight are not s
   assert.equal(a.has(77), false)
   assert.equal(a.has(83), false)
   assert.equal(a.has(90001), false)
+})
+
+void test('labelClaims: drama only when a label supports it (C2)', () => {
+  const plain = oct12Facts('game')
+  const claims = [
+    'A career-high night for Skater A.',
+    'His season high in shots.',
+    'The slump goes on.',
+    'What an upset.',
+    'Time to panic.',
+    'A blowout.',
+    'His first goal of the season came late.',
+    'A new club record for Skater A.',
+    'He broke the club scoring record.',
+  ]
+  for (const t of claims) assert.equal(labelClaims(t, plain).length, 1, t)
+  // A plain win-loss record and ordinary words are not claims.
+  assert.deepEqual(
+    labelClaims('They are 9-11-1 on the record this title, first in shots.', plain),
+    [],
+  )
+  assert.deepEqual(labelClaims('The first period of the game; the season goes on.', plain), [])
+
+  // A deep copy: the fixture's game objects are shared.
+  const f = structuredClone(oct12Facts('game'))
+  const g = f.games[0]!
+  const p = g.players[0]!
+  p.bests = ['career high shots']
+  p.streaks = [{ kind: 'noGoal', games: 9, status: 'extended' }]
+  p.firsts = ['first goal of the season']
+  g.context = {
+    result: 'panic',
+    streakBefore: { kind: 'L', count: 4 },
+    streakAfter: { kind: 'L', count: 5 },
+    last10: { wins: 2, losses: 7, otl: 1 },
+    margin: 'blowout',
+    surprise: 'big upset',
+    night: [],
+  }
+  g.newRecords = [{ stat: 'goals', name: 'Skater A', value: 62 }]
+  for (const t of claims) assert.deepEqual(labelClaims(t, f), [], t)
+  // A season high is supported by a career high too; a slump by a thread alone.
+  const t = oct12Facts('game')
+  t.threads = [
+    {
+      key: 'player-slump:1@2026-10-01',
+      kind: 'player-slump',
+      subject: 'Skater A',
+      since: '2026-10-01',
+      status: 'open',
+      summary: 'Skater A: no goal in 9 games',
+    },
+  ]
+  assert.deepEqual(labelClaims('The slump.', t), [])
+  assert.deepEqual(labelClaims('A career high.', plain), [
+    'It says "career high", but no line on the fact sheet has a career high.',
+  ])
 })
