@@ -46,7 +46,7 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 ## Latest Verified Checkpoint
 
-**Latest web 2026-10-24: nav drop-downs** (`d2627da`, `:rollback-he-2026-10-24-pre-nav-menus`). Before: design imports `6745609` (`:rollback-he-2026-10-21-pre-redesigns`), Next.js 15.5.28 `b366d19` (`:rollback-he-2026-10-21-pre-next-sec`). [Journal](docs/journal/2026-10.md).
+**Latest web 2026-10-24: gamertag URLs + round nav picture** (`a85e5d0`, `:rollback-he-2026-10-24-pre-round-pfp`). Before: nav drop-downs `d2627da` (`:…-pre-nav-menus`), design imports `6745609` (`:…-2026-10-21-pre-redesigns`). [Journal](docs/journal/2026-10.md).
 
 **2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean.
 
