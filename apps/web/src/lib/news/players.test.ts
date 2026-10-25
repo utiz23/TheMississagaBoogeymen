@@ -382,3 +382,12 @@ void test('playerStreaks: with 10+ earlier games the run must be unlikely at his
   const rare = [...Array.from({ length: 8 }, zero), goal(), goal()]
   assert.deepEqual(slump(rare, 7), [])
 })
+
+void test('playerLabel: goals and assists need the 90th percentile and 1 above the average (C2 fix M10)', () => {
+  const sample = [1, 1, 1, 1, 1, 1, 1, 1, 1, 2] // mean 1.1, p80 1, p90 1.1
+  assert.equal(playerLabel(2, sample, 'goals', 'F'), 'typical')
+  assert.equal(playerLabel(2, sample, 'assists', 'F'), 'typical')
+  assert.equal(playerLabel(3, sample, 'goals', 'F'), 'big for him')
+  // Points, shots and hits keep the 80th percentile.
+  assert.equal(playerLabel(2, sample, 'points', 'F'), 'big for him')
+})

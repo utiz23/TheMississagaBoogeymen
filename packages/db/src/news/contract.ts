@@ -174,9 +174,10 @@ export const PLAYER_NORM_STATS = ['goals', 'assists', 'points', 'shots', 'hits']
 export type PlayerNormStat = (typeof PLAYER_NORM_STATS)[number]
 export const PLAYER_NORM_MIN_GAMES = 10
 /**
- * Against the player's own sample: above his 80th percentile = `big for him`,
- * under his 20th = `quiet for him` (never on shots for a D or G), else
- * `typical`.
+ * Against the player's own sample: above his 80th percentile = `big for him`
+ * (goals and assists: above his 90th percentile and at least 1 above his
+ * average, C2 fix M10), under his 20th = `quiet for him` (never on shots for
+ * a D or G), else `typical`.
  */
 export const PLAYER_LABELS = ['typical', 'big for him', 'quiet for him'] as const
 export type PlayerLabel = (typeof PLAYER_LABELS)[number]

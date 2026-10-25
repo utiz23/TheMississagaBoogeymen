@@ -82,6 +82,9 @@ export function playerGameFromRow(r: NewsPlayerGame): PlayerGameInput {
 
 const LOW_Q = 0.2
 const HIGH_Q = 0.8
+/** Goals and assists (C2 fix M10): above the 90th percentile and at least 1 above the average. */
+export const SCORING_HIGH_Q = 0.9
+export const SCORING_MIN_GAP = 1
 /** A season high needs this many earlier games of the title in the mode. */
 export const SEASON_HIGH_MIN_GAMES = 5
 /** A career high needs this many earlier games in the mode, every title. */
@@ -128,7 +131,11 @@ export function playerLabel(
   position: NewsPosition,
 ): PlayerLabel {
   const sorted = [...sample].sort((a, b) => a - b)
-  if (value > percentile(sorted, HIGH_Q)) return 'big for him'
+  const scoring = stat === 'goals' || stat === 'assists'
+  const big = scoring
+    ? value > percentile(sorted, SCORING_HIGH_Q) && value - mean(sample) >= SCORING_MIN_GAP
+    : value > percentile(sorted, HIGH_Q)
+  if (big) return 'big for him'
   if (value < percentile(sorted, LOW_Q) && !(stat === 'shots' && position !== 'F')) {
     return 'quiet for him'
   }
