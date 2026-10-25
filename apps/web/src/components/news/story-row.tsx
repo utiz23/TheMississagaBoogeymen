@@ -14,8 +14,10 @@ export function StoryRow({ item }: { item: FeedItem }) {
       <ReporterAvatar reporter={item.reporter} />
       <div className="min-w-0 flex-1 space-y-1">
         <Kicker>{KICKERS[item.reporter]}</Kicker>
-        <h3 className="font-condensed text-xl font-bold leading-snug text-fg-1">{item.headline}</h3>
-        {item.dek !== null && <p className="text-sm text-fg-3">{item.dek}</p>}
+        <h3 className="break-words font-condensed text-xl font-bold leading-snug text-fg-1">
+          {item.headline}
+        </h3>
+        {item.dek !== null && <p className="break-words text-sm text-fg-3">{item.dek}</p>}
         <p className="text-xs text-fg-5 sm:hidden">
           {byline} · {item.dateLabel}
         </p>

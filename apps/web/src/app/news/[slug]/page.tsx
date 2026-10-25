@@ -59,10 +59,10 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ sl
           {KICKERS[article.reporter]}
           {when}
         </Kicker>
-        <h1 className="font-condensed text-3xl font-black leading-tight text-fg-1 sm:text-5xl">
+        <h1 className="break-words font-condensed text-3xl font-black leading-tight text-fg-1 sm:text-5xl">
           {article.headline}
         </h1>
-        {article.dek !== null && <p className="text-lg text-fg-2">{article.dek}</p>}
+        {article.dek !== null && <p className="break-words text-lg text-fg-2">{article.dek}</p>}
         <div className="flex items-center gap-3">
           <ReporterAvatar reporter={article.reporter} />
           <p className="text-sm text-fg-3">
@@ -79,7 +79,7 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ sl
         <ScoreChips chips={scoreChips(article.facts)} />
         <div className="space-y-4 border-t border-border-subtle pt-4 text-fg-2">
           {paragraphs.map((p, i) => (
-            <p key={i} className="leading-relaxed">
+            <p key={i} className="break-words leading-relaxed">
               <NewsText text={p} mentions={article.mentions} />
             </p>
           ))}

@@ -22,7 +22,7 @@ export function LeadStory({ article }: { article: NewsItemRow }) {
   const when = article.night !== null ? ` · ${dayKeyLabelWithWeekday(article.night)}` : ''
   const href = article.slug === null ? null : `/news/${article.slug}`
   const headline = (
-    <h2 className="font-condensed text-3xl font-black leading-tight text-fg-1 sm:text-5xl">
+    <h2 className="break-words font-condensed text-3xl font-black leading-tight text-fg-1 sm:text-5xl">
       {article.headline}
     </h2>
   )
@@ -39,7 +39,7 @@ export function LeadStory({ article }: { article: NewsItemRow }) {
           {headline}
         </Link>
       )}
-      {article.dek !== null && <p className="text-lg text-fg-2">{article.dek}</p>}
+      {article.dek !== null && <p className="break-words text-lg text-fg-2">{article.dek}</p>}
       <div className="flex items-center gap-3">
         <ReporterAvatar reporter={article.reporter} />
         <p className="text-sm text-fg-3">
@@ -56,7 +56,7 @@ export function LeadStory({ article }: { article: NewsItemRow }) {
       <ScoreChips chips={scoreChips(article.facts)} />
       <div className="space-y-3 border-t border-border-subtle pt-4 text-fg-2">
         {paragraphs.slice(0, LEAD_PARAGRAPHS).map((p, i) => (
-          <p key={i}>
+          <p key={i} className="break-words">
             <NewsText text={p} mentions={article.mentions} />
           </p>
         ))}

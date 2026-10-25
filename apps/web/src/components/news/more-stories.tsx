@@ -48,6 +48,8 @@ export function MoreStories({
   useEffect(() => {
     const el = sentinel.current
     if (el === null || before === null || failed) return
+    // No IntersectionObserver (old browser): the button still works.
+    if (typeof IntersectionObserver === 'undefined') return
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) void loadMore()
