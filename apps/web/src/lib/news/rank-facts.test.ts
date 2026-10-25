@@ -383,3 +383,29 @@ void test('rankFacts: on a night sheet a running fact keeps only its latest stat
   assert.ok(t.includes('Team time on attack 600 s: unusually low'))
   assert.ok(t.includes('Team pass completion 75.5%: unusually high'))
 })
+
+void test('rankFacts: negative facts about a Go easy member weigh half; positive ones do not change (C2 fix M12)', () => {
+  const p = line({
+    playerId: 3,
+    name: 'Erb',
+    assists: 2,
+    streaks: [{ kind: 'noGoal', games: 12, status: 'extended' }],
+    form: 'cooling off',
+    firsts: ['first assist of the season'],
+  })
+  const weights = (level: 'full' | 'easy') => {
+    const f = rankFacts(
+      sheet([game({ players: [p] })], {
+        people: [{ playerId: 3, name: 'Erb', pressLevel: level }],
+      }),
+    )
+    return Object.fromEntries(f.map((x) => [x.id.replace(/^g\d+:p\d+:/, ''), x.weight]))
+  }
+  const full = weights('full')
+  const easy = weights('easy')
+  assert.equal(full['streak:noGoal:extended'], 22)
+  assert.equal(easy['streak:noGoal:extended'], 11)
+  assert.equal(full['form'], 12)
+  assert.equal(easy['form'], 6)
+  assert.equal(easy['first assist of the season'], full['first assist of the season'])
+})

@@ -25,6 +25,8 @@
 //     8  chemistry; unusual team numbers; quiet nights; shots/hits big
 //     5  an ended-early game; unlocks
 //     2  a pattern held as usual
+//   x0.5  a negative fact (quiet night, slump, a run ended, cooling off) about
+//         a member at press level "easy" (C2 fix M12)
 import type {
   NewsFacts,
   NewsGameFacts,
@@ -93,7 +95,17 @@ const STAT_WORD: Record<PlayerNormStat, [string, string]> = {
 }
 const statText = (k: PlayerNormStat, v: number) => `${s(v)} ${STAT_WORD[k][v === 1 ? 0 : 1]}`
 
-type Push = (id: string, text: string, weight: number, subject: string | null) => void
+/** `negative`: a fact against the subject (down-weighted for a member at Go easy, C2 fix M12). */
+type Push = (
+  id: string,
+  text: string,
+  weight: number,
+  subject: string | null,
+  negative?: boolean,
+) => void
+
+/** A negative fact about a member at press level "easy" weighs this much of its weight. */
+export const EASY_NEGATIVE_FACTOR = 0.5
 
 function lineValue(p: NewsPlayerLine, k: PlayerNormStat): number | null {
   return k === 'points' ? p.points : p[k]
@@ -134,6 +146,7 @@ function playerFacts(g: NewsGameFacts, p: NewsPlayerLine, push: Push, titleName:
           `${who}: ${statText(k, v)}${vs} — quiet for him (${scope} ${s(avg)} over ${s(norm.games)} games)`,
           k === 'points' ? 8 : 4,
           who,
+          true,
         )
       }
     }
@@ -173,14 +186,19 @@ function playerFacts(g: NewsGameFacts, p: NewsPlayerLine, push: Push, titleName:
           ? [`${who}: ${what}s in ${s(n)} straight games`, (st.kind === 'goals' ? 20 : 15) + 3 * n]
           : [`${who}: ${s(n)}-game ${what} streak ended`, (st.kind === 'goals' ? 8 : 10) + n]
     }
-    push(id(`streak:${st.kind}:${st.status}`), text, w, who)
+    // A slump going on, or a run that ended, is against him.
+    const negative = st.kind === 'noGoal' ? st.status === 'extended' : st.status === 'ended'
+    push(id(`streak:${st.kind}:${st.status}`), text, w, who, negative)
   }
   if (p.debut === 'club') push(id('debut'), `${who}: first game for the club`, 30, who)
   if (p.debut === 'title') push(id('debut'), `${who}: first game of ${titleName}`, 15, who)
   if (p.returnAfterDays !== undefined) {
     push(id('return'), `${who}: back after ${s(p.returnAfterDays)} days`, 20, who)
   }
-  if (p.form !== null) push(id('form'), `${who}: ${p.form}`, p.form === 'heating up' ? 18 : 12, who)
+  if (p.form !== null) {
+    const hot = p.form === 'heating up'
+    push(id('form'), `${who}: ${p.form}`, hot ? 18 : 12, who, !hot)
+  }
   for (const a of p.approaching) {
     const word = a.stat === 'games' ? 'game' : a.stat.slice(0, -1)
     push(
@@ -326,10 +344,13 @@ function gameFacts(facts: NewsFacts, g: NewsGameFacts, push: Push): void {
 export function rankFacts(facts: NewsFacts): NewsTopFact[] {
   const out: NewsTopFact[] = []
   const seen = new Set<string>()
-  const push: Push = (id, text, weight, subject) => {
+  const easy = new Set(facts.people.filter((p) => p.pressLevel === 'easy').map((p) => p.name))
+  const push: Push = (id, text, weight, subject, negative = false) => {
     if (seen.has(id)) return
     seen.add(id)
-    out.push({ id, text, weight: round(weight), subject })
+    const w =
+      negative && subject !== null && easy.has(subject) ? weight * EASY_NEGATIVE_FACTOR : weight
+    out.push({ id, text, weight: round(w), subject })
   }
   for (const g of facts.games) gameFacts(facts, g, push)
   for (const m of facts.milestones) {
@@ -346,6 +367,9 @@ export function rankFacts(facts: NewsFacts): NewsTopFact[] {
       `Thread (${t.status === 'open' ? 'open' : 'closed tonight'}): ${t.summary}`,
       t.status === 'open' ? 20 : 45,
       t.subject,
+      // A player's slump still going, or his hot run that ended, is against him.
+      (t.kind === 'player-slump' && t.status === 'open') ||
+        (t.kind === 'player-hot' && t.status === 'closed-tonight'),
     )
   }
   for (const u of facts.unlocks)
