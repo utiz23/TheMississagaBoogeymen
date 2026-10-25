@@ -11,6 +11,7 @@ import {
   NAME_MAX,
   NATIONALITIES,
   POSITIONS,
+  PRESS_LEVEL_LOADED_FIELD,
   PRESS_LEVEL_OPTIONS,
   ROLE_MAX,
   type ProfileField,
@@ -151,6 +152,8 @@ export function ProfileEditor({
           </Field>
 
           <Field label="Press coverage" error={errors.pressLevel}>
+            {/* The level this form opened with: the server ignores a level change when it moved since. */}
+            <input type="hidden" name={PRESS_LEVEL_LOADED_FIELD} value={values.pressLevel} />
             <select
               name="pressLevel"
               defaultValue={values.pressLevel}

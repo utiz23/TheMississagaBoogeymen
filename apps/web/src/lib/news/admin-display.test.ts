@@ -1,6 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { itemPreview, monthlyLimitUsd, pressLevelSetByLabel } from './admin-display.ts'
+import {
+  adminItemHref,
+  parseAdminItemId,
+  itemPreview,
+  monthlyLimitUsd,
+  pressLevelSetByLabel,
+} from './admin-display.ts'
 
 void test('the monthly limit defaults to 10 unless a positive number is set', () => {
   assert.equal(monthlyLimitUsd(undefined), 10)
@@ -24,4 +30,13 @@ void test('press level source labels', () => {
   assert.equal(pressLevelSetByLabel('admin'), 'set by you')
   assert.equal(pressLevelSetByLabel('self'), 'by the player')
   assert.equal(pressLevelSetByLabel(null), 'default')
+})
+
+void test('parseAdminItemId: digits only, positive, safe integer', () => {
+  assert.equal(parseAdminItemId('42'), 42)
+  assert.equal(parseAdminItemId('1'), 1)
+  for (const bad of ['0', '-1', '1.5', '01', 'abc', '', ' 4', '4 ', '99999999999999999']) {
+    assert.equal(parseAdminItemId(bad), null, bad)
+  }
+  assert.equal(adminItemHref(7), '/admin/news/7')
 })

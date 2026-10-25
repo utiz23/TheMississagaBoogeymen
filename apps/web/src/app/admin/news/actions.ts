@@ -1,9 +1,16 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { setNewsEnabled, setPressLevel, softDeleteNewsItem } from '@eanhl/db/queries'
+import {
+  getNewsEnabled,
+  setNewsEnabled,
+  setPressLevel,
+  skipNewsBacklog,
+  softDeleteNewsItem,
+} from '@eanhl/db/queries'
 import { PRESS_LEVELS, type PressLevel } from '@eanhl/db/schema'
 import { requireAdmin } from '@/lib/auth'
+import { switchNewsDesk } from '@/lib/news/switch'
 import { pressLevelSetBy } from '@/lib/profile-edit'
 
 /**
@@ -17,9 +24,15 @@ function refresh(): void {
   revalidatePath('/admin/news')
 }
 
+/** Switching on after off skips the recent backlog first (nothing about the time it was off). */
 export async function setNewsEnabledAction(on: boolean): Promise<void> {
   await requireAdmin()
-  await setNewsEnabled(on === true)
+  await switchNewsDesk(on === true, {
+    getEnabled: getNewsEnabled,
+    setEnabled: setNewsEnabled,
+    skipBacklog: skipNewsBacklog,
+    now: () => new Date(),
+  })
   refresh()
 }
 
@@ -28,6 +41,7 @@ export async function deleteNewsItemAction(id: number): Promise<void> {
   if (!Number.isInteger(id) || id < 1) return
   await softDeleteNewsItem(id)
   refresh()
+  revalidatePath(`/admin/news/${String(id)}`)
 }
 
 export async function setPressLevelAction(formData: FormData): Promise<void> {

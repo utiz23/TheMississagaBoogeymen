@@ -18,7 +18,12 @@ import {
 import { AUTH_BUTTON_PRIMARY } from '@/components/auth/auth-panel'
 import { requireAdmin } from '@/lib/auth'
 import { formatClubDateTime } from '@/lib/format'
-import { itemPreview, monthlyLimitUsd, pressLevelSetByLabel } from '@/lib/news/admin-display'
+import {
+  adminItemHref,
+  itemPreview,
+  monthlyLimitUsd,
+  pressLevelSetByLabel,
+} from '@/lib/news/admin-display'
 import { PRESS_LEVEL_OPTIONS } from '@/lib/profile-edit'
 import { deleteNewsItemAction, setNewsEnabledAction, setPressLevelAction } from './actions'
 
@@ -47,7 +52,7 @@ export default async function AdminNewsPage() {
 
       <AdminSection
         title="News desk on/off"
-        description="Off: the desk writes nothing new. Items already posted stay on the site."
+        description="Off: the desk writes nothing new. Items already posted stay on the site. Switching on skips the games, nights and weeks of the last 3 days, so the desk never writes about the time it was off."
       >
         <div className="flex flex-wrap items-center gap-4">
           <p className="text-sm text-fg-2">
@@ -83,7 +88,7 @@ export default async function AdminNewsPage() {
 
       <AdminSection
         title="Recent items"
-        description="The newest 50, with test and deleted items. Deleting hides an item from the site now and removes its Discord message on the next pass."
+        description="The newest 50, with test and deleted items. Open an item to read all of it. Deleting hides an item (and its replies) from the site now and removes the Discord message on the next pass. A deleted item stays in the database."
       >
         {items.length === 0 ? (
           <p className="text-sm text-fg-4">Nothing written yet.</p>
@@ -125,17 +130,13 @@ export default async function AdminNewsPage() {
                       </td>
                       <td className={ADMIN_TD}>{item.discordStatus}</td>
                       <td className={`${ADMIN_TD} max-w-[320px]`}>
-                        {item.kind === 'article' && item.slug !== null ? (
-                          <Link
-                            prefetch
-                            href={`/news/${item.slug}`}
-                            className="text-fg-1 hover:underline"
-                          >
-                            {preview}
-                          </Link>
-                        ) : (
-                          preview
-                        )}
+                        <Link
+                          prefetch
+                          href={adminItemHref(item.id)}
+                          className="text-fg-1 hover:underline"
+                        >
+                          {preview}
+                        </Link>
                       </td>
                       <td className={`${ADMIN_TD} text-right`}>
                         {!deleted && (
@@ -150,9 +151,11 @@ export default async function AdminNewsPage() {
                               action={deleteNewsItemAction.bind(null, item.id)}
                               className="mt-2 flex flex-col items-end gap-2"
                             >
-                              <span className="text-xs text-fg-3">Delete this item for good?</span>
+                              <span className="text-xs text-fg-3">
+                                Hide this item from the site and remove it from Discord?
+                              </span>
                               <button type="submit" className={ADMIN_SMALL_BUTTON}>
-                                Yes, delete
+                                Yes, hide it
                               </button>
                             </form>
                           </details>

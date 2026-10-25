@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseProfileForm, pressLevelSetBy, withPressLevelChange } from './profile-edit.ts'
+import {
+  parseLoadedPressLevel,
+  parseProfileForm,
+  pressLevelSetBy,
+  withPressLevelChange,
+} from './profile-edit.ts'
 
 const form = (values: Record<string, string>) => (name: string) => values[name] ?? null
 
@@ -135,20 +140,27 @@ void test('press level is set by the admin only on another player', () => {
 
 void test('a save that keeps the press level leaves level and set-by out of the patch', () => {
   const patch = { bio: 'Hi', pressLevel: 'easy' as const }
-  const out = withPressLevelChange(patch, 'easy', { role: 'user', playerId: 5 }, 5)
+  const out = withPressLevelChange(patch, 'easy', 'easy', { role: 'user', playerId: 5 }, 5)
   assert.deepEqual(out, { bio: 'Hi' })
-  const admin = withPressLevelChange(patch, 'easy', { role: 'admin', playerId: 2 }, 5)
+  const admin = withPressLevelChange(patch, 'easy', 'easy', { role: 'admin', playerId: 2 }, 5)
   assert.deepEqual(admin, { bio: 'Hi' })
 })
 
 void test('a changed press level is stamped self for the player', () => {
-  const out = withPressLevelChange({ pressLevel: 'out' }, 'full', { role: 'user', playerId: 5 }, 5)
+  const out = withPressLevelChange(
+    { pressLevel: 'out' },
+    'full',
+    'full',
+    { role: 'user', playerId: 5 },
+    5,
+  )
   assert.deepEqual(out, { pressLevel: 'out', pressLevelSetBy: 'self' })
 })
 
 void test('a changed press level is stamped admin when an admin edits another player', () => {
   const out = withPressLevelChange(
     { pressLevel: 'easy' },
+    'full',
     'full',
     { role: 'admin', playerId: 2 },
     5,
@@ -157,6 +169,35 @@ void test('a changed press level is stamped admin when an admin edits another pl
 })
 
 void test('a patch without a press level stays without one', () => {
-  const out = withPressLevelChange({ bio: 'x' }, 'full', { role: 'user', playerId: 5 }, 5)
+  const out = withPressLevelChange({ bio: 'x' }, 'full', 'full', { role: 'user', playerId: 5 }, 5)
   assert.deepEqual(out, { bio: 'x' })
+})
+
+void test('a stale form (level changed since it was opened) keeps the stored level', () => {
+  // The member opened the form at "full"; an admin set "out" meanwhile; the member saves a bio.
+  const out = withPressLevelChange(
+    { bio: 'new', pressLevel: 'full' },
+    'out',
+    'full',
+    { role: 'user', playerId: 5 },
+    5,
+  )
+  assert.deepEqual(out, { bio: 'new' })
+  // A form without the loaded level never changes the level either.
+  const old = withPressLevelChange(
+    { pressLevel: 'easy' },
+    'full',
+    null,
+    { role: 'user', playerId: 5 },
+    5,
+  )
+  assert.deepEqual(old, {})
+})
+
+void test('the loaded press level is read only when it is a known level', () => {
+  assert.equal(parseLoadedPressLevel('easy'), 'easy')
+  assert.equal(parseLoadedPressLevel(' out '), 'out')
+  assert.equal(parseLoadedPressLevel(null), null)
+  assert.equal(parseLoadedPressLevel(''), null)
+  assert.equal(parseLoadedPressLevel('loud'), null)
 })

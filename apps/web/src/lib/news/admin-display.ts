@@ -21,3 +21,15 @@ export function pressLevelSetByLabel(setBy: PressLevelSetBy | null): string {
   if (setBy === 'self') return 'by the player'
   return 'default'
 }
+
+/** The `[id]` of /admin/news/[id]: a positive whole number written in digits, else null. */
+export function parseAdminItemId(raw: string): number | null {
+  if (!/^[1-9]\d{0,15}$/.test(raw)) return null
+  const n = Number(raw)
+  return Number.isSafeInteger(n) ? n : null
+}
+
+/** The item's link on the admin list. */
+export function adminItemHref(id: number): string {
+  return `/admin/news/${String(id)}`
+}

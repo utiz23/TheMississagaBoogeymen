@@ -153,19 +153,32 @@ export function pressLevelSetBy(
   return viewer.role === 'admin' && viewer.playerId !== playerId ? 'admin' : 'self'
 }
 
+/** The form's hidden field: the press level the form showed when it was opened. */
+export const PRESS_LEVEL_LOADED_FIELD = 'pressLevelLoaded'
+
+/** The loaded level from the hidden field, or null when it is absent or not a known level. */
+export function parseLoadedPressLevel(value: string | null): PressLevel | null {
+  const v = value?.trim() ?? ''
+  return (PRESS_LEVELS as readonly string[]).includes(v) ? (v as PressLevel) : null
+}
+
 /**
  * Keep the press level in the patch only when it differs from the stored one,
  * and then stamp who set it. A save that leaves the level alone (a bio edit)
- * must not touch the level or its "set by" mark.
+ * must not touch the level or its "set by" mark. A stale form (the stored level
+ * changed after the form was opened, e.g. an admin set it meanwhile, or a form
+ * without the loaded level) changes the other fields but never the level.
  */
 export function withPressLevelChange(
   patch: ProfilePatch,
   storedLevel: PressLevel,
+  loadedLevel: PressLevel | null,
   viewer: { role: string; playerId: number | null },
   playerId: number,
 ): ProfilePatch {
   const { pressLevel, pressLevelSetBy: _ignored, ...rest } = patch
   if (pressLevel === undefined || pressLevel === storedLevel) return rest
+  if (loadedLevel !== storedLevel) return rest
   return { ...rest, pressLevel, pressLevelSetBy: pressLevelSetBy(viewer, playerId) }
 }
 

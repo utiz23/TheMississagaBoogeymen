@@ -4,7 +4,13 @@ import { revalidatePath } from 'next/cache'
 import { getPlayerWithProfile, updatePlayerProfile } from '@eanhl/db/queries'
 import { getViewer } from '@/lib/auth'
 import { canEditPlayerCard } from '@/lib/card-permissions'
-import { parseProfileForm, withPressLevelChange, type ProfileFormState } from '@/lib/profile-edit'
+import {
+  PRESS_LEVEL_LOADED_FIELD,
+  parseLoadedPressLevel,
+  parseProfileForm,
+  withPressLevelChange,
+  type ProfileFormState,
+} from '@/lib/profile-edit'
 
 /**
  * Save a player's profile from the EDIT PROFILE form. Re-checks everything:
@@ -34,9 +40,16 @@ export async function saveProfileAction(
   }
 
   try {
-    // The level and its "set by" mark change only when the level itself changes.
+    // The level and its "set by" mark change only when the level itself changes,
+    // and only when nobody changed it since this form was opened.
     const stored = await getPlayerWithProfile(playerId)
-    const patch = withPressLevelChange(parsed.patch, stored?.pressLevel ?? 'full', viewer, playerId)
+    const patch = withPressLevelChange(
+      parsed.patch,
+      stored?.pressLevel ?? 'full',
+      parseLoadedPressLevel(get(PRESS_LEVEL_LOADED_FIELD)),
+      viewer,
+      playerId,
+    )
     await updatePlayerProfile(playerId, patch)
   } catch {
     return { status: 'error', message: 'Saving failed. Please try again.', errors: {} }
