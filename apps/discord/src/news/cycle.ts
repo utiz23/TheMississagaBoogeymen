@@ -47,6 +47,8 @@ export const NIGHT_ENDED_FOR_MS = 90 * 60_000
 export const NIGHT_SINCE_MS = 3 * 86_400_000
 /** After the API refuses the key, write nothing for this long (so attempts are not burned every pass). */
 export const STOP_PAUSE_MS = 3_600_000
+/** After the API is unavailable (rate limit, outage), write nothing for this long, so 3 tries span 30+ min. */
+export const RETRYABLE_PAUSE_MS = 900_000
 
 const DELETE_LIMIT = 20
 const UNDELIVERED_LIMIT = 10
@@ -73,7 +75,6 @@ export interface NewsStore {
     status: 'done' | 'failed' | 'skipped',
     error: string | null,
   ): Promise<void>
-  hasNewsJob(kind: Kind, key: string): Promise<boolean>
   insertNewsItem(item: NewNewsItem): Promise<number>
   markNewsItemPosted(id: number, messageId: string | null): Promise<void>
   markNewsItemFailed(id: number, error: string): Promise<void>
@@ -106,14 +107,16 @@ export interface NewsDeps {
 export interface NewsCycleState {
   /** UTC 'YYYY-MM' whose money-limit stop was already logged. */
   budgetLoggedMonth: string | null
-  /** Epoch ms: no writing before this (set when the API refuses the key). */
+  /** Epoch ms: no writing before this (set when the API refuses the key or is unavailable). */
   pausedUntil: number
   /** Items written in test mode: reporterActivity counts real items only. */
   testActivity: Activity
+  /** Week keys whose job is done, skipped, capped or in flight: not fetched again by this process. */
+  settledWeeks: Set<string>
 }
 
 export function createNewsCycleState(): NewsCycleState {
-  return { budgetLoggedMonth: null, pausedUntil: 0, testActivity: [] }
+  return { budgetLoggedMonth: null, pausedUntil: 0, testActivity: [], settledWeeks: new Set() }
 }
 
 export interface NewsCycleOptions {
@@ -193,7 +196,8 @@ type Step = 'go' | 'end'
  * write; a claimed job is never claimed again unless it is marked failed (3 tries).
  * A send that may have reached Discord is never re-sent. HTTP 429 stops sending
  * for this pass. NewsStopError (the key is refused) ends the pass and pauses
- * writing for an hour; NewsRetryableError (API down) ends writing for this pass.
+ * writing for an hour; NewsRetryableError (API down) ends the pass's writing and
+ * pauses writing for 15 minutes. Deletions and undelivered sends run during a pause.
  */
 export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Promise<NewsSummary> {
   const { store, log } = deps
@@ -255,8 +259,17 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     }
   }
 
-  /** Send one stored item (or write its file in a dry run) and record the outcome. */
-  async function deliver(id: number, payload: NewsWebhookPayload, tag: string): Promise<void> {
+  /**
+   * Send one stored item (or write its file in a dry run) and record the outcome.
+   * `retry`: the item came from the undelivered list (status failed). An unknown
+   * outcome then marks it skipped, or the list would send it again next pass.
+   */
+  async function deliver(
+    id: number,
+    payload: NewsWebhookPayload,
+    tag: string,
+    retry = false,
+  ): Promise<void> {
     if (opts.dryRun) {
       try {
         await deps.writeDryRun(`news-${String(id)}`, payload)
@@ -279,7 +292,14 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     } catch (err: unknown) {
       summary.failed++
       if (err instanceof WebhookOutcomeUnknownError) {
-        log(`${tag}: ${err.message} — left pending, not retried; check the channel`)
+        log(`${tag}: ${err.message} — not retried; check the channel`)
+        if (retry) {
+          try {
+            await store.markNewsItemSkipped(id, 'outcome unknown — check the channel')
+          } catch (markErr: unknown) {
+            log(`${tag}: could not mark it skipped (${message(markErr)})`)
+          }
+        }
       } else {
         log(`${tag}: send failed (${message(err)})`)
         await markItemFailed(id, tag, message(err))
@@ -342,7 +362,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         return 'end'
       }
       if (err instanceof NewsRetryableError) {
-        log('the Claude API is unavailable — no more writing this pass')
+        state.pausedUntil = deps.now().getTime() + RETRYABLE_PAUSE_MS
+        log('the Claude API is unavailable — writing paused for 15 minutes')
         return 'end'
       }
       return 'failed'
@@ -380,7 +401,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     for (const item of await store.listUndeliveredNewsItems(UNDELIVERED_LIMIT)) {
       if (sendingStopped) break
       const tag = `news item ${String(item.id)}`
-      await deliver(item.id, await payloadForStored(item), tag)
+      await deliver(item.id, await payloadForStored(item), tag, true)
     }
     if (sendingStopped) return summary
   }
@@ -561,13 +582,21 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     const clock = edmontonClock(deps.now())
     if (clock.weekday !== 'Mon' || clock.hour < 12) return 'go'
     const start = addDays(clock.day, -7)
-    if (await store.hasNewsJob('week', start)) return 'go'
+    // No hasNewsJob gate: a failed week job under the cap must be claimed again.
+    // claimNewsJob returns null for done, skipped, pending and capped rows.
+    if (state.settledWeeks.has(start)) return 'go'
     if ((await store.countNightGames(nightsOfWeek(start))) === 0) return 'go'
     if (!(await moneyLeft())) return 'end'
-    return articleJob('week', start, `week ${start}`)
+    return articleJob('week', start, `week ${start}`, () => state.settledWeeks.add(start))
   }
 
-  async function articleJob(kind: 'night' | 'week', key: string, tag: string): Promise<Step> {
+  /** `onSettled` runs when the job can never be written again: claim refused, or done. */
+  async function articleJob(
+    kind: 'night' | 'week',
+    key: string,
+    tag: string,
+    onSettled: () => void = () => {},
+  ): Promise<Step> {
     let res: NewsFactsResponse
     try {
       res = await deps.fetchFacts(kind, key)
@@ -576,7 +605,10 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       return 'go'
     }
     const jobId = await store.claimNewsJob(kind, key, opts.dryRun)
-    if (jobId === null) return 'go'
+    if (jobId === null) {
+      onSettled()
+      return 'go'
+    }
     const { facts, forbiddenNames } = res
     const now = deps.now()
     const reporterId = assignArticle(kind, facts, now, await loadActivity(now))
@@ -619,6 +651,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     }
     noteWritten(reporterId, night)
     await markDone(jobId, tag)
+    onSettled()
     const payload = buildArticlePayload({
       reporter,
       headline: a.headline,

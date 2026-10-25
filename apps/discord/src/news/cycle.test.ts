@@ -150,7 +150,6 @@ function harness(
       j.error = error
       events.push(`job:${j.kind}:${j.key}:${status}`)
     },
-    hasNewsJob: async (kind, key) => jobs.has(`${kind}:${key}`),
     insertNewsItem: async (item: NewNewsItem) => {
       const id = nextItem++
       items.set(id, {
@@ -706,4 +705,82 @@ void test('deletions: run while out of money too', async () => {
   h.state.deletions = [{ id: 7, messageId: 'm7' }]
   await runNewsCycle(h.deps, h.opts)
   assert.ok(h.events.includes('deleted:7'))
+})
+
+// ── Fix round 1 ─────────────────────────────────────────────────────────────
+
+void test('undelivered: outcome unknown on a retry ⇒ marked skipped, never sent again', async () => {
+  let calls = 0
+  const h = harness({
+    deps: {
+      send: async () => {
+        calls++
+        throw new WebhookOutcomeUnknownError(
+          'Discord webhook request outcome unknown (TimeoutError)',
+        )
+      },
+    },
+  })
+  const b = await h.deps.store.insertNewsItem({ kind: 'post', reporter: 'barlow', body: 'X.' })
+  await h.deps.store.markNewsItemFailed(b, 'Discord webhook HTTP 500')
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(calls, 1)
+  assert.equal(h.items.get(b)!.discordStatus, 'skipped')
+  assert.ok(h.events.some((e) => e.startsWith(`item-skipped:${String(b)}:outcome unknown`)))
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(calls, 1)
+})
+
+void test('week: a failed week job is claimed again on the next pass (still Monday ≥ 12:00)', async () => {
+  let fail = true
+  const h = harness({
+    deps: {
+      now: () => MONDAY_1201,
+      writer: async (req) => {
+        if (fail) throw new NewsJobError('Anthropic API rejected the request')
+        return goodWriter(req)
+      },
+    },
+  })
+  h.state.nightGames['2026-10-22'] = 3
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('week:2026-10-19')?.status, 'failed')
+  fail = false
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('week:2026-10-19')?.status, 'done')
+  assert.equal(h.jobs.get('week:2026-10-19')?.attempts, 2)
+  assert.equal(h.items.size, 1)
+  // Settled: later passes do not fetch the week again.
+  const fetches = h.events.filter((e) => e === 'fetch:week:2026-10-19').length
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.events.filter((e) => e === 'fetch:week:2026-10-19').length, fetches)
+})
+
+void test('gates: NewsRetryableError ⇒ no writing for 15 min; deletions and undelivered sends still run', async () => {
+  let now = NOW
+  let down = true
+  const h = harness({
+    candidates: [501],
+    deps: {
+      now: () => now,
+      writer: async (req) => {
+        if (down) throw new NewsRetryableError('Anthropic API unavailable: overloaded')
+        return goodWriter(req)
+      },
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('game:501')?.attempts, 1)
+  down = false
+  now = new Date(NOW.getTime() + 14 * MIN)
+  h.state.deletions = [{ id: 7, messageId: 'm7' }]
+  const b = await h.deps.store.insertNewsItem({ kind: 'post', reporter: 'barlow', body: 'X.' })
+  await h.deps.store.markNewsItemFailed(b, 'Discord webhook HTTP 500')
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('game:501')?.attempts, 1)
+  assert.ok(h.events.includes('deleted:7'))
+  assert.equal(h.items.get(b)!.discordStatus, 'posted')
+  now = new Date(NOW.getTime() + 16 * MIN)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('game:501')?.status, 'done')
 })
