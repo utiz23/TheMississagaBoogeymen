@@ -34,7 +34,6 @@ export interface PlayerRef {
   playerId: number | null
   gamertag: string
   aiGoalie: boolean
-  position?: string | null
 }
 
 export interface NewsProfileInfo {
@@ -46,7 +45,7 @@ const trimmed = (s: string | null | undefined): string => s?.trim() ?? ''
 
 /**
  * Who may be named and who may not. `players` lists every BGM player of the
- * sheet's games, oldest game first (the latest position wins). Named = member,
+ * sheet's games, oldest game first. No position here: each game line has it (C2.11). Named = member,
  * not an AI goalie, press level not `out`; the name is the trimmed profile
  * name or the gamertag. Every other player's gamertag and non-blank profile
  * name is forbidden. AI goalies are neither (spec §12.8): not people, but
@@ -76,13 +75,7 @@ export function buildPeople(args: {
     const named = p.playerId !== null && args.memberIds.has(p.playerId) && pressLevel !== 'out'
     if (named && p.playerId !== null && (pressLevel === 'full' || pressLevel === 'easy')) {
       const name = trimmed(profile?.name) || trimmed(p.gamertag)
-      const prev = people.get(p.playerId)
-      people.set(p.playerId, {
-        playerId: p.playerId,
-        name,
-        position: trimmed(p.position) || prev?.position || '',
-        pressLevel,
-      })
+      people.set(p.playerId, { playerId: p.playerId, name, pressLevel })
     } else {
       forbid(p.gamertag)
       if (profile) forbid(profile.name ?? '')
@@ -432,9 +425,15 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
   })
   unnamedGoals = Math.max(unnamedGoals, match.scoreFor - namedGoals, 0)
   // An ended-early game carries no shot numbers anywhere (C1 fix 1): no AI
-  // goalie line, no saves or save % on a goalie line (goals against stay: they are the score).
+  // goalie line, no saves or save % on a goalie line (goals against stay: they
+  // are the score); every line keeps goals, assists and points only (C2.10).
   const lines = endedEarly
-    ? players.map((p) => (p.isGoalie ? { ...p, saves: null, savePct: null } : p))
+    ? players.map((p) => ({
+        ...p,
+        shots: null,
+        hits: null,
+        ...(p.isGoalie ? { saves: null, savePct: null } : {}),
+      }))
     : players
   if (endedEarly) aiGoalie = null
   return {
@@ -644,8 +643,9 @@ export function buildWeekPlayers(
       goals: sum((l) => l.goals),
       assists: sum((l) => l.assists),
       points: sum((l) => l.points),
-      shots: sum((l) => l.shots),
-      hits: sum((l) => l.hits),
+      // A game that ended early has no shots or hits on its lines: left out (C2.10).
+      shots: sum((l) => l.shots ?? 0),
+      hits: sum((l) => l.hits ?? 0),
       titleGoals: t.goals,
       titleAssists: t.assists,
       titlePoints: t.points,

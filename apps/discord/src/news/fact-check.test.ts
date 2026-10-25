@@ -457,9 +457,9 @@ void test('AI goalie: the name on the sheet is allowed in text and mentions, nev
   assert.deepEqual(problems(harsh), [
     '"Matteo Lehmann" in criticized is not a person on the fact sheet.',
   ])
-  // An AI goalie who is not on this sheet is not allowed.
+  // With an AI goalie in net, both AI goalie names are allowed (C2.12).
   const other = checkFacts('Fine.', f, FORBIDDEN, { mentions: ['Jonas Wagner'], clubs: [] })
-  assert.deepEqual(problems(other), ['"Jonas Wagner" is not a person on the fact sheet.'])
+  assert.deepEqual(other, { ok: true })
   // Without the line the name is not allowed either.
   assert.equal(
     checkFacts('Fine.', facts, FORBIDDEN, { mentions: ['Matteo Lehmann'], clubs: [] }).ok,
@@ -484,6 +484,23 @@ void test('AI goalie: week totals names are allowed in an article (C1.1)', () =>
     FORBIDDEN,
   )
   assert.deepEqual(r, { ok: true })
+})
+
+void test('AI goalie: in net without a line (ended early), both AI goalie names are still allowed (C2.12)', () => {
+  const f = oct12Facts('game')
+  f.games[0] = { ...f.games[0]!, aiGoalieInNet: true, aiGoalie: null }
+  for (const name of ['Matteo Lehmann', 'Jonas Wagner']) {
+    assert.deepEqual(
+      checkFacts(`${name} was in net.`, f, FORBIDDEN, { mentions: [name], clubs: [] }),
+      { ok: true },
+      name,
+    )
+  }
+  // No AI goalie in net anywhere: neither name.
+  assert.equal(
+    checkFacts('Fine.', facts, FORBIDDEN, { mentions: ['Jonas Wagner'], clubs: [] }).ok,
+    false,
+  )
 })
 
 // ── Part C1: club lore (spec 12.13) ─────────────────────────────────────────

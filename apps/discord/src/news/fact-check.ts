@@ -1,4 +1,5 @@
 import {
+  AI_GOALIE_NAMES,
   LORE_NAMES,
   REPORTERS,
   REPORTER_IDS,
@@ -220,11 +221,16 @@ function criticizedProblems(
   return problems
 }
 
-/** The AI goalies on the sheet: game lines and week totals (spec §12.8). */
+/**
+ * The AI goalie names the text may use (spec §12.8): game lines and week
+ * totals, and both in-game names (`AI_GOALIE_NAMES`) whenever a game of the
+ * sheet had an AI goalie in net, also without a line (C2.12).
+ */
 export function aiGoalieNames(facts: NewsFacts): string[] {
   const names = [
     ...facts.games.flatMap((g) => (g.aiGoalie === null ? [] : [g.aiGoalie.name])),
     ...facts.aiGoalieWeek.map((a) => a.name),
+    ...(facts.games.some((g) => g.aiGoalieInNet) ? AI_GOALIE_NAMES : []),
   ]
   return [...new Set(names)]
 }

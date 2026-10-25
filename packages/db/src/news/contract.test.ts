@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { parseNewsFactsResponse, type NewsFactsResponse } from './contract.js'
 import {
+  AI_GOALIE_NAMES,
   CLUB_LORE,
   LORE_NAMES,
   FEATURE_KINDS,
@@ -149,7 +150,7 @@ function sample(): NewsFactsResponse {
       recentNights: [
         { night: '2026-10-10', wins: 3, losses: 1, otl: 0, goalsFor: 14, goalsAgainst: 8 },
       ],
-      people: [{ playerId: 2, name: 'Silky', position: 'C', pressLevel: 'full' }],
+      people: [{ playerId: 2, name: 'Silky', pressLevel: 'full' }],
       history: [],
       weekPlayers: [],
       aiGoalieWeek: [],
@@ -167,6 +168,28 @@ function clone<T>(v: T): T {
 void test('contract: a full sample round-trips', () => {
   const s = sample()
   assert.deepEqual(parseNewsFactsResponse(clone(s)), s)
+})
+
+void test("contract: a person has no position (the game line has it); an old sheet's position is dropped (C2.11)", () => {
+  const old = clone(sample()) as unknown as { facts: { people: Record<string, unknown>[] } }
+  old.facts.people[0]!['position'] = 'C'
+  const parsed = parseNewsFactsResponse(old)
+  assert.deepEqual(parsed.facts.people, [{ playerId: 2, name: 'Silky', pressLevel: 'full' }])
+})
+
+void test('contract: player shots and hits may be null (a game that ended early, C2.10)', () => {
+  const s = clone(sample()) as unknown as {
+    facts: { games: { players: Record<string, unknown>[] }[] }
+  }
+  s.facts.games[0]!.players[0]!['shots'] = null
+  s.facts.games[0]!.players[0]!['hits'] = null
+  const p = parseNewsFactsResponse(s).facts.games[0]!.players[0]!
+  assert.equal(p.shots, null)
+  assert.equal(p.hits, null)
+})
+
+void test('AI goalie names: the two in-game names (C2.12)', () => {
+  assert.deepEqual([...AI_GOALIE_NAMES], ['Matteo Lehmann', 'Jonas Wagner'])
 })
 
 void test('contract: a null streak is accepted', () => {

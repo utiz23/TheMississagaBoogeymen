@@ -33,8 +33,8 @@ const profile = (name: string | null, pressLevel: 'full' | 'easy' | 'out' = 'ful
 void test('buildPeople: a member with press level out is not named; name and gamertag are forbidden', () => {
   const { people, forbiddenNames } = buildPeople({
     players: [
-      { playerId: 1, gamertag: 'IgorTag', aiGoalie: false, position: 'center' },
-      { playerId: 2, gamertag: 'Silky', aiGoalie: false, position: 'defenseMen' },
+      { playerId: 1, gamertag: 'IgorTag', aiGoalie: false },
+      { playerId: 2, gamertag: 'Silky', aiGoalie: false },
     ],
     memberIds: new Set([1, 2]),
     profiles: new Map([
@@ -43,17 +43,15 @@ void test('buildPeople: a member with press level out is not named; name and gam
     ]),
     outMembers: [],
   })
-  assert.deepEqual(people, [
-    { playerId: 2, name: 'Silky Joe', position: 'defenseMen', pressLevel: 'easy' },
-  ])
+  assert.deepEqual(people, [{ playerId: 2, name: 'Silky Joe', pressLevel: 'easy' }])
   assert.deepEqual([...forbiddenNames].sort(), ['Igor Orlov', 'IgorTag'])
 })
 
 void test('buildPeople: a blank profile name falls back to the gamertag (trimmed)', () => {
   const { people, forbiddenNames } = buildPeople({
     players: [
-      { playerId: 3, gamertag: 'x_Sniper_x', aiGoalie: false, position: 'rightWing' },
-      { playerId: 4, gamertag: 'PadTag', aiGoalie: false, position: 'goalie' },
+      { playerId: 3, gamertag: 'x_Sniper_x', aiGoalie: false },
+      { playerId: 4, gamertag: 'PadTag', aiGoalie: false },
     ],
     memberIds: new Set([3, 4]),
     profiles: new Map([
@@ -74,21 +72,19 @@ void test('buildPeople: a blank profile name falls back to the gamertag (trimmed
 
 void test('buildPeople: a member without a profile row is named by gamertag at full press', () => {
   const { people } = buildPeople({
-    players: [{ playerId: 5, gamertag: 'NoProfile', aiGoalie: false, position: 'center' }],
+    players: [{ playerId: 5, gamertag: 'NoProfile', aiGoalie: false }],
     memberIds: new Set([5]),
     profiles: new Map(),
     outMembers: [],
   })
-  assert.deepEqual(people, [
-    { playerId: 5, name: 'NoProfile', position: 'center', pressLevel: 'full' },
-  ])
+  assert.deepEqual(people, [{ playerId: 5, name: 'NoProfile', pressLevel: 'full' }])
 })
 
 void test('buildPeople: a guest is never named; gamertag and non-blank profile name are forbidden', () => {
   const { people, forbiddenNames } = buildPeople({
     players: [
-      { playerId: 10, gamertag: 'GuestOne', aiGoalie: false, position: 'center' },
-      { playerId: 11, gamertag: 'GuestTwo', aiGoalie: false, position: 'center' },
+      { playerId: 10, gamertag: 'GuestOne', aiGoalie: false },
+      { playerId: 11, gamertag: 'GuestTwo', aiGoalie: false },
     ],
     memberIds: new Set(),
     profiles: new Map([
@@ -103,7 +99,7 @@ void test('buildPeople: a guest is never named; gamertag and non-blank profile n
 
 void test('buildPeople: an AI goalie is not a person and not forbidden either (spec 12.8, C1.1)', () => {
   const { people, forbiddenNames } = buildPeople({
-    players: [{ playerId: 20, gamertag: 'Matteo Lehmann', aiGoalie: true, position: 'goalie' }],
+    players: [{ playerId: 20, gamertag: 'Matteo Lehmann', aiGoalie: true }],
     memberIds: new Set([20]),
     profiles: new Map([[20, profile('Some Name')]]),
     outMembers: [],
@@ -113,27 +109,26 @@ void test('buildPeople: an AI goalie is not a person and not forbidden either (s
   assert.deepEqual(forbiddenNames, [])
 })
 
-void test('buildPeople: one entry per player across games; forbidden names deduplicated; latest position wins', () => {
+void test('buildPeople: one entry per player across games; forbidden names deduplicated', () => {
   const { people, forbiddenNames } = buildPeople({
     players: [
-      { playerId: 1, gamertag: 'A', aiGoalie: false, position: 'center' },
-      { playerId: 1, gamertag: 'A', aiGoalie: false, position: 'leftWing' },
-      { playerId: 9, gamertag: 'Guest', aiGoalie: false, position: 'center' },
-      { playerId: 9, gamertag: 'Guest', aiGoalie: false, position: 'center' },
-      { playerId: 8, gamertag: 'guest', aiGoalie: false, position: 'center' },
+      { playerId: 1, gamertag: 'A', aiGoalie: false },
+      { playerId: 1, gamertag: 'A', aiGoalie: false },
+      { playerId: 9, gamertag: 'Guest', aiGoalie: false },
+      { playerId: 9, gamertag: 'Guest', aiGoalie: false },
+      { playerId: 8, gamertag: 'guest', aiGoalie: false },
     ],
     memberIds: new Set([1]),
     profiles: new Map(),
     outMembers: [],
   })
   assert.equal(people.length, 1)
-  assert.equal(people[0]?.position, 'leftWing')
   assert.deepEqual(forbiddenNames, ['Guest'])
 })
 
 void test('buildPeople: every member at "out" is forbidden, also one who did not play (C1)', () => {
   const { people, forbiddenNames } = buildPeople({
-    players: [{ playerId: 1, gamertag: 'Hero', aiGoalie: false, position: 'center' }],
+    players: [{ playerId: 1, gamertag: 'Hero', aiGoalie: false }],
     memberIds: new Set([1, 2, 3]),
     profiles: new Map([[1, profile('Hero Name')]]),
     outMembers: [
@@ -212,7 +207,7 @@ const gameArgs = (over: Partial<GameFactsArgs> = {}): GameFactsArgs => ({
       shotsAgainst: 21,
     }),
   ],
-  people: [{ playerId: 1, name: 'Hero Name', position: 'center', pressLevel: 'full' }],
+  people: [{ playerId: 1, name: 'Hero Name', pressLevel: 'full' }],
   // Hero and OutGuy are members (OutGuy at "out"); GuestA and GuestB are not. Lehmann is an AI goalie.
   memberIds: new Set([1, 2, 5]),
   goalEvents: [],
@@ -449,8 +444,8 @@ void test('unlockText: badge, card level, tier and mythic phrasing', () => {
 // ── buildMilestones ──────────────────────────────────────────────────────────
 
 const people = [
-  { playerId: 1, name: 'Hero Name', position: 'center', pressLevel: 'full' as const },
-  { playerId: 2, name: 'Second', position: 'center', pressLevel: 'full' as const },
+  { playerId: 1, name: 'Hero Name', pressLevel: 'full' as const },
+  { playerId: 2, name: 'Second', pressLevel: 'full' as const },
 ]
 const totals = (goals: number, assists: number, games: number, points = goals + assists) => ({
   goals,
@@ -528,8 +523,8 @@ void test('buildMilestones: games at 100/250/..., a new player, only named peopl
 
 void test('buildMilestones: at most 3 per sheet, ranked 100s first, points first (C1.6)', () => {
   const four = [
-    { playerId: 1, name: 'Hero Name', position: 'center', pressLevel: 'full' as const },
-    { playerId: 2, name: 'Second', position: 'center', pressLevel: 'full' as const },
+    { playerId: 1, name: 'Hero Name', pressLevel: 'full' as const },
+    { playerId: 2, name: 'Second', pressLevel: 'full' as const },
   ]
   const m = buildMilestones(
     new Map([
@@ -589,7 +584,7 @@ void test('buildFacts: night totals add up the games; the response passes the sh
     unlocks: [],
     milestones: [],
     recentNights: [],
-    people: [{ playerId: 1, name: 'Hero Name', position: 'center', pressLevel: 'full' }],
+    people: [{ playerId: 1, name: 'Hero Name', pressLevel: 'full' }],
   })
   assert.deepEqual(facts.nightTotals, {
     goalsFor: 4,
@@ -828,8 +823,8 @@ void test('buildGameFacts: each line has the game position; no plus-minus or gam
         skater({ playerId: 2, gamertag: 'Pad', position: 'goalie', isGoalie: true, saves: 9 }),
       ],
       people: [
-        { playerId: 1, name: 'Hero Name', position: 'center', pressLevel: 'full' },
-        { playerId: 2, name: 'Pad', position: 'goalie', pressLevel: 'full' },
+        { playerId: 1, name: 'Hero Name', pressLevel: 'full' },
+        { playerId: 2, name: 'Pad', pressLevel: 'full' },
       ],
     }),
   )
@@ -1285,8 +1280,8 @@ void test('buildGameFacts: an ended-early game has no AI goalie line and no goal
     }),
   ]
   const people = [
-    { playerId: 1, name: 'Hero Name', position: 'center', pressLevel: 'full' as const },
-    { playerId: 2, name: 'Pad', position: 'goalie', pressLevel: 'full' as const },
+    { playerId: 1, name: 'Hero Name', pressLevel: 'full' as const },
+    { playerId: 2, name: 'Pad', pressLevel: 'full' as const },
   ]
   const full = buildGameFacts(gameArgs({ players, people }))
   assert.equal(full.endedEarly, false)
@@ -1334,4 +1329,64 @@ void test('buildWeekHistory: an ended-early game adds its result and goals, not 
       ppOpportunities: 2,
     },
   ])
+})
+
+void test('buildGameFacts: an ended-early game keeps goals, assists and points only on skater lines; week sums skip its shots and hits (C2.10)', () => {
+  const players = [
+    skater({ playerId: 1, gamertag: 'Hero', goals: 2, assists: 1, shots: 5, hits: 3 }),
+    skater({ playerId: 2, gamertag: 'Second', goals: 1, shots: 2, hits: 4 }),
+  ]
+  const people = [
+    { playerId: 1, name: 'Hero Name', pressLevel: 'full' as const },
+    { playerId: 2, name: 'Second', pressLevel: 'full' as const },
+  ]
+  const full = buildGameFacts(gameArgs({ players, people }))
+  const early = buildGameFacts(
+    gameArgs({
+      match: { ...gameArgs().match, id: 901, timeOnAttack: 100 },
+      players,
+      people,
+    }),
+  )
+  assert.equal(early.endedEarly, true)
+  const hero = early.players[0]!
+  assert.deepEqual([hero.goals, hero.assists, hero.points], [2, 1, 3])
+  assert.equal(hero.shots, null)
+  assert.equal(hero.hits, null)
+  // A full game keeps them.
+  assert.equal(full.players[0]!.shots, 5)
+  assert.equal(full.players[0]!.hits, 3)
+  const w = buildWeekPlayers([full, early], people, new Map())
+  const heroWeek = w.find((p) => p.playerId === 1)!
+  assert.equal(heroWeek.games, 2)
+  assert.equal(heroWeek.goals, 4)
+  assert.equal(heroWeek.shots, 5)
+  assert.equal(heroWeek.hits, 3)
+  // The contract accepts null shots and hits.
+  const parsed = parseNewsFactsResponse({
+    facts: buildFacts({
+      kind: 'night',
+      key: '2026-10-12',
+      gameTitleName: 'NHL 27',
+      games: [early],
+      record: { wins: 1, losses: 0, otl: 0 },
+      streak: null,
+      unlocks: [],
+      milestones: [],
+      recentNights: [],
+      people,
+    }),
+    forbiddenNames: [],
+  })
+  assert.equal(parsed.facts.games[0]!.players[0]!.shots, null)
+})
+
+void test('buildPeople: the writer-facing person has no position; the game line carries it (C2.11)', () => {
+  const { people } = buildPeople({
+    players: [{ playerId: 1, gamertag: 'A', aiGoalie: false }],
+    memberIds: new Set([1]),
+    profiles: new Map(),
+    outMembers: [],
+  })
+  assert.deepEqual(people, [{ playerId: 1, name: 'A', pressLevel: 'full' }])
 })

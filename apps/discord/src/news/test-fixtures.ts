@@ -126,9 +126,9 @@ export function oct12Facts(kind: NewsFacts['kind'] = 'game'): NewsFacts {
       { night: '2026-10-08', wins: 2, losses: 1, otl: 0, goalsFor: 9, goalsAgainst: 8 },
     ],
     people: [
-      { playerId: 1, name: 'Skater A', position: 'C', pressLevel: 'full' },
-      { playerId: 2, name: 'Skater B', position: 'LW', pressLevel: 'easy' },
-      { playerId: 3, name: 'Goalie G', position: 'G', pressLevel: 'full' },
+      { playerId: 1, name: 'Skater A', pressLevel: 'full' },
+      { playerId: 2, name: 'Skater B', pressLevel: 'easy' },
+      { playerId: 3, name: 'Goalie G', pressLevel: 'full' },
     ],
     history: [],
     weekPlayers: [],

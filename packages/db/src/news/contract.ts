@@ -7,10 +7,14 @@
  * and uses the list to reject any text that names a player on it.
  */
 
+/**
+ * A person the writer may name. No position here (C2.11): a player's position
+ * is per game, `games[].players[].position` (F/D/G) is THE position. An older
+ * sheet's `position` is dropped by the parser.
+ */
 export interface NewsPerson {
   playerId: number
   name: string
-  position: string
   /** Players with press level `out` are never listed. */
   pressLevel: 'full' | 'easy'
 }
@@ -26,14 +30,19 @@ export type NewsPosition = (typeof NEWS_POSITIONS)[number]
 export interface NewsPlayerLine {
   playerId: number
   name: string
-  /** The position played in this game, as the match page shows it (loadout over EA). */
+  /**
+   * THE position of this player in this game (F forward, D defence, G goalie),
+   * as the match page shows it (loadout over EA). The only position on the sheet.
+   */
   position: NewsPosition
   isGoalie: boolean
   goals: number
   assists: number
   points: number
-  shots: number
-  hits: number
+  /** Null when the game ended early (`endedEarly`): only goals, assists and points count then (C2.10). */
+  shots: number | null
+  /** Null when the game ended early, as `shots`. */
+  hits: number | null
   pim: number
   saves: number | null
   goalsAgainst: number | null
@@ -332,7 +341,6 @@ function parsePerson(v: unknown, path: string): NewsPerson {
   return {
     playerId: int(o['playerId'], `${path}.playerId`),
     name: str(o['name'], `${path}.name`),
-    position: str(o['position'], `${path}.position`),
     pressLevel: oneOf(o['pressLevel'], `${path}.pressLevel`, ['full', 'easy']),
   }
 }
@@ -349,8 +357,8 @@ function parsePlayerLine(v: unknown, path: string): NewsPlayerLine {
     goals: int(o['goals'], `${path}.goals`),
     assists: int(o['assists'], `${path}.assists`),
     points: int(o['points'], `${path}.points`),
-    shots: int(o['shots'], `${path}.shots`),
-    hits: int(o['hits'], `${path}.hits`),
+    shots: nullable(o['shots'], `${path}.shots`, int),
+    hits: nullable(o['hits'], `${path}.hits`, int),
     pim: int(o['pim'], `${path}.pim`),
     saves: nullable(o['saves'], `${path}.saves`, int),
     goalsAgainst: nullable(o['goalsAgainst'], `${path}.goalsAgainst`, int),

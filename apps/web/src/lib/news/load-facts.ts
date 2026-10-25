@@ -266,7 +266,6 @@ async function loadSheet(
         playerId: s.playerId,
         gamertag: s.gamertag,
         aiGoalie: aiGoalies.has(s.playerId),
-        position: s.position,
       })),
     ),
     memberIds,
