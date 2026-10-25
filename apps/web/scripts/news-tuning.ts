@@ -3,6 +3,9 @@
 // job sheets and prints the share of games (or lines) per label. Read-only;
 // no database, no network; prints counts only (no names).
 //   node apps/web/scripts/news-tuning.ts .superpowers/backfill-nhl26/jobs
+//   node apps/web/scripts/news-tuning.ts <jobs dir> --buzz   (C3a.7: buzz levels;
+//     the recomputed labels feed `planBuzz`; no milestones, records or AI
+//     goalie labels on these old sheets, so historic shows 0)
 // Caveats: the job sheets were built before C1/C2 and hold only the backfill
 // nights' games (not the whole title), so each game is compared with the
 // earlier games of the job set (the first games of each mode have no
@@ -10,7 +13,17 @@
 // favourite), not the game's; ended-early follows the sheet rule.
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { emptyPlayerExtras, type NewsPlayerLine, type NewsPerson } from '@eanhl/db/news'
+import {
+  BUZZ_CUTOFFS,
+  BUZZ_LEVELS,
+  BUZZ_TARGET_SHARE,
+  emptyPlayerExtras,
+  planBuzz,
+  type NewsGameFacts,
+  type NewsGoal,
+  type NewsPlayerLine,
+  type NewsPerson,
+} from '@eanhl/db/news'
 import { newsPosition } from '../src/lib/news/build-facts.ts'
 import { gameContext, teamNotes, type TitleGameInput } from '../src/lib/news/context.ts'
 import {
@@ -50,6 +63,9 @@ interface JobGame {
   } | null
   players: JobLine[]
   unnamedGoals?: number
+  overtime?: boolean
+  goals?: NewsGoal[] | null
+  clockMeaning?: 'elapsed' | 'remaining' | null
 }
 interface JobPerson {
   playerId: number
@@ -249,4 +265,138 @@ function main(dir: string): void {
   console.log(`  ${share(threadKinds, nights.length)} (share = per night sheet)`)
 }
 
-main(process.argv[2] ?? '.superpowers/backfill-nhl26/jobs')
+/** Buzz levels over the job games (C3a.7), and score quantiles for the target shares. */
+function buzz(dir: string): void {
+  const { games, people } = load(dir)
+  const early = new Map(games.map((g) => [g.matchId, endedEarly(g)]))
+  const inputs: TitleGameInput[] = games.map((g) => ({
+    matchId: g.matchId,
+    night: g.night,
+    gameMode: g.gameMode,
+    result: g.result,
+    scoreFor: g.scoreFor,
+    scoreAgainst: g.scoreAgainst,
+    opponentName: g.opponentName,
+    endedEarly: early.get(g.matchId)!,
+  }))
+  const history = new Map<number, PlayerGameInput[]>()
+  const levels: Counts = new Map()
+  const reasons: Counts = new Map()
+  const scores: number[] = []
+  let posts = 0
+  let articles = 0
+  games.forEach((g, i) => {
+    const prior = inputs.slice(0, i)
+    const next = inputs[i + 1]
+    const input = inputs[i]!
+    const context = gameContext(input, prior, next === undefined || next.night !== g.night)
+    const lines: NewsPlayerLine[] = g.players.map((jl) => {
+      const position = newsPosition(people.get(jl.playerId)?.position ?? null, jl.isGoalie)
+      const line: NewsPlayerLine = {
+        playerId: jl.playerId,
+        name: jl.name,
+        position,
+        isGoalie: jl.isGoalie,
+        goals: jl.goals,
+        assists: jl.assists,
+        points: jl.goals + jl.assists,
+        shots: early.get(g.matchId) ? null : jl.shots,
+        hits: early.get(g.matchId) ? null : jl.hits,
+        pim: 0,
+        saves: null,
+        goalsAgainst: null,
+        savePct: null,
+        star: null,
+        ...emptyPlayerExtras(),
+      }
+      const before = history.get(jl.playerId) ?? []
+      const gameInfo = { gameMode: g.gameMode, endedEarly: early.get(g.matchId)! }
+      const norm = playerNorm(line, gameInfo, TITLE, before)
+      const full: NewsPlayerLine = {
+        ...line,
+        norm,
+        bests: playerBests(line, gameInfo, TITLE, before),
+        firsts: playerFirsts(line, TITLE, before),
+        form: playerForm(line, norm, gameInfo, TITLE, before),
+        streaks: playerStreaks(line, TITLE, before),
+      }
+      before.push({
+        matchId: g.matchId,
+        gameTitleId: TITLE,
+        night: g.night,
+        playedAt: g.playedAt,
+        gameMode: g.gameMode,
+        result: g.result,
+        goals: jl.goals,
+        assists: jl.assists,
+        shots: jl.shots ?? 0,
+        hits: jl.hits ?? 0,
+        position,
+        endedEarly: early.get(g.matchId)!,
+      })
+      history.set(jl.playerId, before)
+      return full
+    })
+    const facts: NewsGameFacts = {
+      matchId: g.matchId,
+      night: g.night,
+      playedAt: g.playedAt,
+      gameTitleName: 'NHL 26',
+      gameMode: g.gameMode,
+      result: g.result,
+      overtime: g.overtime === true,
+      scoreFor: g.scoreFor,
+      scoreAgainst: g.scoreAgainst,
+      opponentName: g.opponentName,
+      team: null,
+      endedEarly: early.get(g.matchId)!,
+      labels: null,
+      patterns: [],
+      periods: null,
+      players: lines,
+      aiGoalieInNet: false,
+      aiGoalie: null,
+      guestCount: 0,
+      context,
+      teamNotes: teamNotes(input, prior),
+      headToHead: null,
+      newRecords: [],
+      chemistry: [],
+      unnamedTeammates: 0,
+      unnamedGoals: 0,
+      unnamedAssists: 0,
+      goals: g.goals ?? null,
+      clockMeaning: g.clockMeaning ?? null,
+    }
+    const plan = planBuzz(facts, { milestones: [], threads: [] })
+    bump(levels, plan.level)
+    for (const r of new Set(plan.reasons.map((x) => x.replace(/^(player|note) .*/, '$1'))))
+      bump(reasons, r)
+    scores.push(plan.score)
+    posts += plan.posts
+    articles += plan.articles.length
+  })
+  const n = games.length
+  console.log(
+    `buzz over ${String(n)} games (cut-offs normal ${String(BUZZ_CUTOFFS.normal)}, big ${String(BUZZ_CUTOFFS.big)}, huge ${String(BUZZ_CUTOFFS.huge)}):`,
+  )
+  for (const level of BUZZ_LEVELS) {
+    const k = levels.get(level) ?? 0
+    console.log(
+      `  ${level.padEnd(8)} ${String(k).padStart(3)}  ${((k / n) * 100).toFixed(1).padStart(5)}%  (target ${(BUZZ_TARGET_SHARE[level] * 100).toFixed(0)}%)`,
+    )
+  }
+  console.log(
+    `  posts per game ${(posts / n).toFixed(2)}; game articles per game ${(articles / n).toFixed(2)}`,
+  )
+  console.log(`  reasons (share of games): ${share(reasons, n)}`)
+  const sorted = [...scores].sort((a, b) => a - b)
+  const q = (share: number) =>
+    sorted[Math.min(sorted.length - 1, Math.floor(share * sorted.length))]
+  console.log(
+    `  score quantiles for the targets: normal from ~${String(q(0.5))}, big from ~${String(q(0.8))}, huge from ~${String(q(0.95))}`,
+  )
+}
+
+if (process.argv.includes('--buzz')) buzz(process.argv[2] ?? '.superpowers/backfill-nhl26/jobs')
+else main(process.argv[2] ?? '.superpowers/backfill-nhl26/jobs')
