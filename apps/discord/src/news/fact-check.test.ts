@@ -556,3 +556,32 @@ void test('norms: the averages and lead % may be quoted; labels, patterns and th
   assert.deepEqual(checkFacts('Out-hit in 35.7% of games.', f, FORBIDDEN, none), { ok: true })
   assert.equal(checkFacts('Across 42 games.', f, FORBIDDEN, none).ok, false)
 })
+
+void test('club record holders are allowed names; a null holder adds none; holders are not people for criticized (C2.4)', () => {
+  const f = oct12Facts('game')
+  f.records = [
+    { stat: 'goals', holder: 'Old Sniper', value: 61, title: 'NHL 24' },
+    { stat: 'assists', holder: null, value: 80, title: 'NHL 25' },
+  ]
+  assert.deepEqual(
+    problems(
+      checkFacts('Old Sniper set the record with 61 in NHL 24.', f, FORBIDDEN, {
+        mentions: ['Old Sniper'],
+        clubs: [],
+      }),
+    ),
+    [],
+  )
+  assert.deepEqual(
+    problems(
+      checkFacts('Fine.', f, FORBIDDEN, { mentions: [], clubs: [], criticized: ['Old Sniper'] }),
+    ),
+    ['"Old Sniper" in criticized is not a person on the fact sheet.'],
+  )
+  assert.deepEqual(
+    problems(
+      checkFacts('Fine.', oct12Facts('game'), FORBIDDEN, { mentions: ['Old Sniper'], clubs: [] }),
+    ),
+    ['"Old Sniper" is not a person on the fact sheet.'],
+  )
+})

@@ -36,6 +36,7 @@ const {
   listNewsPlayerGamesSql,
   rowToPlayerGame,
   listNewsPlayersWithOtherSeasonsSql,
+  listNewsTitleSeasonTotalsSql,
   recentReporterSummariesSql,
   reporterActivitySql,
   lastFeatureSql,
@@ -865,4 +866,22 @@ void test('players with other seasons: archive or EA season rows of an earlier (
     /\(t\.release_order is null or cur\.release_order is null or t\.release_order < cur\.release_order\)/,
   )
   assert.match(s, /where p\.id in \(\$\d+\)/)
+})
+
+void test("title season totals: every human player's rows of the title before the sheet's first game (C2.4 records)", () => {
+  const q = dialect.sqlToQuery(listNewsTitleSeasonTotalsSql({ gameTitleId: 7, beforeMatchId: 900 }))
+  const s = flat(q.sql)
+  assert.match(
+    s,
+    /coalesce\(sum\(pms\.goals\), 0\) as goals, coalesce\(sum\(pms\.assists\), 0\) as assists, count\(\*\) as games/,
+  )
+  assert.match(s, /join matches l on l\.id = \$1/)
+  assert.match(
+    s,
+    /where m\.game_title_id = \$2 and p\.ai_goalie_side is null and \(m\.played_at, m\.id\) < \(l\.played_at, l\.id\)/,
+  )
+  // Every result: DNF rows count, like the title totals.
+  assert.doesNotMatch(s, /DNF/)
+  assert.match(s, /group by pms\.player_id, p\.gamertag$/)
+  assert.deepEqual(q.params, [900, 7])
 })

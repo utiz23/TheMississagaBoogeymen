@@ -14,6 +14,7 @@ import {
   weekStart as weekStartOf,
   type NewsAiGoalieLine,
   type NewsAiGoalieWeek,
+  type NewsClubRecord,
   type NewsFacts,
   type NewsGameFacts,
   type NewsGoal,
@@ -471,6 +472,8 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     context: null,
     teamNotes: [],
     headToHead: null,
+    // Set by `applyNewRecords` once the club records are known.
+    newRecords: [],
     periods: args.periods,
     players: lines,
     aiGoalieInNet,
@@ -717,6 +720,8 @@ export function buildFacts(args: {
   aiGoalieWeek?: NewsAiGoalieWeek[]
   /** The title's norms per mode before the sheet's first game (`applyNorms`); default none. */
   norms?: NewsModeNorms
+  /** The club's single-season records before the sheet (`buildRecords`); default none. */
+  records?: NewsClubRecord[]
 }): NewsFacts {
   const nightTotals = {
     goalsFor: 0,
@@ -754,6 +759,7 @@ export function buildFacts(args: {
     aiGoalieWeek: args.aiGoalieWeek ?? [],
     lore: [...CLUB_LORE],
     norms: args.norms ?? { '3s': null, '6s': null },
+    records: args.records ?? [],
   }
 }
 

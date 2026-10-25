@@ -22,6 +22,8 @@ import {
   listNewsNormGames,
   listNewsPlayerGames,
   listNewsPlayersWithOtherSeasons,
+  listNewsTitleSeasonTotals,
+  getClubSeasonLines,
   listNewsProfiles,
   listPlayerTitleTotals,
   listRecentNightSummaries,
@@ -65,6 +67,7 @@ import {
 } from './build-facts'
 import { applyNorms, normInputFromRow, type NormGameInput } from './norms'
 import { applyContext, titleGameFromFacts, titleGameFromRow } from './context'
+import { applyNewRecords, buildRecords, publicRecords, type SeasonLineInput } from './records'
 import { applyPlayerFacts, playerGameFromRow, type PlayerGameInput } from './players'
 
 /** An unlock counts when it lands up to this long after the last game of the sheet. */
@@ -312,34 +315,46 @@ async function loadSheet(
 
   const namedIds = people.map((p) => p.playerId)
   const nameById = new Map(people.map((p) => [p.playerId, p.name]))
-  const [results, totals, events, recent, normGames, playerGames, earlierSeasons] =
-    await Promise.all([
-      listTitleResultsUpTo(gameTitleId, last.match.id),
-      listPlayerTitleTotals({
-        gameTitleId,
-        playerIds: namedIds,
-        firstMatchId: first.match.id,
-        lastMatchId: last.match.id,
-      }),
-      listNewsCardEvents({
-        gameTitleId,
-        playerIds: namedIds,
-        firstMatchId: first.match.id,
-        lastMatchId: last.match.id,
-        afterMinutes: UNLOCK_WINDOW_AFTER_MINUTES,
-      }),
-      listRecentNightSummaries({
-        gameTitleId,
-        before: nightKey(first.match.playedAt),
-        limit: RECENT_NIGHTS,
-      }),
-      // Team norms (spec §12.10): the title's counted games before the sheet's first game.
-      listNewsNormGames({ gameTitleId, beforeMatchId: first.match.id }),
-      // Player facts (C2.3/C2.5): the named players' games in every title up to the sheet's last game.
-      listNewsPlayerGames({ playerIds: namedIds, lastMatchId: last.match.id }),
-      // Debuts (C2.5): who has a season in an earlier title.
-      listNewsPlayersWithOtherSeasons({ playerIds: namedIds, gameTitleId }),
-    ])
+  const [
+    results,
+    totals,
+    events,
+    recent,
+    normGames,
+    playerGames,
+    earlierSeasons,
+    seasonLines,
+    titleSeasons,
+  ] = await Promise.all([
+    listTitleResultsUpTo(gameTitleId, last.match.id),
+    listPlayerTitleTotals({
+      gameTitleId,
+      playerIds: namedIds,
+      firstMatchId: first.match.id,
+      lastMatchId: last.match.id,
+    }),
+    listNewsCardEvents({
+      gameTitleId,
+      playerIds: namedIds,
+      firstMatchId: first.match.id,
+      lastMatchId: last.match.id,
+      afterMinutes: UNLOCK_WINDOW_AFTER_MINUTES,
+    }),
+    listRecentNightSummaries({
+      gameTitleId,
+      before: nightKey(first.match.playedAt),
+      limit: RECENT_NIGHTS,
+    }),
+    // Team norms (spec §12.10): the title's counted games before the sheet's first game.
+    listNewsNormGames({ gameTitleId, beforeMatchId: first.match.id }),
+    // Player facts (C2.3/C2.5): the named players' games in every title up to the sheet's last game.
+    listNewsPlayerGames({ playerIds: namedIds, lastMatchId: last.match.id }),
+    // Debuts (C2.5): who has a season in an earlier title.
+    listNewsPlayersWithOtherSeasons({ playerIds: namedIds, gameTitleId }),
+    // Club records (C2.4): earlier titles' season lines, this title before the sheet.
+    getClubSeasonLines(),
+    listNewsTitleSeasonTotals({ gameTitleId, beforeMatchId: first.match.id }),
+  ])
   const normed = applyNorms(
     games,
     loaded.map((g, i): NormGameInput => normInputOf(g, games[i]?.endedEarly ?? false)),
@@ -359,6 +374,46 @@ async function loadSheet(
     normGames.map(titleGameFromRow),
     { nightComplete: kind !== 'game' },
   )
+
+  // Club records (C2.4): a holder is named like a person on the sheet (a
+  // member not at press level out: profile name, else gamertag), else null.
+  const current = titles.find((t) => t.id === gameTitleId)
+  const holderName = new Map(
+    memberLevels
+      .filter((m) => m.pressLevel !== 'out')
+      .map((m) => [m.playerId, m.name?.trim() || m.gamertag.trim()]),
+  )
+  const records = buildRecords(
+    [
+      ...seasonLines
+        .filter((l) => l.gameTitleId !== gameTitleId)
+        .map(
+          (l): SeasonLineInput => ({
+            playerId: l.playerId,
+            title: l.gameTitleName,
+            releaseOrder: l.releaseOrder,
+            current: false,
+            goals: l.goals,
+            assists: l.assists,
+            points: l.points,
+          }),
+        ),
+      ...titleSeasons.map(
+        (t): SeasonLineInput => ({
+          playerId: t.playerId,
+          title: gameTitleName,
+          releaseOrder: current?.releaseOrder ?? null,
+          current: true,
+          goals: t.goals,
+          assists: t.assists,
+          points: t.goals + t.assists,
+        }),
+      ),
+    ],
+    current?.releaseOrder ?? null,
+    (id) => holderName.get(id) ?? null,
+  )
+  const withRecords = applyNewRecords(withContext, records, gameTitleName)
 
   const unlocks: NewsFacts['unlocks'] = []
   for (const ev of events) {
@@ -383,8 +438,9 @@ async function loadSheet(
     kind,
     key,
     gameTitleName,
-    games: withContext,
+    games: withRecords,
     norms: normed.norms,
+    records: publicRecords(records),
     ...buildRecordAndStreak(results),
     unlocks,
     milestones: buildMilestones(totals.before, totals.after, people),

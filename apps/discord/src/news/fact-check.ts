@@ -254,11 +254,13 @@ function check(
   }
 
   // AI goalies on the sheet may be named (spec §12.8); they are not people,
-  // so `criticized` (people only) still rejects them.
+  // so `criticized` (people only) still rejects them. Nor are record holders.
   const allowedNames = new Set<string>([
     ...facts.people.map((p) => p.name),
     ...REPORTER_IDS.map((id) => REPORTERS[id].name),
     ...aiGoalieNames(facts),
+    // Club record holders (C2.4): members the sheet may name, also when they did not play.
+    ...facts.records.flatMap((r) => (r.holder === null ? [] : [r.holder])),
   ])
   for (const m of out.mentions) {
     if (allowedNames.has(m)) continue

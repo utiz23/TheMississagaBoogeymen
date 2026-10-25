@@ -386,13 +386,15 @@ export function applyPlayerFacts(
       if (rows === undefined) return { ...line, ...emptyPlayerExtras() }
       const prior = priorGames(rows, game)
       const norm = playerNorm(line, game, gameTitleId, prior)
+      const totals = titleTotalsAfter(line, gameTitleId, prior)
       return {
         ...line,
         norm,
         bests: playerBests(line, game, gameTitleId, prior),
         form: playerForm(line, norm, game, gameTitleId, prior),
         firsts: playerFirsts(line, gameTitleId, prior),
-        approaching: playerApproaching(titleTotalsAfter(line, gameTitleId, prior)),
+        approaching: playerApproaching(totals),
+        seasonTotals: totals,
         streaks: playerStreaks(line, gameTitleId, prior),
         ...optional(
           playerDebut(gameTitleId, prior, earlierSeasons.has(line.playerId)),

@@ -65,6 +65,7 @@ function sample(): NewsFactsResponse {
               firsts: [],
               approaching: [],
               streaks: [],
+              seasonTotals: null,
             },
             {
               playerId: 9,
@@ -87,6 +88,7 @@ function sample(): NewsFactsResponse {
               firsts: [],
               approaching: [],
               streaks: [],
+              seasonTotals: null,
             },
           ],
           aiGoalieInNet: false,
@@ -97,6 +99,7 @@ function sample(): NewsFactsResponse {
           context: null,
           teamNotes: [],
           headToHead: null,
+          newRecords: [],
           guestCount: 1,
           unnamedTeammates: 1,
           unnamedGoals: 1,
@@ -144,6 +147,7 @@ function sample(): NewsFactsResponse {
           context: null,
           teamNotes: [],
           headToHead: null,
+          newRecords: [],
           guestCount: 0,
           unnamedTeammates: 0,
           unnamedGoals: 0,
@@ -174,6 +178,7 @@ function sample(): NewsFactsResponse {
       aiGoalieWeek: [],
       lore: ["The Boogeymen's farm team is the Oregon Outlaws."],
       norms: { '3s': null, '6s': null },
+      records: [],
     },
     forbiddenNames: ['Hidden Guy'],
   }
@@ -878,4 +883,27 @@ void test('contract: streaks, debut and return round-trip; missing ones read as 
   bad.facts.games[0]!.players[0]!['debut'] = 'club'
   bad.facts.games[0]!.players[0]!['streaks'] = [{ kind: 'assists', games: 3, status: 'extended' }]
   assert.throws(() => parseNewsFactsResponse(bad), /streaks\[0\]\.kind/)
+})
+
+void test('contract: records, new records and season totals round-trip; missing ones read as none (C2.4)', () => {
+  const s = sample()
+  s.facts.records = [{ stat: 'goals', holder: null, value: 61, title: 'NHL 24' }]
+  s.facts.games[0]!.newRecords = [{ stat: 'points', name: 'Silky', value: 101 }]
+  s.facts.games[0]!.players[0]!.seasonTotals = { goals: 40, assists: 61, points: 101, games: 70 }
+  assert.deepEqual(parseNewsFactsResponse(clone(s)), s)
+  const old = clone(s) as unknown as {
+    facts: Record<string, unknown> & {
+      games: (Record<string, unknown> & { players: Record<string, unknown>[] })[]
+    }
+  }
+  delete old.facts['records']
+  delete old.facts.games[0]!['newRecords']
+  delete old.facts.games[0]!.players[0]!['seasonTotals']
+  const p = parseNewsFactsResponse(old)
+  assert.deepEqual(p.facts.records, [])
+  assert.deepEqual(p.facts.games[0]!.newRecords, [])
+  assert.equal(p.facts.games[0]!.players[0]!.seasonTotals, null)
+  const bad = clone(s) as unknown as { facts: { records: Record<string, unknown>[] } }
+  bad.facts.records[0]!['stat'] = 'hits'
+  assert.throws(() => parseNewsFactsResponse(bad), /records\[0\]\.stat/)
 })

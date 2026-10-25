@@ -82,6 +82,7 @@ const game1: NewsGameFacts = {
   context: null,
   teamNotes: [],
   headToHead: null,
+  newRecords: [],
   guestCount: 0,
   unnamedTeammates: 0,
   unnamedGoals: 0,
@@ -144,6 +145,7 @@ export function oct12Facts(kind: NewsFacts['kind'] = 'game'): NewsFacts {
     aiGoalieWeek: [],
     lore: ["The Boogeymen's farm team is the Oregon Outlaws."],
     norms: { '3s': null, '6s': null },
+    records: [],
   }
 }
 

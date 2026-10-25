@@ -1400,6 +1400,61 @@ export async function listNewsPlayersWithOtherSeasons(args: {
   return new Set(rows.map((r) => Number(r.id)))
 }
 
+/** A player's totals in the sheet's title before its first game (C2.4 records). */
+export interface NewsTitleSeasonTotal {
+  playerId: number
+  gamertag: string
+  goals: number
+  assists: number
+  games: number
+}
+
+/**
+ * Every human player's title totals from the games strictly before
+ * `beforeMatchId` (played_at, then id): every row, DNF too, like the title
+ * totals and player_game_title_stats. AI goalies left out (they cannot hold a
+ * club record). The current title's part of the club records (C2.4); the
+ * stored season tables would include later games during a backfill.
+ */
+export function listNewsTitleSeasonTotalsSql(args: {
+  gameTitleId: number
+  beforeMatchId: number
+}): SQL {
+  return sql`
+    select pms.player_id, p.gamertag,
+      coalesce(sum(pms.goals), 0) as goals,
+      coalesce(sum(pms.assists), 0) as assists,
+      count(*) as games
+    from player_match_stats pms
+    join players p on p.id = pms.player_id
+    join matches m on m.id = pms.match_id
+    join matches l on l.id = ${args.beforeMatchId}
+    where m.game_title_id = ${args.gameTitleId}
+      and p.ai_goalie_side is null
+      and (m.played_at, m.id) < (l.played_at, l.id)
+    group by pms.player_id, p.gamertag`
+}
+
+export async function listNewsTitleSeasonTotals(args: {
+  gameTitleId: number
+  beforeMatchId: number
+}): Promise<NewsTitleSeasonTotal[]> {
+  const rows = await db.execute<{
+    player_id: Numeric
+    gamertag: string
+    goals: Numeric
+    assists: Numeric
+    games: Numeric
+  }>(listNewsTitleSeasonTotalsSql(args))
+  return rows.map((r) => ({
+    playerId: Number(r.player_id),
+    gamertag: r.gamertag,
+    goals: Number(r.goals),
+    assists: Number(r.assists),
+    games: Number(r.games),
+  }))
+}
+
 /**
  * Counted card events (same rule as the unlock poster) of the given players in
  * a title, from the first game's end to `afterMinutes` after the last game's

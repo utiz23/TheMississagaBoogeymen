@@ -64,6 +64,51 @@ export interface NewsPlayerLine {
   debut?: 'club' | 'title'
   /** Days since the member's previous game in any title, when 30 or more (C2.5). Absent otherwise. */
   returnAfterDays?: number
+  /**
+   * Title totals after this game (C2.4; every row of the title, DNF too, like
+   * the milestones), so a new club record is detectable. May be quoted. Null
+   * from an older web app.
+   */
+  seasonTotals: NewsSeasonTotals | null
+}
+
+export interface NewsSeasonTotals {
+  goals: number
+  assists: number
+  points: number
+  games: number
+}
+
+/** The stats with club single-season records (C2.4, spec §12.14). */
+export const RECORD_STATS = ['goals', 'assists', 'points'] as const
+export type RecordStat = (typeof RECORD_STATS)[number]
+
+/**
+ * The club's best single season (one title) for a stat, as it stood before
+ * the sheet's first game (C2.4): earlier titles from the site's club season
+ * lines (EA member seasons, else the reviewed archive; the profile Awards
+ * source), the current title from its games before the sheet. `holder` = the
+ * member's sheet name (profile name, else gamertag), null for a non-member,
+ * a member at press level `out` or an AI goalie. `title` = the game title's
+ * name ("NHL 25"). Values may be quoted; a non-null holder is an allowed name.
+ */
+export interface NewsClubRecord {
+  stat: RecordStat
+  holder: string | null
+  value: number
+  title: string
+}
+
+/**
+ * A named player whose title total passed the club record at this game
+ * (C2.4): `value` = his new total. Not when the record was already his
+ * (this title); a later sheet game compares with the record set earlier on
+ * the sheet.
+ */
+export interface NewsNewRecord {
+  stat: RecordStat
+  name: string
+  value: number
 }
 
 /**
@@ -167,9 +212,17 @@ export interface NewsApproaching {
 /** The C2 fields of a player line with nothing in them (older web apps, builders, fixtures). */
 export function emptyPlayerExtras(): Pick<
   NewsPlayerLine,
-  'norm' | 'bests' | 'form' | 'firsts' | 'approaching' | 'streaks'
+  'norm' | 'bests' | 'form' | 'firsts' | 'approaching' | 'streaks' | 'seasonTotals'
 > {
-  return { norm: null, bests: [], form: null, firsts: [], approaching: [], streaks: [] }
+  return {
+    norm: null,
+    bests: [],
+    form: null,
+    firsts: [],
+    approaching: [],
+    streaks: [],
+    seasonTotals: null,
+  }
 }
 
 /** A period as the match page names it. EASHL has no shootout: periods 4-6 are OT, OT2, OT3. */
@@ -384,6 +437,8 @@ export interface NewsGameFacts {
   teamNotes: string[]
   /** Earlier meetings with this opponent in the title; null when none (§12.15-2). */
   headToHead: NewsHeadToHead | null
+  /** Club records a named player passed at this game (C2.4); usually empty. */
+  newRecords: NewsNewRecord[]
   /** Club members in the game at press level `out`: teammates who must not be named or singled out. */
   unnamedTeammates: number
   /**
@@ -486,6 +541,8 @@ export interface NewsFacts {
    * per game mode (§12.17-1); a mode is null below 10 games of that mode.
    */
   norms: NewsModeNorms
+  /** The club's single-season records before the sheet's first game (C2.4); [] from an older web app. */
+  records: NewsClubRecord[]
 }
 
 export interface NewsFactsResponse {
@@ -590,6 +647,38 @@ function parsePlayerLine(v: unknown, path: string): NewsPlayerLine {
     ...(o['returnAfterDays'] === undefined
       ? {}
       : { returnAfterDays: nonNegInt(o['returnAfterDays'], `${path}.returnAfterDays`) }),
+    seasonTotals: opt(o, 'seasonTotals', null, () =>
+      nullable(o['seasonTotals'], `${path}.seasonTotals`, parseSeasonTotals),
+    ),
+  }
+}
+
+function parseSeasonTotals(v: unknown, path: string): NewsSeasonTotals {
+  const o = obj(v, path)
+  return {
+    goals: int(o['goals'], `${path}.goals`),
+    assists: int(o['assists'], `${path}.assists`),
+    points: int(o['points'], `${path}.points`),
+    games: nonNegInt(o['games'], `${path}.games`),
+  }
+}
+
+function parseClubRecord(v: unknown, path: string): NewsClubRecord {
+  const o = obj(v, path)
+  return {
+    stat: oneOf(o['stat'], `${path}.stat`, RECORD_STATS),
+    holder: nullable(o['holder'], `${path}.holder`, str),
+    value: nonNegInt(o['value'], `${path}.value`),
+    title: str(o['title'], `${path}.title`),
+  }
+}
+
+function parseNewRecord(v: unknown, path: string): NewsNewRecord {
+  const o = obj(v, path)
+  return {
+    stat: oneOf(o['stat'], `${path}.stat`, RECORD_STATS),
+    name: str(o['name'], `${path}.name`),
+    value: nonNegInt(o['value'], `${path}.value`),
   }
 }
 
@@ -844,6 +933,9 @@ function parseGame(v: unknown, path: string): NewsGameFacts {
     headToHead: opt(o, 'headToHead', null, () =>
       nullable(o['headToHead'], `${path}.headToHead`, parseHeadToHead),
     ),
+    newRecords: opt(o, 'newRecords', [], () =>
+      arr(o['newRecords'], `${path}.newRecords`, parseNewRecord),
+    ),
     guestCount: int(o['guestCount'], `${path}.guestCount`),
     unnamedTeammates: int(o['unnamedTeammates'], `${path}.unnamedTeammates`),
     unnamedGoals: nonNegInt(o['unnamedGoals'], `${path}.unnamedGoals`),
@@ -964,6 +1056,7 @@ function parseFacts(v: unknown, path: string): NewsFacts {
         : arr(o['aiGoalieWeek'], `${path}.aiGoalieWeek`, parseAiGoalieWeek),
     lore: o['lore'] === undefined ? [] : arr(o['lore'], `${path}.lore`, str),
     norms: parseModeNorms(o['norms'], `${path}.norms`),
+    records: opt(o, 'records', [], () => arr(o['records'], `${path}.records`, parseClubRecord)),
   }
 }
 
