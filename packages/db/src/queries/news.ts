@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   newsAiUsage,
@@ -48,9 +48,10 @@ function nightKeySql(alias: string): SQL {
 
 /**
  * Games the news desk may cover: active title, ended after `since`, not a DNF,
- * the Discord result post already settled (not pending), and either no job or a
- * failed one under the cap. `pending`, `done` and `skipped` jobs are never
- * returned. job_key holds the match id as text.
+ * the Discord result post final (posted, skipped, or failed for good — a failed
+ * post under the cap may still be retried by the result poster), and either no
+ * job or a failed one under the cap. `pending`, `done` and `skipped` jobs are
+ * never returned. job_key holds the match id as text.
  */
 export function listGameJobCandidatesSql(args: { since: Date; limit: number }): SQL {
   return sql`
@@ -61,7 +62,7 @@ export function listGameJobCandidatesSql(args: { since: Date; limit: number }): 
     left join news_jobs j on j.kind = 'game' and j.job_key = m.id::text
     where m.played_at > ${args.since.toISOString()}::timestamptz
       and m.result <> 'DNF'
-      and dp.status <> 'pending'
+      and (dp.status in ('posted', 'skipped') or (dp.status = 'failed' and dp.attempts >= ${MAX}))
       and (j.job_key is null or (j.status = 'failed' and j.attempts < ${MAX}))
     order by m.played_at, m.id
     limit ${args.limit}`
@@ -76,13 +77,24 @@ export async function listGameJobCandidates(args: {
 }
 
 /**
+ * A night whose last game ended this long ago is written up even when some of
+ * its games never got a settled job (e.g. the result poster was down, or a job
+ * is stuck), so one stuck game never blocks the article for good.
+ */
+export const NIGHT_SETTLE_CEILING_MS = 3 * 60 * 60 * 1000
+
+/**
  * Night keys ('YYYY-MM-DD', active title) that are over: the last game ended
  * before `now - endedForMs` and after `since`; no night job yet (or a failed one
  * under the cap); and every counted (non-DNF) game of the night already has a
- * settled game job: done, skipped, or failed for good (attempts at the cap).
+ * settled game job: done, skipped, pending (the news service runs one pass at a
+ * time and the game pass runs first, so a pending job seen here is dead), or
+ * failed for good (attempts at the cap). A night whose last game ended more than
+ * NIGHT_SETTLE_CEILING_MS ago is over whatever its game jobs say.
  */
 export function listEndedNightsSql(args: { now: Date; endedForMs: number; since: Date }): SQL {
   const cutoff = new Date(args.now.getTime() - args.endedForMs)
+  const ceiling = new Date(args.now.getTime() - NIGHT_SETTLE_CEILING_MS)
   return sql`
     select to_char(n.night, 'YYYY-MM-DD') as night
     from (
@@ -95,17 +107,20 @@ export function listEndedNightsSql(args: { now: Date; endedForMs: number; since:
     ) n
     left join news_jobs j on j.kind = 'night' and j.job_key = to_char(n.night, 'YYYY-MM-DD')
     where (j.job_key is null or (j.status = 'failed' and j.attempts < ${MAX}))
-      and not exists (
-        select 1
-        from matches m2
-        join game_titles g2 on g2.id = m2.game_title_id and g2.is_active
-        where ${nightKeySql('m2')} = n.night
-          and m2.result <> 'DNF'
-          and not exists (
-            select 1 from news_jobs gj
-            where gj.kind = 'game' and gj.job_key = m2.id::text
-              and (gj.status in ('done', 'skipped') or (gj.status = 'failed' and gj.attempts >= ${MAX}))
-          )
+      and (
+        n.last_end < ${ceiling.toISOString()}::timestamptz
+        or not exists (
+          select 1
+          from matches m2
+          join game_titles g2 on g2.id = m2.game_title_id and g2.is_active
+          where ${nightKeySql('m2')} = n.night
+            and m2.result <> 'DNF'
+            and not exists (
+              select 1 from news_jobs gj
+              where gj.kind = 'game' and gj.job_key = m2.id::text
+                and (gj.status in ('done', 'skipped', 'pending') or (gj.status = 'failed' and gj.attempts >= ${MAX}))
+            )
+        )
       )
     order by n.night`
 }
@@ -140,7 +155,9 @@ export async function countNightGames(nights: string[]): Promise<number> {
 
 /**
  * Take a job: insert it pending with attempts 1, or flip a failed row under the
- * cap back to pending (attempts + 1). Any other existing row claims nothing.
+ * cap back to pending (attempts + 1) when it was written in the same mode (a
+ * failed test job is never re-claimed live, and the other way round). Any other
+ * existing row claims nothing.
  */
 export function claimNewsJobSql(kind: NewsJobKind, key: string, isTest: boolean): SQL {
   return sql`
@@ -149,6 +166,7 @@ export function claimNewsJobSql(kind: NewsJobKind, key: string, isTest: boolean)
     on conflict (kind, job_key) do update
       set status = 'pending', attempts = news_jobs.attempts + 1, updated_at = now()
       where news_jobs.status = 'failed' and news_jobs.attempts < ${MAX}
+        and news_jobs.is_test = ${isTest}
     returning id`
 }
 
@@ -326,28 +344,43 @@ export async function reporterActivity(args: {
     .orderBy(asc(newsItems.id))
 }
 
-/** A reporter's latest headlines and summaries, newest first (the "don't repeat yourself" context). */
+/**
+ * A reporter's latest headlines and summaries, newest first (the "don't repeat
+ * yourself" context). Real, not deleted, and never an item that names a player
+ * who is now at press level 'out': their name must not reach the writer again.
+ */
+export function recentReporterSummariesSql(reporter: string, limit: number): SQL {
+  return sql`
+    select n.headline, n.summary, n.night
+    from news_items n
+    where n.is_test = false
+      and n.deleted_at is null
+      and n.reporter = ${reporter}
+      and n.headline is not null
+      and n.summary is not null
+      and not exists (
+        select 1
+        from jsonb_array_elements(n.mentions) as e(elem)
+        join player_profiles pp on pp.player_id = (e.elem->>'playerId')::int
+        where pp.press_level = 'out'
+      )
+    order by n.id desc
+    limit ${limit}`
+}
+
 export async function recentReporterSummaries(
   reporter: string,
   limit: number,
 ): Promise<{ headline: string; summary: string; night: string | null }[]> {
-  const rows = await db
-    .select({ headline: newsItems.headline, summary: newsItems.summary, night: newsItems.night })
-    .from(newsItems)
-    .where(
-      and(
-        publicNewsItemWhere(),
-        sql`${newsItems.reporter} = ${reporter}`,
-        isNotNull(newsItems.headline),
-        isNotNull(newsItems.summary),
-      ),
-    )
-    .orderBy(desc(newsItems.id))
-    .limit(limit)
+  const rows = await db.execute<{
+    headline: string | null
+    summary: string | null
+    night: string | Date | null
+  }>(recentReporterSummariesSql(reporter, limit))
   return rows.flatMap((r) =>
     r.headline === null || r.summary === null
       ? []
-      : [{ headline: r.headline, summary: r.summary, night: r.night }],
+      : [{ headline: r.headline, summary: r.summary, night: toDay(r.night) }],
   )
 }
 
@@ -364,6 +397,59 @@ export async function setNewsEnabled(on: boolean): Promise<void> {
     .insert(newsSettings)
     .values({ id: 1, enabled: on })
     .onConflictDoUpdate({ target: newsSettings.id, set: { enabled: on, updatedAt: sql`now()` } })
+}
+
+/** How far back a switch-on marks games and nights as skipped. */
+export const NEWS_BACKLOG_MS = 3 * 86_400_000
+
+/** Game jobs 'skipped' for every game that ended after `since` and has no job yet. */
+export function skipBacklogGamesSql(since: Date): SQL {
+  return sql`
+    insert into news_jobs (kind, job_key, status, last_error)
+    select 'game', m.id::text, 'skipped', 'desk was off'
+    from matches m
+    where m.played_at > ${since.toISOString()}::timestamptz
+    on conflict (kind, job_key) do nothing`
+}
+
+/** Night jobs 'skipped' for every night with a game that ended after `since`. */
+export function skipBacklogNightsSql(since: Date): SQL {
+  return sql`
+    insert into news_jobs (kind, job_key, status, last_error)
+    select distinct 'night', to_char(${nightKeySql('m')}, 'YYYY-MM-DD'), 'skipped', 'desk was off'
+    from matches m
+    where m.played_at > ${since.toISOString()}::timestamptz
+    on conflict (kind, job_key) do nothing`
+}
+
+/**
+ * Week jobs 'skipped' for the current and the previous Monday-to-Sunday week
+ * (America/Edmonton calendar, as the week pass computes it).
+ */
+export function skipBacklogWeeksSql(now: Date): SQL {
+  return sql`
+    insert into news_jobs (kind, job_key, status, last_error)
+    select 'week', to_char(w.start, 'YYYY-MM-DD'), 'skipped', 'desk was off'
+    from (
+      select date_trunc('week', ${now.toISOString()}::timestamptz at time zone 'America/Edmonton')::date as start
+      union all
+      select date_trunc('week', ${now.toISOString()}::timestamptz at time zone 'America/Edmonton')::date - 7
+    ) w
+    on conflict (kind, job_key) do nothing`
+}
+
+/**
+ * Run when the desk is switched on after being off: mark everything played in
+ * the last 3 days, and the current and previous week, as skipped, so the desk
+ * never writes about the time it was off. Existing jobs are left alone.
+ */
+export async function skipNewsBacklog(now: Date): Promise<void> {
+  const since = new Date(now.getTime() - NEWS_BACKLOG_MS)
+  await db.transaction(async (tx) => {
+    await tx.execute(skipBacklogGamesSql(since))
+    await tx.execute(skipBacklogNightsSql(since))
+    await tx.execute(skipBacklogWeeksSql(now))
+  })
 }
 
 // ── Public (web) ────────────────────────────────────────────────────────────
@@ -496,12 +582,26 @@ export async function listAdminNewsItems(limit: number): Promise<NewsItemRow[]> 
   return db.select().from(newsItems).orderBy(desc(newsItems.id)).limit(limit)
 }
 
-/** Hide an item from every public page now; the Discord message is deleted on the next pass. */
-export async function softDeleteNewsItem(id: number): Promise<void> {
-  await db
+/** One item, test and deleted ones included (admin only). */
+export async function getAdminNewsItem(id: number): Promise<NewsItemRow | null> {
+  const rows = await db.select().from(newsItems).where(eq(newsItems.id, id)).limit(1)
+  return rows[0] ?? null
+}
+
+/** The item and its replies: a reply makes no sense once the post it answers is gone. */
+export function softDeleteNewsItemQuery(id: number) {
+  return db
     .update(newsItems)
     .set({ deletedAt: sql`now()` })
-    .where(and(eq(newsItems.id, id), isNull(newsItems.deletedAt)))
+    .where(and(or(eq(newsItems.id, id), eq(newsItems.replyTo, id)), isNull(newsItems.deletedAt)))
+}
+
+/**
+ * Hide an item, and every reply to it, from every public page now; their
+ * Discord messages are deleted on the next pass.
+ */
+export async function softDeleteNewsItem(id: number): Promise<void> {
+  await softDeleteNewsItemQuery(id)
 }
 
 // ── Press levels ────────────────────────────────────────────────────────────

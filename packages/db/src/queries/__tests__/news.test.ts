@@ -26,6 +26,13 @@ const {
   listRecentNightSummariesSql,
   listNewsCardEventsSql,
   listPlayerTitleTotalsSql,
+  recentReporterSummariesSql,
+  skipBacklogGamesSql,
+  skipBacklogNightsSql,
+  skipBacklogWeeksSql,
+  softDeleteNewsItemQuery,
+  NIGHT_SETTLE_CEILING_MS,
+  NEWS_BACKLOG_MS,
 } = await import('../news.js')
 const { db } = await import('../../client.js')
 const dialect = new PgDialect()
@@ -33,7 +40,7 @@ const flat = (s: string) => s.replace(/\s+/g, ' ')
 const NIGHT = (a: string) =>
   `((${a}.played_at at time zone 'America/Edmonton') - interval '6 hours')::date`
 
-void test('game candidates: active title, not DNF, discord row settled, no job or failed under cap', () => {
+void test('game candidates: active title, not DNF, discord row final, no job or failed under cap', () => {
   const q = dialect.sqlToQuery(
     listGameJobCandidatesSql({ since: new Date('2026-10-24T00:00:00Z'), limit: 5 }),
   )
@@ -41,7 +48,12 @@ void test('game candidates: active title, not DNF, discord row settled, no job o
   assert.match(s, /join game_titles g on g\.id = m\.game_title_id and g\.is_active/)
   assert.match(s, /m\.result <> 'DNF'/)
   assert.match(s, /join discord_posts dp on dp\.match_id = m\.id/)
-  assert.match(s, /dp\.status <> 'pending'/)
+  // M1: final = posted, skipped, or failed for good (the result poster may still retry a failed one).
+  assert.match(
+    s,
+    /\(dp\.status in \('posted', 'skipped'\) or \(dp\.status = 'failed' and dp\.attempts >= 3\)\)/,
+  )
+  assert.doesNotMatch(s, /dp\.status <> 'pending'/)
   assert.match(s, /left join news_jobs j on j\.kind = 'game' and j\.job_key = m\.id::text/)
   assert.match(s, /j\.job_key is null or \( ?j\.status = 'failed' and j\.attempts < 3 ?\)/)
   assert.match(s, /m\.played_at > \$\d+::timestamptz/)
@@ -74,24 +86,100 @@ void test('ended nights: night key, cut-off, since, job cap, every counted game 
   )
   assert.match(s, /j\.job_key is null or \( ?j\.status = 'failed' and j\.attempts < 3 ?\)/)
   assert.match(s, /m2\.result <> 'DNF'/)
+  // I1.1: a pending game job counts as settled (one news process: a pending job seen here is dead).
   assert.match(
     s,
-    /not exists \( ?select 1 from news_jobs gj where gj\.kind = 'game' and gj\.job_key = m2\.id::text and \(gj\.status in \('done', 'skipped'\) or \(gj\.status = 'failed' and gj\.attempts >= 3\)\) ?\)/,
+    /not exists \( ?select 1 from news_jobs gj where gj\.kind = 'game' and gj\.job_key = m2\.id::text and \(gj\.status in \('done', 'skipped', 'pending'\) or \(gj\.status = 'failed' and gj\.attempts >= 3\)\) ?\)/,
   )
+  // I1.2: 3 h after the last game the night is over whatever its game jobs say.
+  assert.equal(NIGHT_SETTLE_CEILING_MS, 3 * 60 * 60 * 1000)
+  assert.match(
+    s,
+    /and \( ?n\.last_end < \$\d+::timestamptz or not exists \( ?select 1 from matches m2/,
+  )
+  assert.ok(q.params.includes('2026-10-24T17:00:00.000Z'), 'now minus 3 h')
   assert.match(s, /order by n\.night/)
 })
 
-void test('claim: insert pending, or flip only a failed row under the cap', () => {
+void test('claim: insert pending, or flip only a failed row under the cap of the same mode', () => {
   const q = dialect.sqlToQuery(claimNewsJobSql('game', '42', false))
   const s = flat(q.sql)
   assert.match(
     s,
     /insert into news_jobs \(kind, job_key, status, attempts, is_test\) values \(\$1, \$2, 'pending', 1, \$3\)/,
   )
-  assert.deepEqual(q.params, ['game', '42', false])
+  assert.deepEqual(q.params, ['game', '42', false, false])
   assert.match(
     s,
-    /on conflict \(kind, job_key\) do update set status = 'pending', attempts = news_jobs\.attempts \+ 1, updated_at = now\(\) where news_jobs\.status = 'failed' and news_jobs\.attempts < 3 returning id/,
+    /on conflict \(kind, job_key\) do update set status = 'pending', attempts = news_jobs\.attempts \+ 1, updated_at = now\(\) where news_jobs\.status = 'failed' and news_jobs\.attempts < 3 and news_jobs\.is_test = \$4 returning id/,
+  )
+  // M6: a failed test job is never re-claimed live.
+  assert.deepEqual(dialect.sqlToQuery(claimNewsJobSql('night', 'k', true)).params, [
+    'night',
+    'k',
+    true,
+    true,
+  ])
+})
+
+void test('recent reporter summaries: real, not deleted, never an item that names a player now at "out"', () => {
+  const q = dialect.sqlToQuery(recentReporterSummariesSql('quill', 3))
+  const s = flat(q.sql)
+  assert.match(s, /from news_items n/)
+  assert.match(s, /n\.is_test = false/)
+  assert.match(s, /n\.deleted_at is null/)
+  assert.match(s, /n\.reporter = \$1/)
+  assert.match(s, /n\.headline is not null and n\.summary is not null/)
+  assert.match(
+    s,
+    /and not exists \( ?select 1 from jsonb_array_elements\(n\.mentions\) as e\(elem\) join player_profiles pp on pp\.player_id = \(e\.elem->>'playerId'\)::int where pp\.press_level = 'out' ?\)/,
+  )
+  assert.match(s, /order by n\.id desc limit \$2/)
+  assert.deepEqual(q.params, ['quill', 3])
+})
+
+void test('switch-on back-fill: skipped game and night jobs for the last 3 days, never overwriting a job', () => {
+  assert.equal(NEWS_BACKLOG_MS, 3 * 86_400_000)
+  const since = new Date('2026-10-21T12:00:00Z')
+  const g = dialect.sqlToQuery(skipBacklogGamesSql(since))
+  const gs = flat(g.sql)
+  assert.match(gs, /insert into news_jobs \(kind, job_key, status, last_error\)/)
+  assert.match(gs, /select 'game', m\.id::text, 'skipped', 'desk was off' from matches m/)
+  assert.match(gs, /m\.played_at > \$1::timestamptz/)
+  assert.match(gs, /on conflict \(kind, job_key\) do nothing$/)
+  assert.deepEqual(g.params, ['2026-10-21T12:00:00.000Z'])
+
+  const n = dialect.sqlToQuery(skipBacklogNightsSql(since))
+  const ns = flat(n.sql)
+  assert.ok(ns.includes(`select distinct 'night', to_char(${NIGHT('m')}, 'YYYY-MM-DD'), 'skipped'`))
+  assert.match(ns, /m\.played_at > \$1::timestamptz/)
+  assert.match(ns, /on conflict \(kind, job_key\) do nothing$/)
+  assert.deepEqual(n.params, ['2026-10-21T12:00:00.000Z'])
+})
+
+void test('switch-on back-fill: the current and the previous week (Edmonton calendar) are skipped', () => {
+  const q = dialect.sqlToQuery(skipBacklogWeeksSql(new Date('2026-10-24T20:00:00Z')))
+  const s = flat(q.sql)
+  assert.match(s, /select 'week', to_char\(w\.start, 'YYYY-MM-DD'\), 'skipped', 'desk was off'/)
+  assert.match(
+    s,
+    /date_trunc\('week', \$1::timestamptz at time zone 'America\/Edmonton'\)::date as start union all select date_trunc\('week', \$2::timestamptz at time zone 'America\/Edmonton'\)::date - 7/,
+  )
+  assert.match(s, /on conflict \(kind, job_key\) do nothing$/)
+  assert.deepEqual(q.params, ['2026-10-24T20:00:00.000Z', '2026-10-24T20:00:00.000Z'])
+})
+
+void test('soft delete: the item and its replies, only those not yet deleted', () => {
+  const q = softDeleteNewsItemQuery(12).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /^update "news_items" set "deleted_at" = now\(\)/)
+  assert.match(
+    s,
+    /where \(\("news_items"\."id" = \$\d+ or "news_items"\."reply_to" = \$\d+\) and "news_items"\."deleted_at" is null\)/,
+  )
+  assert.deepEqual(
+    q.params.filter((p) => p === 12),
+    [12, 12],
   )
 })
 
@@ -282,4 +370,26 @@ void test('title totals: counted games, before the first game and through the la
   )
   assert.match(s, /m\.played_at <= \( ?select l\.played_at from matches l where l\.id = \$\d+ ?\)/)
   assert.match(s, /group by pms\.player_id/)
+})
+
+void test('migration 0071: skipped back-fill for every game, night and week, idempotent', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const text = flat(
+    await readFile(new URL('../../../migrations/0071_news_desk.sql', import.meta.url), 'utf8'),
+  )
+  for (const kind of ['game', 'night', 'week']) {
+    assert.match(
+      text,
+      new RegExp(
+        `INSERT INTO "news_jobs" \\("kind", "job_key", "status", "last_error"\\) SELECT (DISTINCT )?'${kind}',[^;]*'skipped', 'before launch' FROM "matches" m ON CONFLICT \\("kind", "job_key"\\) DO NOTHING;`,
+      ),
+      kind,
+    )
+  }
+  // M3: the week key is the Monday of the night key's week.
+  assert.ok(
+    text.includes(
+      `to_char(date_trunc('week', (m."played_at" AT TIME ZONE 'America/Edmonton') - interval '6 hours')::date, 'YYYY-MM-DD')`,
+    ),
+  )
 })

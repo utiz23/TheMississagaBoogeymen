@@ -8,16 +8,16 @@
 -- the fictional reporters write. news_ai_usage: one row per Claude call (cost
 -- record for the monthly limit). news_settings: one row, the on/off switch.
 -- player_profiles gains press_level (full | easy | out) and who set it.
--- Back-fills a skipped job for every existing game and night so launch never
--- covers history.
+-- Back-fills a skipped job for every existing game, night and week (Monday
+-- start, from the night key) so launch never covers history.
 --
 -- HOW TO APPLY — HAND-APPLIED (journal frozen at 0045; same form as 0069):
 --   docker exec -i -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=30s" \
 --     eanhl-team-website-db-1 psql -U eanhl -d <database> -v ON_ERROR_STOP=1 -f - \
 --     < packages/db/migrations/0071_news_desk.sql
 -- Apply BEFORE deploying the code that reads it. Idempotent in schema; adds only.
--- WARNING: re-running it AFTER launch marks every game and night that has no
--- job yet as 'skipped' (the back-fill covers every match without a row).
+-- WARNING: re-running it AFTER launch marks every game, night and week that has
+-- no job yet as 'skipped' (the back-fill covers every match without a row).
 -- Re-run only right before the first launch.
 -- ROLLBACK:
 --   DROP TABLE IF EXISTS "news_ai_usage";
@@ -166,11 +166,20 @@ SELECT DISTINCT 'night',
 FROM "matches" m
 ON CONFLICT ("kind", "job_key") DO NOTHING;
 
+-- Week key = the Monday of the night key's week (weeks run Monday to Sunday).
+INSERT INTO "news_jobs" ("kind", "job_key", "status", "last_error")
+SELECT DISTINCT 'week',
+  to_char(date_trunc('week', (m."played_at" AT TIME ZONE 'America/Edmonton') - interval '6 hours')::date, 'YYYY-MM-DD'),
+  'skipped', 'before launch'
+FROM "matches" m
+ON CONFLICT ("kind", "job_key") DO NOTHING;
+
 COMMIT;
 
 SELECT
   (SELECT count(*) FROM "matches") AS "matches",
   (SELECT count(*) FROM "news_jobs" WHERE "kind" = 'game') AS "game_jobs",
   (SELECT count(*) FROM "news_jobs" WHERE "kind" = 'night') AS "night_jobs",
+  (SELECT count(*) FROM "news_jobs" WHERE "kind" = 'week') AS "week_jobs",
   (SELECT count(*) FROM "news_jobs" WHERE "status" = 'skipped') AS "skipped",
   (SELECT count(*) FROM "player_profiles" WHERE "press_level" = 'full') AS "profiles_full";
