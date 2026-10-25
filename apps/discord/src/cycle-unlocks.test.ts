@@ -12,6 +12,7 @@ const unlock = (id: number, graphic: DiscordUnlock['graphic'] = 'badge'): Discor
   kind: 'badge',
   subject: 'Shots · Home II',
   graphic,
+  discordUserId: null,
 })
 
 function harness(ids: number[], over: Partial<UnlockDeps> = {}) {

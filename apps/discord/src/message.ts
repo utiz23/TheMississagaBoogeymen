@@ -90,7 +90,8 @@ export function buildGameResultPayload(
 
 /** A plain Discord message (no embed): text plus an attached graphic. */
 export interface MessagePayload {
-  allowed_mentions: { parse: never[] }
+  /** `users` lists the one player a new-card post may ping; nothing else ever pings. */
+  allowed_mentions: { parse: never[]; users?: string[] }
   content: string
   attachments?: { id: number; filename: string }[]
 }
@@ -105,7 +106,9 @@ export function buildUnlockPayload(
   u: DiscordUnlock,
   opts: { siteUrl: string; hasImage: boolean },
 ): MessagePayload {
-  const who = `**[${escapeMarkdown(u.name)}](<${opts.siteUrl}/roster/${String(u.playerId)}>)**`
+  // Only a new card (tier, mythic) pings, and only the player it is about.
+  const pingId = u.kind === 'tier' || u.kind === 'mythic' ? u.discordUserId : null
+  const who = `**[${escapeMarkdown(u.name)}](<${opts.siteUrl}/roster/${String(u.playerId)}>)**${pingId === null ? '' : ` <@${pingId}>`}`
   const what = escapeMarkdown(u.subject)
   const content =
     u.kind === 'badge'
@@ -113,7 +116,10 @@ export function buildUnlockPayload(
       : u.kind === 'card_level'
         ? `${who} has reached **card level ${what}**!`
         : `${who} has unlocked the **${what}** card!`
-  const payload: MessagePayload = { allowed_mentions: { parse: [] }, content }
+  const payload: MessagePayload = {
+    allowed_mentions: pingId === null ? { parse: [] } : { parse: [], users: [pingId] },
+    content,
+  }
   if (opts.hasImage) payload.attachments = [{ id: 0, filename: UNLOCK_FILENAME }]
   return payload
 }

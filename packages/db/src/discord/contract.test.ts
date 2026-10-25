@@ -11,7 +11,15 @@ void test('unlock response: an explicit skip, or an unlock; anything else reject
   assert.deepEqual(parseDiscordUnlockResponse({ skip: 'nothing to show' }), {
     skip: 'nothing to show',
   })
-  const u = { eventId: 9, playerId: 2, name: 'A', kind: 'tier', subject: 'STUD', graphic: 'card' }
+  const u = {
+    eventId: 9,
+    playerId: 2,
+    name: 'A',
+    kind: 'tier',
+    subject: 'STUD',
+    graphic: 'card',
+    discordUserId: null,
+  }
   assert.deepEqual(parseDiscordUnlockResponse(u), u)
   assert.throws(() => parseDiscordUnlockResponse({ skip: 3 }), /skip/)
   assert.throws(() => parseDiscordUnlockResponse({}), /discord contract/)
@@ -80,8 +88,19 @@ void test('unlock: valid round-trip; bad kind/graphic rejected', () => {
     kind: 'badge',
     subject: 'Shots · Home II',
     graphic: 'badge',
+    discordUserId: null,
   }
   assert.deepEqual(parseDiscordUnlock(JSON.parse(JSON.stringify(v))), v)
   assert.throws(() => parseDiscordUnlock({ ...v, kind: 'x' }), /kind/)
   assert.throws(() => parseDiscordUnlock({ ...v, graphic: 'gif' }), /graphic/)
+})
+
+void test('unlock discordUserId: 17–20 digits or null', () => {
+  const v = { eventId: 9, playerId: 2, name: 'A', kind: 'tier', subject: 'STUD', graphic: 'card' }
+  assert.equal(
+    parseDiscordUnlock({ ...v, discordUserId: '447213088828030998' }).discordUserId,
+    '447213088828030998',
+  )
+  assert.equal(parseDiscordUnlock({ ...v, discordUserId: null }).discordUserId, null)
+  assert.throws(() => parseDiscordUnlock({ ...v, discordUserId: '12ab' }), /discordUserId/)
 })

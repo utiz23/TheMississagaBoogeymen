@@ -128,7 +128,15 @@ void test('missing game mode is omitted, not printed as null', () => {
 void test('unlock texts: bold linked capital name, no link preview, one line per kind, image under', () => {
   const u = (kind: 'badge' | 'card_level' | 'tier' | 'mythic', subject: string) =>
     buildUnlockPayload(
-      { eventId: 1, playerId: 2, name: 'X_SNIPER_X', kind, subject, graphic: 'badge' },
+      {
+        eventId: 1,
+        playerId: 2,
+        name: 'X_SNIPER_X',
+        kind,
+        subject,
+        graphic: 'badge',
+        discordUserId: null,
+      },
       { siteUrl: 'https://boogeymen.app', hasImage: true },
     )
   assert.equal(
@@ -144,9 +152,54 @@ void test('unlock texts: bold linked capital name, no link preview, one line per
   assert.equal('embeds' in p, false)
   assert.equal(
     buildUnlockPayload(
-      { eventId: 1, playerId: 2, name: 'A', kind: 'tier', subject: 'STUD', graphic: 'none' },
+      {
+        eventId: 1,
+        playerId: 2,
+        name: 'A',
+        kind: 'tier',
+        subject: 'STUD',
+        graphic: 'none',
+        discordUserId: null,
+      },
       { siteUrl: 'https://boogeymen.app', hasImage: false },
     ).attachments,
     undefined,
   )
+})
+
+void test('new-card unlocks ping exactly their player; nothing else pings', () => {
+  const base = {
+    eventId: 1,
+    playerId: 2,
+    name: 'SILKY',
+    graphic: 'card' as const,
+    discordUserId: '447213088828030998',
+  }
+  const tier = buildUnlockPayload(
+    { ...base, kind: 'tier', subject: 'STUD' },
+    { siteUrl: 'https://boogeymen.app', hasImage: true },
+  )
+  assert.equal(
+    tier.content,
+    '**[SILKY](<https://boogeymen.app/roster/2>)** <@447213088828030998> has unlocked the **STUD** card!',
+  )
+  assert.deepEqual(tier.allowed_mentions, { parse: [], users: ['447213088828030998'] })
+  const mythic = buildUnlockPayload(
+    { ...base, kind: 'mythic', subject: 'CYBER' },
+    { siteUrl: 'https://boogeymen.app', hasImage: true },
+  )
+  assert.deepEqual(mythic.allowed_mentions, { parse: [], users: ['447213088828030998'] })
+  for (const kind of ['badge', 'card_level'] as const) {
+    const p = buildUnlockPayload(
+      { ...base, kind, subject: '5' },
+      { siteUrl: 'https://boogeymen.app', hasImage: true },
+    )
+    assert.deepEqual(p.allowed_mentions, { parse: [] })
+    assert.doesNotMatch(p.content, /<@/)
+  }
+  const none = buildUnlockPayload(
+    { ...base, kind: 'tier', subject: 'STUD', discordUserId: null },
+    { siteUrl: 'https://boogeymen.app', hasImage: true },
+  )
+  assert.deepEqual(none.allowed_mentions, { parse: [] })
 })

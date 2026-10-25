@@ -119,6 +119,8 @@ export interface DiscordUnlock {
   subject: string
   /** 'none' ⇒ text-only (e.g. no card this title). */
   graphic: 'badge' | 'card' | 'none'
+  /** Pinged on tier and mythic unlocks only; null otherwise. */
+  discordUserId: string | null
 }
 
 export function parseDiscordUnlock(value: unknown): DiscordUnlock {
@@ -127,6 +129,10 @@ export function parseDiscordUnlock(value: unknown): DiscordUnlock {
   if (!UNLOCK_KINDS.includes(kind as DiscordUnlock['kind'])) fail('kind', 'is invalid')
   const graphic = o['graphic']
   if (graphic !== 'badge' && graphic !== 'card' && graphic !== 'none') fail('graphic', 'is invalid')
+  const rawId = o['discordUserId'] ?? null
+  if (rawId !== null && (typeof rawId !== 'string' || !/^[0-9]{17,20}$/.test(rawId))) {
+    fail('discordUserId', 'is not a Discord user ID')
+  }
   return {
     eventId: int(o['eventId'], 'eventId'),
     playerId: int(o['playerId'], 'playerId'),
@@ -134,6 +140,7 @@ export function parseDiscordUnlock(value: unknown): DiscordUnlock {
     kind: kind as DiscordUnlock['kind'],
     subject: str(o['subject'], 'subject'),
     graphic,
+    discordUserId: rawId as string | null,
   }
 }
 
