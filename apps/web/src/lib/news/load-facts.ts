@@ -83,8 +83,8 @@ import { applyPlayerFacts, playerGameFromRow, type PlayerGameInput } from './pla
 /** An unlock counts when it lands up to this long after the last game of the sheet. */
 const UNLOCK_WINDOW_AFTER_MINUTES = 10
 const RECENT_NIGHTS = 3
-/** Games loaded at once (each runs about five queries; the pool has 10 connections). */
-const GAME_LOAD_CONCURRENCY = 4
+/** Games loaded at once (each runs a few queries, mostly one after another; the pool has 10 connections). */
+const GAME_LOAD_CONCURRENCY = 6
 const MATCH_LOAD_CONCURRENCY = 8
 /**
  * The club season lines of every title (records, C2.4) change only when an
