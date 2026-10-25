@@ -139,3 +139,27 @@ void test('checkArticleFacts checks headline and dek for numbers but not length'
   )
   assert.equal(bad.ok, false)
 })
+
+void test('ids and clock digits are not stats (R16)', () => {
+  const base = oct12Facts('game')
+  const withIds = {
+    ...base,
+    people: base.people.map((p) => (p.playerId === 1 ? { ...p, playerId: 21 } : p)),
+    games: base.games.map((g, i) => ({
+      ...g,
+      matchId: 98765 + i,
+      playedAt: '2026-10-13T02:15:37.000Z',
+      players: g.players.map((l) => (l.playerId === 1 ? { ...l, playerId: 21 } : l)),
+      periods: [{ period: 3, goalsFor: 0, goalsAgainst: 0 }],
+    })),
+  }
+  const a = allowedNumbers(withIds)
+  for (const n of [21, 37, 15, 98765]) assert.equal(a.has(n), false, String(n))
+  assert.equal(checkFacts('Skater A had 21 hits.', withIds, FORBIDDEN, none).ok, false)
+  assert.equal(checkFacts('Skater A had 37 shots.', withIds, FORBIDDEN, none).ok, false)
+  assert.equal(checkFacts('Fifteen shots.', withIds, FORBIDDEN, none).ok, false)
+  // the night date and the title number stay allowed
+  assert.deepEqual(checkFacts('NHL 27, night of 2026-10-12.', withIds, FORBIDDEN, none), {
+    ok: true,
+  })
+})

@@ -56,7 +56,14 @@ function parseDigits(run: string): number {
   return Number(run.replace(/,/g, ''))
 }
 
-/** Every number anywhere in the sheet (values and digits inside strings), plus 0 and 1. */
+/** Keys whose numbers are identifiers or clock digits, never stats (R16). */
+const NON_STAT_KEYS = new Set(['playerId', 'matchId', 'playedAt', 'period'])
+
+/**
+ * Every number anywhere in the sheet (values and digits inside strings), plus
+ * 0 and 1. Identifier and timestamp keys are skipped: a player id or a clock
+ * digit must not make an invented stat pass.
+ */
 export function allowedNumbers(facts: NewsFacts): Set<number> {
   const out = new Set<number>([0, 1])
   const walk = (v: unknown): void => {
@@ -67,7 +74,9 @@ export function allowedNumbers(facts: NewsFacts): Set<number> {
     } else if (Array.isArray(v)) {
       for (const x of v) walk(x)
     } else if (typeof v === 'object' && v !== null) {
-      for (const x of Object.values(v)) walk(x)
+      for (const [k, x] of Object.entries(v)) {
+        if (!NON_STAT_KEYS.has(k)) walk(x)
+      }
     }
   }
   walk(facts)

@@ -141,7 +141,7 @@ export function buildArticleUserPrompt(args: {
 
 export function buildReviewPrompt(args: { facts: NewsFacts; text: string }): string {
   return [
-    'You are the second check of a news desk. A fictional reporter wrote the text below from the fact sheet. Numbers, names and clubs were already checked by a program. Check only what the program cannot check.',
+    'You are the second check of a news desk. A fictional reporter wrote the text below from the fact sheet. A program already checked the digits and number words in the text, the names the reporter listed, and the club names the reporter listed. It did not read the text for other names or for stats written in other ways. Check what the program cannot check.',
     '',
     'Fact sheet (JSON):',
     sheet(args.facts),
@@ -155,6 +155,8 @@ export function buildReviewPrompt(args: { facts: NewsFacts; text: string }): str
     '1. An invented quote from a teammate or an opponent. (A fictional reporter quoting another reporter is fine.)',
     '2. An invented event: a shot off the post, a save, a pass, a line change, a mood or argument in the room, any play-by-play that the sheet does not support. Opinion that follows from the stats is fine.',
     '3. Personal criticism: anything about real life, looks, family, work, health or the person instead of their hockey. Also: harsh criticism of a player whose pressLevel is "easy", and praise or blame for an AI goalie as if it were a teammate.',
+    "4. A person named in the text who is not in the sheet's people[].name list and is not one of the seven reporters (Wade Barlow, Talia Voss, Dex Mercer, June Halberd, Rico Vale, Mara Quill, Father Rink). Opponent club names are fine; opponent players, guests and real-life names are not.",
+    '5. A stat stated in words that the program does not read, such as "hat trick", "dozen", "twice", "shutout", "brace", that the sheet does not support.',
     '',
     'Answer ok = true when you find none of them. Otherwise answer ok = false and list each problem in one short sentence in "problems", naming the words that cause it.',
   ].join('\n')

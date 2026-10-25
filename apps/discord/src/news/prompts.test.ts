@@ -122,4 +122,11 @@ void test('review prompt: the text, the sheet, the three checks', () => {
   assert.ok(p.includes(stableStringify(capFactsForPrompt(oct12Facts()))))
   for (const needle of ['quote', 'event', 'personal'])
     assert.ok(p.toLowerCase().includes(needle), needle)
+  // R16 follow-up: the reviewer checks unlisted names and stats written in words
+  assert.ok(p.includes('who is not in the sheet'))
+  assert.ok(p.includes('people[].name'))
+  assert.ok(p.includes('Wade Barlow'))
+  assert.ok(p.includes('hat trick'))
+  assert.ok(p.includes('shutout'))
+  assert.ok(!p.includes('were already checked by a program'))
 })
