@@ -614,3 +614,29 @@ label says (e.g. "career high", "slump", "upset").
    ("with Silky and Erb together, 12-3") on the sheet for named players.
 
 Dropped by the operator: division race, time-of-night patterns.
+
+### 12.18 Review decisions on the consolidated spec (operator, 2026-10-25)
+
+1. **Big games get articles too**, fewer than posts: Big → 1 game story; Huge →
+   1 game story + 1 feature-style piece (spotlight or column); Historic → 2–3
+   pieces (game story, spotlight, a column) plus the night recap. Quiet/Normal →
+   none (the night recap covers them).
+2. **6s matter more than 3s:** a 6s game gets a higher buzz weight; reporters hold
+   opinions about the modes (e.g. Bergstrom: 6s is real hockey, 3s is shinny;
+   Vale loves 3s chaos; Pettibone mocks 3s; Quill indifferent). Norms stay per
+   mode (§12.17-1).
+3. **Money:** plan for **$20 a month** (Console workspace limit and
+   `NEWS_MONTHLY_LIMIT_USD`), from the Max plan's $100 monthly API credits; no
+   card. Program stops at limit − $0.50.
+4. **Reporter–player relationships ("beef", favourites, targets):** a reporter may
+   hold a running take on a player. Pairings are chosen by the operator (pending),
+   kept in a code list until the GM page exists (bot project). Fairness rules
+   still apply (press levels, pile-on limit, hockey only).
+5. **Language levels:** mild swearing ("hell", "damn", "crap") allowed for
+   Mercer, Pettibone and Vale, mostly in The Wire; articles cleaner; the others
+   clean; never slurs, never swearing aimed at a person; enforced by the review.
+6. **All of Claude's suggestions accepted:** quality dashboard on /admin/news;
+   rules version stored on every item; per-reporter on/off switch; big-game
+   posts spaced a few minutes apart in Discord; language levels (above);
+   correction posts after a deletion for a wrong fact (optional, same reporter);
+   a short "how to read the Press Room" note on the reporter pages.
