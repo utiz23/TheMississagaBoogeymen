@@ -8,6 +8,7 @@ import {
   gamePatterns,
   normInputFromRow,
   normLabels,
+  ordinal,
   percentile,
   type NormGameInput,
 } from './norms.ts'
@@ -97,48 +98,80 @@ void test('normLabels: outside the 20th-80th percentile is unusual; too few numb
   assert.equal(normLabels(g(), sparse).passPct, null)
 })
 
-void test('gamePatterns: a usual pattern held reads "as usual" (C1.2)', () => {
-  // Usually out-hit (15 vs 10..14), out-shooting, more time on attack.
-  const history = ten().map((x) => ({ ...x, hitsFor: 12 }))
-  assert.deepEqual(gamePatterns(g({ hitsFor: 9 }), history, history), [
-    'out-hit as usual',
-    'out-shot the opponent as usual',
-    'more time on attack as usual',
+void test('ordinal: 1st, 2nd, 3rd, 4th, 11th-13th, 21st', () => {
+  assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101, 111, 112].map(ordinal), [
+    '1st',
+    '2nd',
+    '3rd',
+    '4th',
+    '11th',
+    '12th',
+    '13th',
+    '21st',
+    '22nd',
+    '23rd',
+    '101st',
+    '111th',
+    '112th',
   ])
 })
 
-void test('gamePatterns: a broken pattern counts the games since it last broke (C1.2)', () => {
+void test('gamePatterns: a usual pattern held names the club and reads "as usual" (C1.2 fix)', () => {
+  // Usually out-hit (15 vs 12), out-shooting, more time on attack.
+  const history = ten().map((x) => ({ ...x, hitsFor: 12 }))
+  assert.deepEqual(gamePatterns(g({ hitsFor: 9 }), history, history), [
+    'the Boogeymen were out-hit as usual',
+    'the Boogeymen out-shot the opponent as usual',
+    'the Boogeymen had more time on attack as usual',
+  ])
+})
+
+const shotsP = (p: string[]) => p.filter((x) => x.includes('shot'))
+const OUT_SHOT = g({ shotsFor: 10, shotsAgainst: 30 })
+
+void test('gamePatterns: a broken pattern after a gap of 3+ games; in a row as an ordinal (C1.2 fix)', () => {
   const sample = ten().map((x) => ({ ...x, hitsFor: 12 }))
-  // The last five earlier games were all out-shooting games; before them one out-shot game.
-  const previous = [
-    ...sample,
-    g({ shotsFor: 15, shotsAgainst: 25 }),
-    ...Array.from({ length: 5 }, () => g()),
-  ]
-  const p = gamePatterns(g({ hitsFor: 9, shotsFor: 10, shotsAgainst: 30 }), previous, sample)
-  assert.ok(p.includes('out-shot for the first time in 6 games'), p.join(' | '))
-  // Out-shot again in the next game: two in a row.
-  const again = gamePatterns(
-    g({ shotsFor: 10, shotsAgainst: 30 }),
-    [...previous, g({ shotsFor: 10, shotsAgainst: 30 })],
-    sample,
+  // Out-shot once, then five out-shooting games.
+  const previous = [...sample, OUT_SHOT, ...Array.from({ length: 5 }, () => g())]
+  assert.deepEqual(shotsP(gamePatterns(OUT_SHOT, previous, sample)), [
+    'the Boogeymen were out-shot for the first time in 6 games',
+  ])
+  // Exactly 3 games between: still a pattern.
+  assert.deepEqual(shotsP(gamePatterns(OUT_SHOT, [...sample, OUT_SHOT, g(), g(), g()], sample)), [
+    'the Boogeymen were out-shot for the first time in 4 games',
+  ])
+  // A gap of 1 or 2 games: no string.
+  assert.deepEqual(shotsP(gamePatterns(OUT_SHOT, [...sample, OUT_SHOT, g(), g()], sample)), [])
+  assert.deepEqual(shotsP(gamePatterns(OUT_SHOT, [...sample, OUT_SHOT, g()], sample)), [])
+  // The game before broke it too: the 2nd, then the 3rd game in a row.
+  assert.deepEqual(shotsP(gamePatterns(OUT_SHOT, [...previous, OUT_SHOT], sample)), [
+    'the Boogeymen were out-shot for the 2nd game in a row',
+  ])
+  assert.deepEqual(shotsP(gamePatterns(OUT_SHOT, [...previous, OUT_SHOT, OUT_SHOT], sample)), [
+    'the Boogeymen were out-shot for the 3rd game in a row',
+  ])
+})
+
+void test('gamePatterns: never before in the title; ties are no pattern (C1.2 fix)', () => {
+  const sample = ten().map((x) => ({ ...x, hitsFor: 12 }))
+  // A tie earlier is not "out-shot": this is the first time this title.
+  assert.deepEqual(
+    shotsP(gamePatterns(OUT_SHOT, [...sample, g({ shotsFor: 20, shotsAgainst: 20 })], sample)),
+    ['the Boogeymen were out-shot for the first time this title'],
   )
-  assert.ok(again.includes('out-shot for 2 games in a row'), again.join(' | '))
-  // A tie in the earlier games counts as "not out-shot"; a tie now is no pattern.
-  const tie = gamePatterns(
-    g({ shotsFor: 10, shotsAgainst: 30 }),
-    [...sample, g({ shotsFor: 20, shotsAgainst: 20 })],
-    sample,
+  assert.deepEqual(shotsP(gamePatterns(g({ shotsFor: 20, shotsAgainst: 20 }), sample, sample)), [])
+  // The club out-hit the opponent for once.
+  assert.ok(
+    gamePatterns(g({ hitsFor: 20 }), sample, sample).includes(
+      'the Boogeymen out-hit the opponent for the first time this title',
+    ),
   )
-  assert.ok(tie.includes('out-shot for the first time in 12 games'), tie.join(' | '))
-  const even = gamePatterns(g({ shotsFor: 20, shotsAgainst: 20 }), sample, sample)
-  assert.equal(
-    even.some((x) => x.includes('shot')),
-    false,
+  // Less time on attack: the TOA words.
+  assert.ok(
+    gamePatterns(g({ timeOnAttack: 200, timeOnAttackAgainst: 300 }), sample, sample).includes(
+      'the Boogeymen had less time on attack for the first time this title',
+    ),
   )
-  // The opponent out-hit nobody: the club out-hit them for once.
-  const hits = gamePatterns(g({ hitsFor: 20 }), sample, sample)
-  assert.ok(hits.includes('out-hit the opponent for the first time in 11 games'), hits.join(' | '))
 })
 
 void test('gamePatterns: unknown numbers and an even history give no pattern (C1.2)', () => {
@@ -192,8 +225,12 @@ void test('applyNorms: a later game of the sheet sees the earlier ones for its p
     [g({ shotsFor: 10, shotsAgainst: 30 }), g({ shotsFor: 10, shotsAgainst: 30 })],
     sample,
   )
-  assert.ok(out.games[0]!.patterns.includes('out-shot for the first time in 11 games'))
-  assert.ok(out.games[1]!.patterns.includes('out-shot for 2 games in a row'))
+  assert.ok(
+    out.games[0]!.patterns.includes('the Boogeymen were out-shot for the first time this title'),
+  )
+  assert.ok(
+    out.games[1]!.patterns.includes('the Boogeymen were out-shot for the 2nd game in a row'),
+  )
   // Norms come only from the games before the sheet.
   assert.equal(out.norms?.shots?.leadPct, 100)
 })

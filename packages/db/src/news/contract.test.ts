@@ -644,7 +644,7 @@ function normSample(): NewsFactsResponse {
     timeOnAttack: 'unusually low',
     passPct: null,
   }
-  s.facts.games[0]!.patterns = ['out-hit the opponent for the first time in 6 games']
+  s.facts.games[0]!.patterns = ['the Boogeymen out-hit the opponent for the first time in 6 games']
   return s
 }
 

@@ -179,38 +179,59 @@ export function normLabels(game: NormGameInput, sample: readonly NormGameInput[]
 
 type Side = 'us' | 'them' | 'tie'
 
-/** The three patterns (spec §12.10) and their words, by the side that had more. */
+/**
+ * The three patterns (spec §12.10) and their words, by the side that had
+ * more. The club is always named, so a pattern never reads the wrong way round.
+ */
 const PATTERNS: {
   side: (g: NormGameInput) => Side | null
   phrase: Record<'us' | 'them', string>
 }[] = [
   {
     side: (g) => compare(g.hitsFor, g.hitsAgainst),
-    phrase: { us: 'out-hit the opponent', them: 'out-hit' },
+    phrase: { us: 'the Boogeymen out-hit the opponent', them: 'the Boogeymen were out-hit' },
   },
   {
     side: (g) => compare(g.shotsFor, g.shotsAgainst),
-    phrase: { us: 'out-shot the opponent', them: 'out-shot' },
+    phrase: { us: 'the Boogeymen out-shot the opponent', them: 'the Boogeymen were out-shot' },
   },
   {
     side: (g) => compare(g.timeOnAttack, g.timeOnAttackAgainst),
-    phrase: { us: 'more time on attack', them: 'less time on attack' },
+    phrase: {
+      us: 'the Boogeymen had more time on attack',
+      them: 'the Boogeymen had less time on attack',
+    },
   },
 ]
+
+/** A broken pattern is news only after at least this many games without it. */
+const MIN_PATTERN_GAP = 3
 
 function compare(ours: number | null, theirs: number | null): Side | null {
   if (ours === null || theirs === null) return null
   return ours > theirs ? 'us' : ours < theirs ? 'them' : 'tie'
 }
 
+/** 1st, 2nd, 3rd, 4th, ..., 11th-13th, 21st. */
+export function ordinal(n: number): string {
+  const tens = n % 100
+  if (tens >= 11 && tens <= 13) return `${String(n)}th`
+  const suffix = ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'
+  return `${String(n)}${suffix}`
+}
+
 /**
- * The usual patterns held or broken in this game. Usual = the side that had
- * more in most of the earlier games (`sample`); an even split is no pattern.
- * Held: "<phrase> as usual". Broken: "<phrase> for the first time in N games"
- * (N counts this game and the earlier games back to the last time it
- * happened), or "<phrase> for N games in a row" when the game before broke it
- * too. A tie or an unknown number is no pattern. `previous` = the earlier
- * games, oldest first (no game that ended early).
+ * The usual patterns held or broken in this game, each naming the club.
+ * Usual = the side that had more in most of the earlier games (`sample`); an
+ * even split is no pattern. Held: "<phrase> as usual". Broken (the other
+ * side had more):
+ * - never before in the earlier games: "<phrase> for the first time this title";
+ * - after a gap of at least 3 games: "<phrase> for the first time in N games"
+ *   (N = this game and the games since it last happened); a shorter gap is no
+ *   pattern;
+ * - the game before broke it too: "<phrase> for the Nth game in a row".
+ * A tie or an unknown number is no pattern; an earlier tie counts as "not it".
+ * `previous` = the earlier games, oldest first (no game that ended early).
  */
 export function gamePatterns(
   game: NormGameInput,
@@ -236,15 +257,14 @@ export function gamePatterns(
       .filter((s): s is Side => s !== null)
       .reverse() // newest first
     const since = known.findIndex((s) => s === side)
-    const run = since === -1 ? known.length : since
-    if (run >= 1) {
-      out.push(`${phrase} for the first time in ${String(run + 1)} games`)
-    } else if (known.length === 0) {
-      out.push(`${phrase}, against the usual pattern`)
-    } else {
+    if (since === -1) {
+      out.push(`${phrase} for the first time this title`)
+    } else if (since === 0) {
       const streak = known.findIndex((s) => s !== side)
       const inRow = (streak === -1 ? known.length : streak) + 1
-      out.push(`${phrase} for ${String(inRow)} games in a row`)
+      out.push(`${phrase} for the ${ordinal(inRow)} game in a row`)
+    } else if (since >= MIN_PATTERN_GAP) {
+      out.push(`${phrase} for the first time in ${String(since + 1)} games`)
     }
   }
   return out

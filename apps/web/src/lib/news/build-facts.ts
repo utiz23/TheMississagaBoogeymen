@@ -431,6 +431,12 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     shots: args.shots,
   })
   unnamedGoals = Math.max(unnamedGoals, match.scoreFor - namedGoals, 0)
+  // An ended-early game carries no shot numbers anywhere (C1 fix 1): no AI
+  // goalie line, no saves or save % on a goalie line (goals against stay: they are the score).
+  const lines = endedEarly
+    ? players.map((p) => (p.isGoalie ? { ...p, saves: null, savePct: null } : p))
+    : players
+  if (endedEarly) aiGoalie = null
   return {
     matchId: match.id,
     night: nightKey(match.playedAt),
@@ -460,7 +466,7 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     labels: null,
     patterns: [],
     periods: args.periods,
-    players,
+    players: lines,
     aiGoalieInNet,
     aiGoalie,
     guestCount,
@@ -555,6 +561,8 @@ export function buildMilestones(
 /** One counted game of the title before the sheet's week (shots as the match page shows them). */
 export interface HistoryGameInput {
   night: string
+  /** `isEndedEarly`: its shots and power play are left out of the week totals, as on the sheet. */
+  endedEarly: boolean
   result: 'WIN' | 'LOSS' | 'OTL'
   scoreFor: number
   scoreAgainst: number
@@ -598,10 +606,12 @@ export function buildWeekHistory(
     else row.otl += 1
     row.goalsFor += g.scoreFor
     row.goalsAgainst += g.scoreAgainst
-    row.shotsFor += g.shotsFor
-    row.shotsAgainst += g.shotsAgainst
-    row.ppGoals += g.ppGoals ?? 0
-    row.ppOpportunities += g.ppOpportunities ?? 0
+    if (!g.endedEarly) {
+      row.shotsFor += g.shotsFor
+      row.shotsAgainst += g.shotsAgainst
+      row.ppGoals += g.ppGoals ?? 0
+      row.ppOpportunities += g.ppOpportunities ?? 0
+    }
     byWeek.set(w, row)
   }
   return weeks.flatMap((w) => {
@@ -660,7 +670,7 @@ export function buildAiGoalieWeek(games: readonly NewsGameFacts[]): NewsAiGoalie
   const byName = new Map<string, NewsAiGoalieWeek>()
   for (const g of games) {
     const a = g.aiGoalie
-    if (a === null) continue
+    if (a === null || g.endedEarly) continue
     const row = byName.get(a.name) ?? {
       name: a.name,
       games: 0,

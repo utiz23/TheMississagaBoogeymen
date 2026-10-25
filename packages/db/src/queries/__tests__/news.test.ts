@@ -644,7 +644,12 @@ void test('week history games: one title, not DNF, night key in [from, to), olde
   const s = flat(q.sql)
   assert.match(
     s,
-    /select m\.id, to_char\(x\.night, 'YYYY-MM-DD'\) as night, m\.result, m\.score_for, m\.score_against, m\.shots_for, m\.shots_against, m\.pp_goals, m\.pp_opportunities/,
+    /select m\.id, to_char\(x\.night, 'YYYY-MM-DD'\) as night, m\.result, m\.score_for, m\.score_against, m\.shots_for, m\.shots_against, m\.pp_goals, m\.pp_opportunities, m\.time_on_attack, bgm\.credited_goals from matches m/,
+  )
+  // C1 fix 4: the club rows' goals, for the ended-early rule.
+  assert.match(
+    s,
+    /left join lateral \( select coalesce\(sum\(greatest\(p\.goals, 0\)\), 0\) as credited_goals from player_match_stats p where p\.match_id = m\.id \) bgm on true/,
   )
   assert.ok(s.includes(NIGHT('m')), 'night expression')
   assert.match(s, /m\.game_title_id = \$\d+/)

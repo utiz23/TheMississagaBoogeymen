@@ -160,8 +160,11 @@ export interface NewsGameFacts {
   labels: NewsNormLabels | null
   /**
    * The usual patterns held or broken (out-hit, more shots, more time on
-   * attack), e.g. "out-hit as usual", "out-shot for the first time in 6
-   * games". Empty without norms or when the game ended early.
+   * attack), each naming the club: "the Boogeymen were out-hit as usual",
+   * "the Boogeymen were out-shot for the first time in 6 games" (only after a
+   * gap of 3+ games), "... for the first time this title", "... for the 2nd
+   * game in a row". Words only, not a source of numbers (a non-stat key in
+   * the fact check). Empty without norms or when the game ended early.
    */
   patterns: string[]
   periods: { period: number; goalsFor: number; goalsAgainst: number }[] | null

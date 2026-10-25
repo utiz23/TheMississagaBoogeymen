@@ -342,6 +342,8 @@ void test('buildGameFacts: a goalie line carries saves, goals against and save %
           shotsAgainst: 30,
           star: 3,
         }),
+        // A guest's goals cover the score, so the game did not end early.
+        skater({ playerId: 3, gamertag: 'GuestA', goals: 3 }),
       ],
     }),
   )
@@ -885,6 +887,7 @@ const hist = (
 ) => ({
   night,
   result,
+  endedEarly: false,
   scoreFor: 3,
   scoreAgainst: 2,
   shotsFor: 20,
@@ -1059,6 +1062,9 @@ void test('buildFacts: history and weekPlayers default to empty; a week sheet pa
 
 // ── Part C1: AI goalie line (spec 12.8) ──────────────────────────────────────
 
+/** A guest whose goals cover the score (3), so the game did not end early. */
+const SCORER = skater({ playerId: 3, gamertag: 'GuestA', goals: 3 })
+
 const aiGoalie = (over: Partial<GamePlayerInput> = {}): GamePlayerInput =>
   skater({
     playerId: 5,
@@ -1094,28 +1100,32 @@ void test('buildGameFacts: the AI goalie line, numbers as the match page shows t
     buildGameFacts(gameArgs({ players: [skater({ playerId: 1, gamertag: 'Hero' })] })).aiGoalie,
     null,
   )
-  const noSa = buildGameFacts(gameArgs({ players: [aiGoalie({ shotsAgainst: null })] }))
+  const noSa = buildGameFacts(gameArgs({ players: [SCORER, aiGoalie({ shotsAgainst: null })] }))
   assert.equal(noSa.aiGoalie?.shotsAgainst, 21)
   const zero = buildGameFacts(
-    gameArgs({ players: [aiGoalie({ saves: 0, goalsAgainst: 0, shotsAgainst: 0 })] }),
+    gameArgs({ players: [SCORER, aiGoalie({ saves: 0, goalsAgainst: 0, shotsAgainst: 0 })] }),
   )
   assert.equal(zero.aiGoalie?.savePct, null)
   // A row without saves is no line (the page shows a dash).
-  assert.equal(buildGameFacts(gameArgs({ players: [aiGoalie({ saves: null })] })).aiGoalie, null)
+  assert.equal(
+    buildGameFacts(gameArgs({ players: [SCORER, aiGoalie({ saves: null })] })).aiGoalie,
+    null,
+  )
 })
 
 void test('buildAiGoalieWeek: week totals per AI goalie, most games first (C1.1)', () => {
-  const g1 = buildGameFacts(gameArgs({ players: [aiGoalie()] }))
+  const g1 = buildGameFacts(gameArgs({ players: [SCORER, aiGoalie()] }))
   const g2 = buildGameFacts(
     gameArgs({
       match: { ...gameArgs().match, id: 901 },
-      players: [aiGoalie({ saves: 10, goalsAgainst: 5, shotsAgainst: 15 })],
+      players: [SCORER, aiGoalie({ saves: 10, goalsAgainst: 5, shotsAgainst: 15 })],
     }),
   )
   const g3 = buildGameFacts(
     gameArgs({
       match: { ...gameArgs().match, id: 902 },
       players: [
+        SCORER,
         aiGoalie({
           playerId: 6,
           gamertag: 'Jonas Wagner',
@@ -1247,4 +1257,81 @@ void test('buildFacts: norms default to null and pass through; game labels start
     JSON.parse(JSON.stringify({ facts: withNorms, forbiddenNames: [] })),
   )
   assert.deepEqual(parsed.facts.norms, norms)
+})
+
+// ── C1 fix round 1: an ended-early game carries no shot numbers ──────────────
+
+void test('buildGameFacts: an ended-early game has no AI goalie line and no goalie shot numbers (C1 fix 1)', () => {
+  const players = [
+    skater({ playerId: 1, gamertag: 'Hero', goals: 3 }),
+    skater({
+      playerId: 2,
+      gamertag: 'Pad',
+      position: 'goalie',
+      isGoalie: true,
+      saves: 9,
+      goalsAgainst: 2,
+      shotsAgainst: 11,
+    }),
+    skater({
+      playerId: 5,
+      gamertag: 'Matteo Lehmann',
+      position: 'goalie',
+      isGoalie: true,
+      aiGoalie: true,
+      saves: 4,
+      goalsAgainst: 0,
+      shotsAgainst: 4,
+    }),
+  ]
+  const people = [
+    { playerId: 1, name: 'Hero Name', position: 'center', pressLevel: 'full' as const },
+    { playerId: 2, name: 'Pad', position: 'goalie', pressLevel: 'full' as const },
+  ]
+  const full = buildGameFacts(gameArgs({ players, people }))
+  assert.equal(full.endedEarly, false)
+  assert.equal(full.players[1]!.saves, 9)
+  assert.equal(full.players[1]!.savePct, 81.8)
+  assert.notEqual(full.aiGoalie, null)
+  // Time on attack 100 s: ended early.
+  const early = buildGameFacts(
+    gameArgs({ match: { ...gameArgs().match, timeOnAttack: 100 }, players, people }),
+  )
+  assert.equal(early.endedEarly, true)
+  assert.equal(early.aiGoalie, null)
+  assert.equal(early.aiGoalieInNet, true)
+  const pad = early.players[1]!
+  assert.equal(pad.saves, null)
+  assert.equal(pad.savePct, null)
+  // Goals against are the score, which stays.
+  assert.equal(pad.goalsAgainst, 2)
+  // The week totals leave the ended-early game out.
+  assert.deepEqual(
+    buildAiGoalieWeek([early, full]).map((r) => [r.name, r.games, r.saves]),
+    [['Matteo Lehmann', 1, 4]],
+  )
+})
+
+void test('buildWeekHistory: an ended-early game adds its result and goals, not its shots or power play (C1 fix 4)', () => {
+  const h = buildWeekHistory(
+    [
+      hist('2026-10-12', 'WIN'),
+      { ...hist('2026-10-13', 'LOSS', { shotsFor: 3, shotsAgainst: 4 }), endedEarly: true },
+    ],
+    '2026-10-19',
+  )
+  assert.deepEqual(h, [
+    {
+      weekStart: '2026-10-12',
+      wins: 1,
+      losses: 1,
+      otl: 0,
+      goalsFor: 6,
+      goalsAgainst: 4,
+      shotsFor: 20,
+      shotsAgainst: 15,
+      ppGoals: 1,
+      ppOpportunities: 2,
+    },
+  ])
 })

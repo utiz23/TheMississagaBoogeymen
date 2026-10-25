@@ -50,6 +50,7 @@ import {
   buildWeekHistory,
   buildWeekPlayers,
   HISTORY_WEEKS,
+  isEndedEarly,
   passPctOf,
   periodsFromSummaries,
   titleAllowed,
@@ -186,13 +187,24 @@ async function loadHistoryGames(gameTitleId: number, start: string): Promise<His
   const out: HistoryGameInput[] = []
   for (const r of rows) {
     const ocrShots = aggregateOcrShots(await getMatchPeriodSummaries(r.id))
+    const shots = {
+      for: ocrShots.for ?? r.shotsFor,
+      against: ocrShots.against ?? r.shotsAgainst,
+    }
     out.push({
       night: r.night,
+      // As on the sheet: an ended-early game's shots and power play do not count (C1 fix 4).
+      endedEarly: isEndedEarly({
+        scoreFor: r.scoreFor,
+        creditedGoals: r.creditedGoals,
+        timeOnAttack: r.timeOnAttack,
+        shots,
+      }),
       result: r.result,
       scoreFor: r.scoreFor,
       scoreAgainst: r.scoreAgainst,
-      shotsFor: ocrShots.for ?? r.shotsFor,
-      shotsAgainst: ocrShots.against ?? r.shotsAgainst,
+      shotsFor: shots.for,
+      shotsAgainst: shots.against,
       ppGoals: r.ppGoals,
       ppOpportunities: r.ppOpportunities,
     })

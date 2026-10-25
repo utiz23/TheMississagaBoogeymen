@@ -73,8 +73,9 @@ function parseDigits(run: string): number {
  * invented stat cannot pass on a date digit. The sheet's own `key` stays).
  * Part C1: `lore` (world facts, never a source of numbers); the team norms'
  * `sampleGames` and the per-game `labels` (words only, no numbers to quote).
- * The norms' averages and lead % (`ours`, `theirs`, `leadPct`) and the
- * `patterns` ("... for the first time in 6 games") stay quotable.
+ * The per-game `patterns` are words: a run is quoted in words, never as a
+ * new number (C1 fix 3). The norms' averages and lead % (`ours`, `theirs`,
+ * `leadPct`) stay quotable.
  */
 const NON_STAT_KEYS = new Set([
   'playerId',
@@ -86,6 +87,7 @@ const NON_STAT_KEYS = new Set([
   'lore',
   'sampleGames',
   'labels',
+  'patterns',
 ])
 
 /** A game clock in text, such as "3:58" or "03:58". */

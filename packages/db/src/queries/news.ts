@@ -1022,6 +1022,9 @@ export interface NewsHistoryGame {
   shotsAgainst: number
   ppGoals: number | null
   ppOpportunities: number | null
+  /** For the ended-early rule (C1 fix 4): time on attack and the club rows' goals (each at least 0). */
+  timeOnAttack: number | null
+  creditedGoals: number
 }
 
 /**
@@ -1036,9 +1039,15 @@ export function listNewsHistoryGamesSql(args: {
 }): SQL {
   return sql`
     select m.id, to_char(x.night, 'YYYY-MM-DD') as night, m.result, m.score_for, m.score_against,
-      m.shots_for, m.shots_against, m.pp_goals, m.pp_opportunities
+      m.shots_for, m.shots_against, m.pp_goals, m.pp_opportunities,
+      m.time_on_attack, bgm.credited_goals
     from matches m
     cross join lateral (select ${nightKeySql('m')} as night) x
+    left join lateral (
+      select coalesce(sum(greatest(p.goals, 0)), 0) as credited_goals
+      from player_match_stats p
+      where p.match_id = m.id
+    ) bgm on true
     where m.game_title_id = ${args.gameTitleId}
       and m.result <> 'DNF'
       and x.night >= ${args.from}::date and x.night < ${args.to}::date
@@ -1060,6 +1069,8 @@ export async function listNewsHistoryGames(args: {
     shots_against: number
     pp_goals: number | null
     pp_opportunities: number | null
+    time_on_attack: number | null
+    credited_goals: string | number
   }>(listNewsHistoryGamesSql(args))
   const out: NewsHistoryGame[] = []
   for (const r of rows) {
@@ -1074,6 +1085,8 @@ export async function listNewsHistoryGames(args: {
       shotsAgainst: Number(r.shots_against),
       ppGoals: r.pp_goals === null ? null : Number(r.pp_goals),
       ppOpportunities: r.pp_opportunities === null ? null : Number(r.pp_opportunities),
+      timeOnAttack: r.time_on_attack === null ? null : Number(r.time_on_attack),
+      creditedGoals: Number(r.credited_goals),
     })
   }
   return out
