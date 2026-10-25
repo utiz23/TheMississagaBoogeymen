@@ -9,6 +9,7 @@
     "./schema": "./dist/schema/index.js",
     "./cards": "./dist/cards/index.js",
     "./discord": "./dist/discord/index.js",
+    "./news": "./dist/news/index.js",
     "./lib/normalize-build-class": "./dist/lib/normalize-build-class.js",
     "./lib/period-reconciliation": "./dist/lib/period-reconciliation.js",
     "./lib/player-slug": "./dist/lib/player-slug.js"
