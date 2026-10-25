@@ -128,6 +128,11 @@ game services and our own team members' review and correction of that data:
   created, settings the member chooses for their own player (such as their
   player card's theme), and sign-in session records. See "Accounts and
   authentication" below for what is not kept.
+- **News posts and articles.** The text our AI service writes about our
+  team's games, and the facts we send to the service to write it: team
+  members' profile names (or gamertags, when a member has no profile name),
+  their game statistics, club names, and scores. See "News posts written by
+  an AI service" below.
 - **A limited set of authentic source fixtures retained in our private
   GitHub repository**, used for testing and development. See "Service
   providers and other parties" below.
@@ -166,6 +171,7 @@ We use the information described above only to:
   processing pipeline, including using a limited set of authentic source
   fixtures for testing, provenance, and regression verification.
 - Let invited team members sign in and manage settings for their own player.
+- Write and show news posts and articles about our team's games.
 - Respond to privacy, correction, removal, and security-related requests.
 - Maintain provenance and auditability — i.e., being able to show where a
   published number came from and correct it if it's wrong.
@@ -295,6 +301,10 @@ term, which remains a legal-review question.
   profile picture link when they sign in, and a signed-in member's browser
   loads their own picture from Discord; visitors who do not sign in are
   never sent to Discord by this site.
+- **Anthropic** — the company behind the Claude API, the AI service that
+  writes our News posts and articles. We send it team members' profile names
+  (or gamertags), their game statistics, club names, and scores. See "News
+  posts written by an AI service" below.
 - **Electronic Arts (EA)** — the source of the underlying game data and
   some visual assets referenced by this site. EA does not endorse, and is
   not affiliated with, this project.
@@ -334,6 +344,9 @@ currently configured.
   session is deleted when the member signs out and otherwise stops working
   after 30 days without use. Records of used, cancelled, or expired invite
   links are kept for the operator's reference.
+- **News posts and articles** stay on this site until the admin deletes
+  them. We do not set any other time limit for them. Anthropic's own handling
+  of what we send it is not something we have independently verified.
 - **Correspondence sent to our project email addresses** is retained under
   the following operator targets, reviewed at least annually:
   - Obvious spam or junk: approximately 30 days.
@@ -433,14 +446,37 @@ every team member lives in Alberta, or in any other specific place — team
 members are located in various places, and we do not publish individual
 member locations.
 
-Because we use Cloudflare, Proton Mail, GitHub, Backblaze, Discord, EA's
-services, and the ordinary infrastructure of the internet, information may
+Because we use Cloudflare, Proton Mail, GitHub, Backblaze, Discord,
+Anthropic, EA's services, and the ordinary infrastructure of the internet, information may
 be processed or
 transmitted outside Alberta or Canada as part of how those services work.
 We do not have verified information about the exact physical storage
 locations each of these providers uses, and we do not claim otherwise.
 
-### 13. Accuracy, security, incidents, and changes to this policy
+### 13. News posts written by an AI service
+
+Our News pages, and our team's Discord channel, show short posts and articles
+about our team's games. The reporters who sign them are fictional. The text
+is written by an AI service, Anthropic's Claude API, from our game statistics.
+
+**What we send.** We send the service the profile names of team members (or
+their gamertags, when a member has no profile name), their game statistics,
+club names, and scores. We never name guests, opponent players, or members
+who choose "Leave me out", and we do not send their names to the service as
+people to write about.
+
+**Where it appears.** The finished posts and articles appear on the News
+pages of this site and in our team's Discord channel.
+
+**What members control.** Each member sets a "Press coverage" level on EDIT
+PROFILE: "Full press", "Go easy", or "Leave me out". Every member starts at
+"Full press". The site's admin can also set the level for any member.
+
+**Deletion.** The admin can delete any news item. A deleted item is removed
+from this site and from Discord. See also "How long we keep information"
+above.
+
+### 14. Accuracy, security, incidents, and changes to this policy
 
 We make a reasonable effort to keep the information we publish accurate,
 and we investigate and correct it, where appropriate, when an error is

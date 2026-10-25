@@ -5,7 +5,7 @@ import { P, UL, LI, Strong, Em, Code, MailLink } from '@/components/legal/legal-
 /**
  * Verbatim transcription of
  * `docs/planning/data-collection-policy-draft.md`'s public section
- * (## Data Collection Policy through the end of §13, before "## Internal
+ * (## Data Collection Policy through the end of §14, before "## Internal
  * drafting and publication checks"). Do not reword, trim, or "improve" any
  * sentence here — a content change belongs in the source draft first,
  * through the reviewed-draft workflow, then re-transcribed.
@@ -176,6 +176,12 @@ export const sections: LegalPageSection[] = [
             what is not kept.
           </LI>
           <LI>
+            <Strong>News posts and articles.</Strong> The text our AI service writes about our
+            team's games, and the facts we send to the service to write it: team members' profile
+            names (or gamertags, when a member has no profile name), their game statistics, club
+            names, and scores. See "News posts written by an AI service" below.
+          </LI>
+          <LI>
             <Strong>
               A limited set of authentic source fixtures retained in our private GitHub repository
             </Strong>
@@ -237,6 +243,7 @@ export const sections: LegalPageSection[] = [
             provenance, and regression verification.
           </LI>
           <LI>Let invited team members sign in and manage settings for their own player.</LI>
+          <LI>Write and show news posts and articles about our team's games.</LI>
           <LI>Respond to privacy, correction, removal, and security-related requests.</LI>
           <LI>
             Maintain provenance and auditability — i.e., being able to show where a published number
@@ -411,6 +418,12 @@ export const sections: LegalPageSection[] = [
             Discord; visitors who do not sign in are never sent to Discord by this site.
           </LI>
           <LI>
+            <Strong>Anthropic</Strong> — the company behind the Claude API, the AI service that
+            writes our News posts and articles. We send it team members' profile names (or
+            gamertags), their game statistics, club names, and scores. See "News posts written by an
+            AI service" below.
+          </LI>
+          <LI>
             <Strong>Electronic Arts (EA)</Strong> — the source of the underlying game data and some
             visual assets referenced by this site. EA does not endorse, and is not affiliated with,
             this project.
@@ -461,6 +474,11 @@ export const sections: LegalPageSection[] = [
           deleted on request (see "Requests and corrections" below). A sign-in session is deleted
           when the member signs out and otherwise stops working after 30 days without use. Records
           of used, cancelled, or expired invite links are kept for the operator's reference.
+        </LI>
+        <LI>
+          <Strong>News posts and articles</Strong> stay on this site until the admin deletes them.
+          We do not set any other time limit for them. Anthropic's own handling of what we send it
+          is not something we have independently verified.
         </LI>
         <LI>
           <Strong>Correspondence sent to our project email addresses</Strong> is retained under the
@@ -617,17 +635,49 @@ export const sections: LegalPageSection[] = [
           various places, and we do not publish individual member locations.
         </P>
         <P>
-          Because we use Cloudflare, Proton Mail, GitHub, Backblaze, Discord, EA's services, and the
-          ordinary infrastructure of the internet, information may be processed or transmitted
-          outside Alberta or Canada as part of how those services work. We do not have verified
-          information about the exact physical storage locations each of these providers uses, and
-          we do not claim otherwise.
+          Because we use Cloudflare, Proton Mail, GitHub, Backblaze, Discord, Anthropic, EA's
+          services, and the ordinary infrastructure of the internet, information may be processed or
+          transmitted outside Alberta or Canada as part of how those services work. We do not have
+          verified information about the exact physical storage locations each of these providers
+          uses, and we do not claim otherwise.
         </P>
       </>
     ),
   },
   {
     number: 13,
+    heading: 'News posts written by an AI service',
+    body: (
+      <>
+        <P>
+          Our News pages, and our team's Discord channel, show short posts and articles about our
+          team's games. The reporters who sign them are fictional. The text is written by an AI
+          service, Anthropic's Claude API, from our game statistics.
+        </P>
+        <P>
+          <Strong>What we send.</Strong> We send the service the profile names of team members (or
+          their gamertags, when a member has no profile name), their game statistics, club names,
+          and scores. We never name guests, opponent players, or members who choose "Leave me out",
+          and we do not send their names to the service as people to write about.
+        </P>
+        <P>
+          <Strong>Where it appears.</Strong> The finished posts and articles appear on the News
+          pages of this site and in our team's Discord channel.
+        </P>
+        <P>
+          <Strong>What members control.</Strong> Each member sets a "Press coverage" level on EDIT
+          PROFILE: "Full press", "Go easy", or "Leave me out". Every member starts at "Full press".
+          The site's admin can also set the level for any member.
+        </P>
+        <P>
+          <Strong>Deletion.</Strong> The admin can delete any news item. A deleted item is removed
+          from this site and from Discord. See also "How long we keep information" above.
+        </P>
+      </>
+    ),
+  },
+  {
+    number: 14,
     heading: 'Accuracy, security, incidents, and changes to this policy',
     body: (
       <>

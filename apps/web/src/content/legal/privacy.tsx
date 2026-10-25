@@ -4,7 +4,7 @@ import { P, UL, LI, Strong, Em, Code, MailLink, DocLink } from '@/components/leg
 
 /**
  * Verbatim transcription of `docs/planning/privacy-policy-draft.md`'s
- * public section (## Privacy Policy through the end of §13, before
+ * public section (## Privacy Policy through the end of §14, before
  * "## Internal drafting and publication checks"). Do not reword, trim, or
  * "improve" any sentence here — a content change belongs in the source
  * draft first, through the reviewed-draft workflow, then re-transcribed.
@@ -167,8 +167,10 @@ export const sections: LegalPageSection[] = [
           test fixtures), <Strong>Backblaze</Strong> (off-site storage for backup copies of our
           database), <Strong>Healthchecks.io</Strong> (monitoring that receives only status messages
           from our server, not information about visitors), <Strong>Discord</Strong> (the sign-in
-          service team members use; it tells us only the member's Discord user ID, display name and
-          profile picture link), <Strong>EA's game services</Strong> (the source of underlying game
+          service team members use, and the place where our News posts appear in the team's channel;
+          at sign-in it tells us only the member's Discord user ID, display name and profile picture
+          link), <Strong>Anthropic</Strong> (its Claude API is the AI service that writes our News
+          posts and articles), <Strong>EA's game services</Strong> (the source of underlying game
           data), and{' '}
           <Strong>community-operated hosting infrastructure based in Alberta, Canada</Strong>.
         </P>
@@ -188,11 +190,11 @@ export const sections: LegalPageSection[] = [
     heading: 'Cross-border handling',
     body: (
       <P>
-        Because we use Cloudflare, Proton Mail, GitHub, Backblaze, Discord, EA's services, and the
-        ordinary infrastructure of the internet, some information may be processed or transmitted
-        outside Alberta, or outside Canada, as part of how those services work. We do not have
-        verified information about the exact countries involved, and we do not publish a list of
-        them here. Separately, we do not state what legal role any of these providers has in
+        Because we use Cloudflare, Proton Mail, GitHub, Backblaze, Discord, Anthropic, EA's
+        services, and the ordinary infrastructure of the internet, some information may be processed
+        or transmitted outside Alberta, or outside Canada, as part of how those services work. We do
+        not have verified information about the exact countries involved, and we do not publish a
+        list of them here. Separately, we do not state what legal role any of these providers has in
         relation to your information — see "Service providers" above.
       </P>
     ),
@@ -299,6 +301,35 @@ export const sections: LegalPageSection[] = [
   },
   {
     number: 13,
+    heading: 'News posts written by an AI service',
+    body: (
+      <>
+        <P>
+          The News pages of this site show short posts and articles about our team's games. The same
+          posts appear in our team's Discord channel. The reporters who sign them are fictional. An
+          AI service writes the text.
+        </P>
+        <P>
+          To write the posts, we send Anthropic's Claude API the profile names of team members (or
+          their gamertags, when a member has no profile name) and their game statistics. We also
+          send club names and scores. We never name guests, opponent players, or members who choose
+          "Leave me out", and we do not send their names to the service as people to write about.
+        </P>
+        <P>
+          Each member can set this on EDIT PROFILE, under "Press coverage". The choices are "Full
+          press", "Go easy", and "Leave me out". Every member starts at "Full press". The site's
+          admin can also set the level for any member.
+        </P>
+        <P>
+          The admin can delete any news item. A deleted item is removed from this site and from
+          Discord. For more detail, see our{' '}
+          <DocLink to="data-collection">Data Collection Policy</DocLink>.
+        </P>
+      </>
+    ),
+  },
+  {
+    number: 14,
     heading: 'Changes to this policy',
     body: (
       <P>

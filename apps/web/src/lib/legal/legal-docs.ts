@@ -64,7 +64,7 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
       'How this site collects, uses, and retains information, and how to make a request about it.',
     status: 'published',
     effectiveDate: '2026-10-05',
-    lastUpdated: '2026-10-09',
+    lastUpdated: '2026-10-24',
     references: ['data-collection'],
   },
   {
@@ -88,7 +88,7 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
       'The detailed inventory of what this site collects, where it comes from, and how long it is kept.',
     status: 'published',
     effectiveDate: '2026-10-05',
-    lastUpdated: '2026-10-09',
+    lastUpdated: '2026-10-24',
     references: [],
   },
   {
@@ -120,9 +120,9 @@ export interface LegalChangeNotice {
 }
 
 export const LEGAL_CHANGE_NOTICE: LegalChangeNotice = {
-  text: 'Updated Oct 2026: invited team members can now sign in with Discord.',
+  text: "Updated Oct 2026: team members' names and game stats are now sent to an AI service to write the News pages.",
   slug: 'privacy',
-  showUntil: '2026-11-09',
+  showUntil: '2026-11-24',
 }
 
 /** The notice to show now, or null once it has run its course. */

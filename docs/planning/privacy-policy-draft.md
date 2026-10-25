@@ -124,8 +124,11 @@ Mail** (email), **GitHub** (a private repository holding our source code and
 a limited set of test fixtures), **Backblaze** (off-site storage for backup
 copies of our database), **Healthchecks.io** (monitoring that receives only
 status messages from our server, not information about visitors),
-**Discord** (the sign-in service team members use; it tells us only the
-member's Discord user ID, display name and profile picture link), **EA's game services** (the source of underlying game data), and
+**Discord** (the sign-in service team members use, and the place where our
+News posts appear in the team's channel; at sign-in it tells us only the
+member's Discord user ID, display name and profile picture link),
+**Anthropic** (its Claude API is the AI service that writes our News posts
+and articles), **EA's game services** (the source of underlying game data), and
 **community-operated hosting infrastructure based in Alberta, Canada**.
 
 This is a summary list, not a legal classification. We do not describe any
@@ -138,8 +141,8 @@ Data Collection Policy for more detail on how each provider is used.
 
 ### 8. Cross-border handling
 
-Because we use Cloudflare, Proton Mail, GitHub, Backblaze, Discord, EA's
-services, and the ordinary infrastructure of the internet, some information may be processed or
+Because we use Cloudflare, Proton Mail, GitHub, Backblaze, Discord, Anthropic,
+EA's services, and the ordinary infrastructure of the internet, some information may be processed or
 transmitted outside Alberta, or outside Canada, as part of how those services
 work. We do not have verified information about the exact countries
 involved, and we do not publish a list of them here. Separately, we do not
@@ -216,7 +219,27 @@ may include minors. We do not know their ages, cannot verify them, do not
 collect them, and have no way to determine them from the information EA's
 game services provide.
 
-### 13. Changes to this policy
+### 13. News posts written by an AI service
+
+The News pages of this site show short posts and articles about our team's
+games. The same posts appear in our team's Discord channel. The reporters who
+sign them are fictional. An AI service writes the text.
+
+To write the posts, we send Anthropic's Claude API the profile names of team
+members (or their gamertags, when a member has no profile name) and their
+game statistics. We also send club names and scores. We never name guests,
+opponent players, or members who choose "Leave me out", and we do not send
+their names to the service as people to write about.
+
+Each member can set this on EDIT PROFILE, under "Press coverage". The choices
+are "Full press", "Go easy", and "Leave me out". Every member starts at "Full
+press". The site's admin can also set the level for any member.
+
+The admin can delete any news item. A deleted item is removed from this site
+and from Discord. For more detail, see our [Data Collection
+Policy](PLACEHOLDER-DATA-COLLECTION-POLICY-URL).
+
+### 14. Changes to this policy
 
 We will post an on-site notice when we make a material change to this
 policy, and this page will always show the date it was last updated at the
