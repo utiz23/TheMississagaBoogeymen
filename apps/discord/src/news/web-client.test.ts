@@ -33,3 +33,23 @@ void test('a 404 throws with the status only (no token)', async () => {
     },
   )
 })
+
+void test('includeInactive asks the route for a title that is not active (backfill)', async () => {
+  const urls: string[] = []
+  const fake = (async (url: URL | string) => {
+    urls.push(String(url))
+    return new Response(JSON.stringify(oct12Response('night')), { status: 200 })
+  }) as typeof fetch
+  const opts = {
+    webBaseUrl: 'http://web:3000',
+    token: TOKEN,
+    kind: 'night' as const,
+    key: '2026-05-08',
+  }
+  await fetchNewsFacts({ ...opts, includeInactive: true }, fake)
+  await fetchNewsFacts({ ...opts, includeInactive: false }, fake)
+  assert.deepEqual(urls, [
+    'http://web:3000/internal/news/night/2026-05-08?includeInactive=1',
+    'http://web:3000/internal/news/night/2026-05-08',
+  ])
+})

@@ -159,6 +159,15 @@ export function buildArticleUserPrompt(args: {
   return lines.join('\n')
 }
 
+/** The system prompt of the review call (the second check). */
+export const REVIEW_SYSTEM_PROMPT =
+  'You are the second check of a news desk. You find invented quotes, invented events and personal criticism in short news texts. Answer only in the JSON format you are given.'
+
+/** The user prompt of a rewrite: the first prompt plus the problems of the rejected attempt. */
+export function buildRewritePrompt(user: string, problems: readonly string[]): string {
+  return `${user}\n\nYour previous attempt was rejected for these problems. Write it again and fix all of them:\n${problems.map((p) => `- ${p}`).join('\n')}`
+}
+
 export function buildReviewPrompt(args: { facts: NewsFacts; text: string }): string {
   return [
     'You are the second check of a news desk. A fictional reporter wrote the text below from the fact sheet. A program already checked the digits and number words in the text, the names the reporter listed, and the club names the reporter listed. It did not read the text for other names or for stats written in other ways. Check what the program cannot check.',

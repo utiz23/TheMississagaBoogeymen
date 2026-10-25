@@ -210,6 +210,45 @@ export async function insertNewsItem(item: NewNewsItem): Promise<number> {
   return row.id
 }
 
+// ── Backfill lookups (apps/discord/src/news/backfill.ts) ────────────────────
+
+/**
+ * A post with this match, reporter and body, test and deleted rows included
+ * (a deleted backfill item must not come back on a second import).
+ */
+export function findNewsPostQuery(args: { matchId: number; reporter: string; body: string }) {
+  return db
+    .select({ id: newsItems.id })
+    .from(newsItems)
+    .where(
+      and(
+        eq(newsItems.kind, 'post'),
+        eq(newsItems.matchId, args.matchId),
+        sql`${newsItems.reporter} = ${args.reporter}`,
+        eq(newsItems.body, args.body),
+      ),
+    )
+    .orderBy(asc(newsItems.id))
+    .limit(1)
+}
+
+export async function findNewsPostId(args: {
+  matchId: number
+  reporter: string
+  body: string
+}): Promise<number | null> {
+  return (await findNewsPostQuery(args))[0]?.id ?? null
+}
+
+/** An item with this slug, test and deleted rows included. */
+export function findNewsArticleQuery(slug: string) {
+  return db.select({ id: newsItems.id }).from(newsItems).where(eq(newsItems.slug, slug)).limit(1)
+}
+
+export async function findNewsArticleId(slug: string): Promise<number | null> {
+  return (await findNewsArticleQuery(slug))[0]?.id ?? null
+}
+
 export async function markNewsItemPosted(id: number, messageId: string | null): Promise<void> {
   await db
     .update(newsItems)

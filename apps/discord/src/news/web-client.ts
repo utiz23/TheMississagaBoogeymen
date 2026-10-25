@@ -5,14 +5,22 @@ import { INTERNAL_TOKEN_HEADER } from '../web-client.ts'
  * One news fact sheet from the web app: `/internal/news/game/<matchId>`,
  * `/night/<YYYY-MM-DD>` or `/week/<monday YYYY-MM-DD>`. Any HTTP error
  * (404 = unknown or no counted game) throws; the cycle retries next pass.
- * The error names the status only, never the token.
+ * The error names the status only, never the token. `includeInactive` (the
+ * backfill only) also loads games of a title that is not active.
  */
 export async function fetchNewsFacts(
-  opts: { webBaseUrl: string; token: string; kind: 'game' | 'night' | 'week'; key: string },
+  opts: {
+    webBaseUrl: string
+    token: string
+    kind: 'game' | 'night' | 'week'
+    key: string
+    includeInactive?: boolean
+  },
   fetchImpl: typeof fetch = fetch,
 ): Promise<NewsFactsResponse> {
+  const query = opts.includeInactive === true ? '?includeInactive=1' : ''
   const res = await fetchImpl(
-    `${opts.webBaseUrl}/internal/news/${opts.kind}/${encodeURIComponent(opts.key)}`,
+    `${opts.webBaseUrl}/internal/news/${opts.kind}/${encodeURIComponent(opts.key)}${query}`,
     { headers: { [INTERNAL_TOKEN_HEADER]: opts.token }, signal: AbortSignal.timeout(30_000) },
   )
   if (!res.ok) throw new Error(`news ${opts.kind} facts HTTP ${String(res.status)}`)

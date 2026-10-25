@@ -22,6 +22,8 @@ const {
   deleteTestNewsItemsQuery,
   rawToNewsItem,
   listNewsNightMatchesSql,
+  findNewsPostQuery,
+  findNewsArticleQuery,
   listTitleResultsSql,
   listRecentNightSummariesSql,
   listNewsCardEventsSql,
@@ -406,4 +408,21 @@ void test('migration 0071: skipped back-fill for every game, night and week, ide
       `to_char(date_trunc('week', (m."played_at" AT TIME ZONE 'America/Edmonton') - interval '6 hours')::date, 'YYYY-MM-DD')`,
     ),
   )
+})
+
+void test('backfill lookups: a post by match, reporter and body; an article by slug; deleted and test rows count (B3)', () => {
+  const p = findNewsPostQuery({ matchId: 250, reporter: 'barlow', body: 'Hello.' }).toSQL()
+  const ps = flat(p.sql)
+  assert.match(ps, /from "news_items"/)
+  assert.match(ps, /"news_items"\."kind" = \$1/)
+  assert.match(ps, /"news_items"\."match_id" = \$2/)
+  assert.match(ps, /"news_items"\."reporter" = \$3/)
+  assert.match(ps, /"news_items"\."body" = \$4/)
+  assert.ok(!/deleted_at|is_test/.test(ps), ps)
+  assert.deepEqual(p.params.slice(0, 4), ['post', 250, 'barlow', 'Hello.'])
+  const a = findNewsArticleQuery('2026-05-08-a-night').toSQL()
+  const as = flat(a.sql)
+  assert.match(as, /"news_items"\."slug" = \$1/)
+  assert.ok(!/deleted_at|is_test/.test(as), as)
+  assert.deepEqual(a.params.slice(0, 1), ['2026-05-08-a-night'])
 })

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { NewsFacts } from '@eanhl/db/news'
 import type { Usage } from './cost.ts'
-import { buildReviewPrompt } from './prompts.ts'
+import { REVIEW_SYSTEM_PROMPT, buildReviewPrompt, buildRewritePrompt } from './prompts.ts'
 import { REVIEW_SCHEMA, parseReview } from './outputs.ts'
 
 /**
@@ -119,9 +119,6 @@ export function budgetLeft(spent: number, limitUsd: number): boolean {
   return spent < limitUsd - 0.5
 }
 
-const REVIEW_SYSTEM =
-  'You are the second check of a news desk. You find invented quotes, invented events and personal criticism in short news texts. Answer only in the JSON format you are given.'
-
 export async function writeChecked<T>(args: {
   call: ModelCall
   system: string
@@ -136,10 +133,7 @@ export async function writeChecked<T>(args: {
   let problems: string[] = []
 
   for (let attempt = 0; attempt < MAX_WRITES; attempt++) {
-    const user =
-      attempt === 0
-        ? args.user
-        : `${args.user}\n\nYour previous attempt was rejected for these problems. Write it again and fix all of them:\n${problems.map((p) => `- ${p}`).join('\n')}`
+    const user = attempt === 0 ? args.user : buildRewritePrompt(args.user, problems)
 
     const written = await args.call({
       purpose: 'write',
@@ -171,7 +165,7 @@ export async function writeChecked<T>(args: {
 
     const reviewed = await args.call({
       purpose: 'review',
-      system: REVIEW_SYSTEM,
+      system: REVIEW_SYSTEM_PROMPT,
       user: buildReviewPrompt({ facts: args.facts, text: args.textForReview(out) }),
       schema: REVIEW_SCHEMA,
       effort: 'low',
