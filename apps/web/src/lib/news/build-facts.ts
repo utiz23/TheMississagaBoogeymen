@@ -17,7 +17,7 @@ import {
   type NewsGameFacts,
   type NewsGoal,
   type NewsGoalPeriod,
-  type NewsNorms,
+  type NewsModeNorms,
   type NewsPerson,
   type NewsPlayerLine,
   type NewsPosition,
@@ -708,8 +708,8 @@ export function buildFacts(args: {
   weekPlayers?: NewsWeekPlayer[]
   /** Week sheets only (default []). */
   aiGoalieWeek?: NewsAiGoalieWeek[]
-  /** The title's norms before the sheet's first game (`applyNorms`); default null. */
-  norms?: NewsNorms | null
+  /** The title's norms per mode before the sheet's first game (`applyNorms`); default none. */
+  norms?: NewsModeNorms
 }): NewsFacts {
   const nightTotals = {
     goalsFor: 0,
@@ -746,7 +746,7 @@ export function buildFacts(args: {
     weekPlayers: args.weekPlayers ?? [],
     aiGoalieWeek: args.aiGoalieWeek ?? [],
     lore: [...CLUB_LORE],
-    norms: args.norms ?? null,
+    norms: args.norms ?? { '3s': null, '6s': null },
   }
 }
 

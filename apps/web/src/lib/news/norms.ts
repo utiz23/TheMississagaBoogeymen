@@ -3,6 +3,7 @@
 // the loader reads the earlier games (`listNewsNormGames`) and the sheet's own.
 import type {
   NewsGameFacts,
+  NewsModeNorms,
   NewsNormLabels,
   NewsNorms,
   NewsNormStat,
@@ -20,6 +21,8 @@ const HIGH_Q = 0.8
 
 /** One counted game's numbers as the match page shows them, both sides. */
 export interface NormGameInput {
+  /** Norms, labels and patterns compare a game only with games of the same mode (spec §12.17-1). */
+  gameMode: '3s' | '6s' | null
   endedEarly: boolean
   hitsFor: number
   hitsAgainst: number
@@ -39,6 +42,7 @@ export interface NormGameInput {
 /** An earlier game from the database as a norm input (pass % and the ended-early rule as on the sheet). */
 export function normInputFromRow(r: NewsNormGame): NormGameInput {
   return {
+    gameMode: r.gameMode,
     endedEarly: isEndedEarly({
       scoreFor: r.scoreFor,
       creditedGoals: r.creditedGoals,
@@ -270,34 +274,48 @@ export function gamePatterns(
   return out
 }
 
+const MODES = ['3s', '6s'] as const
+
 /**
- * The sheet's norms and each game's labels and patterns. `inputs[i]` is
- * `games[i]`'s numbers; `history` = the title's counted games before the
- * sheet's first game, oldest first. Games that ended early are left out of
- * the norms and get no labels or patterns; a later game of the sheet sees
- * the earlier ones for its patterns (the norms do not).
+ * The sheet's norms (per game mode) and each game's labels and patterns.
+ * `inputs[i]` is `games[i]`'s numbers; `history` = the title's counted games
+ * before the sheet's first game, oldest first. Everything is computed within
+ * the game's mode (spec §12.17-1): a game is compared only with games of its
+ * mode, and a game without a mode gets no labels or patterns. Games that
+ * ended early are left out of the norms and get no labels or patterns; a
+ * later game of the sheet sees the earlier ones of its mode for its patterns
+ * (the norms do not).
  */
 export function applyNorms(
   games: readonly NewsGameFacts[],
   inputs: readonly NormGameInput[],
   history: readonly NormGameInput[],
-): { norms: NewsNorms | null; games: NewsGameFacts[] } {
-  const sample = history.filter((h) => !h.endedEarly)
-  const norms = buildNorms(sample)
-  if (norms === null)
-    return { norms, games: games.map((g) => ({ ...g, labels: null, patterns: [] })) }
-  const previous = [...sample]
+): { norms: NewsModeNorms; games: NewsGameFacts[] } {
+  const samples = new Map(
+    MODES.map((m) => [m, history.filter((h) => !h.endedEarly && h.gameMode === m)]),
+  )
+  const norms: NewsModeNorms = {
+    '3s': buildNorms(samples.get('3s')!),
+    '6s': buildNorms(samples.get('6s')!),
+  }
+  const previous = new Map(MODES.map((m) => [m, [...samples.get(m)!]]))
   const out = games.map((g, i) => {
     const input = inputs[i]
-    if (g.endedEarly || input === undefined || input.endedEarly) {
+    const mode = input?.gameMode ?? null
+    if (g.endedEarly || input === undefined || input.endedEarly || mode === null) {
       return { ...g, labels: null, patterns: [] }
     }
-    const withNorms = {
-      ...g,
-      labels: normLabels(input, sample),
-      patterns: gamePatterns(input, previous, sample),
-    }
-    previous.push(input)
+    const sample = samples.get(mode)!
+    const before = previous.get(mode)!
+    const withNorms =
+      norms[mode] === null
+        ? { ...g, labels: null, patterns: [] }
+        : {
+            ...g,
+            labels: normLabels(input, sample),
+            patterns: gamePatterns(input, before, sample),
+          }
+    before.push(input)
     return withNorms
   })
   return { norms, games: out }

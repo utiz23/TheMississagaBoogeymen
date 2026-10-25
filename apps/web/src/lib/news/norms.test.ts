@@ -14,6 +14,7 @@ import {
 } from './norms.ts'
 
 const g = (over: Partial<NormGameInput> = {}): NormGameInput => ({
+  gameMode: '6s',
   endedEarly: false,
   hitsFor: 10,
   hitsAgainst: 15,
@@ -204,8 +205,9 @@ void test('applyNorms: norms from the earlier games without ended-early ones; la
     [g({ hitsFor: 18 }), g({ endedEarly: true })],
     history,
   )
-  assert.equal(out.norms?.sampleGames, 10)
-  assert.equal(out.norms?.hits?.ours, 14.5)
+  assert.equal(out.norms['6s']?.sampleGames, 10)
+  assert.equal(out.norms['6s']?.hits?.ours, 14.5)
+  assert.equal(out.norms['3s'], null)
   assert.equal(out.games[0]!.labels?.hitsFor, 'unusually high')
   assert.ok(out.games[0]!.patterns.length > 0)
   // The game that ended early gets no labels and no patterns.
@@ -213,7 +215,7 @@ void test('applyNorms: norms from the earlier games without ended-early ones; la
   assert.deepEqual(out.games[1]!.patterns, [])
   // Under 10 earlier games: no norms, no labels, no patterns.
   const few = applyNorms([facts()], [g()], ten().slice(0, 9))
-  assert.equal(few.norms, null)
+  assert.deepEqual(few.norms, { '3s': null, '6s': null })
   assert.equal(few.games[0]!.labels, null)
   assert.deepEqual(few.games[0]!.patterns, [])
 })
@@ -232,12 +234,17 @@ void test('applyNorms: a later game of the sheet sees the earlier ones for its p
     out.games[1]!.patterns.includes('the Boogeymen were out-shot for the 2nd game in a row'),
   )
   // Norms come only from the games before the sheet.
-  assert.equal(out.norms?.shots?.leadPct, 100)
+  assert.equal(out.norms['6s']?.shots?.leadPct, 100)
 })
 
 void test('normInputFromRow: page pass %, ended early from the credited goals (C1.2)', () => {
   const row = {
     id: 5,
+    night: '2026-10-12',
+    gameMode: '6s' as const,
+    result: 'WIN' as const,
+    scoreAgainst: 1,
+    opponentName: 'Rivals',
     scoreFor: 3,
     creditedGoals: 3,
     hitsFor: 9,
@@ -256,6 +263,7 @@ void test('normInputFromRow: page pass %, ended early from the credited goals (C
     passCompletionsAgainst: 0,
   }
   assert.deepEqual(normInputFromRow(row), {
+    gameMode: '6s',
     endedEarly: false,
     hitsFor: 9,
     hitsAgainst: 11,
@@ -273,4 +281,34 @@ void test('normInputFromRow: page pass %, ended early from the credited goals (C
   assert.equal(normInputFromRow({ ...row, scoreFor: 4 }).endedEarly, true)
   assert.equal(normInputFromRow({ ...row, timeOnAttack: 200 }).endedEarly, true)
   assert.equal(normInputFromRow({ ...row, shotsFor: 5, shotsAgainst: 4 }).endedEarly, true)
+})
+
+void test('applyNorms: norms, labels and patterns per game mode; a game without a mode gets none (C2.1)', () => {
+  // Ten 6s games out-shooting the opponent, ten 3s games with 40 hits and out-shot every time.
+  const six = ten()
+  const three = Array.from({ length: 10 }, () =>
+    g({ gameMode: '3s', hitsFor: 40, hitsAgainst: 5, shotsFor: 5, shotsAgainst: 15 }),
+  )
+  const out = applyNorms(
+    [facts(), facts(), facts()],
+    [
+      g({ hitsFor: 18 }),
+      g({ gameMode: '3s', hitsFor: 18, shotsFor: 5, shotsAgainst: 15 }),
+      g({ gameMode: null }),
+    ],
+    [...three.slice(0, 5), ...six, ...three.slice(5)],
+  )
+  assert.equal(out.norms['6s']?.sampleGames, 10)
+  assert.equal(out.norms['6s']?.hits?.ours, 14.5)
+  assert.equal(out.norms['3s']?.sampleGames, 10)
+  assert.equal(out.norms['3s']?.hits?.ours, 40)
+  // 18 hits: unusually high in 6s, unusually low in 3s.
+  assert.equal(out.games[0]!.labels?.hitsFor, 'unusually high')
+  assert.equal(out.games[1]!.labels?.hitsFor, 'unusually low')
+  // Patterns from the same mode: out-shot is the usual in 3s, not news.
+  assert.ok(out.games[1]!.patterns.includes('the Boogeymen were out-shot as usual'))
+  assert.ok(out.games[0]!.patterns.includes('the Boogeymen out-shot the opponent as usual'))
+  // No mode: no norms to compare with.
+  assert.equal(out.games[2]!.labels, null)
+  assert.deepEqual(out.games[2]!.patterns, [])
 })

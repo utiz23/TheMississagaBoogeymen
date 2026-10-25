@@ -526,12 +526,15 @@ void test('norms: the averages and lead % may be quoted; labels, patterns and th
   const before = allowedNumbers(f)
   for (const n of [42, 13, 16.8, 35.7, 14.2, 312.5]) assert.equal(before.has(n), false, String(n))
   f.norms = {
-    sampleGames: 42,
-    hits: { ours: 14.2, theirs: 16.8, leadPct: 35.7 },
-    shots: null,
-    timeOnAttack: { ours: 312.5, theirs: 300, leadPct: 60 },
-    passPct: null,
-    ppPct: null,
+    '3s': null,
+    '6s': {
+      sampleGames: 42,
+      hits: { ours: 14.2, theirs: 16.8, leadPct: 35.7 },
+      shots: null,
+      timeOnAttack: { ours: 312.5, theirs: 300, leadPct: 60 },
+      passPct: null,
+      ppPct: null,
+    },
   }
   f.games[0] = {
     ...f.games[0]!,

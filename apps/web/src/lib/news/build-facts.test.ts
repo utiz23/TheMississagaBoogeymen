@@ -1235,16 +1235,19 @@ void test('buildFacts: norms default to null and pass through; game labels start
     people: [],
   }
   const plain = buildFacts(base)
-  assert.equal(plain.norms, null)
+  assert.deepEqual(plain.norms, { '3s': null, '6s': null })
   assert.equal(plain.games[0]!.labels, null)
   assert.deepEqual(plain.games[0]!.patterns, [])
   const norms = {
-    sampleGames: 12,
-    hits: { ours: 14.2, theirs: 16.8, leadPct: 35.7 },
-    shots: null,
-    timeOnAttack: null,
-    passPct: null,
-    ppPct: null,
+    '3s': null,
+    '6s': {
+      sampleGames: 12,
+      hits: { ours: 14.2, theirs: 16.8, leadPct: 35.7 },
+      shots: null,
+      timeOnAttack: null,
+      passPct: null,
+      ppPct: null,
+    },
   }
   const withNorms = buildFacts({ ...base, norms })
   assert.deepEqual(withNorms.norms, norms)

@@ -1100,6 +1100,13 @@ export async function listNewsHistoryGames(args: {
  */
 export interface NewsNormGame {
   id: number
+  /** Night key (C2: the night's running notes, head-to-head). */
+  night: string
+  gameMode: '3s' | '6s' | null
+  result: 'WIN' | 'LOSS' | 'OTL'
+  scoreAgainst: number
+  /** As stored (EA spacing); callers collapse whitespace. */
+  opponentName: string
   scoreFor: number
   creditedGoals: number
   hitsFor: number
@@ -1128,7 +1135,8 @@ export interface NewsNormGame {
  */
 export function listNewsNormGamesSql(args: { gameTitleId: number; beforeMatchId: number }): SQL {
   return sql`
-    select m.id, m.score_for, bgm.credited_goals, m.hits_for, m.hits_against,
+    select m.id, to_char(${nightKeySql('m')}, 'YYYY-MM-DD') as night, m.game_mode, m.result,
+      m.score_for, m.score_against, m.opponent_name, bgm.credited_goals, m.hits_for, m.hits_against,
       coalesce(ocr.shots_for, m.shots_for) as shots_for,
       coalesce(ocr.shots_against, m.shots_against) as shots_against,
       m.time_on_attack, m.time_on_attack_against,
@@ -1167,6 +1175,11 @@ export function listNewsNormGamesSql(args: { gameTitleId: number; beforeMatchId:
 type Numeric = string | number
 type RawNormGame = {
   id: Numeric
+  night: string
+  game_mode: string | null
+  result: string
+  score_against: Numeric
+  opponent_name: string
   score_for: Numeric
   credited_goals: Numeric
   hits_for: Numeric
@@ -1188,6 +1201,12 @@ type RawNormGame = {
 export function rowToNormGame(r: RawNormGame): NewsNormGame {
   return {
     id: Number(r.id),
+    night: r.night,
+    gameMode: r.game_mode === '3s' || r.game_mode === '6s' ? r.game_mode : null,
+    // The query keeps only counted games (not DNF).
+    result: r.result === 'WIN' ? 'WIN' : r.result === 'OTL' ? 'OTL' : 'LOSS',
+    scoreAgainst: Number(r.score_against),
+    opponentName: r.opponent_name,
     scoreFor: Number(r.score_for),
     creditedGoals: Number(r.credited_goals),
     hitsFor: Number(r.hits_for),

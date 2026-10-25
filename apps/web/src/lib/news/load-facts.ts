@@ -215,6 +215,7 @@ async function loadHistoryGames(gameTitleId: number, start: string): Promise<His
 /** A sheet game's numbers for the team norms, as the match page shows them. */
 function normInputOf(g: LoadedGame, endedEarly: boolean): NormGameInput {
   return {
+    gameMode: g.match.gameMode,
     endedEarly,
     hitsFor: g.match.hitsFor,
     hitsAgainst: g.match.hitsAgainst,

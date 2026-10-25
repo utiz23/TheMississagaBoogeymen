@@ -691,12 +691,24 @@ void test("norm games: the title's counted games before the sheet's first game, 
   assert.match(s, /order by m\.played_at, m\.id$/)
   assert.doesNotMatch(s, /is_active/)
   assert.deepEqual(q.params, [900, 7])
+  // C2: the mode, result, score, opponent and night of each game (mode-split norms, team context).
+  assert.match(
+    s,
+    new RegExp(
+      `select m\\.id, to_char\\(${NIGHT('m').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}, 'YYYY-MM-DD'\\) as night, m\\.game_mode, m\\.result, m\\.score_for, m\\.score_against, m\\.opponent_name,`,
+    ),
+  )
 })
 
 void test('norm games: raw rows become numbers; nulls stay null (C1.2)', () => {
   assert.deepEqual(
     rowToNormGame({
       id: '12',
+      night: '2026-10-12',
+      game_mode: '3s',
+      result: 'OTL',
+      score_against: '4',
+      opponent_name: 'Rivals  HC',
       score_for: 3,
       credited_goals: '2',
       hits_for: 9,
@@ -716,6 +728,11 @@ void test('norm games: raw rows become numbers; nulls stay null (C1.2)', () => {
     }),
     {
       id: 12,
+      night: '2026-10-12',
+      gameMode: '3s',
+      result: 'OTL',
+      scoreAgainst: 4,
+      opponentName: 'Rivals  HC',
       scoreFor: 3,
       creditedGoals: 2,
       hitsFor: 9,

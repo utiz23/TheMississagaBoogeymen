@@ -155,7 +155,7 @@ function sample(): NewsFactsResponse {
       weekPlayers: [],
       aiGoalieWeek: [],
       lore: ["The Boogeymen's farm team is the Oregon Outlaws."],
-      norms: null,
+      norms: { '3s': null, '6s': null },
     },
     forbiddenNames: ['Hidden Guy'],
   }
@@ -652,12 +652,15 @@ const NORM = (ours: number, theirs: number, leadPct: number) => ({ ours, theirs,
 function normSample(): NewsFactsResponse {
   const s = sample()
   s.facts.norms = {
-    sampleGames: 42,
-    hits: NORM(14.2, 16.8, 35.7),
-    shots: NORM(24.5, 19.1, 73.8),
-    timeOnAttack: NORM(402.3, 311.9, 78.6),
-    passPct: NORM(74.1, 70.3, 61.9),
-    ppPct: null,
+    '3s': null,
+    '6s': {
+      sampleGames: 42,
+      hits: NORM(14.2, 16.8, 35.7),
+      shots: NORM(24.5, 19.1, 73.8),
+      timeOnAttack: NORM(402.3, 311.9, 78.6),
+      passPct: NORM(74.1, 70.3, 61.9),
+      ppPct: null,
+    },
   }
   s.facts.games[0]!.labels = {
     hitsFor: 'unusually high',
@@ -681,7 +684,11 @@ void test('contract: norms, labels and patterns round-trip; missing ones read as
   delete old.facts.games[0]!['labels']
   delete old.facts.games[0]!['patterns']
   const o = parseNewsFactsResponse(old)
-  assert.equal(o.facts.norms, null)
+  assert.deepEqual(o.facts.norms, { '3s': null, '6s': null })
+  // A null reads as no norms in either mode.
+  const n = clone(s) as unknown as { facts: Record<string, unknown> }
+  n.facts['norms'] = null
+  assert.deepEqual(parseNewsFactsResponse(n).facts.norms, { '3s': null, '6s': null })
   assert.equal(o.facts.games[0]!.labels, null)
   assert.deepEqual(o.facts.games[0]!.patterns, [])
 })
@@ -689,7 +696,7 @@ void test('contract: norms, labels and patterns round-trip; missing ones read as
 void test('contract: rejects bad norms, labels or patterns (C1.2)', () => {
   type N = {
     facts: {
-      norms: Record<string, Record<string, unknown> | number | null>
+      norms: Record<string, Record<string, Record<string, unknown> | number | null>>
       games: { labels: Record<string, unknown>; patterns: unknown }[]
     }
   }
@@ -698,13 +705,17 @@ void test('contract: rejects bad norms, labels or patterns (C1.2)', () => {
     edit(s)
     assert.throws(() => parseNewsFactsResponse(s), re)
   }
-  bad((s) => (s.facts.norms['hits'] = { ours: '14', theirs: 1, leadPct: 1 }), /norms\.hits\.ours/)
   bad(
-    (s) => delete (s.facts.norms['shots'] as Record<string, unknown>)['leadPct'],
-    /norms\.shots\.leadPct/,
+    (s) => (s.facts.norms['6s']!['hits'] = { ours: '14', theirs: 1, leadPct: 1 }),
+    /norms\.6s\.hits\.ours/,
   )
-  bad((s) => (s.facts.norms['sampleGames'] = 9.5), /norms\.sampleGames/)
-  bad((s) => delete s.facts.norms['ppPct'], /norms\.ppPct/)
+  bad(
+    (s) => delete (s.facts.norms['6s']!['shots'] as Record<string, unknown>)['leadPct'],
+    /norms\.6s\.shots\.leadPct/,
+  )
+  bad((s) => (s.facts.norms['6s']!['sampleGames'] = 9.5), /norms\.6s\.sampleGames/)
+  bad((s) => delete s.facts.norms['6s']!['ppPct'], /norms\.6s\.ppPct/)
+  bad((s) => delete s.facts.norms['3s'], /norms\.3s is missing/)
   bad((s) => (s.facts.games[0]!.labels['hitsFor'] = 'normal'), /labels\.hitsFor/)
   bad((s) => delete s.facts.games[0]!.labels['passPct'], /labels\.passPct/)
   bad((s) => (s.facts.games[0]!.patterns = 'out-hit'), /patterns is not an array/)

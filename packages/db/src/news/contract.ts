@@ -117,6 +117,16 @@ export interface NewsNorms {
   ppPct: NewsNormStat | null
 }
 
+/**
+ * The norms per game mode (spec §12.17-1): every norm, average and label is
+ * computed within the game's mode. A game is compared with `norms[gameMode]`;
+ * a game without a mode gets no labels. Each mode null below 10 games.
+ */
+export interface NewsModeNorms {
+  '3s': NewsNorms | null
+  '6s': NewsNorms | null
+}
+
 /** A game's numbers labelled against the club's own games. */
 export const NORM_LABEL_KEYS = [
   'hitsFor',
@@ -280,8 +290,11 @@ export interface NewsFacts {
   aiGoalieWeek: NewsAiGoalieWeek[]
   /** Club lore (spec §12.13, `CLUB_LORE`), on every sheet. Never a source of stats. */
   lore: string[]
-  /** The club's norms in this title before the sheet's first game (spec §12.10); null below 10 games. */
-  norms: NewsNorms | null
+  /**
+   * The club's norms in this title before the sheet's first game (spec §12.10),
+   * per game mode (§12.17-1); a mode is null below 10 games of that mode.
+   */
+  norms: NewsModeNorms
 }
 
 export interface NewsFactsResponse {
@@ -437,6 +450,17 @@ function parseNorms(v: unknown, path: string): NewsNorms {
     passPct: stat('passPct'),
     ppPct: stat('ppPct'),
   }
+}
+
+/** Missing or null (an older web app): no norms in either mode. */
+function parseModeNorms(v: unknown, path: string): NewsModeNorms {
+  if (v === undefined || v === null) return { '3s': null, '6s': null }
+  const o = obj(v, path)
+  const mode = (k: '3s' | '6s') => {
+    if (o[k] === undefined) fail(`${path}.${k}`, 'is missing')
+    return nullable(o[k], `${path}.${k}`, parseNorms)
+  }
+  return { '3s': mode('3s'), '6s': mode('6s') }
 }
 
 function parseLabels(v: unknown, path: string): NewsNormLabels {
@@ -644,7 +668,7 @@ function parseFacts(v: unknown, path: string): NewsFacts {
         ? []
         : arr(o['aiGoalieWeek'], `${path}.aiGoalieWeek`, parseAiGoalieWeek),
     lore: o['lore'] === undefined ? [] : arr(o['lore'], `${path}.lore`, str),
-    norms: o['norms'] === undefined ? null : nullable(o['norms'], `${path}.norms`, parseNorms),
+    norms: parseModeNorms(o['norms'], `${path}.norms`),
   }
 }
 
