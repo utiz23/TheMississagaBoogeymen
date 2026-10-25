@@ -19,6 +19,8 @@ const {
   markNewsItemFailedQuery,
   discordDeletionsQuery,
   publicNewsItemWhere,
+  deleteTestNewsItemsQuery,
+  rawToNewsItem,
 } = await import('../news.js')
 const { db } = await import('../../client.js')
 const dialect = new PgDialect()
@@ -69,7 +71,7 @@ void test('ended nights: night key, cut-off, since, job cap, every counted game 
   assert.match(s, /m2\.result <> 'DNF'/)
   assert.match(
     s,
-    /not exists \( ?select 1 from news_jobs gj where gj\.kind = 'game' and gj\.job_key = m2\.id::text and gj\.status in \('done', 'skipped'\) ?\)/,
+    /not exists \( ?select 1 from news_jobs gj where gj\.kind = 'game' and gj\.job_key = m2\.id::text and \(gj\.status in \('done', 'skipped'\) or \(gj\.status = 'failed' and gj\.attempts >= 3\)\) ?\)/,
   )
   assert.match(s, /order by n\.night/)
 })
@@ -146,6 +148,50 @@ void test('discord deletions: deleted, has a message id, not yet deleted on Disc
   assert.match(s, /"deleted_at" is not null/)
   assert.match(s, /"discord_message_id" is not null/)
   assert.match(s, /"discord_deleted_at" is null/)
+})
+
+void test('delete test items: only items, never jobs', () => {
+  const s = flat(deleteTestNewsItemsQuery().toSQL().sql)
+  assert.match(s, /^delete from "news_items" where "news_items"\."is_test" = \$1/)
+  assert.doesNotMatch(s, /news_jobs/)
+})
+
+void test('raw feed row: mentions and facts parse the same way (text or object, null stays null)', () => {
+  const base = {
+    id: '1',
+    job_id: null,
+    kind: 'article',
+    reporter: 'barlow',
+    match_id: '9',
+    night: '2026-10-23',
+    week_start: null,
+    reply_to: null,
+    slug: 's',
+    headline: 'h',
+    dek: null,
+    body: 'b',
+    summary: null,
+    is_test: false,
+    discord_status: 'pending',
+    discord_attempts: 0,
+    discord_message_id: null,
+    last_error: null,
+    deleted_at: null,
+    discord_deleted_at: null,
+    created_at: '2026-10-24 12:00:00+00',
+  } as const
+  const facts = { games: [{ matchId: 9 }] }
+  const mentions = [{ name: 'A', playerId: 1 }]
+  const asText = rawToNewsItem({
+    ...base,
+    mentions: JSON.stringify(mentions),
+    facts: JSON.stringify(facts),
+  } as never)
+  const asObject = rawToNewsItem({ ...base, mentions, facts } as never)
+  assert.deepEqual(asText.facts, facts)
+  assert.deepEqual(asObject.facts, facts)
+  assert.deepEqual(asText.mentions, mentions)
+  assert.equal(rawToNewsItem({ ...base, mentions: [], facts: null } as never).facts, null)
 })
 
 void test('db handle exists (builders need no connection)', () => {

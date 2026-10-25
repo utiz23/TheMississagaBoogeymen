@@ -77,7 +77,7 @@ export async function listGameJobCandidates(args: {
  * Night keys ('YYYY-MM-DD', active title) that are over: the last game ended
  * before `now - endedForMs` and after `since`; no night job yet (or a failed one
  * under the cap); and every counted (non-DNF) game of the night already has a
- * game job that is done or skipped.
+ * settled game job: done, skipped, or failed for good (attempts at the cap).
  */
 export function listEndedNightsSql(args: { now: Date; endedForMs: number; since: Date }): SQL {
   const cutoff = new Date(args.now.getTime() - args.endedForMs)
@@ -101,7 +101,8 @@ export function listEndedNightsSql(args: { now: Date; endedForMs: number; since:
           and m2.result <> 'DNF'
           and not exists (
             select 1 from news_jobs gj
-            where gj.kind = 'game' and gj.job_key = m2.id::text and gj.status in ('done', 'skipped')
+            where gj.kind = 'game' and gj.job_key = m2.id::text
+              and (gj.status in ('done', 'skipped') or (gj.status = 'failed' and gj.attempts >= ${MAX}))
           )
       )
     order by n.night`
@@ -271,16 +272,18 @@ export async function markDiscordDeleted(id: number): Promise<void> {
 }
 
 /**
- * Remove everything a dry run wrote: its items, then its jobs (a leftover test
- * job would keep a real game from being covered). AI usage rows stay: the money
- * was spent. Returns the number of items removed.
+ * Remove the items a dry run wrote. Jobs are kept on purpose (ruling R8): a
+ * game or night covered in test mode must not be covered again after the live
+ * switch. AI usage rows stay too: the money was spent. Returns the number of
+ * items removed.
  */
 export async function deleteTestNewsItems(): Promise<number> {
-  const rows = await db.delete(newsItems).where(eq(newsItems.isTest, true)).returning({
-    id: newsItems.id,
-  })
-  await db.delete(newsJobs).where(eq(newsJobs.isTest, true))
+  const rows = await deleteTestNewsItemsQuery().returning({ id: newsItems.id })
   return rows.length
+}
+
+export function deleteTestNewsItemsQuery() {
+  return db.delete(newsItems).where(eq(newsItems.isTest, true))
 }
 
 // ── Cost, reporter history, switch ──────────────────────────────────────────
@@ -403,7 +406,7 @@ const toDateOrNull = (v: string | Date | null): Date | null => (v === null ? nul
 const toDay = (v: string | Date | null): string | null =>
   v === null ? null : v instanceof Date ? v.toISOString().slice(0, 10) : v
 
-function rawToNewsItem(r: RawNewsItem): NewsItemRow {
+export function rawToNewsItem(r: RawNewsItem): NewsItemRow {
   return {
     id: Number(r.id),
     jobId: num(r.job_id),
@@ -419,7 +422,7 @@ function rawToNewsItem(r: RawNewsItem): NewsItemRow {
     body: r.body,
     summary: r.summary,
     mentions: typeof r.mentions === 'string' ? JSON.parse(r.mentions) : r.mentions,
-    facts: r.facts,
+    facts: typeof r.facts === 'string' ? JSON.parse(r.facts) : r.facts,
     isTest: r.is_test,
     discordStatus: r.discord_status,
     discordAttempts: r.discord_attempts,
