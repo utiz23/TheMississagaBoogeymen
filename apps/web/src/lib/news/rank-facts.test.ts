@@ -7,7 +7,7 @@ import {
   type NewsGameFacts,
   type NewsPlayerLine,
 } from '@eanhl/db/news'
-import { rankFacts, scoreText } from './rank-facts.ts'
+import { MAX_TOP_FACTS, rankFacts, runningKey, scoreText } from './rank-facts.ts'
 
 const line = (
   over: Partial<NewsPlayerLine> & Pick<NewsPlayerLine, 'playerId' | 'name'>,
@@ -308,4 +308,67 @@ void test('rankFacts: texts use only numbers on the sheet; the ranked sheet pass
   assert.ok(texts.includes('Night: swept the night'))
   const parsed = parseNewsFactsResponse({ facts: ranked, forbiddenNames: [] })
   assert.deepEqual(parsed.facts.topFacts, ranked.topFacts)
+})
+
+void test('rankFacts: on a night sheet a running fact keeps only its latest state; at most 25 facts; readable team stat names (C2 fix B)', () => {
+  const streak = (matchId: number, games: number) =>
+    game({
+      matchId,
+      players: [
+        line({
+          playerId: 3,
+          name: 'Erb',
+          assists: 1,
+          streaks: [{ kind: 'points', games, status: 'extended' }],
+        }),
+      ],
+      context: { ...game().context!, night: [`${games === 19 ? '4th' : '3rd'} win of the night`] },
+    })
+  const night = rankFacts(
+    sheet([streak(1, 16), streak(2, 17), streak(3, 18), streak(4, 19)], { kind: 'night' }),
+  )
+  const texts = night.map((f) => f.text)
+  assert.deepEqual(
+    texts.filter((t) => t.includes('straight games')),
+    ['Erb: points in 19 straight games'],
+  )
+  assert.deepEqual(
+    texts.filter((t) => t.startsWith('Night:')),
+    ['Night: 4th win of the night'],
+  )
+  assert.equal(runningKey('g7:p3:streak:points:ended'), 'p3:streak:points')
+  assert.equal(runningKey('g7:p3:big:goals'), null)
+  // Per-game events stay: two big nights by one player both count.
+  const big = (matchId: number, goals: number) =>
+    game({
+      matchId,
+      players: [
+        line({ playerId: 2, name: 'Raz', goals, norm: normFor(0.5, { goals: 'big for him' }) }),
+      ],
+    })
+  assert.equal(
+    rankFacts(sheet([big(1, 2), big(2, 3)], { kind: 'night' })).filter((f) => f.subject === 'Raz')
+      .length,
+    2,
+  )
+  // The cap.
+  const many = Array.from({ length: 30 }, (_, i) =>
+    game({ matchId: 100 + i, teamNotes: [`note ${String(i)}`] }),
+  )
+  assert.equal(rankFacts(sheet(many, { kind: 'week' })).length, MAX_TOP_FACTS)
+  // Team stat names.
+  const labelled = game({
+    labels: {
+      hitsFor: 'unusually high',
+      hitsAgainst: null,
+      shotsFor: 'typical',
+      shotsAgainst: null,
+      timeOnAttack: 'unusually low',
+      passPct: 'unusually high',
+    },
+  })
+  const t = rankFacts(sheet([labelled])).map((f) => f.text)
+  assert.ok(t.includes('Team hits 12: unusually high'))
+  assert.ok(t.includes('Team time on attack 600 s: unusually low'))
+  assert.ok(t.includes('Team pass completion 75.5%: unusually high'))
 })

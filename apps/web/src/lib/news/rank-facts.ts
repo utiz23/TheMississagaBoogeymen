@@ -30,8 +30,42 @@ import type {
   NewsGameFacts,
   NewsPlayerLine,
   NewsTopFact,
+  NormLabelKey,
   PlayerNormStat,
 } from '@eanhl/db/news'
+
+/** Readable names of the team label keys (C2 fix B). */
+const TEAM_STAT_NAME: Record<NormLabelKey, string> = {
+  hitsFor: 'hits',
+  hitsAgainst: 'hits against',
+  shotsFor: 'shots',
+  shotsAgainst: 'shots against',
+  timeOnAttack: 'time on attack',
+  passPct: 'pass completion',
+}
+
+/** At most this many ranked facts on a sheet (C2 fix B). */
+export const MAX_TOP_FACTS = 25
+
+/**
+ * Facts that describe a running state (a streak's length, the night so far,
+ * a coming milestone, form, a streak result label, a longest-streak note):
+ * on a sheet with several games only the latest one per subject stays (C2
+ * fix B). The key is the id without its game prefix, the running part fixed.
+ */
+export function runningKey(id: string): string | null {
+  const part = id.replace(/^g\d+:/, '')
+  const rules: [RegExp, string][] = [
+    [/^(p\d+:)streak:(\w+):\w+$/, '$1streak:$2'],
+    [/^(p\d+:)approaching:(\w+)$/, '$1approaching:$2'],
+    [/^(p\d+:)form$/, '$1form'],
+    [/^night:.*$/, 'night'],
+    [/^result:(rolling|slide|panic)$/, 'result:$1'],
+    [/^team:longest (win|losing) streak.*$/, 'team:longest $1 streak'],
+  ]
+  for (const [re, to] of rules) if (re.test(part)) return part.replace(re, to)
+  return null
+}
 
 const RESULT_WEIGHT = { panic: 60, blip: 55, turnaround: 50, slide: 45, rolling: 40 } as const
 export const WEIGHT_NEW_RECORD = 100
@@ -261,9 +295,10 @@ function gameFacts(facts: NewsFacts, g: NewsGameFacts, push: Push): void {
     for (const [k, label] of Object.entries(g.labels)) {
       if (label === null || label === 'typical') continue
       const v = value[k]
+      const name = TEAM_STAT_NAME[k as NormLabelKey]
       push(
         id(`label:${k}`),
-        `Team ${k}${v === null || v === undefined ? '' : ` ${s(v)}`}: ${label}`,
+        `Team ${name}${v === null || v === undefined ? '' : ` ${s(v)}${k === 'timeOnAttack' ? ' s' : k === 'passPct' ? '%' : ''}`}: ${label}`,
         8,
         null,
       )
@@ -284,8 +319,8 @@ function gameFacts(facts: NewsFacts, g: NewsGameFacts, push: Push): void {
 }
 
 /**
- * Every fact of the sheet with its weight, most important first (ties keep
- * the sheet order). `subject` = the player, opponent or AI goalie a fact is
+ * The sheet's facts with their weights, most important first (ties keep the
+ * sheet order), running facts only in their latest state, at most 25. `subject` = the player, opponent or AI goalie a fact is
  * about, null for the team.
  */
 export function rankFacts(facts: NewsFacts): NewsTopFact[] {
@@ -315,8 +350,19 @@ export function rankFacts(facts: NewsFacts): NewsTopFact[] {
   }
   for (const u of facts.unlocks)
     push(`unlock:${u.name}:${u.text}`, `${u.name}: ${u.text}`, 5, u.name)
+  // Running facts: the latest per key wins (the facts are in sheet order).
+  const latest = new Map<string, number>()
+  out.forEach((f, i) => {
+    const k = runningKey(f.id)
+    if (k !== null) latest.set(k, i)
+  })
   return out
     .map((f, i) => ({ f, i }))
+    .filter(({ f, i }) => {
+      const k = runningKey(f.id)
+      return k === null || latest.get(k) === i
+    })
     .sort((a, b) => b.f.weight - a.f.weight || a.i - b.i)
+    .slice(0, MAX_TOP_FACTS)
     .map(({ f }) => f)
 }
