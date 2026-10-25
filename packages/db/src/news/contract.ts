@@ -156,6 +156,61 @@ export interface NewsTeamStats {
   timeOnAttackSeconds: number | null
 }
 
+/**
+ * Team context (spec §12.16, C2.2). Fixed vocabularies:
+ * - result: `rolling` a win making the win streak 5+; `blip` a loss ending a
+ *   win streak of 5+; `slide` the 3rd or 4th loss in a row; `panic` the 5th+
+ *   loss in a row or 2-8 or worse in the last 10; `turnaround` a win ending a
+ *   losing streak of 3+; else `normal` (an overtime loss is a loss).
+ * - margin (within the mode): `close` one goal or a tie; `blowout` above the
+ *   club's 80th percentile of earlier margins and 4+ goals (5+ before 10 games
+ *   of the mode); else `comfortable`.
+ * - surprise (within the mode): expectation = mean of the title win rate and
+ *   the last-10 win rate before the game; a loss at 0.8+ or a win at 0.3 or
+ *   less is an `upset`, a `big upset` when it is a blowout; else `expected`
+ *   (also below 10 games of the mode).
+ */
+export const RESULT_LABELS = ['rolling', 'blip', 'slide', 'panic', 'turnaround', 'normal'] as const
+export type ResultLabel = (typeof RESULT_LABELS)[number]
+export const MARGIN_LABELS = ['close', 'comfortable', 'blowout'] as const
+export type MarginLabel = (typeof MARGIN_LABELS)[number]
+export const SURPRISE_LABELS = ['expected', 'upset', 'big upset'] as const
+export type SurpriseLabel = (typeof SURPRISE_LABELS)[number]
+
+/**
+ * A game's result read against what came before. Streaks, the result label,
+ * `last10` (the last 10 counted games including this one) and `night` use the
+ * title's games of all modes in order (the sheet's `streak` sequence); margin
+ * and surprise compare within the game's mode. `night`: the night so far at
+ * this game ("2nd win of the night, no loss yet", "3rd loss of the night";
+ * on night and week sheets the night's last game also "swept the night" or
+ * "lost every game of the night"). All values may be quoted.
+ */
+export interface NewsGameContext {
+  result: ResultLabel
+  /** The streak before this game; null before the title's first game. */
+  streakBefore: NewsStreak | null
+  /** The streak after this game. */
+  streakAfter: NewsStreak | null
+  last10: NewsRecord
+  margin: MarginLabel
+  surprise: SurpriseLabel
+  night: string[]
+}
+
+/** Earlier meetings with the same opponent (name compared without case and spacing) in this title (§12.15-2). */
+export interface NewsHeadToHead {
+  wins: number
+  losses: number
+  otl: number
+  lastMeeting: {
+    result: 'WIN' | 'LOSS' | 'OTL'
+    scoreFor: number
+    scoreAgainst: number
+    night: string
+  }
+}
+
 export interface NewsGameFacts {
   matchId: number
   night: string
@@ -193,6 +248,20 @@ export interface NewsGameFacts {
   aiGoalie: NewsAiGoalieLine | null
   /** Players in the game who are not club members (AI goalies not counted). */
   guestCount: number
+  /** The game against what came before (C2.2); null from an older web app. */
+  context: NewsGameContext | null
+  /**
+   * Title milestones and season bests at this game (C2.2), fixed forms:
+   * "50th win of the title" (every 50th), "100th game of the title"
+   * (100/250/500/750/1000), "250th goal of the title" (every 250th),
+   * "longest win streak of the season: N" / "longest losing streak of the
+   * season: N" (4+, longer than any earlier run), and from the 11th game
+   * "most goals in a game this season: N", "biggest win of the season: 11-2",
+   * "worst loss of the season: 8-1" (winner first). Numbers may be quoted.
+   */
+  teamNotes: string[]
+  /** Earlier meetings with this opponent in the title; null when none (§12.15-2). */
+  headToHead: NewsHeadToHead | null
   /** Club members in the game at press level `out`: teammates who must not be named or singled out. */
   unnamedTeammates: number
   /**
@@ -479,6 +548,41 @@ function parseLabels(v: unknown, path: string): NewsNormLabels {
   }
 }
 
+function parseContext(v: unknown, path: string): NewsGameContext {
+  const o = obj(v, path)
+  return {
+    result: oneOf(o['result'], `${path}.result`, RESULT_LABELS),
+    streakBefore: nullable(o['streakBefore'], `${path}.streakBefore`, parseStreak),
+    streakAfter: nullable(o['streakAfter'], `${path}.streakAfter`, parseStreak),
+    last10: parseRecord(o['last10'], `${path}.last10`),
+    margin: oneOf(o['margin'], `${path}.margin`, MARGIN_LABELS),
+    surprise: oneOf(o['surprise'], `${path}.surprise`, SURPRISE_LABELS),
+    night: arr(o['night'], `${path}.night`, str),
+  }
+}
+
+function parseHeadToHead(v: unknown, path: string): NewsHeadToHead {
+  const o = obj(v, path)
+  const l = obj(o['lastMeeting'], `${path}.lastMeeting`)
+  const lp = `${path}.lastMeeting`
+  return {
+    wins: nonNegInt(o['wins'], `${path}.wins`),
+    losses: nonNegInt(o['losses'], `${path}.losses`),
+    otl: nonNegInt(o['otl'], `${path}.otl`),
+    lastMeeting: {
+      result: oneOf(l['result'], `${lp}.result`, ['WIN', 'LOSS', 'OTL']),
+      scoreFor: nonNegInt(l['scoreFor'], `${lp}.scoreFor`),
+      scoreAgainst: nonNegInt(l['scoreAgainst'], `${lp}.scoreAgainst`),
+      night: night(l['night'], `${lp}.night`),
+    },
+  }
+}
+
+/** A field an older web app does not send: missing reads as `none`. */
+function opt<T>(o: Record<string, unknown>, key: string, none: T, parse: () => T): T {
+  return o[key] === undefined ? none : parse()
+}
+
 function parseGoal(v: unknown, path: string): NewsGoal {
   const o = obj(v, path)
   const clock = str(o['clock'], `${path}.clock`)
@@ -549,6 +653,11 @@ function parseGame(v: unknown, path: string): NewsGameFacts {
       o['aiGoalie'] === undefined
         ? null
         : nullable(o['aiGoalie'], `${path}.aiGoalie`, parseAiGoalie),
+    context: opt(o, 'context', null, () => nullable(o['context'], `${path}.context`, parseContext)),
+    teamNotes: opt(o, 'teamNotes', [], () => arr(o['teamNotes'], `${path}.teamNotes`, str)),
+    headToHead: opt(o, 'headToHead', null, () =>
+      nullable(o['headToHead'], `${path}.headToHead`, parseHeadToHead),
+    ),
     guestCount: int(o['guestCount'], `${path}.guestCount`),
     unnamedTeammates: int(o['unnamedTeammates'], `${path}.unnamedTeammates`),
     unnamedGoals: nonNegInt(o['unnamedGoals'], `${path}.unnamedGoals`),

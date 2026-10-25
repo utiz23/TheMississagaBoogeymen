@@ -464,6 +464,10 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     // Set by `applyNorms` once the earlier games are known.
     labels: null,
     patterns: [],
+    // Set by `applyContext` once the title's earlier games are known.
+    context: null,
+    teamNotes: [],
+    headToHead: null,
     periods: args.periods,
     players: lines,
     aiGoalieInNet,

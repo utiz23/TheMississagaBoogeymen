@@ -62,6 +62,7 @@ import {
   type HistoryGameInput,
 } from './build-facts'
 import { applyNorms, normInputFromRow, type NormGameInput } from './norms'
+import { applyContext, titleGameFromFacts, titleGameFromRow } from './context'
 
 /** An unlock counts when it lands up to this long after the last game of the sheet. */
 const UNLOCK_WINDOW_AFTER_MINUTES = 10
@@ -336,6 +337,14 @@ async function loadSheet(
     loaded.map((g, i): NormGameInput => normInputOf(g, games[i]?.endedEarly ?? false)),
     normGames.map(normInputFromRow),
   )
+  // Team context, team notes and head-to-head (C2.2): the same earlier games;
+  // night and week sheets hold whole nights.
+  const withContext = applyContext(
+    normed.games,
+    normed.games.map(titleGameFromFacts),
+    normGames.map(titleGameFromRow),
+    { nightComplete: kind !== 'game' },
+  )
 
   const unlocks: NewsFacts['unlocks'] = []
   for (const ev of events) {
@@ -360,7 +369,7 @@ async function loadSheet(
     kind,
     key,
     gameTitleName,
-    games: normed.games,
+    games: withContext,
     norms: normed.norms,
     ...buildRecordAndStreak(results),
     unlocks,

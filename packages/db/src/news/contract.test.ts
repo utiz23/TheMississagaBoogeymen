@@ -82,6 +82,9 @@ function sample(): NewsFactsResponse {
           endedEarly: false,
           labels: null,
           patterns: [],
+          context: null,
+          teamNotes: [],
+          headToHead: null,
           guestCount: 1,
           unnamedTeammates: 1,
           unnamedGoals: 1,
@@ -126,6 +129,9 @@ function sample(): NewsFactsResponse {
           endedEarly: false,
           labels: null,
           patterns: [],
+          context: null,
+          teamNotes: [],
+          headToHead: null,
           guestCount: 0,
           unnamedTeammates: 0,
           unnamedGoals: 0,
@@ -719,4 +725,59 @@ void test('contract: rejects bad norms, labels or patterns (C1.2)', () => {
   bad((s) => (s.facts.games[0]!.labels['hitsFor'] = 'normal'), /labels\.hitsFor/)
   bad((s) => delete s.facts.games[0]!.labels['passPct'], /labels\.passPct/)
   bad((s) => (s.facts.games[0]!.patterns = 'out-hit'), /patterns is not an array/)
+})
+
+// ── Part C2.2: team context, team notes, head-to-head (spec 12.15-12.16) ────
+
+function contextSample(): NewsFactsResponse {
+  const s = sample()
+  s.facts.games[0]!.context = {
+    result: 'blip',
+    streakBefore: { kind: 'W', count: 7 },
+    streakAfter: { kind: 'L', count: 1 },
+    last10: { wins: 8, losses: 1, otl: 1 },
+    margin: 'blowout',
+    surprise: 'big upset',
+    night: ['2nd loss of the night'],
+  }
+  s.facts.games[0]!.teamNotes = ['100th game of the title']
+  s.facts.games[0]!.headToHead = {
+    wins: 2,
+    losses: 1,
+    otl: 0,
+    lastMeeting: { result: 'WIN', scoreFor: 4, scoreAgainst: 2, night: '2026-10-01' },
+  }
+  return s
+}
+
+void test('contract: context, team notes and head-to-head round-trip; missing ones read as none (C2.2)', () => {
+  const s = contextSample()
+  assert.deepEqual(parseNewsFactsResponse(clone(s)), s)
+  const old = clone(s) as unknown as { facts: { games: Record<string, unknown>[] } }
+  delete old.facts.games[0]!['context']
+  delete old.facts.games[0]!['teamNotes']
+  delete old.facts.games[0]!['headToHead']
+  const g = parseNewsFactsResponse(old).facts.games[0]!
+  assert.equal(g.context, null)
+  assert.deepEqual(g.teamNotes, [])
+  assert.equal(g.headToHead, null)
+})
+
+void test('contract: context labels have a fixed vocabulary (C2.2)', () => {
+  type G = { facts: { games: Record<string, Record<string, unknown>>[] } }
+  const bad = (edit: (s: G) => void, re: RegExp) => {
+    const s = clone(contextSample()) as unknown as G
+    edit(s)
+    assert.throws(() => parseNewsFactsResponse(s), re)
+  }
+  bad((s) => (s.facts.games[0]!['context']!['result'] = 'meltdown'), /context\.result/)
+  bad((s) => (s.facts.games[0]!['context']!['margin'] = 'huge'), /context\.margin/)
+  bad((s) => (s.facts.games[0]!['context']!['surprise'] = 'shock'), /context\.surprise/)
+  bad((s) => delete s.facts.games[0]!['context']!['last10'], /context\.last10/)
+  bad(
+    (s) =>
+      ((s.facts.games[0]!['headToHead']!['lastMeeting'] as Record<string, unknown>)['night'] =
+        'May 1'),
+    /headToHead\.lastMeeting\.night/,
+  )
 })
