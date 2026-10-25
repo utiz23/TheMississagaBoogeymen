@@ -1158,7 +1158,8 @@ void test("night: the article's prompt carries the night's harsh list; criticize
         prompts.push(req.user)
         const r = await goodWriter(req)
         if (req.schema === ARTICLE_SCHEMA) {
-          return { ...r, json: { ...(r.json as object), criticized: ['Skater A'] } }
+          // Written in another spelling: stored as the sheet spells it (C1.9, Q7).
+          return { ...r, json: { ...(r.json as object), criticized: ['skater  A'] } }
         }
         return r
       },

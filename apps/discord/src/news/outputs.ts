@@ -1,4 +1,4 @@
-import { REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
+import { REPORTER_IDS, type NewsFacts, type ReporterId } from '@eanhl/db/news'
 
 /**
  * JSON schemas for `output_config.format` and the hand-written parsers for
@@ -225,4 +225,22 @@ export function featureBody(
   return [closing.receipt, ...a.paragraphs, closing.prediction]
     .filter((x) => x.trim() !== '')
     .join('\n\n')
+}
+
+const nameKey = (s: string): string => s.replace(/\s+/g, ' ').trim().toLowerCase()
+
+/**
+ * `criticized` as stored (Part C1.9, Q7): each name in the sheet's
+ * `people[].name` spelling (case and spacing ignored, as the fact check
+ * compares them), each person once. A name not on the sheet, which the fact
+ * check already rejects, stays as written (trimmed); blanks are dropped.
+ */
+export function criticizedAsOnSheet(names: readonly string[], facts: NewsFacts): string[] {
+  const out: string[] = []
+  for (const n of names) {
+    const person = facts.people.find((p) => nameKey(p.name) === nameKey(n))
+    const name = person?.name ?? n.trim()
+    if (name !== '' && !out.includes(name)) out.push(name)
+  }
+  return out
 }

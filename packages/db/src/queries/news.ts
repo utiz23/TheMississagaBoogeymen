@@ -431,7 +431,11 @@ export async function reporterActivity(args: { since: Date }): Promise<NewsActiv
   })
 }
 
-/** The newest real, not deleted weekly feature (rev 2, B5): its kind, prediction and week. */
+/**
+ * The real, not deleted weekly feature of the latest week (rev 2, B5): its
+ * kind, prediction and week. Latest by `week_start` (Part C1.9, Q1: a
+ * backfilled older week inserted later must not win), then by id.
+ */
 export function lastFeatureSql(): SQL {
   return sql`
     select n.feature_kind, n.prediction, n.week_start
@@ -439,7 +443,7 @@ export function lastFeatureSql(): SQL {
     where n.is_test = false
       and n.deleted_at is null
       and n.feature_kind is not null
-    order by n.id desc
+    order by n.week_start desc nulls last, n.id desc
     limit 1`
 }
 
@@ -488,6 +492,43 @@ export async function nightCriticized(night: string, includeTest: boolean): Prom
     }
   }
   return out
+}
+
+/** One post of a night for the night article's prompt (Part C1.8, spec §12.12-7). */
+export interface NewsNightPost {
+  reporter: string
+  text: string
+}
+
+/**
+ * The night's posts, oldest first (created_at, then id): not deleted; test
+ * items only when `includeTest` (a dry run sees its own test posts, like
+ * `nightCriticizedSql`).
+ */
+export function nightPostsForPromptSql(night: string, includeTest: boolean): SQL {
+  return sql`
+    select n.reporter, n.body
+    from news_items n
+    where n.kind = 'post'
+      and n.night = ${night}::date
+      and n.deleted_at is null
+      and (n.is_test = false or ${includeTest})
+    order by n.created_at asc, n.id asc`
+}
+
+export function rowToNightPost(r: { reporter: string; body: string }): NewsNightPost {
+  return { reporter: r.reporter, text: r.body }
+}
+
+/** The night's stored posts for the night article's prompt (the live cycle; the backfill reads accepted answers). */
+export async function nightPostsForPrompt(
+  night: string,
+  isTest: boolean,
+): Promise<NewsNightPost[]> {
+  const rows = await db.execute<{ reporter: string; body: string }>(
+    nightPostsForPromptSql(night, isTest),
+  )
+  return rows.map(rowToNightPost)
 }
 
 /**

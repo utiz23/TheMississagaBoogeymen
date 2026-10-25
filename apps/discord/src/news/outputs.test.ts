@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { oct12Facts } from './test-fixtures.ts'
 import {
+  criticizedAsOnSheet,
   ARTICLE_SCHEMA,
   GAME_POSTS_SCHEMA,
   REVIEW_SCHEMA,
@@ -159,4 +161,15 @@ void test('feature schema: the article fields plus prediction and receipt (rev 2
   assert.throws(() => parseFeature({ ...f, receipt: 3 }), /receipt/)
   // A night article does not take them.
   assert.throws(() => parseArticle(f), /unexpected field/)
+})
+
+void test("criticizedAsOnSheet: stored with the sheet's spelling, each person once (C1.9, Q7)", () => {
+  const facts = oct12Facts('night') // people: Skater A, Skater B, Goalie G
+  assert.deepEqual(criticizedAsOnSheet(['skater  a', 'GOALIE G', 'Skater A'], facts), [
+    'Skater A',
+    'Goalie G',
+  ])
+  // A name not on the sheet (the fact check already rejects those) stays as written, trimmed.
+  assert.deepEqual(criticizedAsOnSheet(['  Igor ', ''], facts), ['Igor'])
+  assert.deepEqual(criticizedAsOnSheet([], facts), [])
 })

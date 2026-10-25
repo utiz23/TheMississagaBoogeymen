@@ -37,6 +37,8 @@ const {
   reporterActivitySql,
   lastFeatureSql,
   nightCriticizedSql,
+  nightPostsForPromptSql,
+  rowToNightPost,
   rowToActivity,
   skipBacklogGamesSql,
   skipBacklogNightsSql,
@@ -198,7 +200,7 @@ void test('last feature: the newest real, not deleted item with a feature kind (
   assert.match(s, /select n\.feature_kind, n\.prediction, n\.week_start from news_items n/)
   assert.match(
     s,
-    /where n\.is_test = false and n\.deleted_at is null and n\.feature_kind is not null order by n\.id desc limit 1/,
+    /where n\.is_test = false and n\.deleted_at is null and n\.feature_kind is not null order by n\.week_start desc nulls last, n\.id desc limit 1/,
   )
   assert.deepEqual(q.params, [])
 })
@@ -727,4 +729,22 @@ void test('norm games: raw rows become numbers; nulls stay null (C1.2)', () => {
       passCompletionsAgainst: 0,
     },
   )
+})
+
+void test("night posts for the prompt: the night's not-deleted posts, oldest first; test items only when asked (C1.8)", () => {
+  const real = dialect.sqlToQuery(nightPostsForPromptSql('2026-10-12', false))
+  const s = flat(real.sql)
+  assert.match(
+    s,
+    /select n\.reporter, n\.body from news_items n where n\.kind = 'post' and n\.night = \$1::date and n\.deleted_at is null and \(n\.is_test = false or \$2\) order by n\.created_at asc, n\.id asc/,
+  )
+  assert.deepEqual(real.params, ['2026-10-12', false])
+  assert.deepEqual(dialect.sqlToQuery(nightPostsForPromptSql('2026-10-12', true)).params, [
+    '2026-10-12',
+    true,
+  ])
+  assert.deepEqual(rowToNightPost({ reporter: 'quill', body: 'Outshot 30-21.' }), {
+    reporter: 'quill',
+    text: 'Outshot 30-21.',
+  })
 })

@@ -77,6 +77,7 @@ import {
   FEATURE_SCHEMA,
   GAME_POSTS_SCHEMA,
   REVIEW_SCHEMA,
+  criticizedAsOnSheet,
   featureBody,
   parseArticle,
   parseFeature,
@@ -753,7 +754,7 @@ export async function importAccepted(
             replyTo: isReply ? ids[0]! : null,
             body: p.text,
             mentions: mentionsOf(p.mentions, facts),
-            criticized: p.criticized,
+            criticized: criticizedAsOnSheet(p.criticized, facts),
             createdAt: itemCreatedAt(job, i),
           }),
         )
@@ -779,7 +780,7 @@ export async function importAccepted(
         body: featureBody(f, f),
         summary: f.summary,
         mentions: mentionsOf(f.mentions, facts),
-        criticized: f.criticized,
+        criticized: criticizedAsOnSheet(f.criticized, facts),
         featureKind: job.featureKind!,
         prediction: f.prediction,
         createdAt: itemCreatedAt(job, 0),
@@ -804,7 +805,7 @@ export async function importAccepted(
         body: a.paragraphs.join('\n\n'),
         summary: a.summary,
         mentions: mentionsOf(a.mentions, facts),
-        criticized: a.criticized,
+        criticized: criticizedAsOnSheet(a.criticized, facts),
         createdAt: itemCreatedAt(job, 0),
       })
       inserted++

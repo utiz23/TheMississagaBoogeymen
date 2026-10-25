@@ -444,7 +444,8 @@ async function acceptedNight() {
       text,
       mentions: ['Skater A'],
       clubs: [],
-      criticized: i === 0 && job.matchId === 250 ? ['Goalie G'] : [],
+      // Other spellings: the import stores the sheet's (C1.9, Q7).
+      criticized: i === 0 && job.matchId === 250 ? ['goalie g'] : [],
     })),
   })
   const article = {
@@ -454,7 +455,7 @@ async function acceptedNight() {
     summary: 'Two losses.',
     mentions: ['Skater A', 'Nobody'],
     clubs: [],
-    criticized: ['Skater A'],
+    criticized: ['SKATER A'],
   }
   return plan.jobs.map((job) => ({
     job,
@@ -742,7 +743,7 @@ void test('import: a feature has its week, kind, prediction, slug and the follow
     accept(dir, first, featureAnswer())
     const second = await planNextFeature({ out: dir, week: '2026-05-11', fetchFacts })
     const answer = JSON.parse(
-      featureAnswer({ receipt: 'It did not come true.', criticized: ['Skater A'] }),
+      featureAnswer({ receipt: 'It did not come true.', criticized: ['skater a'] }),
     ) as Record<string, unknown>
     const { rows, store } = fakeStore()
     await importAccepted([{ job: second, output: answer as never }], store, () => {})
