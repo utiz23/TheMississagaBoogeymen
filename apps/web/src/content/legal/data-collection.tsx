@@ -420,8 +420,8 @@ export const sections: LegalPageSection[] = [
           <LI>
             <Strong>Anthropic</Strong> — the company behind Claude, the AI service that writes our
             News posts and articles. We send it team members' profile names (or gamertags), their
-            game statistics, club names, and scores. See "News posts written by an AI service"
-            below.
+            game statistics, club names, and scores, and short notes written by the site's admin for
+            the fictional coverage. See "News posts written by an AI service" below.
           </LI>
           <LI>
             <Strong>Electronic Arts (EA)</Strong> — the source of the underlying game data and some
@@ -660,7 +660,8 @@ export const sections: LegalPageSection[] = [
           <Strong>What we send.</Strong> We send the service the profile names of team members (or
           their gamertags, when a member has no profile name), their game statistics, club names,
           and scores. We never name guests, opponent players, or members who choose "Leave me out",
-          and we do not send their names to the service as people to write about.
+          and we do not send their names to the service as people to write about. We also send short
+          notes written by the site's admin for the fictional coverage.
         </P>
         <P>
           <Strong>Where it appears.</Strong> The finished posts and articles appear on the News

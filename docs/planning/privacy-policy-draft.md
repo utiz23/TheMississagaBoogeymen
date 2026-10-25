@@ -231,7 +231,7 @@ To write the posts, we send Anthropic's Claude AI service the profile names of t
 members (or their gamertags, when a member has no profile name) and their
 game statistics. We also send club names and scores. We never name guests,
 opponent players, or members who choose "Leave me out", and we do not send
-their names to the service as people to write about.
+their names to the service as people to write about. We also send short notes written by the site's admin for the fictional coverage.
 
 Each member can set this on EDIT PROFILE, under "Press coverage". The choices
 are "Full press", "Go easy", and "Leave me out". Every member starts at "Full

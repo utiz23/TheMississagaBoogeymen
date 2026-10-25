@@ -660,6 +660,6 @@ coverage shows it, the way a columnist's grudge shows.
 - Takes soften or harden with the data over time (threads and stances, §12.17).
   With the bot project, a relationship score per reporter–player pair moves with
   interview answers and attitude.
-- Privacy: the policy pages need one general sentence that admin-written notes
-  for the fictional coverage are also sent to the AI service (no take revealed) —
-  operator to confirm.
+- Privacy (operator-approved 2026-10-25): both policy pages say "We also send
+  short notes written by the site's admin for the fictional coverage." No take
+  is revealed. GM storylines of the bot project fall under the same sentence.

@@ -314,7 +314,7 @@ export const sections: LegalPageSection[] = [
           members (or their gamertags, when a member has no profile name) and their game statistics.
           We also send club names and scores. We never name guests, opponent players, or members who
           choose "Leave me out", and we do not send their names to the service as people to write
-          about.
+          about. We also send short notes written by the site's admin for the fictional coverage.
         </P>
         <P>
           Each member can set this on EDIT PROFILE, under "Press coverage". The choices are "Full

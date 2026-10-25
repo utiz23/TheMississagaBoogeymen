@@ -303,7 +303,7 @@ term, which remains a legal-review question.
   never sent to Discord by this site.
 - **Anthropic** — the company behind Claude, the AI service that
   writes our News posts and articles. We send it team members' profile names
-  (or gamertags), their game statistics, club names, and scores. See "News
+  (or gamertags), their game statistics, club names, and scores, and short notes written by the site's admin for the fictional coverage. See "News
   posts written by an AI service" below.
 - **Electronic Arts (EA)** — the source of the underlying game data and
   some visual assets referenced by this site. EA does not endorse, and is
@@ -465,7 +465,7 @@ Anthropic's Claude AI service, from our game statistics.
 their gamertags, when a member has no profile name), their game statistics,
 club names, and scores. We never name guests, opponent players, or members
 who choose "Leave me out", and we do not send their names to the service as
-people to write about.
+people to write about. We also send short notes written by the site's admin for the fictional coverage.
 
 **Where it appears.** The finished posts and articles appear on the News
 pages of this site. Our team's Discord channel gets the posts, and links to

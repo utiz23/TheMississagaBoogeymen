@@ -255,8 +255,13 @@ motives, clicks or career.
 - Penalty minutes only from 10 minutes, once a night.
 - Unnamed teammates ("Leave me out") are never named, hinted at or singled out
   **[built]**.
-- **Reporter–player relationships** (a running beef, a favourite, a target): you
-  choose the pairings; fairness rules still apply **[planned — pairings pending]**.
+- **Reporter takes on players** (a running beef, a favourite, a target):
+  written by you as GM; **internal lore — never in git, never shown to players**,
+  only visible through the coverage. Each take has critics and a defender and a
+  data angle; press levels apply ("Go easy" = mild, "Leave me out" = none); at
+  most about once a week per player; takes soften or harden with the data, and
+  later with interview answers (relationship score, bot project). Stored in the
+  database, edited on `/admin/news` **[planned]**.
 - **Language:** mild swearing ("hell", "damn", "crap") only for Mercer, Pettibone
   and Vale, mostly in The Wire; articles cleaner; never slurs, never swearing at a
   person **[planned]**.
@@ -320,7 +325,7 @@ motives, clicks or career.
   are written without the API, through the same checks, and imported before the
   desk goes live (site only, never Discord) **[built tool; rerun planned]**.
 - **Privacy:** both policy pages explain what goes to Anthropic's Claude AI
-  service (approved) **[built]**.
+  service (approved), including \"short notes written by the site's admin for the fictional coverage\" (approved 2026-10-25) **[built]**.
 
 ## 10. Later: the bot project
 
