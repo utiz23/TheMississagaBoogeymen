@@ -31,6 +31,11 @@ export const players = pgTable('players', {
    */
   aiGoalieSide: text('ai_goalie_side').$type<'home' | 'away'>(),
   /**
+   * Manual Discord user ID for unlock pings (migration 0070), entered on
+   * /admin. Used only when the player has no Discord sign-in — that ID wins.
+   */
+  discordUserId: text('discord_user_id'),
+  /**
    * Always on the current title's roster (depth chart, carousel) even without
    * EA stats — like a carried-over member (migration 0062; e.g. Jimmy Cap).
    */
