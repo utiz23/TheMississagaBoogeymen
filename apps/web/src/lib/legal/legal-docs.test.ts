@@ -197,6 +197,15 @@ void test('formatLegalDate renders a stable, unambiguous long-form date', () => 
   assert.equal(formatLegalDate('2026-03-05'), 'March 5, 2026')
 })
 
+void test('the footer notice is the Discord sign-in notice (operator declined an AI-service notice)', () => {
+  assert.equal(
+    LEGAL_CHANGE_NOTICE.text,
+    'Updated Oct 2026: invited team members can now sign in with Discord.',
+  )
+  assert.equal(LEGAL_CHANGE_NOTICE.slug, 'privacy')
+  assert.equal(LEGAL_CHANGE_NOTICE.showUntil, '2026-11-09')
+})
+
 void test('the material-change notice shows until its end date, then switches off', () => {
   assert.ok(isIsoDate(LEGAL_CHANGE_NOTICE.showUntil), 'showUntil must be an ISO date')
   const notice = { text: 'x', slug: 'privacy' as const, showUntil: '2026-11-09' }
