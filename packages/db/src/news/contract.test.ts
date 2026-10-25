@@ -70,6 +70,7 @@ function sample(): NewsFactsResponse {
           ],
           aiGoalieInNet: false,
           guestCount: 1,
+          unnamedTeammates: 1,
         },
         {
           matchId: 2502,
@@ -96,6 +97,7 @@ function sample(): NewsFactsResponse {
           players: [],
           aiGoalieInNet: true,
           guestCount: 0,
+          unnamedTeammates: 0,
         },
       ],
       nightTotals: {
@@ -200,6 +202,16 @@ void test('contract: rejects a missing nested number', () => {
   }
   delete s.facts.games[0]!.team['shotsFor']
   assert.throws(() => parseNewsFactsResponse(s), /shotsFor/)
+})
+
+void test('contract: unnamedTeammates is required and must be an integer', () => {
+  const ok = parseNewsFactsResponse(clone(sample()))
+  assert.equal(ok.facts.games[0]!.unnamedTeammates, 1)
+  const s = clone(sample()) as unknown as { facts: { games: Record<string, unknown>[] } }
+  delete s.facts.games[0]!['unnamedTeammates']
+  assert.throws(() => parseNewsFactsResponse(s), /games\[0\]\.unnamedTeammates/)
+  s.facts.games[0]!['unnamedTeammates'] = 1.5
+  assert.throws(() => parseNewsFactsResponse(s), /unnamedTeammates is not an integer/)
 })
 
 void test('reporters: seven, unique slugs, lookup by slug', () => {

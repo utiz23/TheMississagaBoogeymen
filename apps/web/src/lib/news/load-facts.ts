@@ -13,6 +13,7 @@ import {
   getPlayerMatchStats,
   listAiGoalieIds,
   listAllGameTitles,
+  listMemberPressLevels,
   listNewsCardEvents,
   listNewsNightMatches,
   listNewsProfiles,
@@ -154,12 +155,15 @@ async function loadSheet(
   const gameTitleName = titles.find((t) => t.id === gameTitleId)?.name ?? ''
 
   // Who may be named: profile names and press levels for every BGM player.
+  // Every member at "out" is forbidden too, also one who did not play.
   const playerIds = [...new Set(loaded.flatMap((g) => g.stats.map((s) => s.playerId)))]
-  const [memberIdList, profiles, aiGoalies] = await Promise.all([
+  const [memberIdList, profiles, aiGoalies, memberLevels] = await Promise.all([
     getClubMemberIds(),
     listNewsProfiles(playerIds),
     listAiGoalieIds(playerIds),
+    listMemberPressLevels(),
   ])
+  const memberIds = new Set(memberIdList)
   const { people, forbiddenNames } = buildPeople({
     players: loaded.flatMap((g) =>
       g.stats.map((s) => ({
@@ -169,8 +173,9 @@ async function loadSheet(
         position: s.position,
       })),
     ),
-    memberIds: new Set(memberIdList),
+    memberIds,
     profiles,
+    outMembers: memberLevels.filter((m) => m.pressLevel === 'out'),
   })
 
   const games = loaded.map((g) =>
@@ -202,6 +207,7 @@ async function loadSheet(
         }),
       ),
       people,
+      memberIds,
     }),
   )
 

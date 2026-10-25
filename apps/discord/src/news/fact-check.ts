@@ -111,6 +111,9 @@ function containsName(haystack: string, name: string): boolean {
   return re.test(haystack)
 }
 
+/** The one problem text for any forbidden name (it never contains the name). */
+export const FORBIDDEN_NAME_PROBLEM = 'The text names a person who is not on the fact sheet.'
+
 type LengthRule = 'post' | 'article' | 'none'
 
 function check(
@@ -122,9 +125,11 @@ function check(
 ): string[] {
   const problems = numberProblems(text, allowedNumbers(facts))
 
+  // The problem text never repeats the name: it goes back to the model in the
+  // rewrite prompt, into news_jobs.last_error and into the logs.
   const flat = collapse(text)
-  for (const name of forbiddenNames) {
-    if (containsName(flat, name)) problems.push(`The text names "${name}", who must not be named.`)
+  if (forbiddenNames.some((name) => containsName(flat, name))) {
+    problems.push(FORBIDDEN_NAME_PROBLEM)
   }
 
   const allowedNames = new Set<string>([
@@ -132,7 +137,12 @@ function check(
     ...REPORTER_IDS.map((id) => REPORTERS[id].name),
   ])
   for (const m of out.mentions) {
-    if (!allowedNames.has(m)) problems.push(`"${m}" is not a person on the fact sheet.`)
+    if (allowedNames.has(m)) continue
+    // A forbidden name listed in mentions gets the same name-free problem text.
+    const isForbidden = forbiddenNames.some((name) => containsName(collapse(m), name))
+    problems.push(
+      isForbidden ? FORBIDDEN_NAME_PROBLEM : `"${m}" is not a person on the fact sheet.`,
+    )
   }
 
   const clubs = new Set(facts.games.map((g) => collapse(g.opponentName).toLowerCase()))
@@ -157,7 +167,7 @@ function check(
       )
     }
   }
-  return problems
+  return [...new Set(problems)]
 }
 
 /**

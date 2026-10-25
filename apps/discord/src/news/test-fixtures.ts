@@ -72,6 +72,7 @@ const game1: NewsGameFacts = {
   ],
   aiGoalieInNet: false,
   guestCount: 0,
+  unnamedTeammates: 0,
 }
 
 const game2: NewsGameFacts = {

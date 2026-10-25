@@ -40,6 +40,11 @@ export function buildPeople(args: {
   players: readonly PlayerRef[]
   memberIds: ReadonlySet<number>
   profiles: ReadonlyMap<number, NewsProfileInfo>
+  /**
+   * Every club member at press level `out`, whether or not they played: an
+   * older story or a stat line could still bring their name to the writer.
+   */
+  outMembers: readonly { gamertag: string; name: string | null }[]
 }): { people: NewsPerson[]; forbiddenNames: string[] } {
   const people = new Map<number, NewsPerson>()
   const forbidden = new Map<string, string>() // lower-case -> first spelling
@@ -66,6 +71,10 @@ export function buildPeople(args: {
       forbid(p.gamertag)
       if (profile) forbid(profile.name ?? '')
     }
+  }
+  for (const m of args.outMembers) {
+    forbid(m.gamertag)
+    forbid(m.name ?? '')
   }
   return {
     people: [...people.values()],
@@ -119,13 +128,18 @@ export interface GameFactsArgs {
   periods: NewsGameFacts['periods']
   players: readonly GamePlayerInput[]
   people: readonly NewsPerson[]
+  /** Club member ids: an unnamed member is a teammate at press level `out`, not a guest. */
+  memberIds: ReadonlySet<number>
 }
 
 const round1 = (n: number): number => Math.round(n * 10) / 10
 
-/** Pass completion %, one decimal, as the match page's Pass % row. */
+/**
+ * Pass completion %, one decimal, rounded exactly as the match page's Pass %
+ * row (`toFixed(1)`), so the sheet never shows 0.2 where the page shows 0.1.
+ */
 export function passPctOf(completions: number, attempts: number): number | null {
-  return attempts > 0 ? round1((completions / attempts) * 100) : null
+  return attempts > 0 ? Number(((completions / attempts) * 100).toFixed(1)) : null
 }
 
 /**
@@ -178,15 +192,17 @@ function playerLine(p: GamePlayerInput, person: NewsPerson): NewsPlayerLine {
 }
 
 /**
- * One game's part of the sheet. Only named people get a player line. Their
- * unnamed team-mates count towards `guestCount` (AI goalies do not); the
- * goals of everyone stay in the team score.
+ * One game's part of the sheet. Only named people get a player line. Unnamed
+ * club members (press level `out`) count towards `unnamedTeammates`; everyone
+ * else unnamed counts towards `guestCount`; AI goalies count towards neither.
+ * The goals of everyone stay in the team score.
  */
 export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
   const { match } = args
   const byId = new Map(args.people.map((p) => [p.playerId, p]))
   const players: NewsPlayerLine[] = []
   let guestCount = 0
+  let unnamedTeammates = 0
   let aiGoalieInNet = false
   for (const p of args.players) {
     if (p.aiGoalie) {
@@ -195,6 +211,7 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     }
     const person = p.playerId === null ? undefined : byId.get(p.playerId)
     if (person) players.push(playerLine(p, person))
+    else if (p.playerId !== null && args.memberIds.has(p.playerId)) unnamedTeammates += 1
     else guestCount += 1
   }
   return {
@@ -223,6 +240,7 @@ export function buildGameFacts(args: GameFactsArgs): NewsGameFacts {
     players,
     aiGoalieInNet,
     guestCount,
+    unnamedTeammates,
   }
 }
 

@@ -32,6 +32,7 @@ void test('buildPeople: a member with press level out is not named; name and gam
       [1, profile('Igor Orlov', 'out')],
       [2, profile('Silky Joe', 'easy')],
     ]),
+    outMembers: [],
   })
   assert.deepEqual(people, [
     { playerId: 2, name: 'Silky Joe', position: 'defenseMen', pressLevel: 'easy' },
@@ -50,6 +51,7 @@ void test('buildPeople: a blank profile name falls back to the gamertag (trimmed
       [3, profile('  ')],
       [4, profile('  Pad Man  ')],
     ]),
+    outMembers: [],
   })
   assert.deepEqual(
     people.map((p) => [p.playerId, p.name, p.pressLevel]),
@@ -66,6 +68,7 @@ void test('buildPeople: a member without a profile row is named by gamertag at f
     players: [{ playerId: 5, gamertag: 'NoProfile', aiGoalie: false, position: 'center' }],
     memberIds: new Set([5]),
     profiles: new Map(),
+    outMembers: [],
   })
   assert.deepEqual(people, [
     { playerId: 5, name: 'NoProfile', position: 'center', pressLevel: 'full' },
@@ -83,6 +86,7 @@ void test('buildPeople: a guest is never named; gamertag and non-blank profile n
       [10, profile('Guest Person')],
       [11, profile('   ')],
     ]),
+    outMembers: [],
   })
   assert.deepEqual(people, [])
   assert.deepEqual([...forbiddenNames].sort(), ['Guest Person', 'GuestOne', 'GuestTwo'])
@@ -93,6 +97,7 @@ void test('buildPeople: an AI goalie is not named, even though the club counts i
     players: [{ playerId: 20, gamertag: 'Lehmann', aiGoalie: true, position: 'goalie' }],
     memberIds: new Set([20]),
     profiles: new Map(),
+    outMembers: [],
   })
   assert.deepEqual(people, [])
   assert.deepEqual(forbiddenNames, ['Lehmann'])
@@ -109,10 +114,29 @@ void test('buildPeople: one entry per player across games; forbidden names dedup
     ],
     memberIds: new Set([1]),
     profiles: new Map(),
+    outMembers: [],
   })
   assert.equal(people.length, 1)
   assert.equal(people[0]?.position, 'leftWing')
   assert.deepEqual(forbiddenNames, ['Guest'])
+})
+
+void test('buildPeople: every member at "out" is forbidden, also one who did not play (C1)', () => {
+  const { people, forbiddenNames } = buildPeople({
+    players: [{ playerId: 1, gamertag: 'Hero', aiGoalie: false, position: 'center' }],
+    memberIds: new Set([1, 2, 3]),
+    profiles: new Map([[1, profile('Hero Name')]]),
+    outMembers: [
+      { gamertag: 'BenchedTag', name: 'Quiet Quinn' },
+      { gamertag: 'NoNameTag', name: null },
+      { gamertag: 'BenchedTag', name: '  ' }, // listed twice: deduplicated, blank name skipped
+    ],
+  })
+  assert.deepEqual(
+    people.map((p) => p.name),
+    ['Hero Name'],
+  )
+  assert.deepEqual([...forbiddenNames].sort(), ['BenchedTag', 'NoNameTag', 'Quiet Quinn'])
 })
 
 // ── buildGameFacts ───────────────────────────────────────────────────────────
@@ -182,6 +206,8 @@ const gameArgs = (over: Partial<GameFactsArgs> = {}): GameFactsArgs => ({
     }),
   ],
   people: [{ playerId: 1, name: 'Hero Name', position: 'center', pressLevel: 'full' }],
+  // Hero and OutGuy are members (OutGuy at "out"); GuestA and GuestB are not. Lehmann is an AI goalie.
+  memberIds: new Set([1, 2, 5]),
   ...over,
 })
 
@@ -202,14 +228,20 @@ void test('buildGameFacts: an OT win 3-2 is a WIN with overtime true; the out-me
   assert.equal(g.players[0]?.gameScore, 9.1)
 })
 
-void test('buildGameFacts: guestCount counts the unnamed BGM players, not AI goalies; aiGoalieInNet is set', () => {
+void test('buildGameFacts: guestCount counts non-members only; an out-member is an unnamed teammate; AI goalies neither', () => {
   const g = buildGameFacts(gameArgs())
-  // OutGuy, GuestA and GuestB are unnamed; Lehmann is an AI goalie.
-  assert.equal(g.guestCount, 3)
+  // GuestA and GuestB are guests; OutGuy is a teammate at "out"; Lehmann is an AI goalie.
+  assert.equal(g.guestCount, 2)
+  assert.equal(g.unnamedTeammates, 1)
   assert.equal(g.aiGoalieInNet, true)
   const none = buildGameFacts(gameArgs({ players: [skater({ playerId: 1, gamertag: 'Hero' })] }))
   assert.equal(none.aiGoalieInNet, false)
   assert.equal(none.guestCount, 0)
+  assert.equal(none.unnamedTeammates, 0)
+  // A player with no id is never a member.
+  const noId = buildGameFacts(gameArgs({ players: [skater({ playerId: null, gamertag: 'Anon' })] }))
+  assert.equal(noId.guestCount, 1)
+  assert.equal(noId.unnamedTeammates, 0)
 })
 
 void test('buildGameFacts: team numbers come from the arguments the match page uses', () => {
@@ -273,6 +305,10 @@ void test('passPctOf: completions over attempts, one decimal, null without attem
   assert.equal(passPctOf(157, 200), 78.5)
   assert.equal(passPctOf(1, 3), 33.3)
   assert.equal(passPctOf(0, 0), null)
+  // F2: the match page's toFixed(1) rounding, not Math.round (0.15 -> 0.1, 0.45 -> 0.4).
+  assert.equal(passPctOf(3, 2000), 0.1)
+  assert.equal(passPctOf(9, 2000), 0.4)
+  assert.equal(passPctOf(3, 2000), Number(((3 / 2000) * 100).toFixed(1)))
 })
 
 void test('periodsFromSummaries: needs every period read and the goals to add up to the score', () => {

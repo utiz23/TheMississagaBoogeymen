@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { allowedNumbers, checkArticleFacts, checkFacts } from './fact-check.ts'
+import {
+  FORBIDDEN_NAME_PROBLEM,
+  allowedNumbers,
+  checkArticleFacts,
+  checkFacts,
+} from './fact-check.ts'
 import { oct12Facts } from './test-fixtures.ts'
 
 const facts = oct12Facts('game')
@@ -64,7 +69,17 @@ void test('0, 1, zero and one are always allowed; ordinals are not checked', () 
 void test('a forbidden name fails (case-insensitive, word-bounded)', () => {
   const r = checkFacts('hidden   hank scored late.', facts, FORBIDDEN, none)
   assert.equal(r.ok, false)
-  assert.match(problems(r).join(' '), /Hidden Hank/)
+  // C1.3: the problem never repeats the name (rewrite prompt, last_error, logs).
+  assert.deepEqual(problems(r), ['The text names a person who is not on the fact sheet.'])
+  assert.doesNotMatch(problems(r).join(' '), /hank/i)
+  const two = checkFacts('Hidden Hank and Quiet Quinn.', facts, [...FORBIDDEN, 'Quiet Quinn'], none)
+  assert.deepEqual(problems(two), [FORBIDDEN_NAME_PROBLEM])
+  // Listed in mentions too: still no name in the problem.
+  const listed = checkFacts('Hidden Hank scored.', facts, FORBIDDEN, {
+    mentions: ['Hidden Hank'],
+    clubs: [],
+  })
+  assert.deepEqual(problems(listed), [FORBIDDEN_NAME_PROBLEM])
   assert.deepEqual(checkFacts('Hidden Hanky is a different word.', facts, FORBIDDEN, none), {
     ok: true,
   })

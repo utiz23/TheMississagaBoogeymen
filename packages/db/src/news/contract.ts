@@ -57,7 +57,10 @@ export interface NewsGameFacts {
   periods: { period: number; goalsFor: number; goalsAgainst: number }[] | null
   players: NewsPlayerLine[]
   aiGoalieInNet: boolean
+  /** Players in the game who are not club members (AI goalies not counted). */
   guestCount: number
+  /** Club members in the game at press level `out`: teammates who must not be named or singled out. */
+  unnamedTeammates: number
 }
 
 export interface NewsRecord {
@@ -226,6 +229,7 @@ function parseGame(v: unknown, path: string): NewsGameFacts {
     players: arr(o['players'], `${path}.players`, parsePlayerLine),
     aiGoalieInNet: bool(o['aiGoalieInNet'], `${path}.aiGoalieInNet`),
     guestCount: int(o['guestCount'], `${path}.guestCount`),
+    unnamedTeammates: int(o['unnamedTeammates'], `${path}.unnamedTeammates`),
   }
 }
 
