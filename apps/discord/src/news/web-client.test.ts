@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { fetchNewsFacts } from './web-client.ts'
+import { factsTimeoutMs, fetchNewsFacts } from './web-client.ts'
 import { oct12Response } from './test-fixtures.ts'
 
 const TOKEN = 'x'.repeat(32)
@@ -52,4 +52,10 @@ void test('includeInactive asks the route for a title that is not active (backfi
     'http://web:3000/internal/news/night/2026-05-08?includeInactive=1',
     'http://web:3000/internal/news/night/2026-05-08',
   ])
+})
+
+void test('a week sheet gets 60 s, game and night sheets 30 s (C2 fix A)', () => {
+  assert.equal(factsTimeoutMs('week'), 60_000)
+  assert.equal(factsTimeoutMs('night'), 30_000)
+  assert.equal(factsTimeoutMs('game'), 30_000)
 })

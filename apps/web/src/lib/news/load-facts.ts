@@ -17,7 +17,6 @@ import {
   listAllGameTitles,
   listMemberPressLevels,
   listNewsCardEvents,
-  listNewsHistoryGames,
   listNewsNightMatches,
   listNewsNormGames,
   listNewsPlayerGames,
@@ -57,7 +56,7 @@ import {
   buildWeekHistory,
   buildWeekPlayers,
   HISTORY_WEEKS,
-  isEndedEarly,
+  historyFromNormGames,
   passPctOf,
   periodsFromSummaries,
   titleAllowed,
@@ -66,12 +65,12 @@ import {
   type GameFactsArgs,
   type GamePlayerInput,
   type GoalEventInput,
-  type HistoryGameInput,
 } from './build-facts'
 import { applyNorms, normInputFromRow, type NormGameInput } from './norms'
 import { applyContext, titleGameFromFacts, titleGameFromRow } from './context'
 import { applyChemistry } from './chemistry'
 import { rankFacts } from './rank-facts'
+import { mapLimit, memoize } from './map-limit'
 import { buildThreads, threadGameFromFacts, threadGameFromRow } from './threads'
 import { applyNewRecords, buildRecords, publicRecords, type SeasonLineInput } from './records'
 import { applyPlayerFacts, playerGameFromRow, type PlayerGameInput } from './players'
@@ -79,6 +78,15 @@ import { applyPlayerFacts, playerGameFromRow, type PlayerGameInput } from './pla
 /** An unlock counts when it lands up to this long after the last game of the sheet. */
 const UNLOCK_WINDOW_AFTER_MINUTES = 10
 const RECENT_NIGHTS = 3
+/** Games loaded at once (each runs about five queries; the pool has 10 connections). */
+const GAME_LOAD_CONCURRENCY = 4
+const MATCH_LOAD_CONCURRENCY = 8
+/**
+ * The club season lines of every title (records, C2.4) change only when an
+ * archive import or the member-season poll lands: cached 10 minutes per
+ * server process (C2 fix A). The current title's part is always read fresh.
+ */
+const clubSeasonLines = memoize(() => getClubSeasonLines(), 10 * 60 * 1000)
 
 type Match = NonNullable<Awaited<ReturnType<typeof getMatchById>>>
 type BgmStat = Awaited<ReturnType<typeof getPlayerMatchStats>>[number]
@@ -186,45 +194,6 @@ async function loadGame(match: Match): Promise<LoadedGame | null> {
   }
 }
 
-/**
- * The title's counted games of the four weeks before the week sheet's
- * Monday `start`, with shots as the match page shows them (reviewed OCR over
- * EA's count, as in `loadGame`). Read one game at a time: a weekly job, so
- * a gentle load matters more than speed.
- */
-async function loadHistoryGames(gameTitleId: number, start: string): Promise<HistoryGameInput[]> {
-  const weeks = previousWeekStarts(start, HISTORY_WEEKS)
-  const from = weeks[0]
-  if (from === undefined) return []
-  const rows = await listNewsHistoryGames({ gameTitleId, from, to: start })
-  const out: HistoryGameInput[] = []
-  for (const r of rows) {
-    const ocrShots = aggregateOcrShots(await getMatchPeriodSummaries(r.id))
-    const shots = {
-      for: ocrShots.for ?? r.shotsFor,
-      against: ocrShots.against ?? r.shotsAgainst,
-    }
-    out.push({
-      night: r.night,
-      // As on the sheet: an ended-early game's shots and power play do not count (C1 fix 4).
-      endedEarly: isEndedEarly({
-        scoreFor: r.scoreFor,
-        creditedGoals: r.creditedGoals,
-        timeOnAttack: r.timeOnAttack,
-        shots,
-      }),
-      result: r.result,
-      scoreFor: r.scoreFor,
-      scoreAgainst: r.scoreAgainst,
-      shotsFor: shots.for,
-      shotsAgainst: shots.against,
-      ppGoals: r.ppGoals,
-      ppOpportunities: r.ppOpportunities,
-    })
-  }
-  return out
-}
-
 /** A sheet game's numbers for the team norms, as the match page shows them. */
 function normInputOf(g: LoadedGame, endedEarly: boolean): NormGameInput {
   return {
@@ -251,11 +220,10 @@ async function loadSheet(
   key: string,
   matches: Match[],
 ): Promise<NewsFactsResponse | null> {
-  const loaded: LoadedGame[] = []
-  for (const m of matches) {
-    const g = await loadGame(m)
-    if (g) loaded.push(g)
-  }
+  // C2 fix A: a few games at a time (a week sheet has 20-30; one at a time took ~1 s each).
+  const loaded = (await mapLimit(matches, GAME_LOAD_CONCURRENCY, loadGame)).filter(
+    (g): g is LoadedGame => g !== null,
+  )
   const first = loaded[0]
   const last = loaded[loaded.length - 1]
   if (!first || !last) return null
@@ -358,7 +326,7 @@ async function loadSheet(
     // Debuts (C2.5): who has a season in an earlier title.
     listNewsPlayersWithOtherSeasons({ playerIds: namedIds, gameTitleId }),
     // Club records (C2.4): earlier titles' season lines, this title before the sheet.
-    getClubSeasonLines(),
+    clubSeasonLines(),
     listNewsTitleSeasonTotals({ gameTitleId, beforeMatchId: first.match.id }),
   ])
   const normed = applyNorms(
@@ -449,7 +417,11 @@ async function loadSheet(
   const week =
     kind === 'week'
       ? {
-          history: buildWeekHistory(await loadHistoryGames(gameTitleId, key), key),
+          // C2 fix A: from the norm games already loaded (no per-game OCR lookups).
+          history: buildWeekHistory(
+            historyFromNormGames(normGames, previousWeekStarts(key, HISTORY_WEEKS)[0] ?? key, key),
+            key,
+          ),
           weekPlayers: buildWeekPlayers(games, people, totals.after),
           aiGoalieWeek: buildAiGoalieWeek(games),
           // Prediction scorecards (C2.9): receipts of earlier weeks of the title.
@@ -485,13 +457,9 @@ async function loadNightMatches(nights: string[], opts: FactsLoadOptions): Promi
     includeInactive: opts.includeInactive === true,
   })
   const titleId = rows[0]?.gameTitleId
-  const out: Match[] = []
-  for (const r of rows) {
-    if (r.gameTitleId !== titleId) continue
-    const m = await getMatchById(r.id)
-    if (m) out.push(m)
-  }
-  return out
+  const ids = rows.filter((r) => r.gameTitleId === titleId).map((r) => r.id)
+  const found = await mapLimit(ids, MATCH_LOAD_CONCURRENCY, (id) => getMatchById(id))
+  return found.filter((m): m is Match => m !== null && m !== undefined)
 }
 
 /** The sheet for one game. Null: unknown match, DNF, or not the active title (unless `includeInactive`). */

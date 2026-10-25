@@ -10,6 +10,7 @@ import {
   buildGoalTimeline,
   buildRecordAndStreak,
   buildScorecards,
+  historyFromNormGames,
   buildWeekHistory,
   buildWeekPlayers,
   includeInactiveOption,
@@ -1409,4 +1410,43 @@ void test('buildScorecards: judged = hits + misses, best record first (C2.9)', (
     ],
   )
   assert.deepEqual(buildScorecards([]), [])
+})
+
+void test('historyFromNormGames: the norm games of [from, to), ended early by the sheet rule (C2 fix A)', () => {
+  const g = (night: string, over: Record<string, unknown> = {}) => ({
+    night,
+    result: 'WIN' as const,
+    scoreFor: 3,
+    scoreAgainst: 1,
+    shotsFor: 20,
+    shotsAgainst: 15,
+    ppGoals: 1,
+    ppOpportunities: 2,
+    timeOnAttack: 500,
+    creditedGoals: 3,
+    ...over,
+  })
+  const out = historyFromNormGames(
+    [g('2026-04-05'), g('2026-04-06'), g('2026-04-20', { creditedGoals: 2 }), g('2026-05-04')],
+    '2026-04-06',
+    '2026-05-04',
+  )
+  assert.deepEqual(
+    out.map((h) => [h.night, h.endedEarly]),
+    [
+      ['2026-04-06', false],
+      ['2026-04-20', true],
+    ],
+  )
+  assert.deepEqual(Object.keys(out[0]!).sort(), [
+    'endedEarly',
+    'night',
+    'ppGoals',
+    'ppOpportunities',
+    'result',
+    'scoreAgainst',
+    'scoreFor',
+    'shotsAgainst',
+    'shotsFor',
+  ])
 })

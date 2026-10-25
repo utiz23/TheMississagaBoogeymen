@@ -590,6 +590,48 @@ export interface HistoryGameInput {
 export const HISTORY_WEEKS = 4
 
 /**
+ * The history games from the norm games the sheet already loaded (C2 fix A:
+ * no second query and no per-game OCR lookup): the title's counted games
+ * before the sheet's first game, with page shots, kept when their night is in
+ * [`from`, `to`). Ended early by the sheet rule.
+ */
+export function historyFromNormGames(
+  rows: readonly {
+    night: string
+    result: 'WIN' | 'LOSS' | 'OTL'
+    scoreFor: number
+    scoreAgainst: number
+    shotsFor: number
+    shotsAgainst: number
+    ppGoals: number | null
+    ppOpportunities: number | null
+    timeOnAttack: number | null
+    creditedGoals: number
+  }[],
+  from: string,
+  to: string,
+): HistoryGameInput[] {
+  return rows
+    .filter((r) => r.night >= from && r.night < to)
+    .map((r) => ({
+      night: r.night,
+      endedEarly: isEndedEarly({
+        scoreFor: r.scoreFor,
+        creditedGoals: r.creditedGoals,
+        timeOnAttack: r.timeOnAttack,
+        shots: { for: r.shotsFor, against: r.shotsAgainst },
+      }),
+      result: r.result,
+      scoreFor: r.scoreFor,
+      scoreAgainst: r.scoreAgainst,
+      shotsFor: r.shotsFor,
+      shotsAgainst: r.shotsAgainst,
+      ppGoals: r.ppGoals,
+      ppOpportunities: r.ppOpportunities,
+    }))
+}
+
+/**
  * The week sheet's `history`: team totals of each of the four weeks before
  * `weekStart`, oldest first. A week without a game is left out; a game outside
  * those weeks is ignored. Missing power-play numbers count as 0.
