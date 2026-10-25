@@ -1,12 +1,11 @@
 /**
- * What one Discord unlock message says and shows (spec §4). Pure. Badge names
- * follow the badge board (badge-board.ts `themeLabel`): one card theme per 3
- * levels, framed I–III.
+ * What one Discord unlock message says and shows (spec §4). Pure. A badge is
+ * named by its level as a Roman numeral, I–XXX (operator, 2026-10-24) — the
+ * graphic still shows the badge board's look for that level.
  */
 import {
   BADGE_FAMILIES,
   CARD_THEME_NAMES,
-  CARD_THEME_ORDER,
   TIER_LABELS,
   TIER_THEME,
   type BadgeFamilyId,
@@ -17,13 +16,25 @@ import {
 } from '../cards/badge-catalog.js'
 import type { CardEventKind } from '../cards/progression.js'
 
-const FRAMES = ['I', 'II', 'III'] as const
+const ROMAN: readonly [number, string][] = [
+  [10, 'X'],
+  [9, 'IX'],
+  [5, 'V'],
+  [4, 'IV'],
+  [1, 'I'],
+]
 
-export function badgeBoardName(level: number): string {
-  const l = Math.max(1, Math.floor(level))
-  const theme =
-    CARD_THEME_ORDER[Math.ceil(l / 3) - 1] ?? CARD_THEME_ORDER[CARD_THEME_ORDER.length - 1]!
-  return `${CARD_THEME_NAMES[theme]} ${FRAMES[(l - 1) % 3]!}`
+/** A badge level as a Roman numeral (badge levels run 1–30, so I–XXX). */
+export function romanNumeral(level: number): string {
+  let n = Math.max(1, Math.floor(level))
+  let out = ''
+  for (const [value, glyph] of ROMAN) {
+    while (n >= value) {
+      out += glyph
+      n -= value
+    }
+  }
+  return out
 }
 
 export interface UnlockDescription {
@@ -45,7 +56,7 @@ export function describeUnlock(
       const name = BADGE_FAMILIES.find((f) => f.id === e.familyId)?.name ?? e.familyId
       return {
         kind: 'badge',
-        subject: `${name} · ${badgeBoardName(e.toValue)}`,
+        subject: `${name} ${romanNumeral(e.toValue)}`,
         graphic: 'badge',
         badge: { familyId: e.familyId, level: e.toValue },
       }
