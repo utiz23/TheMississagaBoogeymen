@@ -171,7 +171,7 @@ void test('rankFacts: an 11-2 blowout ranks first, ahead of a big night for a pl
     [
       ['Blowout: 11-2 win over Shake N Bake', 67],
       ['Team: biggest win of the season: 11-2', 50],
-      ['Raz: 2 goals vs Shake N Bake — big for him (season avg 0.5)', 40],
+      ['Raz: 2 goals vs Shake N Bake — big for him (6s avg as F 0.5 over 20 games)', 40],
     ],
   )
   assert.equal(top[2]!.subject, 'Raz')
@@ -250,14 +250,14 @@ void test('rankFacts: player labels, bests, streaks, debuts, threads, chemistry;
   for (const t of [
     'Erb: reached 100 points this title',
     'Erb: career high assists (2) vs Shake N Bake',
-    'Erb: 2 assists vs Shake N Bake — big for him (season avg 0.6)',
+    'Erb: 2 assists vs Shake N Bake — big for him (6s avg as F 0.6 over 20 games)',
     'Erb: back after 41 days',
     'Thread (open): Erb: no goal in 9 games',
     'Erb: no goal in 9 games',
     'Erb: 1 assist from 50 this title',
     'Erb: first game of NHL 26',
     'Erb and Raz together: 12-3-1 in 16 games',
-    'Erb: 0 shots vs Shake N Bake — quiet for him (season avg 3.1)',
+    'Erb: 0 shots vs Shake N Bake — quiet for him (6s avg as F 3.1 over 20 games)',
     'Pattern: the Boogeymen were out-hit as usual',
   ]) {
     assert.ok(texts.includes(t), t)

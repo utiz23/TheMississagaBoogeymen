@@ -179,7 +179,11 @@ export type PlayerLabel = (typeof PLAYER_LABELS)[number]
 export interface NewsPlayerNorm {
   /** Games in the sample. */
   games: number
-  /** Per-game averages over the sample, one decimal. May be quoted. */
+  /**
+   * Per-game averages over the sample, one decimal. May be quoted, always with
+   * the scope (C2 fix I2): "his 6s average as a forward this title", never
+   * "season average" (the site's season average covers every mode and position).
+   */
   perGame: Record<PlayerNormStat, number>
   /** Per-game averages over the sample's last 10 games, one decimal. May be quoted. */
   last10: { goals: number; assists: number; points: number }

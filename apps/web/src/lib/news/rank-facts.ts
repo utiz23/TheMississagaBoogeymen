@@ -105,6 +105,8 @@ function playerFacts(g: NewsGameFacts, p: NewsPlayerLine, push: Push, titleName:
   const vs = ` vs ${g.opponentName}`
   if (p.norm !== null) {
     const norm = p.norm
+    // The norm's scope (C2 fix I2): this title, the game's mode, his position.
+    const scope = `${g.gameMode ?? ''} avg as ${p.position}`.trim()
     for (const k of ['goals', 'assists', 'points', 'shots', 'hits'] as const) {
       const v = lineValue(p, k)
       if (v === null) continue
@@ -122,14 +124,14 @@ function playerFacts(g: NewsGameFacts, p: NewsPlayerLine, push: Push, titleName:
                 : 8
         push(
           id(`big:${k}`),
-          `${who}: ${statText(k, v)}${vs} — big for him (season avg ${s(avg)})`,
+          `${who}: ${statText(k, v)}${vs} — big for him (${scope} ${s(avg)} over ${s(norm.games)} games)`,
           w,
           who,
         )
       } else if (label === 'quiet for him') {
         push(
           id(`quiet:${k}`),
-          `${who}: ${statText(k, v)}${vs} — quiet for him (season avg ${s(avg)})`,
+          `${who}: ${statText(k, v)}${vs} — quiet for him (${scope} ${s(avg)} over ${s(norm.games)} games)`,
           k === 'points' ? 8 : 4,
           who,
         )
