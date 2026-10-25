@@ -62,14 +62,15 @@ export function buildSystemPrompt(reporters: Reporter[]): string {
     '3. Goals and assists by people not named on the sheet are in "unnamedGoals" / "unnamedAssists" of each game. Never say a named player\'s goal was the only goal, or that a named player did something alone, unless the sheet shows it.',
     '4. Do not invent quotes from teammates or from opponents. The reporters are fictional, so they may quote each other and answer each other.',
     '5. Opinion is allowed when it follows from the stats ("29 shots against says the defence was under siege"). Invented events are not: no shot off the post, no save, no pass, no line change, no mood in the room, no argument, no play-by-play. No off-ice events or places either (a group chat, a practice, the locker room, the bench, travel), and no claims about what a player wanted, felt or thought. There is no video or play-by-play data, only the numbers on the sheet.',
-    '6. A win does not always deserve praise. A loss does not always deserve doom. Let the numbers decide.',
+    '6. A tactical point must name the number it comes from. Do not describe plays, movements, positions on the ice or sequences; the sheet has none.',
+    '7. A win does not always deserve praise. A loss does not always deserve doom. Let the numbers decide.',
     'TONE',
-    '7. Criticism is about hockey only: the game, the stats, the choices on the ice. Never write about real life, looks, family, work, health or the person.',
-    '8. Each person on the sheet has a "pressLevel". "full" means a reporter may be harsh about that player\'s games. "easy" means criticism of that player stays mild. Rule 7 applies at both levels.',
+    '8. Criticism is about hockey only: the game, the stats, the choices on the ice. Never write about real life, looks, family, work, health or the person.',
+    '9. Each person on the sheet has a "pressLevel". "full" means a reporter may be harsh about that player\'s games. "easy" means criticism of that player stays mild. Rule 8 applies at both levels.',
     'FORMAT',
-    '9. Plain text only. No @ mentions, no links, no hashtags, no emoji, no markdown. Do not write "@everyone" or "@here".',
-    '10. Put every person you name in "mentions" and every opponent club you name in "clubs", spelled exactly as in the sheet. Reporter names may be listed in "mentions". Use empty lists when you name nobody.',
-    "11. Write as the reporter you are told to write as. Keep the voice of the reporter. Do not repeat a phrase from that reporter's recent pieces.",
+    '10. Plain text only. No @ mentions, no links, no hashtags, no emoji, no markdown. Do not write "@everyone" or "@here".',
+    '11. Put every person you name in "mentions" and every opponent club you name in "clubs", spelled exactly as in the sheet. Reporter names may be listed in "mentions". Use empty lists when you name nobody.',
+    "12. Write as the reporter you are told to write as. Keep the voice of the reporter. Do not repeat a phrase from that reporter's recent pieces.",
   ].join('\n\n')
 
   const voices = reporters

@@ -149,6 +149,31 @@ void test('system prompt: goals by people not on the sheet are in unnamedGoals /
   )
 })
 
+void test('system prompt: a tactical point must name its number; no described plays (T2)', () => {
+  const s = buildSystemPrompt(all)
+  assert.ok(
+    s.includes(
+      'A tactical point must name the number it comes from. Do not describe plays, movements, positions on the ice or sequences; the sheet has none.',
+    ),
+  )
+})
+
+void test('voices: tactical points come from the numbers, never from described plays (T2)', () => {
+  const s = buildSystemPrompt(all)
+  const numbersOnly =
+    'a tactical point drawn from the numbers on the sheet (shots, time on attack, passing %, power play, hits, period scores, goals for and against) and stated as what those numbers show, never as a described play, movement, lane, zone entry or sequence'
+  assert.ok(s.includes(`Every piece includes ${numbersOnly}.`), 'Barlow')
+  assert.ok(
+    s.includes(`Her tactical points are ${numbersOnly.replace(/^a tactical point /, '')}.`),
+    'Halberd',
+  )
+  assert.ok(!s.includes('one tactical observation'))
+  assert.ok(!s.includes('sequence breakdown'))
+  assert.ok(!REPORTERS.halberd.voice.includes('pressure release'))
+  assert.ok(!REPORTERS.halberd.voice.includes('rotation'))
+  assert.ok(!REPORTERS.halberd.voice.includes('coverage'))
+})
+
 void test('system prompt: never a YYYY-MM-DD date; weekday or month and day (c1)', () => {
   const s = buildSystemPrompt(all)
   assert.ok(s.includes('Never write a date as YYYY-MM-DD; use the weekday, or the month and day'))

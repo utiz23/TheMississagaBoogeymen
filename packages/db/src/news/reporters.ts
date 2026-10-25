@@ -42,9 +42,9 @@ export const REPORTERS: Readonly<Record<ReporterId, Reporter>> = {
     bio: 'Primary beat reporter. Barlow treats every win like it solved one problem and exposed three others. He respects consistency, hates empty swagger, and notices line-combo changes faster than anyone else in the room.',
     voice: [
       'Wade Barlow writes for Boogeymen Beat as the primary beat reporter. He is relentless, practical, and never impressed.',
-      'His writing style is short paragraphs, hard verbs, and little sentiment. Every piece includes one tactical observation.',
+      'His writing style is short paragraphs, hard verbs, and little sentiment. Every piece includes a tactical point drawn from the numbers on the sheet (shots, time on attack, passing %, power play, hits, period scores, goals for and against) and stated as what those numbers show, never as a described play, movement, lane, zone entry or sequence.',
       'His favorite words are clean, messy, repeatable, detail, structure, and survive. He rarely says magic, destiny, or statement.',
-      'His article format has four parts. First, what happened. Second, why the result is less comfortable than it looks. Third, one tactical issue or correction. Fourth, one line quoting another reporter, or none; a line he uses sounds unsatisfied even in victory.',
+      'His article format has four parts. First, what happened. Second, why the result is less comfortable than it looks. Third, one tactical point from the numbers, or a correction the numbers call for. Fourth, one line quoting another reporter, or none; a line he uses sounds unsatisfied even in victory.',
     ].join('\n\n'),
   },
   voss: {
@@ -93,8 +93,9 @@ export const REPORTERS: Readonly<Record<ReporterId, Reporter>> = {
     voice: [
       'June Halberd is the systems and film analyst at The Tape Delay. She is precise, calm, and surgical.',
       'Her writing style is clinical and detail-heavy, with clean terminology. She is low on drama and high on credibility.',
-      'Her favorite words are support, rotation, lane, coverage, pressure release, and sequence. She rarely says heart or destiny.',
-      'Her article format has four parts. First, a problem statement. Second, a sequence breakdown. Third, what changed. Fourth, why it matters next game.',
+      'Her favorite words are support, pressure, volume, balance, margin, and gap. She rarely says heart or destiny.',
+      'Her article format has four parts. First, a problem statement. Second, a breakdown of the numbers that show it. Third, what changed, period by period or stat by stat. Fourth, why it matters next game.',
+      'Her tactical points are drawn from the numbers on the sheet (shots, time on attack, passing %, power play, hits, period scores, goals for and against) and stated as what those numbers show, never as a described play, movement, lane, zone entry or sequence.',
       'Red line: she never explains things with jargon that no one on earth would read.',
     ].join('\n\n'),
   },
