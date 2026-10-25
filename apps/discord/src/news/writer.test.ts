@@ -7,6 +7,7 @@ import {
   NewsStopError,
   anthropicModelCall,
   budgetLeft,
+  MAX_WRITES,
   writeChecked,
   type ModelCall,
 } from './writer.ts'
@@ -96,19 +97,46 @@ void test('write fails the check, rewrite passes, review ok: 3 calls in order, p
   assert.ok(reqs[2]!.user.includes('good one'))
 })
 
-void test('review says not ok twice: failure after 4 calls', async () => {
+void test('MAX_WRITES is 3: the first write and two rewrites', () => {
+  assert.equal(MAX_WRITES, 3)
+})
+
+void test('fail, fail, then pass with review ok: 4 calls, each rewrite carries the latest problems', async () => {
+  const { call, reqs } = fakeCall([
+    { json: { text: 'BAD one' } },
+    { json: { text: 'one' } },
+    REVIEW_BAD,
+    { json: { text: 'good three' } },
+    REVIEW_OK,
+  ])
+  const h = harness()
+  const r = await writeChecked(args(call, h))
+  assert.deepEqual(r, { ok: true, out: { text: 'good three' } })
+  assert.deepEqual(h.recorded, ['write', 'write', 'review', 'write', 'review'])
+  assert.equal(reqs[0]!.user, 'USER')
+  assert.ok(reqs[1]!.user.includes('has BAD in it'))
+  // The third write sees the review's problems, not the first check's.
+  assert.ok(reqs[3]!.user.includes('invented quote'))
+  assert.ok(!reqs[3]!.user.includes('has BAD in it'))
+})
+
+void test('review says not ok three times: gives up after 3 writes and 3 reviews (6 calls)', async () => {
   const { call, reqs } = fakeCall([
     { json: { text: 'one' } },
     REVIEW_BAD,
     { json: { text: 'two' } },
+    REVIEW_BAD,
+    { json: { text: 'three' } },
     REVIEW_BAD,
   ])
   const h = harness()
   const r = await writeChecked(args(call, h))
   assert.equal(r.ok, false)
   if (!r.ok) assert.ok(r.reason.includes('invented quote'))
-  assert.deepEqual(h.recorded, ['write', 'review', 'write', 'review'])
+  assert.deepEqual(h.recorded, ['write', 'review', 'write', 'review', 'write', 'review'])
+  assert.equal(reqs.length, 6)
   assert.ok(reqs[2]!.user.includes('invented quote'))
+  assert.ok(reqs[4]!.user.includes('invented quote'))
 })
 
 void test('a refusal ends at once with reason "refused"', async () => {
@@ -126,19 +154,24 @@ void test('a refusal in the review also ends at once', async () => {
 })
 
 void test('missing or unparsable output counts as a failed attempt', async () => {
-  const { call } = fakeCall([{ json: null }, { json: { nope: 1 } }])
+  const { call } = fakeCall([{ json: null }, { json: { nope: 1 } }, { json: null }])
   const h = harness()
   const r = await writeChecked(args(call, h))
   assert.equal(r.ok, false)
-  assert.deepEqual(h.recorded, ['write', 'write'])
+  assert.deepEqual(h.recorded, ['write', 'write', 'write'])
 })
 
-void test('two failed checks never call the review', async () => {
-  const { call } = fakeCall([{ json: { text: 'BAD' } }, { json: { text: 'BAD again' } }])
+void test('three failed checks never call the review', async () => {
+  const { call, reqs } = fakeCall([
+    { json: { text: 'BAD' } },
+    { json: { text: 'BAD again' } },
+    { json: { text: 'BAD a third time' } },
+  ])
   const h = harness()
   const r = await writeChecked(args(call, h))
   assert.equal(r.ok, false)
-  assert.deepEqual(h.recorded, ['write', 'write'])
+  assert.deepEqual(h.recorded, ['write', 'write', 'write'])
+  assert.equal(reqs.length, 3)
 })
 
 void test('budgetLeft keeps a 0.50 reserve', () => {

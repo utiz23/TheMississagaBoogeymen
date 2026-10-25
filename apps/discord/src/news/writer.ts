@@ -6,8 +6,8 @@ import { REVIEW_SCHEMA, parseReview } from './outputs.ts'
 
 /**
  * The Claude writer: one structured call to write, a program check, a second
- * Claude call to review, one rewrite on any failure. Nothing is returned
- * unless it passed both checks. `anthropicModelCall` is the only code here
+ * Claude call to review, up to two rewrites on any failure (`MAX_WRITES`
+ * writes in all). Nothing is returned unless it passed both checks. `anthropicModelCall` is the only code here
  * that touches the SDK; tests pass a fake `ModelCall`.
  */
 
@@ -46,6 +46,9 @@ export class NewsJobError extends Error {
 }
 
 const MAX_TOKENS = 16000
+
+/** The first write plus two rewrites. Worst case per article: 3 writes + 3 reviews. */
+export const MAX_WRITES = 3
 
 /** `json` is null when the answer has no text block, was cut off, or is not JSON. */
 export function anthropicModelCall(client: Anthropic, model: string): ModelCall {
@@ -132,7 +135,7 @@ export async function writeChecked<T>(args: {
 }): Promise<{ ok: true; out: T } | { ok: false; reason: string }> {
   let problems: string[] = []
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < MAX_WRITES; attempt++) {
     const user =
       attempt === 0
         ? args.user
@@ -193,5 +196,5 @@ export async function writeChecked<T>(args: {
     return { ok: true, out }
   }
 
-  return { ok: false, reason: `failed after rewrite: ${problems.join('; ')}` }
+  return { ok: false, reason: `failed after ${String(MAX_WRITES)} writes: ${problems.join('; ')}` }
 }

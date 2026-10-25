@@ -1,6 +1,8 @@
 /**
  * Live smoke test of the news writer. It makes real Claude calls (about
- * 0.12 USD) and writes nothing to the database. Not part of the service.
+ * 0.12 USD for one article that passes at once; worst case per article is
+ * 3 writes + 3 reviews, about 3 times that) and writes nothing to the
+ * database. Not part of the service.
  *
  *   ANTHROPIC_API_KEY=… node apps/discord/src/news/smoke-cli.ts /path/to/night.json
  *
