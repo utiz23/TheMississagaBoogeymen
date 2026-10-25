@@ -61,8 +61,12 @@ function parseDigits(run: string): number {
   return Number(run.replace(/,/g, ''))
 }
 
-/** Keys whose numbers are identifiers or clock digits, never stats (R16; `clock` B1). */
-const NON_STAT_KEYS = new Set(['playerId', 'matchId', 'playedAt', 'period', 'clock'])
+/**
+ * Keys whose numbers are identifiers, clock digits or dates, never stats (R16;
+ * `clock` B1; rev 2: `weekStart`, the dates of the week sheet's history, so an
+ * invented stat cannot pass on a date digit. The sheet's own `key` stays).
+ */
+const NON_STAT_KEYS = new Set(['playerId', 'matchId', 'playedAt', 'period', 'clock', 'weekStart'])
 
 /** A game clock in text, such as "3:58" or "03:58". */
 const CLOCK = /\b(\d{1,2}):(\d{2})\b/g

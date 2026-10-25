@@ -403,3 +403,31 @@ void test('feature: a receipt when there is a previous prediction, one or two se
     false,
   )
 })
+
+void test('history weekStart dates are not stats; the week key still is allowed (rev 2)', () => {
+  const w = {
+    ...oct12Facts('week'),
+    key: '2026-10-12',
+    history: [
+      {
+        weekStart: '2026-09-21',
+        wins: 3,
+        losses: 2,
+        otl: 0,
+        goalsFor: 15,
+        goalsAgainst: 11,
+        shotsFor: 80,
+        shotsAgainst: 66,
+        ppGoals: 2,
+        ppOpportunities: 5,
+      },
+    ],
+  }
+  const allowed = allowedNumbers(w)
+  for (const n of [15, 11, 80, 66, 5]) assert.ok(allowed.has(n), String(n))
+  // 21 comes only from the history date: an invented "21 shots" must fail.
+  assert.equal(allowed.has(21), false)
+  assert.equal(checkFacts('They had 21 shots.', w, FORBIDDEN, none).ok, false)
+  // The week's own key stays allowed (12 from 2026-10-12).
+  assert.ok(allowed.has(12))
+})
