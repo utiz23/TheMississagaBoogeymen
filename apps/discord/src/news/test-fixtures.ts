@@ -150,6 +150,7 @@ export function oct12Facts(kind: NewsFacts['kind'] = 'game'): NewsFacts {
     threads: [],
     stances: [],
     scorecards: [],
+    topFacts: [],
   }
 }
 

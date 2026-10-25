@@ -567,7 +567,8 @@ export interface NewsFacts {
   /** Earlier stances on those threads, oldest first (C2.8); [] when none. */
   stances: NewsThreadStance[]
   /** Week sheets: each reporter's judged predictions in the title before this week (C2.9). Else []. */
-  scorecards: NewsScorecardLine[]
+  scorecards: NewsScorecardLine[] /** Every fact of the sheet ranked, most important first (C2.7); C3 picks the top 5 per piece. */
+  topFacts: NewsTopFact[]
 }
 
 /**
@@ -630,6 +631,19 @@ export interface NewsScorecardLine {
   hits: number
   misses: number
   judged: number
+}
+
+/**
+ * One ranked fact (C2.7, spec §12.17-2; `rankFacts` in the web app): a short
+ * sentence built only from values and labels on this sheet (its numbers may
+ * be quoted), an importance `weight` (not a stat) and the player, opponent or
+ * AI goalie it is about (null: the team). `id` is stable per sheet (not a stat).
+ */
+export interface NewsTopFact {
+  id: string
+  text: string
+  weight: number
+  subject: string | null
 }
 
 export interface NewsFactsResponse {
@@ -769,6 +783,16 @@ function parseThread(v: unknown, path: string): NewsThread {
     since: night(o['since'], `${path}.since`),
     status: oneOf(o['status'], `${path}.status`, ['open', 'closed-tonight']),
     summary: str(o['summary'], `${path}.summary`),
+  }
+}
+
+function parseTopFact(v: unknown, path: string): NewsTopFact {
+  const o = obj(v, path)
+  return {
+    id: str(o['id'], `${path}.id`),
+    text: str(o['text'], `${path}.text`),
+    weight: num(o['weight'], `${path}.weight`),
+    subject: nullable(o['subject'], `${path}.subject`, str),
   }
 }
 
@@ -1196,6 +1220,7 @@ function parseFacts(v: unknown, path: string): NewsFacts {
     scorecards: opt(o, 'scorecards', [], () =>
       arr(o['scorecards'], `${path}.scorecards`, parseScorecard),
     ),
+    topFacts: opt(o, 'topFacts', [], () => arr(o['topFacts'], `${path}.topFacts`, parseTopFact)),
   }
 }
 

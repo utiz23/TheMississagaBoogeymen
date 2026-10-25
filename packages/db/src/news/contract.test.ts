@@ -184,6 +184,7 @@ function sample(): NewsFactsResponse {
       threads: [],
       stances: [],
       scorecards: [],
+      topFacts: [],
     },
     forbiddenNames: ['Hidden Guy'],
   }
@@ -975,4 +976,24 @@ void test('contract: scorecards round-trip; judged must be hits + misses; missin
   const bad = clone(s) as unknown as { facts: { scorecards: Record<string, unknown>[] } }
   bad.facts.scorecards[0]!['judged'] = 8
   assert.throws(() => parseNewsFactsResponse(bad), /scorecards\[0\]\.judged is not hits \+ misses/)
+})
+
+void test('contract: ranked facts round-trip; missing reads as none (C2.7)', () => {
+  const s = sample()
+  s.facts.topFacts = [
+    {
+      id: 'g2501:p2:big:goals',
+      text: 'Silky: 1 goal — big for him (season avg 0.2)',
+      weight: 32,
+      subject: 'Silky',
+    },
+    { id: 'g2501:blowout', text: 'Blowout: 6-2 loss to Shake N Bake', weight: 52, subject: null },
+  ]
+  assert.deepEqual(parseNewsFactsResponse(clone(s)), s)
+  const old = clone(s) as unknown as { facts: Record<string, unknown> }
+  delete old.facts['topFacts']
+  assert.deepEqual(parseNewsFactsResponse(old).facts.topFacts, [])
+  const bad = clone(s) as unknown as { facts: { topFacts: Record<string, unknown>[] } }
+  bad.facts.topFacts[0]!['weight'] = 'high'
+  assert.throws(() => parseNewsFactsResponse(bad), /topFacts\[0\]\.weight/)
 })

@@ -97,6 +97,10 @@ const NON_STAT_KEYS = new Set([
   'patterns',
   'stances',
   'threadKey',
+  // C2.7 ranked facts: the text holds sheet numbers only; the id (match and
+  // player ids) and the weight are not stats.
+  'id',
+  'weight',
 ])
 
 /** Keys that are not stats only inside the named section (the sheet's own `key` stays a date it may quote). */

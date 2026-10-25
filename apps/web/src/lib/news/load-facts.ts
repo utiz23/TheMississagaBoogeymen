@@ -71,6 +71,7 @@ import {
 import { applyNorms, normInputFromRow, type NormGameInput } from './norms'
 import { applyContext, titleGameFromFacts, titleGameFromRow } from './context'
 import { applyChemistry } from './chemistry'
+import { rankFacts } from './rank-facts'
 import { buildThreads, threadGameFromFacts, threadGameFromRow } from './threads'
 import { applyNewRecords, buildRecords, publicRecords, type SeasonLineInput } from './records'
 import { applyPlayerFacts, playerGameFromRow, type PlayerGameInput } from './players'
@@ -472,8 +473,10 @@ async function loadSheet(
     people,
     ...week,
   })
+  // Fact ranking (C2.7): every fact of the finished sheet, most important first.
+  const ranked: NewsFacts = { ...facts, topFacts: rankFacts(facts) }
   // The service parses the same shape at its boundary; refuse to emit a sheet it would reject.
-  return parseNewsFactsResponse({ facts, forbiddenNames })
+  return parseNewsFactsResponse({ facts: ranked, forbiddenNames })
 }
 
 /** Matches of one title for the given nights (the active title unless `includeInactive`), oldest first. */

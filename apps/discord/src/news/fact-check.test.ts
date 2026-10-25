@@ -612,3 +612,15 @@ void test("threads: a summary's numbers may be quoted; the key's player id and t
   // The sheet's own key (a date) still counts.
   assert.ok(a.has(2026) && a.has(12))
 })
+
+void test('ranked facts: the text may be quoted; the id and the weight are not stats (C2.7)', () => {
+  const f = oct12Facts('game')
+  f.topFacts = [
+    { id: 'g90001:p83:big:goals', text: 'Skater A: 51 shots', weight: 77, subject: 'Skater A' },
+  ]
+  const a = allowedNumbers(f)
+  assert.ok(a.has(51))
+  assert.equal(a.has(77), false)
+  assert.equal(a.has(83), false)
+  assert.equal(a.has(90001), false)
+})

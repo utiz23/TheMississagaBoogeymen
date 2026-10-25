@@ -788,6 +788,8 @@ export function buildFacts(args: {
     threads: args.threads ?? [],
     stances: args.stances ?? [],
     scorecards: args.scorecards ?? [],
+    // Set by `rankFacts` once the sheet is complete (the loader).
+    topFacts: [],
   }
 }
 
