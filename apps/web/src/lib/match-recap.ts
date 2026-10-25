@@ -1140,8 +1140,9 @@ function pctRow(
   hockeyPct = false,
 ): BoxScoreRow | null {
   if (us === null && them === null) return null
+  // `pct()` values are 0–100; formatSavePct takes a 0–1 fraction.
   const fmt = (n: number | null) =>
-    n === null ? null : hockeyPct ? formatSavePct(n) : `${n.toFixed(1)}%`
+    n === null ? null : hockeyPct ? formatSavePct(n / 100) : `${n.toFixed(1)}%`
   return { label, us: fmt(us) ?? '—', them: fmt(them) }
 }
 

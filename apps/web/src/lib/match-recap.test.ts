@@ -4,6 +4,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildBoxScore,
   buildClassName,
   buildClassToArchetype,
   buildPossessionEdge,
@@ -96,4 +97,48 @@ void test('lineupsForMatch: no OCR rows ⇒ box-score lineup', () => {
   })
   assert.equal(r.variant, 'boxScore')
   assert.deepEqual(r.bgm, [])
+})
+
+void test('buildBoxScore: Save % is saves / shots against in hockey style, not clamped to 1.000', () => {
+  const skaterZeros = {
+    assists: 0,
+    shotAttempts: 0,
+    deflections: 0,
+    passAttempts: 0,
+    passCompletions: 0,
+    possession: 0,
+    blockedShots: 0,
+    takeaways: 0,
+    giveaways: 0,
+    interceptions: 0,
+    shGoals: 0,
+    faceoffWins: 0,
+    faceoffLosses: 0,
+  }
+  type Args = Parameters<typeof buildBoxScore>
+  const match = {
+    scoreFor: 3,
+    scoreAgainst: 2,
+    shotsFor: 20,
+    shotsAgainst: 24,
+    hitsFor: 0,
+    hitsAgainst: 0,
+    ppGoals: null,
+    ppOpportunities: null,
+    ppGoalsAgainst: null,
+    ppOpportunitiesAgainst: null,
+    timeOnAttack: null,
+    timeOnAttackAgainst: null,
+    penaltyMinutes: 0,
+    penaltyMinutesAgainst: 0,
+  } as unknown as Args[0]
+  const bgm = [
+    { ...skaterZeros, saves: 22, goalsAgainst: 2, shotsAgainst: 24 },
+  ] as unknown as Args[1]
+  const opp = [
+    { ...skaterZeros, saves: 17, goalsAgainst: 3, shotsAgainst: 20 },
+  ] as unknown as Args[2]
+  const goalie = buildBoxScore(match, bgm, opp).find((g) => g.title === 'Goalie')
+  const savePct = goalie?.rows.find((r) => r.label === 'Save %')
+  assert.deepEqual(savePct, { label: 'Save %', us: '.917', them: '.850' })
 })
