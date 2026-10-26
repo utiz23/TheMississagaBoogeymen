@@ -145,6 +145,8 @@ export function buildSystemPrompt(reporters: Reporter[]): string {
 
 /** How many top facts make "the story" of a piece (spec §12.17-2). */
 export const STORY_FACTS = 5
+/** At most this many background facts after the story (C3a fix M7). */
+export const BACKGROUND_FACTS = 15
 /** How many of the reporter's own last pieces a request shows. */
 export const OWN_RECENT_PIECES = 5
 
@@ -273,7 +275,7 @@ export function storyFacts(
 /** "The story" (top facts) and the background facts of a request. */
 export function storyBlock(story: readonly NewsTopFact[], facts: NewsFacts): string {
   const inStory = new Set(story.map((f) => f.id))
-  const background = facts.topFacts.filter((f) => !inStory.has(f.id))
+  const background = facts.topFacts.filter((f) => !inStory.has(f.id)).slice(0, BACKGROUND_FACTS)
   const lines = ['The story (the top facts for this piece; build on them):']
   if (story.length === 0) lines.push('- (no ranked facts: use the sheet)')
   for (const f of story) lines.push(`- ${f.text}`)

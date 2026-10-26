@@ -13,6 +13,7 @@ import {
   criticizedTonightLine,
   setCriticizedTonight,
   EMPTY_DESK_CONTEXT,
+  BACKGROUND_FACTS,
   DESK_CONTEXT_END,
   DESK_CONTEXT_START,
   buildGameArticleUserPrompt,
@@ -832,4 +833,19 @@ void test('C3a fix M2: reply prompts never carry a blocked jab word', () => {
       assert.ok(!REPLY_JABS.test(line), `${from} -> ${to}: ${line}`)
     }
   }
+})
+
+void test('C3a fix M7: at most 15 background facts after the story', () => {
+  const p = buildArticleUserPrompt({
+    facts: { ...ranked(30), kind: 'night' },
+    reporter: REPORTERS.quill,
+  })
+  const bg = p
+    .slice(p.indexOf('Background facts'))
+    .split('\n')
+    .filter((l) => l.startsWith('- Ranked fact'))
+  assert.equal(bg.length, BACKGROUND_FACTS)
+  assert.equal(BACKGROUND_FACTS, 15)
+  assert.ok(p.includes('Ranked fact 19'))
+  assert.ok(!p.includes('Ranked fact 20'))
 })
