@@ -1769,3 +1769,35 @@ void test('I2: a Discord 429 after the posts of a big game does not lose its art
   assert.ok(articles.every((a) => a.discordStatus === 'posted'))
   assert.equal([...h.items.values()].filter((i) => i.kind === 'article').length, 2)
 })
+
+void test('I3: the game prompt lists only the takes offered to a post, not every due take', async () => {
+  const prompts: string[] = []
+  const h = harness({
+    candidates: [REPLY_GAME],
+    deps: {
+      fetchFacts: async (kind, key) => ({
+        ...gameResponse(Number(key)),
+        // Two due takes with the same critics; a game gives at most one take an angle.
+        takes: [
+          { ...TAKE, critics: [...TAKE.critics] },
+          {
+            ...TAKE,
+            id: 8,
+            playerId: 2,
+            player: 'Skater B',
+            take: 'SECOND INVENTED TAKE.',
+            critics: [...TAKE.critics],
+          },
+        ],
+      }),
+      writer: async (req) => {
+        if (req.purpose === 'write') prompts.push(req.user)
+        return goodWriter(req)
+      },
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(prompts[0]!.includes('Take 7 on Skater A: INVENTED TAKE TEXT'))
+  assert.ok(!prompts[0]!.includes('Take 8'), 'a take no post was offered stays out of the prompt')
+  assert.ok(!prompts[0]!.includes('SECOND INVENTED TAKE'))
+})

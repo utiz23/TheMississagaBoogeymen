@@ -688,7 +688,12 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     const order = posts.map((p) => p.reporter)
     const offered = posts.map((p) => (p.takeId === null ? [] : [p.takeId]))
     const written = await write(jobId, tag, {
-      user: buildGameUserPrompt({ facts, posts, ctx: { ...ctx, takes } }),
+      // Only the takes offered to a post go into the prompt, not every due take (I3).
+      user: buildGameUserPrompt({
+        facts,
+        posts,
+        ctx: { ...ctx, takes: takes.filter((t) => offered.flat().includes(t.id)) },
+      }),
       schema: GAME_POSTS_SCHEMA,
       parse: (v) => parseGamePosts(v, order),
       check: (out) =>
