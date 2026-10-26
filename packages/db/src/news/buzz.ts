@@ -50,7 +50,7 @@ export const BUZZ_WEIGHTS = {
   firstHatTrick: 1,
   firstGoal: 0.5,
   clubDebut: 1,
-  /** A run of 5+ or a slump that ended. */
+  /** A run at a round count (`STREAK_ROUND`: 5, 10, 15, ...) or any run or slump that ended. */
   streak: 0.5,
   milestone: 2,
   milestoneMax: 4,
@@ -68,6 +68,9 @@ export const BUZZ_WEIGHTS = {
   patternBroken: 0.5,
   patternMax: 1,
 } as const
+
+/** A player run adds buzz at every this many games (5, 10, 15, ...). */
+export const STREAK_ROUND = 5
 
 /** 6s weighs more than 3s (spec §12.18-2). */
 export const BUZZ_MODE_FACTOR: Readonly<Record<'3s' | '6s' | 'none', number>> = {
@@ -198,8 +201,10 @@ export function buzzScore(
     if (
       p.streaks.some(
         (s) =>
-          (s.status === 'extended' && s.kind !== 'noGoal' && s.games >= 5) ||
-          (s.status === 'ended' && s.kind === 'noGoal'),
+          // Only at a round count or when it ends (buzz fix 1): a long run is
+          // not news in every game it goes on.
+          (s.status === 'extended' && s.kind !== 'noGoal' && s.games % STREAK_ROUND === 0) ||
+          s.status === 'ended',
       )
     ) {
       w += W.streak

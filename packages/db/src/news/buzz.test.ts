@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   BUZZ_CUTOFFS,
   BUZZ_MODE_FACTOR,
+  BUZZ_WEIGHTS,
   buzzLevel,
   buzzScore,
   expectedPostsPerGame,
@@ -216,4 +217,18 @@ void test('buzz: timeline comeback and late winner; milestones, notes, AI goalie
   })
   // milestone 2 + notes 2 + 2 + steal 2 + shutout 2 + thread 1
   assert.equal(s.score, 11)
+})
+
+void test('buzz fix 1: a player run adds buzz only at a round count (5, 10, 15, ...) or when it ends', () => {
+  const withRun = (
+    games: number,
+    status: 'extended' | 'ended',
+    kind: 'points' | 'goals' | 'noGoal' = 'points',
+  ) => buzzScore(game({ players: [line({ streaks: [{ kind, games, status }] })] }), sheet).score
+  for (const n of [6, 7, 8, 16, 19]) assert.equal(withRun(n, 'extended'), 0, String(n))
+  for (const n of [5, 10, 15, 20])
+    assert.equal(withRun(n, 'extended'), BUZZ_WEIGHTS.streak, String(n))
+  assert.equal(withRun(8, 'ended'), BUZZ_WEIGHTS.streak)
+  assert.equal(withRun(9, 'ended', 'noGoal'), BUZZ_WEIGHTS.streak)
+  assert.equal(withRun(10, 'extended', 'noGoal'), 0) // a slump going on is no buzz
 })
