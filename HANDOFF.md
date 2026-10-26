@@ -46,11 +46,11 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 ## Latest Verified Checkpoint
 
-**Latest web 2026-10-24: gamertag URLs + round nav picture** (`a85e5d0`, `:rollback-he-2026-10-24-pre-round-pfp`). Before: nav drop-downs `d2627da` (`:…-pre-nav-menus`), design imports `6745609` (`:…-2026-10-21-pre-redesigns`). [Journal](docs/journal/2026-10.md).
+**Latest deploy 2026-10-26: club-only badges** (web, worker, discord `06992a2`; rollback `:rollback-he-2026-10-26-pre-club-badges`; card-table dump `~/eanhl-backups/manual/cards-pre-rebase-2026-10-26-1600.dump`). Badges count club games only (dekes, fights, breakaways still from EA); NHL 27 card history reset once with `card-recompute --rebase`; numbers not Roman numerals; Discord skips card level-ups. [Spec](docs/superpowers/specs/2026-10-26-club-only-badges-design.md), [journal](docs/journal/2026-10.md).
 
 **2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean.
 
-**2026-10-09 — responsive sizes, side rail, compact carousel deployed** (`fb40008`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-responsive`). Medium ≤1100 / Small ≤720 / Micro ≤480 tiers for the player, roster and home components; `PlayerCardCompact`; player-page side rail at ≥1680px; Charts & Visuals and Recent Form removed (`4095e49`, rollback `:rollback-he-2026-10-09-pre-no-form`).
+**2026-10-09 — responsive sizes deployed** (`fb40008`, web; rollback `:rollback-he-2026-10-09-pre-responsive`): Medium/Small/Micro tiers, `PlayerCardCompact`, side rail ≥1680px; Charts & Visuals and Recent Form removed (`4095e49`, `:…-pre-no-form`).
 
 **2026-10-08 — Awards + migration 0064** (`d038b36`; rollback `:rollback-he-2026-10-08-pre-awards`; 0064 rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`). [Journal](docs/journal/2026-10.md).
 
