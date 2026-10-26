@@ -24,6 +24,8 @@ export const PRESS_ANSWER_MS = 900_000
 export const PRESS_OPEN_MS = 3_600_000
 /** A late-night scrum waits this long before the first ping. */
 export const PRESS_NIGHT_WAIT_MS = 1_800_000
+/** A GM-requested person waits this long before the ping: the GM may still correct or cancel the note. */
+export const PRESS_GM_PING_DELAY_MS = 60_000
 /** Pings sent to one player for one scrum. */
 export const PRESS_PING_LIMIT = 2
 /** Scrum commands one member may use in a row. */

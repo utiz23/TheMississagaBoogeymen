@@ -56,7 +56,8 @@ const {
   scrumForMatchQuery,
   getGmNoteQuery,
   updateGmNoteQuery,
-  countGmAsksTonightSql,
+  countGmPingsTonightSql,
+  expireUnpingedGmPersonQuery,
 } = await import('../news-press.js')
 const { nightCriticizedSql } = await import('../news.js')
 const dialect = new PgDialect()
@@ -537,13 +538,29 @@ void test('GM note by id, and its update only while not cancelled', () => {
   assert.deepEqual(u.params, [3, 'refused', 'out', 7, 'cancelled'])
 })
 
-void test("GM asks tonight: the player's active notes that ask, per night, same test rule", () => {
-  const q = dialect.sqlToQuery(countGmAsksTonightSql(5, '2026-10-25', false))
+void test("GM pings tonight: the player's GM-requested scrum people that night, never one expired before its ping", () => {
+  const q = dialect.sqlToQuery(countGmPingsTonightSql(5, '2026-10-25', false))
   const s = flat(q.sql)
-  assert.match(s, /select count\(\*\)::int as n from news_gm_notes g/)
   assert.match(
     s,
-    /g\.player_id = \$1 and g\.night = \$2::date and g\.asks_player and g\.status = 'active' and \(g\.is_test = false or \$3\)/,
+    /select count\(\*\)::int as n from news_scrum_people p join news_scrums s on s\.id = p\.scrum_id/,
   )
+  assert.match(
+    s,
+    /p\.requested_by = 'gm' and p\.player_id = \$1 and s\.night = \$2::date and \(s\.is_test = false or \$3\)/,
+  )
+  assert.match(s, /and not \(p\.status = 'expired' and p\.pinged_at is null\)/)
   assert.deepEqual(q.params, [5, '2026-10-25', false])
+})
+
+void test('expire unpinged GM person: only a GM-requested person still waiting for the ping', () => {
+  const q = expireUnpingedGmPersonQuery(4, 7).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /^update "news_scrum_people" set "status" = \$1/)
+  assert.match(
+    s,
+    /"news_scrum_people"."scrum_id" = \$2 and "news_scrum_people"."player_id" = \$3 and "news_scrum_people"."requested_by" = \$4 and "news_scrum_people"."status" = \$5 and "news_scrum_people"."pinged_at" is null/,
+  )
+  assert.match(s, /returning/)
+  assert.deepEqual(q.params, ['expired', 4, 7, 'gm', 'pinged'])
 })

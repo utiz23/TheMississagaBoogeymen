@@ -29,6 +29,7 @@ import { scrumMention, threadLine } from './question.ts'
 import {
   PRESS_ACCEPT_MS,
   PRESS_ANSWER_MS,
+  PRESS_GM_PING_DELAY_MS,
   PRESS_OPEN_MS,
   PRESS_PING_LIMIT,
   chooseScrumReporter,
@@ -119,7 +120,9 @@ export interface PressStore {
   updateGmNote(id: number, patch: GmNoteUpdate): Promise<boolean>
   upsertAlias(alias: string, playerId: number): Promise<void>
   scrumForMatch(matchId: number, isTest: boolean): Promise<NewsScrumRow | null>
-  countGmAsksTonight(playerId: number, night: string, includeTest: boolean): Promise<number>
+  countGmPingsTonight(playerId: number, night: string, includeTest: boolean): Promise<number>
+  /** False when there was no waiting GM person (none, or already pinged). */
+  expireUnpingedGmPerson(scrumId: number, playerId: number): Promise<boolean>
   setHeat(heat: Heat, scope: 'next' | 'night', night: string | null): Promise<void>
 }
 
@@ -351,7 +354,10 @@ export async function runPressPass(
 
   // ── 4. Pings: claim, then reply under the scrum message ───────────────────
   await step('pings', async () => {
+    const gmReadyBefore = deps.now().getTime() - PRESS_GM_PING_DELAY_MS
     for (const p of await store.listPeopleToPing()) {
+      // A GM ping waits a minute: the GM may still correct or cancel the note.
+      if (p.requestedBy === 'gm' && p.createdAt.getTime() > gmReadyBefore) continue
       if (!(await store.claimPing(p.id))) continue
       try {
         const scrum = p.scrum

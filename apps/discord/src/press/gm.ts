@@ -1,5 +1,5 @@
 import { nightKey, type NewsFacts, type NewsGameFacts } from '@eanhl/db/news'
-import type { NewNewsGmNote, PressRosterEntry } from '@eanhl/db/queries'
+import type { NewNewsGmNote, NewsGmNoteRow, PressRosterEntry } from '@eanhl/db/queries'
 import { escapeMarkdown } from '../message.ts'
 import { fencedAnswer } from '../news/prompts.ts'
 import type { PressConfig } from './config.ts'
@@ -61,6 +61,7 @@ const TEXT = {
   cancelledAlready: 'That note is cancelled.',
   cancelled: 'Note cancelled.',
   notOnRoster: 'That player is not on the roster.',
+  earlierNight: 'That note is from an earlier night.',
 } as const
 
 const say = (text: string): Reply => ({ kind: 'ephemeral', text })
@@ -69,6 +70,8 @@ const HEAT_NAMES: Record<Heat, string> = { cool: 'Cool', normal: 'Normal', hot: 
 
 const outText = (name: string): string =>
   `${escapeMarkdown(name)} is on Leave me out — note not used.`
+const easyNoAiText = (name: string): string =>
+  `${escapeMarkdown(name)} is on Go easy — without the AI check the note is not used.`
 const easyText = (name: string): string =>
   `${escapeMarkdown(name)} is on Go easy — a critical note is not used.`
 
@@ -177,7 +180,8 @@ function outPlayerNamed(
 }
 
 /**
- * The player: the model's nickname on the nickname list → a nickname in the
+ * The player (the model's nickname only when it stands as a word in the
+ * note): the model's nickname on the nickname list → a nickname in the
  * note → the model's nickname as a profile name or gamertag → a profile name
  * or gamertag in the note → the model's `playerName`, only when it is a
  * roster player. Null when none.
@@ -187,7 +191,8 @@ function resolvePlayer(
   roster: readonly PressRosterEntry[],
   parsed: NoteParse | null,
 ): PressRosterEntry | null {
-  const nick = parsed?.nickname ?? ''
+  // The model's nickname counts only when the note really uses it.
+  const nick = parsed !== null && wordAt(text, parsed.nickname) >= 0 ? parsed.nickname : ''
   const byKey = (keys: (r: PressRosterEntry) => string[], value: string) =>
     value === '' ? undefined : roster.find((r) => keys(r).some((k) => same(k, value)))
   return (
@@ -200,19 +205,62 @@ function resolvePlayer(
   )
 }
 
-/** The refusal text when fairness forbids the note for this player, else null. */
+/**
+ * The refusal text when fairness forbids the note for this player, else null.
+ * `analysed` = false: no AI parse (budget or failure), so a "Go easy" note
+ * cannot be checked for criticism and is not used.
+ */
 function fairness(
   text: string,
   roster: readonly PressRosterEntry[],
   player: PressRosterEntry | null,
   critical: boolean,
+  analysed: boolean,
 ): { player: PressRosterEntry; refusal: string } | null {
   const named = outPlayerNamed(text, roster)
   if (named !== null) return { player: named, refusal: outText(named.name) }
   if (player === null) return null
   if (player.pressLevel === 'out') return { player, refusal: outText(player.name) }
   if (player.pressLevel === 'easy' && critical) return { player, refusal: easyText(player.name) }
+  if (player.pressLevel === 'easy' && !analysed) {
+    return { player, refusal: easyNoAiText(player.name) }
+  }
   return null
+}
+
+/** Nicknames never saved: pronouns and filler words. */
+const STOP_WORDS = new Set([
+  'him',
+  'he',
+  'his',
+  'her',
+  'she',
+  'they',
+  'them',
+  'the',
+  'our',
+  'a',
+  'an',
+  'it',
+  'd',
+  'guy',
+])
+
+/**
+ * May a correction save `nickname` for `playerId`? Only a word of 2+
+ * characters that stands in the note, is no stop word, and is not already
+ * another player's nickname, profile name or gamertag.
+ */
+function saveableNickname(
+  nickname: string,
+  note: string,
+  roster: readonly PressRosterEntry[],
+  playerId: number,
+): boolean {
+  const key = nickname.trim().toLowerCase()
+  if (Array.from(key).length < 2 || STOP_WORDS.has(key)) return false
+  if (wordAt(note, key) < 0) return false
+  return !roster.some((r) => r.playerId !== playerId && allKeysOf(r).some((k) => same(k, key)))
 }
 
 function notePrompt(note: string, games: NewsGameFacts[], roster: PressRosterEntry[]): string {
@@ -293,6 +341,21 @@ async function joinScrum(
   })
 }
 
+/**
+ * The note's player leaves its scrum (corrected or cancelled): the GM person
+ * the note added is expired while its ping is not sent (the pass waits
+ * `PRESS_GM_PING_DELAY_MS`). A ping already sent stays.
+ */
+async function dropGmPerson(
+  deps: PressDeps,
+  note: NewsGmNoteRow,
+  playerId: number | null,
+): Promise<void> {
+  if (!note.asksPlayer || playerId === null || note.matchId === null) return
+  const scrum = await deps.store.scrumForMatch(note.matchId, note.isTest)
+  if (scrum !== null) await deps.store.expireUnpingedGmPerson(scrum.id, playerId)
+}
+
 /** The night a note attaches to: the newest counted game's within 6 h, or null. */
 async function noteNight(deps: PressDeps): Promise<string | null> {
   return deps.store.latestPressNight(new Date(deps.now().getTime() - SCRUM_SOURCE_WINDOW_MS))
@@ -359,7 +422,7 @@ export async function onGmNote(
       ? parsed.gameNumber
       : games.length)
   const game = games[number - 1]!
-  const refused = fairness(note, roster, player, critical)
+  const refused = fairness(note, roster, player, critical, parsed !== null)
 
   const values: NewNewsGmNote = {
     matchId: game.matchId,
@@ -381,7 +444,7 @@ export async function onGmNote(
   let pings = 0
   if (player !== null && asks) {
     await joinScrum(deps, config, userId, game, res.facts, player.playerId)
-    pings = await store.countGmAsksTonight(player.playerId, night, isTest)
+    pings = await store.countGmPingsTonight(player.playerId, night, isTest)
   }
   const line = gotIt({
     name: player?.name ?? null,
@@ -410,20 +473,26 @@ export async function onGmNoteCorrect(
   if (userId !== config.gmUserId) return say(TEXT.gmOnly)
   const note = await store.getGmNote(noteId)
   if (note === null) return say(TEXT.notFound)
+  if (note.night !== (await noteNight(deps))) return say(TEXT.earlierNight)
   if (note.status === 'cancelled') return say(TEXT.cancelledAlready)
   const roster = await store.listPressRoster()
   const player = roster.find((r) => r.playerId === playerId)
   if (player === undefined) return say(TEXT.notOnRoster)
 
-  const refused = fairness(note.note, roster, player, note.critical)
+  const before = note.playerId
+  // Whether the note was analysed is not stored: its critical flag stands.
+  const refused = fairness(note.note, roster, player, note.critical, true)
   const ok = await store.updateGmNote(noteId, {
     playerId,
     status: refused === null ? 'active' : 'refused',
     refusal: refused?.refusal ?? null,
   })
   if (!ok) return say(TEXT.cancelledAlready)
+  if (before !== playerId) await dropGmPerson(deps, note, before)
   const nickname = note.nickname?.trim() ?? ''
-  if (nickname !== '') await store.upsertAlias(nickname, playerId)
+  if (saveableNickname(nickname, note.note, roster, playerId)) {
+    await store.upsertAlias(nickname, playerId)
+  }
   if (refused !== null) return say(refused.refusal)
 
   const res = await deps.fetchFacts('night', note.night)
@@ -433,7 +502,7 @@ export async function onGmNoteCorrect(
   let pings = 0
   if (note.asksPlayer) {
     if (game !== undefined) await joinScrum(deps, config, userId, game, res.facts, playerId)
-    pings = await store.countGmAsksTonight(playerId, note.night, note.isTest)
+    pings = await store.countGmPingsTonight(playerId, note.night, note.isTest)
   }
   if (game === undefined) return say(`Got it: ${escapeMarkdown(player.name)}.`)
   return say(
@@ -457,8 +526,12 @@ export async function onGmNoteCancel(
   if (userId !== config.gmUserId) return say(TEXT.gmOnly)
   const note = await deps.store.getGmNote(noteId)
   if (note === null) return say(TEXT.notFound)
+  if (note.night !== (await noteNight(deps))) return say(TEXT.earlierNight)
   if (note.status === 'cancelled') return say(TEXT.cancelledAlready)
-  await deps.store.updateGmNote(noteId, { status: 'cancelled' })
+  if (!(await deps.store.updateGmNote(noteId, { status: 'cancelled' }))) {
+    return say(TEXT.cancelledAlready)
+  }
+  await dropGmPerson(deps, note, note.playerId)
   return say(TEXT.cancelled)
 }
 

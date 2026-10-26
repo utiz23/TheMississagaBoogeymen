@@ -259,7 +259,7 @@ export class FakeStore implements PressStore {
       askingFollowup: v.askingFollowup ?? false,
       currentQuestion: v.currentQuestion ?? null,
       lastAskedAt: v.lastAskedAt ?? null,
-      createdAt: NOW,
+      createdAt: v.createdAt ?? NOW,
     })
     return Promise.resolve(id)
   }
@@ -493,7 +493,11 @@ export class FakeStore implements PressStore {
     })
     return Promise.resolve(id)
   }
-  getGmNote = (id: number) => Promise.resolve(this.noteRows.find((n) => n.id === id) ?? null)
+  getGmNote = (id: number) => {
+    // A copy, like a database read.
+    const n = this.noteRows.find((x) => x.id === id)
+    return Promise.resolve(n === undefined ? null : { ...n })
+  }
   updateGmNote = (id: number, patch: GmNoteUpdate) => {
     if (Object.keys(patch).length === 0) throw new Error('No values to set')
     const n = this.noteRows.find((x) => x.id === id)
@@ -511,17 +515,32 @@ export class FakeStore implements PressStore {
     Promise.resolve(
       this.scrums.filter((s) => s.matchId === matchId && s.isTest === isTest).at(-1) ?? null,
     )
-  countGmAsksTonight = (playerId: number, night: string, includeTest: boolean) =>
+  countGmPingsTonight = (playerId: number, night: string, includeTest: boolean) =>
     Promise.resolve(
-      this.noteRows.filter(
-        (n) =>
-          n.playerId === playerId &&
-          n.night === night &&
-          n.asksPlayer &&
-          n.status === 'active' &&
-          (!n.isTest || includeTest),
-      ).length,
+      this.people.filter((p) => {
+        const s = this.scrumOf(p)
+        return (
+          p.requestedBy === 'gm' &&
+          p.playerId === playerId &&
+          s.night === night &&
+          (!s.isTest || includeTest) &&
+          !(p.status === 'expired' && p.pingedAt === null)
+        )
+      }).length,
     )
+  expireUnpingedGmPerson = (scrumId: number, playerId: number) => {
+    const p = this.people.find(
+      (x) =>
+        x.scrumId === scrumId &&
+        x.playerId === playerId &&
+        x.requestedBy === 'gm' &&
+        x.status === 'pinged' &&
+        x.pingedAt === null,
+    )
+    if (!p) return Promise.resolve(false)
+    p.status = 'expired'
+    return Promise.resolve(true)
+  }
   setHeat = (heat: 'cool' | 'normal' | 'hot', scope: 'next' | 'night', night: string | null) => {
     this.heatCalls.push({ heat, scope, night })
     this.settings = {

@@ -745,22 +745,50 @@ export async function updateGmNote(id: number, patch: GmNoteUpdate): Promise<boo
   return (await updateGmNoteQuery(id, patch)).length > 0
 }
 
-/** The player's active GM notes that ask them to talk, that night. Test notes only when `includeTest`. */
-export function countGmAsksTonightSql(playerId: number, night: string, includeTest: boolean): SQL {
+/**
+ * The player's GM-requested scrum people that night (each one a GM ping, sent
+ * or due). A person expired before its ping (the GM corrected or cancelled the
+ * note) does not count. Test scrums only when `includeTest`.
+ */
+export function countGmPingsTonightSql(playerId: number, night: string, includeTest: boolean): SQL {
   return sql`
     select count(*)::int as n
-    from news_gm_notes g
-    where g.player_id = ${playerId} and g.night = ${night}::date and g.asks_player
-      and g.status = 'active' and (g.is_test = false or ${includeTest})`
+    from news_scrum_people p
+    join news_scrums s on s.id = p.scrum_id
+    where p.requested_by = 'gm' and p.player_id = ${playerId} and s.night = ${night}::date
+      and (s.is_test = false or ${includeTest})
+      and not (p.status = 'expired' and p.pinged_at is null)`
 }
 
-export async function countGmAsksTonight(
+export async function countGmPingsTonight(
   playerId: number,
   night: string,
   includeTest: boolean,
 ): Promise<number> {
-  const rows = await db.execute<{ n: number }>(countGmAsksTonightSql(playerId, night, includeTest))
+  const rows = await db.execute<{ n: number }>(countGmPingsTonightSql(playerId, night, includeTest))
   return Number(rows[0]?.n ?? 0)
+}
+
+/** Expire the GM-requested person of this player in the scrum while the ping is not sent yet. */
+export function expireUnpingedGmPersonQuery(scrumId: number, playerId: number) {
+  return db
+    .update(newsScrumPeople)
+    .set({ status: 'expired' })
+    .where(
+      and(
+        eq(newsScrumPeople.scrumId, scrumId),
+        eq(newsScrumPeople.playerId, playerId),
+        eq(newsScrumPeople.requestedBy, 'gm'),
+        eq(newsScrumPeople.status, 'pinged'),
+        isNull(newsScrumPeople.pingedAt),
+      ),
+    )
+    .returning({ id: newsScrumPeople.id })
+}
+
+/** True when a waiting GM person was expired; false when none (or already pinged). */
+export async function expireUnpingedGmPerson(scrumId: number, playerId: number): Promise<boolean> {
+  return (await expireUnpingedGmPersonQuery(scrumId, playerId)).length > 0
 }
 
 /**

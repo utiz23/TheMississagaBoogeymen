@@ -95,7 +95,33 @@ void test('a GM note that asks a player pings them on a quiet game, requested by
   assert.equal(t.store.people.length, 1)
   assert.equal(t.store.people[0]!.playerId, 2)
   assert.equal(t.store.people[0]!.requestedBy, 'gm')
+  // A GM ping waits a minute (the GM may still correct the note).
+  assert.equal(pings(t.sent).length, 0)
+  t.deps.now = () => new Date(NOW.getTime() + 61_000)
+  await runPressPass(t.deps, config('live'))
   assert.equal(pings(t.sent)[0]!.msg.allowed_mentions.users?.[0], USER_B)
+})
+
+void test('a GM-requested person is pinged only once 60 s old', async () => {
+  const t = setup()
+  liveRecap(t.store)
+  await runPressPass(t.deps, config('live')) // a quiet game: a scrum, nobody pinged
+  await t.store.insertScrumPerson({
+    scrumId: 1,
+    playerId: 1,
+    discordUserId: USER_A,
+    role: 'picked',
+    requestedBy: 'gm',
+    requestedByUserId: GM,
+    createdAt: new Date(NOW.getTime() - 30_000),
+  })
+  await runPressPass(t.deps, config('live'))
+  assert.equal(pings(t.sent).length, 0)
+  assert.equal(t.store.people[0]!.pingedAt, null)
+  t.store.people[0]!.createdAt = new Date(NOW.getTime() - 61_000)
+  await runPressPass(t.deps, config('live'))
+  assert.equal(pings(t.sent).length, 1)
+  assert.equal(pings(t.sent)[0]!.msg.allowed_mentions.users?.[0], USER_A)
 })
 
 void test('trial: the scrum hangs on the mirror, is test, and the ping goes to the GM with "test — would ping"', async () => {
