@@ -72,6 +72,8 @@ const outText = (name: string): string =>
   `${escapeMarkdown(name)} is on Leave me out — note not used.`
 const easyNoAiText = (name: string): string =>
   `${escapeMarkdown(name)} is on Go easy — without the AI check the note is not used.`
+const easyCorrectedText = (name: string): string =>
+  `${escapeMarkdown(name)} is on Go easy — a corrected note is not used.`
 const easyText = (name: string): string =>
   `${escapeMarkdown(name)} is on Go easy — a critical note is not used.`
 
@@ -480,8 +482,11 @@ export async function onGmNoteCorrect(
   if (player === undefined) return say(TEXT.notOnRoster)
 
   const before = note.playerId
-  // Whether the note was analysed is not stored: its critical flag stands.
-  const refused = fairness(note.note, roster, player, note.critical, true)
+  // "Leave me out" first, like a new note. Whether the note was analysed is
+  // not stored, so a note moved to a "Go easy" player fails closed.
+  const refused =
+    fairness(note.note, roster, player, false, true) ??
+    (player.pressLevel === 'easy' ? { player, refusal: easyCorrectedText(player.name) } : null)
   const ok = await store.updateGmNote(noteId, {
     playerId,
     status: refused === null ? 'active' : 'refused',
@@ -489,11 +494,12 @@ export async function onGmNoteCorrect(
   })
   if (!ok) return say(TEXT.cancelledAlready)
   if (before !== playerId) await dropGmPerson(deps, note, before)
+  // A refused correction does nothing else: no nickname, no scrum person.
+  if (refused !== null) return say(refused.refusal)
   const nickname = note.nickname?.trim() ?? ''
   if (saveableNickname(nickname, note.note, roster, playerId)) {
     await store.upsertAlias(nickname, playerId)
   }
-  if (refused !== null) return say(refused.refusal)
 
   const res = await deps.fetchFacts('night', note.night)
   const games = nightGames(res.facts)

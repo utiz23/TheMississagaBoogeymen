@@ -389,16 +389,35 @@ void test('theme notes are kept for later; a correction saves the nickname in lo
   )
 })
 
+const EASY_CORRECTED = 'Skater B is on Go easy — a corrected note is not used.'
+
+void test("a correction to a 'Go easy' player: refused, no scrum person, no nickname", async () => {
+  for (const critical of [true, false]) {
+    const t = gmSetup(parse({ nickname: 'the kid', critical, asksPlayer: true }))
+    scrumOn(t)
+    const r = await onGmNote(
+      t.deps,
+      config('live'),
+      GM,
+      'the kid had a bad giveaway, ask him',
+      null,
+    )
+    assert.equal(t.store.noteRows[0]!.playerId, null)
+    const fixed = await onGmNoteCorrect(t.deps, config('live'), GM, r.noteId!, 2)
+    assert.deepEqual(fixed, ephemeral(EASY_CORRECTED))
+    assert.equal(t.store.noteRows[0]!.status, 'refused')
+    assert.equal(t.store.noteRows[0]!.refusal, EASY_CORRECTED)
+    assert.equal(t.store.noteRows[0]!.playerId, 2)
+    assert.equal(t.store.people.length, 0)
+    assert.deepEqual(t.store.roster.find((x) => x.playerId === 2)!.aliases, [])
+  }
+})
+
 void test('a correction re-checks fairness', async () => {
   const t = gmSetup(parse({ nickname: 'the kid', critical: true }))
   const r = await onGmNote(t.deps, config('live'), GM, 'the kid had a bad giveaway', null)
-  assert.equal(t.store.noteRows[0]!.playerId, null)
-  const fixed = await onGmNoteCorrect(t.deps, config('live'), GM, r.noteId!, 2)
-  assert.deepEqual(fixed, ephemeral('Skater B is on Go easy — a critical note is not used.'))
+  await onGmNoteCorrect(t.deps, config('live'), GM, r.noteId!, 2)
   assert.equal(t.store.noteRows[0]!.status, 'refused')
-  assert.equal(t.store.noteRows[0]!.playerId, 2)
-  // The nickname still points at the player.
-  assert.deepEqual(t.store.roster.find((x) => x.playerId === 2)!.aliases, ['the kid'])
   // Back to a full-press player: active again.
   await onGmNoteCorrect(t.deps, config('live'), GM, r.noteId!, 1)
   assert.equal(t.store.noteRows[0]!.status, 'active')
@@ -410,6 +429,8 @@ void test("a correction to a 'Leave me out' player or of a note naming one is re
   const r = await onGmNote(t.deps, config('live'), GM, 'Skater A was great', null)
   const out = await onGmNoteCorrect(t.deps, config('live'), GM, r.noteId!, 4)
   assert.deepEqual(out, ephemeral('Hidden Hank is on Leave me out — note not used.'))
+  // Refused like a new note: no nickname saved.
+  assert.deepEqual(t.store.roster.find((x) => x.playerId === 4)!.aliases, [])
   assert.equal(t.store.noteRows[0]!.status, 'refused')
   // A note that names a "Leave me out" player never becomes active again.
   t.store.noteRows[0]!.note = 'Skater A set up hankhides'
@@ -574,18 +595,19 @@ void test("a correction never takes another player's nickname, profile name or g
 })
 
 void test('a correction saves a fitting nickname', async () => {
-  const ok = await correctWith('Beavo', 'Beavo made a play', 2)
-  assert.deepEqual(aliasesOf(ok.t, 2), ['beavo'])
+  const ok = await correctWith('Beavo', 'Beavo made a play', 3)
+  assert.deepEqual(aliasesOf(ok.t, 3), ['beavo'])
 })
 
 void test('correct within the ping delay: the wrong person is expired, the right one added', async () => {
   const t = gmSetup(parse({ nickname: 'Skater A', asksPlayer: true }))
   scrumOn(t)
+  t.store.discordIds.set(3, '200000000000000003')
   const r = await onGmNote(t.deps, config('live'), GM, 'Skater A, ask him', null)
   assert.equal(t.store.people[0]!.playerId, 1)
-  await onGmNoteCorrect(t.deps, config('live'), GM, r.noteId!, 2)
+  await onGmNoteCorrect(t.deps, config('live'), GM, r.noteId!, 3)
   assert.equal(t.store.people[0]!.status, 'expired')
-  const added = t.store.people.find((p) => p.playerId === 2)!
+  const added = t.store.people.find((p) => p.playerId === 3)!
   assert.equal(added.requestedBy, 'gm')
   assert.equal(added.status, 'pinged')
 })
