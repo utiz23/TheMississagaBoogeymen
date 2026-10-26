@@ -58,7 +58,7 @@ export function capFactsForPrompt(facts: NewsFacts): NewsFacts {
  * The sheet JSON of a request. The ranked facts are not in it: they come as
  * "the story" and the background lines (C3a.3), so the prompt stays short.
  */
-function sheet(facts: NewsFacts): string {
+export function sheet(facts: NewsFacts): string {
   return stableStringify({ ...capFactsForPrompt(facts), topFacts: [] })
 }
 
@@ -126,6 +126,11 @@ export const SYSTEM_RULES: readonly string[] = [
   '37. Write as the reporter you are told to write as. Keep the voice of the reporter.',
 ]
 
+/** One reporter's voice as the system prompt shows it (also the scrum asker's). */
+export function reporterVoice(r: Reporter): string {
+  return `${r.name} (id "${r.id}"), ${r.outlet}\n${r.voice}`
+}
+
 /** Stable text (cached by the API): the desk's purpose, the rules, then each reporter's voice. */
 export function buildSystemPrompt(reporters: Reporter[]): string {
   const rules = [
@@ -134,9 +139,7 @@ export function buildSystemPrompt(reporters: Reporter[]): string {
     ...SYSTEM_RULES,
   ].join('\n\n')
 
-  const voices = reporters
-    .map((r) => `${r.name} (id "${r.id}"), ${r.outlet}\n${r.voice}`)
-    .join('\n\n---\n\n')
+  const voices = reporters.map(reporterVoice).join('\n\n---\n\n')
 
   return `${rules}\n\nTHE REPORTERS\n\n${voices}`
 }
@@ -601,6 +604,38 @@ export function buildRewritePrompt(user: string, problems: readonly string[]): s
   return `${user}\n\nYour previous attempt was rejected for these problems. Write it again and fix all of them:\n${problems.map((p) => `- ${p}`).join('\n')}`
 }
 
+/**
+ * What the desk knows to be true beyond the sheet (news desk bots): GM notes
+ * (events the desk saw) and the players' scrum answers. A joke answer may be
+ * quoted as a joke, never stated as fact; unusable answers are never listed.
+ */
+export interface TrustedMaterial {
+  gmNotes: readonly string[]
+  answers: readonly {
+    player: string
+    question: string
+    answer: string
+    usability: 'usable' | 'joke'
+  }[]
+}
+
+/** The review's lines for trusted material: the notes as true events, then the answers. */
+function trustedLines(trusted: TrustedMaterial): string[] {
+  return [
+    trusted.gmNotes.length === 0
+      ? 'The desk has no notes on these games.'
+      : 'Notes of the desk (true events the desk saw; the text may state them as facts, and they are not invented events):',
+    ...trusted.gmNotes.map((n) => `- ${n}`),
+    trusted.answers.length === 0
+      ? 'No player answered a question: every teammate quote is invented.'
+      : "Players' answers to the desk's questions (the only teammate quotes allowed):",
+    ...trusted.answers.map(
+      (a) =>
+        `- ${a.player}, asked "${a.question}", answered: "${a.answer}"${a.usability === 'joke' ? ' (a JOKE: never state it as fact)' : ''}`,
+    ),
+  ]
+}
+
 export function buildReviewPrompt(args: {
   facts: NewsFacts
   text: string
@@ -608,7 +643,10 @@ export function buildReviewPrompt(args: {
   criticized: readonly string[]
   /** The reporter takes the piece was offered (C3a.10). */
   takes?: readonly NewsTake[]
+  /** GM notes and scrum answers the text may use (news desk bots); none when absent. */
+  trusted?: TrustedMaterial
 }): string {
+  const trusted = args.trusted
   const listed = args.criticized.length === 0 ? 'nobody' : args.criticized.join(', ')
   const takes = args.takes ?? []
   const takeLines =
@@ -637,9 +675,12 @@ export function buildReviewPrompt(args: {
     '',
     `The writer listed these people as criticised harshly: ${listed}.`,
     ...takeLines,
+    ...(trusted === undefined ? [] : trustedLines(trusted)),
     '',
     'Find these problems:',
-    '1. An invented quote from a teammate or an opponent. (A fictional reporter quoting another reporter is fine, also second-hand.)',
+    trusted === undefined
+      ? '1. An invented quote from a teammate or an opponent. (A fictional reporter quoting another reporter is fine, also second-hand.)'
+      : "1. A teammate quote not backed by the listed answers, or one that adds to or changes an answer's meaning; a joke answer stated as fact. An invented quote from an opponent. (A fictional reporter quoting another reporter is fine, also second-hand.)",
     '2. An invented event: a shot off the post, a save, a pass, a line change, a mood or argument in the room, any play-by-play that the sheet does not support. Opinion that follows from the stats is fine. Facts from a game\'s "goals" timeline are allowed: the period and clock of a goal, who scored it for the Boogeymen, who assisted, and that an opponent scored. How a goal was scored is not on the sheet.',
     '3. Personal criticism: anything about real life, looks, family, work, health or the person instead of their hockey. Also: harsh criticism of a player whose pressLevel is "easy". The AI goalies (Matteo Lehmann, Jonas Wagner) may be praised or blamed for their numbers; calling one a teammate or a club member is a problem.',
     `4. A person named in the text who is not in the sheet's people[].name list, not a record holder in "records", not an AI goalie on the sheet, and not one of the desk's reporters (${REPORTER_IDS.map((id) => REPORTERS[id].name).join(', ')}). Opponent players, guests and real-life names are problems.`,
@@ -652,6 +693,9 @@ export function buildReviewPrompt(args: {
     '11. A reporter take used unfairly: voiced by a reporter who is not one of its critics, quoted as a note or revealed as one, two "weaker player" takes in one piece, a take about anything but hockey, or a take marked MILD that is not mild. A grudge against a player without an offered take.',
     '12. Language: any swearing by a reporter other than Dex Mercer, Gord Pettibone or Rico Vale; more than mild swearing (hell, damn, crap) by anyone; any slur; any swearing aimed at a person.',
     "13. A reply that argues with the other reporter's motives, clicks, jealousy, timing or career instead of a number from the sheet.",
+    ...(trusted === undefined
+      ? []
+      : ['14. The text says or hints that a note came from a tip, a source or the GM.']),
     '',
     'Answer ok = true when you find none of them. Otherwise answer ok = false and list each problem in one short sentence in "problems", naming the words that cause it.',
   ].join('\n')

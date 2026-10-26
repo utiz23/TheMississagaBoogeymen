@@ -174,28 +174,52 @@ export function allowedNumbers(facts: NewsFacts): Set<number> {
   return out
 }
 
-function numberProblems(text: string, allowed: Set<number>): string[] {
-  const problems: string[] = []
+/** The numbers a text states: digit runs first, then number words (compounds before single words). */
+function numberMentions(text: string): { shown: string; value: number; word: boolean }[] {
+  const out: { shown: string; value: number; word: boolean }[] = []
   for (const m of text.matchAll(DIGIT_RUN)) {
-    const n = parseDigits(m[0])
-    if (!allowed.has(n)) problems.push(`The number ${m[0]} is not on the fact sheet.`)
+    out.push({ shown: m[0], value: parseDigits(m[0]), word: false })
   }
   // Number words. Compounds first ("twenty-five"), then single words in what is left.
   const rest = text.replace(COMPOUND_WORD, (whole, tens: string, ones: string) => {
-    const n = UNIT_WORDS[tens.toLowerCase()]! + UNIT_WORDS[ones.toLowerCase()]!
-    if (!allowed.has(n))
-      problems.push(`The number "${whole}" (${String(n)}) is not on the fact sheet.`)
+    const value = UNIT_WORDS[tens.toLowerCase()]! + UNIT_WORDS[ones.toLowerCase()]!
+    out.push({ shown: whole, value, word: true })
     return ' '
   })
   for (const m of rest.matchAll(SINGLE_WORD)) {
-    const n = UNIT_WORDS[m[0].toLowerCase()]!
-    if (!allowed.has(n))
-      problems.push(`The number "${m[0]}" (${String(n)}) is not on the fact sheet.`)
+    out.push({ shown: m[0], value: UNIT_WORDS[m[0].toLowerCase()]!, word: true })
   }
+  return out
+}
+
+function numberProblems(text: string, allowed: Set<number>): string[] {
+  const problems = numberMentions(text)
+    .filter((m) => !allowed.has(m.value))
+    .map((m) =>
+      m.word
+        ? `The number "${m.shown}" (${String(m.value)}) is not on the fact sheet.`
+        : `The number ${m.shown} is not on the fact sheet.`,
+    )
   return [...new Set(problems)]
 }
 
-function containsName(haystack: string, name: string): boolean {
+/** Every number a trusted text states (a GM note, a player's answer), digits and words. */
+export function numbersIn(text: string): Set<number> {
+  return new Set(numberMentions(text).map((m) => m.value))
+}
+
+/**
+ * The number rules of a short text that is not a piece (a scrum question):
+ * a game clock must be a goal clock on the sheet, every other number must be
+ * in `allowed`. Sheet names are masked first, so digits in a name never count.
+ */
+export function textNumberProblems(text: string, facts: NewsFacts, allowed: Set<number>): string[] {
+  const clocks = clockProblems(withoutSheetNames(text, facts), facts)
+  return [...clocks.problems, ...numberProblems(clocks.rest, allowed)]
+}
+
+/** Whether `haystack` names `name` as a whole word, case ignored (collapse the haystack's spacing first). */
+export function containsName(haystack: string, name: string): boolean {
   const n = collapse(name)
   if (n === '') return false
   const re = new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegExp(n)}(?![\\p{L}\\p{N}_])`, 'iu')

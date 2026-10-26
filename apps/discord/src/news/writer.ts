@@ -1,7 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { NewsFacts, NewsTake } from '@eanhl/db/news'
 import type { Usage } from './cost.ts'
-import { REVIEW_SYSTEM_PROMPT, buildReviewPrompt, buildRewritePrompt } from './prompts.ts'
+import {
+  REVIEW_SYSTEM_PROMPT,
+  buildReviewPrompt,
+  buildRewritePrompt,
+  type TrustedMaterial,
+} from './prompts.ts'
 import { REVIEW_SCHEMA, parseReview } from './outputs.ts'
 import { redactTakes } from './redact.ts'
 
@@ -132,12 +137,20 @@ export async function writeChecked<T>(args: {
   criticizedForReview?: (out: T) => string[]
   /** The reporter takes the piece was offered (shown to the review, C3a.10). */
   takesForReview?: readonly NewsTake[]
+  /**
+   * GM notes and scrum answers the text may use (shown to the review). A
+   * function gets the output, when what is trusted depends on it.
+   */
+  trusted?: TrustedMaterial | ((out: T) => TrustedMaterial)
+  /** Writes in all (the first write plus rewrites); `MAX_WRITES` when absent. */
+  maxWrites?: number
   facts: NewsFacts
   record: (purpose: 'write' | 'review', model: string, usage: Usage) => Promise<void>
 }): Promise<{ ok: true; out: T } | { ok: false; reason: string }> {
   let problems: string[] = []
+  const maxWrites = args.maxWrites ?? MAX_WRITES
 
-  for (let attempt = 0; attempt < MAX_WRITES; attempt++) {
+  for (let attempt = 0; attempt < maxWrites; attempt++) {
     const user = attempt === 0 ? args.user : buildRewritePrompt(args.user, problems)
 
     const written = await args.call({
@@ -176,6 +189,11 @@ export async function writeChecked<T>(args: {
         text: args.textForReview(out),
         criticized: args.criticizedForReview?.(out) ?? [],
         takes: args.takesForReview ?? [],
+        ...(args.trusted === undefined
+          ? {}
+          : {
+              trusted: typeof args.trusted === 'function' ? args.trusted(out) : args.trusted,
+            }),
       }),
       schema: REVIEW_SCHEMA,
       effort: 'low',
@@ -201,6 +219,6 @@ export async function writeChecked<T>(args: {
   }
 
   // C3a fix I1: a take's words never reach the job's error or a log line.
-  const reason = `failed after ${String(MAX_WRITES)} writes: ${problems.join('; ')}`
+  const reason = `failed after ${String(maxWrites)} writes: ${problems.join('; ')}`
   return { ok: false, reason: redactTakes(reason, args.takesForReview ?? []) }
 }

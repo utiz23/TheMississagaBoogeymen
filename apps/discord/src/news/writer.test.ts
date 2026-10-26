@@ -339,3 +339,34 @@ void test('C3a fix I1: an offered take text never reaches the failure reason', a
   assert.ok(!/weakest clubs/i.test(r.reason), r.reason)
   assert.ok(r.reason.includes('take 3'))
 })
+
+void test('maxWrites: 2 stops after two writes', async () => {
+  const { call, reqs } = fakeCall([{ json: { text: 'BAD one' } }, { json: { text: 'BAD two' } }])
+  const h = harness()
+  const r = await writeChecked({ ...args(call, h), maxWrites: 2 })
+  assert.equal(r.ok, false)
+  assert.equal(reqs.length, 2)
+  assert.match((r as { reason: string }).reason, /^failed after 2 writes: /)
+})
+
+void test('trusted: notes and answers reach the review; a function gets the output', async () => {
+  const fixed = fakeCall([{ json: { text: 'good one' } }, REVIEW_OK])
+  await writeChecked({
+    ...args(fixed.call, harness()),
+    trusted: { gmNotes: ['A note.'], answers: [] },
+  })
+  assert.match(fixed.reqs[1]!.user, /true events/)
+  assert.match(fixed.reqs[1]!.user, /A note\./)
+
+  const byOut = fakeCall([{ json: { text: 'good one' } }, REVIEW_OK])
+  await writeChecked({
+    ...args(byOut.call, harness()),
+    trusted: (o: { text: string }) => ({ gmNotes: [`Note for ${o.text}.`], answers: [] }),
+  })
+  assert.match(byOut.reqs[1]!.user, /Note for good one\./)
+
+  const none = fakeCall([{ json: { text: 'good one' } }, REVIEW_OK])
+  await writeChecked(args(none.call, harness()))
+  assert.ok(!none.reqs[1]!.user.includes('true events'))
+  assert.ok(!none.reqs[1]!.user.includes('14.'))
+})

@@ -9,6 +9,7 @@ import {
   buildGameUserPrompt,
   buildReviewPrompt,
   buildSystemPrompt,
+  reporterVoice,
   capFactsForPrompt,
   criticizedTonightLine,
   setCriticizedTonight,
@@ -848,4 +849,43 @@ void test('C3a fix M7: at most 15 background facts after the story', () => {
   assert.equal(BACKGROUND_FACTS, 15)
   assert.ok(p.includes('Ranked fact 19'))
   assert.ok(!p.includes('Ranked fact 20'))
+})
+
+void test('review prompt with trusted material: true events, answers, problem 14, new problem 1', () => {
+  const plain = buildReviewPrompt({ facts: oct12Facts(), text: 'x', criticized: [] })
+  assert.ok(plain.includes('1. An invented quote from a teammate or an opponent.'))
+  assert.ok(!plain.includes('14.'))
+  assert.ok(!plain.includes('true events'))
+
+  const p = buildReviewPrompt({
+    facts: oct12Facts(),
+    text: 'x',
+    criticized: [],
+    trusted: {
+      gmNotes: ['Skater A broke his stick on the post.'],
+      answers: [
+        { player: 'Skater A', question: 'Why?', answer: 'We got outworked.', usability: 'usable' },
+        { player: 'Skater B', question: 'How?', answer: 'Ghosts.', usability: 'joke' },
+      ],
+    },
+  })
+  assert.ok(p.includes('true events the desk saw'))
+  assert.ok(p.includes('- Skater A broke his stick on the post.'))
+  assert.ok(p.includes('We got outworked.'))
+  assert.match(p, /Ghosts\..*JOKE/)
+  assert.ok(
+    p.includes(
+      "1. A teammate quote not backed by the listed answers, or one that adds to or changes an answer's meaning; a joke answer stated as fact.",
+    ),
+  )
+  assert.ok(!p.includes('1. An invented quote from a teammate or an opponent.'))
+  assert.ok(
+    p.includes('14. The text says or hints that a note came from a tip, a source or the GM.'),
+  )
+})
+
+void test('buildSystemPrompt is unchanged by the reporterVoice helper', () => {
+  const r = REPORTERS.quill
+  assert.ok(buildSystemPrompt([r]).endsWith(`THE REPORTERS\n\n${reporterVoice(r)}`))
+  assert.equal(reporterVoice(r), `${r.name} (id "${r.id}"), ${r.outlet}\n${r.voice}`)
 })
