@@ -1243,3 +1243,24 @@ void test('C3a fix M4: "shows up on the scoresheet" is no jab; "no one" is not a
   )
   assert.deepEqual(f, { ok: true })
 })
+
+void test('C3a fix M5: at most one mild swear word across headline, dek, summary and body', () => {
+  const art = (over: object) => ({
+    headline: 'Shake N Bake run the table',
+    dek: 'The Boogeymen fall again.',
+    paragraphs: [`What a night. ${pad(260)}`],
+    summary: 'S.',
+    mentions: [],
+    clubs: [],
+    criticized: [],
+    ...over,
+  })
+  const run = (over: object) =>
+    problems(checkArticleFacts(art(over), night, FORBIDDEN, [], { reporter: 'mercer' }))
+  assert.deepEqual(run({ headline: 'Hell of a run for Shake N Bake' }), [])
+  assert.ok(
+    run({ headline: 'Hell of a run for Shake N Bake', paragraphs: [`Damn. ${pad(260)}`] }).some(
+      (p) => /2 mild swear words across headline, dek, summary and body/.test(p),
+    ),
+  )
+})

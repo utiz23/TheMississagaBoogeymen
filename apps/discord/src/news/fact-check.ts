@@ -740,6 +740,21 @@ function styleProblems(
   return problems
 }
 
+/**
+ * Mild swearing in a whole article: at most `MAX_MILD_SWEARS` across the
+ * headline, dek, summary and body together (C3a fix M5). Only for a reporter
+ * allowed to swear; anyone else already fails on the first mild word.
+ */
+function mildTotalProblems(parts: readonly string[], reporter: ReporterId | undefined): string[] {
+  if (reporter === undefined || REPORTERS[reporter].language !== 'mild') return []
+  const n = parts.reduce((sum, p) => sum + countMatches(p, MILD_WORDS), 0)
+  return n > MAX_MILD_SWEARS
+    ? [
+        `The article has ${String(n)} mild swear words across headline, dek, summary and body. Use at most ${String(MAX_MILD_SWEARS)}.`,
+      ]
+    : []
+}
+
 /** The weekday-and-date of a sentence ("Friday, May 8", "May 8"), for the opening rule. */
 const DATE_WORDS =
   /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)\b/i
@@ -957,6 +972,10 @@ export function checkArticleFacts(
       ctx.reporter === undefined ? {} : { reporter: ctx.reporter },
     ),
     ...headlineProblems(article),
+    ...mildTotalProblems(
+      [article.headline, article.dek, article.summary, ...article.paragraphs],
+      ctx.reporter,
+    ),
   ]
   const unique = [...new Set(problems)]
   return unique.length === 0 ? { ok: true } : { ok: false, problems: unique }
@@ -1110,6 +1129,17 @@ export function checkFeatureFacts(
       ctx.reporter === undefined ? {} : { reporter: ctx.reporter },
     ),
     ...headlineProblems(feature),
+    ...mildTotalProblems(
+      [
+        feature.headline,
+        feature.dek,
+        feature.summary,
+        feature.receipt,
+        feature.prediction,
+        ...feature.paragraphs,
+      ],
+      ctx.reporter,
+    ),
   ]
   if (rules.kind === 'notes') {
     const items = feature.paragraphs.length
