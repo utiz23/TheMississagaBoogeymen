@@ -4,7 +4,9 @@ import { REPORTERS, REPORTER_IDS } from '@eanhl/db/news'
 import {
   getNewsEnabled,
   listAdminNewsItems,
+  listAdminTakes,
   listDisabledReporters,
+  listQualityItems,
   listMemberPressLevels,
   monthNewsSpendUsd,
 } from '@eanhl/db/queries'
@@ -25,7 +27,9 @@ import {
   monthlyLimitUsd,
   pressLevelSetByLabel,
 } from '@/lib/news/admin-display'
+import { qualityReport } from '@/lib/news/quality'
 import { PRESS_LEVEL_OPTIONS } from '@/lib/profile-edit'
+import { QualitySection } from './quality-section'
 import {
   deleteNewsItemAction,
   deleteNewsItemWithCorrectionAction,
@@ -44,13 +48,18 @@ const BADGE =
 export default async function AdminNewsPage() {
   await requireAdmin()
   const now = new Date()
-  const [enabled, spent, items, levels, disabledReporters] = await Promise.all([
-    getNewsEnabled(),
-    monthNewsSpendUsd(now),
-    listAdminNewsItems(50),
-    listMemberPressLevels(),
-    listDisabledReporters(),
-  ])
+  const [enabled, spent, items, levels, disabledReporters, qualityItems, takes] = await Promise.all(
+    [
+      getNewsEnabled(),
+      monthNewsSpendUsd(now),
+      listAdminNewsItems(50),
+      listMemberPressLevels(),
+      listDisabledReporters(),
+      listQualityItems(new Date(now.getTime() - 30 * 86_400_000)),
+      listAdminTakes(),
+    ],
+  )
+  const quality = qualityReport(qualityItems, new Map(takes.map((t) => [t.id, t.playerName])))
   const limit = monthlyLimitUsd(process.env['NEWS_MONTHLY_LIMIT_USD'])
   const testWaiting = items.filter((i) => i.isTest && i.deletedAt === null).length
 
@@ -222,6 +231,8 @@ export default async function AdminNewsPage() {
           </div>
         )}
       </AdminSection>
+
+      <QualitySection report={quality} />
 
       <AdminSection
         title="Press levels"

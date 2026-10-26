@@ -357,6 +357,121 @@ export async function setReporterEnabled(
     })
 }
 
+// ── Admin: GM takes and the quality dashboard (Part C3b, admin only) ────────
+
+/** A reporter take with its player's name, for /admin/news only. Never served publicly. */
+export interface AdminTake {
+  id: number
+  reporter: NewsReporterId
+  playerId: number
+  /** The profile name when set, else the gamertag (as the fact sheets name people). */
+  playerName: string
+  take: string
+  spread: NewsReporterTakeRow['spread']
+  critics: NewsReporterId[]
+  defender: NewsReporterId | null
+  dataAngle: string | null
+  active: boolean
+  intensity: number
+  updatedAt: Date
+}
+
+export function adminTakesSql(): SQL {
+  return sql`
+    select t.id, t.reporter, t.player_id,
+      coalesce(nullif(btrim(pp.player_name), ''), p.gamertag) as player_name,
+      t.take, t.spread, t.critics, t.defender, t.data_angle, t.active, t.intensity, t.updated_at
+    from news_reporter_takes t
+    join players p on p.id = t.player_id
+    left join player_profiles pp on pp.player_id = t.player_id
+    order by lower(coalesce(nullif(btrim(pp.player_name), ''), p.gamertag)), t.id`
+}
+
+type RawAdminTake = {
+  id: string | number
+  reporter: NewsReporterId
+  player_id: string | number
+  player_name: string
+  take: string
+  spread: NewsReporterTakeRow['spread']
+  critics: NewsReporterId[] | string
+  defender: NewsReporterId | null
+  data_angle: string | null
+  active: boolean
+  intensity: string | number
+  updated_at: string | Date
+}
+
+export function rowToAdminTake(r: RawAdminTake): AdminTake {
+  return {
+    id: Number(r.id),
+    reporter: r.reporter,
+    playerId: Number(r.player_id),
+    playerName: r.player_name,
+    take: r.take,
+    spread: r.spread,
+    critics: jsonArray<NewsReporterId>(r.critics),
+    defender: r.defender,
+    dataAngle: r.data_angle,
+    active: r.active,
+    intensity: Number(r.intensity),
+    updatedAt: toDate(r.updated_at),
+  }
+}
+
+export async function listAdminTakes(): Promise<AdminTake[]> {
+  return (await db.execute<RawAdminTake>(adminTakesSql())).map(rowToAdminTake)
+}
+
+/** What the quality dashboard reads about one real item. */
+export interface NewsQualityItem {
+  reporter: NewsReporterId
+  kind: NewsItemKind
+  result: string | null
+  body: string
+  mentions: { name: string }[]
+  zeroCalled: string[]
+  takesUsed: number[]
+}
+
+/** Real, not deleted items since `since`; `result` = the game's result for a game post. */
+export function qualityItemsSql(since: Date): SQL {
+  return sql`
+    select n.reporter, n.kind, n.body, n.mentions, n.zero_called, n.takes_used,
+      case when n.kind = 'post' and n.match_id is not null
+        then n.facts->'games'->0->>'result' end as result
+    from news_items n
+    where n.deleted_at is null and n.is_test = false
+      and n.created_at >= ${since.toISOString()}::timestamptz
+    order by n.id`
+}
+
+type RawQualityItem = {
+  reporter: NewsReporterId
+  kind: NewsItemKind
+  body: string
+  mentions: { name: string }[] | string
+  zero_called: string[] | string
+  takes_used: number[] | string
+  result: string | null
+}
+
+export function rowToQualityItem(r: RawQualityItem): NewsQualityItem {
+  return {
+    reporter: r.reporter,
+    kind: r.kind,
+    result: r.result,
+    body: r.body,
+    mentions: jsonArray<{ name: string }>(r.mentions),
+    zeroCalled: jsonArray<string>(r.zero_called),
+    takesUsed: jsonArray<number>(r.takes_used),
+  }
+}
+
+export async function listQualityItems(since: Date): Promise<NewsQualityItem[]> {
+  return (await db.execute<RawQualityItem>(qualityItemsSql(since))).map(rowToQualityItem)
+}
+
 // ── Backfill lookups (apps/discord/src/news/backfill.ts) ────────────────────
 
 /**

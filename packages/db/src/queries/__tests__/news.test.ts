@@ -50,6 +50,10 @@ const {
   activeTakesForPlayersQuery,
   takesUsedSinceSql,
   disabledReportersQuery,
+  adminTakesSql,
+  qualityItemsSql,
+  rowToAdminTake,
+  rowToQualityItem,
   dueNewsItemsQuery,
   claimDueNewsItemQuery,
   rowsToNightZeroCalled,
@@ -1262,4 +1266,53 @@ void test('C3b.4: waiting posts: due query, claim and the send_after column', as
   assert.ok(raw.includes('CREATE INDEX IF NOT EXISTS "news_items_send_after_idx"'))
   const cols = getTableConfig(newsItems).columns.map((x) => x.name)
   assert.ok(cols.includes('send_after'))
+})
+
+void test('C3b.6/7: admin takes and quality items: SQL pins and row mappers', () => {
+  const t = dialect.sqlToQuery(adminTakesSql())
+  assert.match(
+    flat(t.sql),
+    /from news_reporter_takes t join players p on p\.id = t\.player_id left join player_profiles pp on pp\.player_id = t\.player_id order by lower\(coalesce\(nullif\(btrim\(pp\.player_name\), ''\), p\.gamertag\)\), t\.id/,
+  )
+  const take = rowToAdminTake({
+    id: '7',
+    reporter: 'mercer',
+    player_id: '2',
+    player_name: 'Skater B',
+    take: 'INVENTED',
+    spread: 'some',
+    critics: JSON.stringify(['voss']),
+    defender: null,
+    data_angle: null,
+    active: true,
+    intensity: '-1',
+    updated_at: '2026-10-25 12:00:00+00',
+  })
+  assert.equal(take.id, 7)
+  assert.equal(take.playerId, 2)
+  assert.deepEqual(take.critics, ['voss'])
+  assert.equal(take.intensity, -1)
+  assert.equal(take.updatedAt.toISOString(), '2026-10-25T12:00:00.000Z')
+
+  const q = dialect.sqlToQuery(qualityItemsSql(new Date('2026-09-25T00:00:00Z')))
+  assert.match(
+    flat(q.sql),
+    /from news_items n where n\.deleted_at is null and n\.is_test = false and n\.created_at >= \$1::timestamptz order by n\.id/,
+  )
+  assert.match(flat(q.sql), /n\.facts->'games'->0->>'result'/)
+  assert.deepEqual(q.params, ['2026-09-25T00:00:00.000Z'])
+  const item = rowToQualityItem({
+    reporter: 'voss',
+    kind: 'post',
+    body: 'b',
+    mentions: JSON.stringify([{ name: 'Skater A', playerId: 1 }]),
+    zero_called: ['Skater B'],
+    takes_used: '[7]',
+    result: 'WIN',
+  })
+  assert.deepEqual(
+    item.mentions.map((m) => m.name),
+    ['Skater A'],
+  )
+  assert.deepEqual(item.takesUsed, [7])
 })
