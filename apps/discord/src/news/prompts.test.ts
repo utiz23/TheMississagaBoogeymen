@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { REPORTERS, REPORTER_IDS, type NewsFacts } from '@eanhl/db/news'
+import { REPORTERS, REPORTER_IDS, pairAttitude, type NewsFacts } from '@eanhl/db/news'
+import { REPLY_JABS } from './fact-check.ts'
 import {
   buildArticleUserPrompt,
   buildFeatureUserPrompt,
@@ -142,7 +143,7 @@ void test('game prompt: sheet JSON, both reporters, reply note, no forbidden dat
   assert.ok(p.includes(stableStringify({ ...capFactsForPrompt(f), topFacts: [] })))
   assert.ok(p.includes('Dex Mercer'))
   assert.ok(p.includes('Wade Barlow'))
-  assert.ok(p.includes('fraud with good timing'))
+  assert.ok(p.includes("Dex Mercer's takes rarely survive the numbers"))
   assert.ok(p.includes('280'))
   assert.ok(!p.includes('forbiddenNames'))
   assert.ok(!p.includes('Hidden Hank'))
@@ -397,7 +398,7 @@ void test('game prompt: the second post reacts or replies and does not repeat th
   })
   assert.ok(replied.includes('angle "reply": a reply to the post named below'))
   assert.ok(replied.includes('It answers post 1 by Dex Mercer directly'))
-  assert.ok(replied.includes('Wade Barlow thinks Dex Mercer is a fraud with good timing.'))
+  assert.ok(replied.includes("Wade Barlow thinks Dex Mercer's takes rarely survive the numbers."))
 })
 
 void test('prompts carry the pile-on line; the review checks unlisted harsh criticism (rev 2, B4)', () => {
@@ -819,4 +820,16 @@ void test("C3a fix M1: an ended-early game's recap asks for the score only, no k
       'exactly one key number',
     ),
   )
+})
+
+void test('C3a fix M2: reply prompts never carry a blocked jab word', () => {
+  for (const from of REPORTER_IDS) {
+    for (const to of REPORTER_IDS) {
+      if (from === to) continue
+      assert.ok(!REPLY_JABS.test(pairAttitude(from, to)), `${from} -> ${to}`)
+      const p = buildGameUserPrompt({ facts: oct12Facts(), posts: [recap(to), reply(from, 0)] })
+      const line = p.split('\n').find((l) => l.startsWith('2. '))!
+      assert.ok(!REPLY_JABS.test(line), `${from} -> ${to}: ${line}`)
+    }
+  }
 })

@@ -363,16 +363,28 @@ export function reporterBySlug(slug: string): Reporter | null {
 }
 
 /** How the reporters feel about each other (spec Relationship Map). Used for replies and cross-references. */
-export const RELATIONSHIPS: readonly { from: ReporterId; to: ReporterId; note: string }[] = [
+/**
+ * `note` is the character bible's line; `reply` (when set) is the neutral
+ * paraphrase reply prompts get, so a reply never carries a blocked jab word
+ * (clicks, outrage, jealous, timing, clipboard, "shows up"; C3a fix M2).
+ */
+export const RELATIONSHIPS: readonly {
+  from: ReporterId
+  to: ReporterId
+  note: string
+  reply?: string
+}[] = [
   {
     from: 'barlow',
     to: 'mercer',
     note: 'Wade Barlow thinks Dex Mercer is a fraud with good timing.',
+    reply: "Wade Barlow thinks Dex Mercer's takes rarely survive the numbers.",
   },
   {
     from: 'mercer',
     to: 'barlow',
     note: 'Dex Mercer thinks Wade Barlow is secretly jealous that outrage gets more clicks than discipline.',
+    reply: 'Dex Mercer thinks Wade Barlow is too careful to say what the numbers really mean.',
   },
   {
     from: 'voss',
@@ -413,11 +425,14 @@ export const RELATIONSHIPS: readonly { from: ReporterId; to: ReporterId; note: s
     from: 'pettibone',
     to: 'mercer',
     note: 'Gord Pettibone sees Dex Mercer as his only real competition for outrage, and wants to win it.',
+    reply:
+      'Gord Pettibone sees Dex Mercer as his only real rival for the hottest take on a game, and wants to win it.',
   },
   {
     from: 'mercer',
     to: 'pettibone',
     note: 'Dex Mercer thinks Gord Pettibone sells outrage by the pound and calls it notes.',
+    reply: "Dex Mercer thinks Gord Pettibone's notes are loud and thin on numbers.",
   },
   {
     from: 'bergstrom',
@@ -445,10 +460,13 @@ export const GENERIC_ATTITUDES: readonly string[] = [
   'enjoys taking the other side of whatever {to} says',
 ]
 
-/** How `from` feels about `to`: the written relationship, else a generic attitude (stable per pair). */
+/**
+ * How `from` feels about `to`, for a reply prompt: the written relationship (its
+ * neutral `reply` paraphrase when it has one), else a generic attitude (stable per pair).
+ */
 export function pairAttitude(from: ReporterId, to: ReporterId): string {
   const written = RELATIONSHIPS.find((r) => r.from === from && r.to === to)
-  if (written !== undefined) return written.note
+  if (written !== undefined) return written.reply ?? written.note
   const i =
     (REPORTER_IDS.indexOf(from) * REPORTER_IDS.length + REPORTER_IDS.indexOf(to)) %
     GENERIC_ATTITUDES.length
