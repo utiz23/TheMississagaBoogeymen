@@ -153,6 +153,7 @@ export function PlayerBadges({ gamertag, seasonName, aiGoalie = false, rows }: P
                 </span>
               </div>
               <span className="pb-detail-label">{headLabel}</span>
+              <span className="pb-detail-source">{sel.sourceText}</span>
               <div className="pb-bar">
                 <div style={{ width: `${(sel.progress.pct * 100).toFixed(1)}%` }} />
               </div>

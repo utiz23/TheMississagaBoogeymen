@@ -70,6 +70,8 @@ export interface BadgeRowView {
   themeLabel: string
   progressText: string
   remainingText: string
+  /** Where the value comes from: club games, or EA totals that include drop-ins. */
+  sourceText: string
 }
 
 export interface BadgeGroupView {
@@ -109,6 +111,8 @@ export function buildBadgeBoard(
         progress.remaining === null
           ? ''
           : `${formatCount(progress.remaining)} to LVL ${String(progress.level + 1)}`,
+      sourceText:
+        family.source === 'ea' ? 'EA season totals · includes drop-ins' : 'Counts club games only',
     }
   })
   const groups = BADGE_GROUPS.map((group) => {

@@ -72,3 +72,12 @@ void test('mid-ladder and maxed badges', () => {
 void test('default selection falls back to the first badge when all are locked', () => {
   assert.equal(defaultSelection(buildBadgeBoard([])), 'p3v3')
 })
+
+void test('source text: club games vs EA totals', () => {
+  const b = buildBadgeBoard([])
+  const text = (id: string) => b.rows.find((r) => r.family.id === id)?.sourceText
+  assert.equal(text('pgoals'), 'Counts club games only')
+  assert.equal(text('gsv'), 'Counts club games only')
+  for (const id of ['pdekes', 'pfight', 'pbrk'])
+    assert.equal(text(id), 'EA season totals · includes drop-ins')
+})

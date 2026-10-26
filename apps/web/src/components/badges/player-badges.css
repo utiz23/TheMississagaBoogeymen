@@ -205,6 +205,11 @@
   text-transform: uppercase;
   color: #e84131;
 }
+.pb-detail-source {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #71717a;
+}
 .pb-bar {
   height: 4px;
   background: #2a2829;
