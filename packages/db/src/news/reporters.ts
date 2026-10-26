@@ -30,9 +30,9 @@ export interface Reporter {
   /** Role plus personality, for the reporter page and the avatar card. */
   bio: string
   /**
-   * The original favourite words of the character bible (spec §12.9): the
-   * code check counts these (`SIGNATURE_WORDS`: a post at most 1, an article
-   * at most 3).
+   * The original favourite words of the character bible (spec §12.9) without
+   * everyday and label words: the code check counts how many DIFFERENT ones a
+   * piece uses (`SIGNATURE_WORDS`: a post at most 1, an article at most 3).
    */
   signatureWords: readonly string[]
   /** About twice as many typical words and phrases (the signature words first), for the voice. */
@@ -111,6 +111,28 @@ const TYPICAL: Record<ReporterId, { signature: string[]; extra: string[] }> = {
 
 const typical = (id: ReporterId) => [...TYPICAL[id].signature, ...TYPICAL[id].extra]
 
+/**
+ * Favourite words that are everyday words or sheet labels (C3a fix S3): they
+ * stay in the voice but are not counted as signature words ("night", "trend",
+ * "margin", "quiet for him", "the room" ...).
+ */
+const NOT_COUNTED: ReadonlySet<string> = new Set([
+  'clean',
+  'detail',
+  'quiet',
+  'room',
+  'the room',
+  'margin',
+  'pressure',
+  'support',
+  'trend',
+  'conversion',
+  'night',
+  'honest',
+])
+
+const counted = (id: ReporterId) => TYPICAL[id].signature.filter((w) => !NOT_COUNTED.has(w))
+
 const MODE_OPINION: Record<ReporterId, string | null> = {
   barlow: null,
   voss: null,
@@ -128,7 +150,7 @@ const MILD: readonly ReporterId[] = ['mercer', 'pettibone', 'vale']
 
 function base(id: ReporterId) {
   return {
-    signatureWords: TYPICAL[id].signature,
+    signatureWords: counted(id),
     typicalWords: typical(id),
     language: MILD.includes(id) ? ('mild' as const) : ('clean' as const),
     modeOpinion: MODE_OPINION[id],
@@ -327,9 +349,9 @@ export const REPORTERS: Readonly<Record<ReporterId, Reporter>> = {
   },
 }
 
-/** Each reporter's signature words (the original favourites; spec §12.9 code check). */
+/** Each reporter's counted signature words (the original favourites minus everyday and label words). */
 export const SIGNATURE_WORDS: Readonly<Record<ReporterId, readonly string[]>> = Object.fromEntries(
-  REPORTER_IDS.map((id) => [id, TYPICAL[id].signature]),
+  REPORTER_IDS.map((id) => [id, counted(id)]),
 ) as unknown as Record<ReporterId, readonly string[]>
 
 /** The reporter whose page slug is `slug`, or null. */

@@ -744,18 +744,25 @@ void test('labelClaims: no over-blocking on plain records, team slides, team sea
 const pad = (n: number) => Array.from({ length: n }, () => 'hockey').join(' ')
 const has = (r: ReturnType<typeof checkFacts>, re: RegExp) => problems(r).some((p) => re.test(p))
 
-void test('C3a.5 signature words: a post at most 1, an article at most 3 (each occurrence counts)', () => {
-  assert.equal(signatureWordCount('A clean, messy, clean night.', 'barlow'), 3)
-  assert.equal(signatureWordCount('Cleanly done.', 'barlow'), 0)
+void test('C3a.5 signature words: a post at most 1, an article at most 3 DISTINCT words (fix S3)', () => {
+  assert.equal(signatureWordCount('A messy, messy, messy night.', 'barlow'), 1)
+  assert.equal(signatureWordCount('Messy structure, messy finish.', 'barlow'), 2)
+  assert.equal(signatureWordCount('Messily done; a clean detail.', 'barlow'), 0)
   assert.equal(signatureWordCount('The truth is, frankly, soft.', 'pettibone'), 3)
+  // Generic words are not counted: Rink's "night", Quill's "trend".
+  assert.equal(signatureWordCount('Night after night, the night.', 'rink'), 0)
+  assert.equal(signatureWordCount('The trend holds.', 'quill'), 0)
   const post = (text: string) =>
     checkFacts(text, facts, FORBIDDEN, none, [], { reporter: 'barlow' })
-  assert.deepEqual(post('A clean night.'), { ok: true })
+  assert.deepEqual(post('A messy night, messy again.'), { ok: true })
   assert.ok(
-    has(post('A clean night, a messy finish.'), /Lean less on your signature words: at most 1/),
+    has(
+      post('A messy night, a structure problem.'),
+      /Lean less on your signature words: at most 1/,
+    ),
   )
   // No reporter given: no signature count.
-  assert.deepEqual(checkFacts('A clean night, a messy finish.', facts, FORBIDDEN, none), {
+  assert.deepEqual(checkFacts('A messy night, a structure problem.', facts, FORBIDDEN, none), {
     ok: true,
   })
   const body = (text: string) => ({
@@ -769,8 +776,10 @@ void test('C3a.5 signature words: a post at most 1, an article at most 3 (each o
   })
   const art = (text: string) =>
     checkArticleFacts(body(text), night, FORBIDDEN, [], { reporter: 'barlow' })
-  assert.deepEqual(art('Clean. Messy. Structure.'), { ok: true })
-  assert.ok(problems(art('Clean. Messy. Structure. Detail.')).some((p) => /at most 3/.test(p)))
+  assert.deepEqual(art('Messy. Structure. Survive. Messy again.'), { ok: true })
+  assert.ok(
+    problems(art('Messy. Structure. Survive. Repeatable.')).some((p) => /at most 3/.test(p)),
+  )
 })
 
 void test('C3a.5 format labels, one "not X ... Y" contrast, reply jabs and a number in replies', () => {

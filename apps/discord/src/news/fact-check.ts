@@ -404,9 +404,9 @@ function wordRe(word: string): RegExp {
   return new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegExp(word)}(?![\\p{L}\\p{N}_])`, 'giu')
 }
 
-/** How often the reporter's signature words occur in the text (each occurrence counts). */
+/** How many DIFFERENT signature words of the reporter the text uses (C3a fix S3). */
 export function signatureWordCount(text: string, reporter: ReporterId): number {
-  return SIGNATURE_WORDS[reporter].reduce((n, w) => n + countMatches(text, wordRe(w)), 0)
+  return SIGNATURE_WORDS[reporter].filter((w) => countMatches(text, wordRe(w)) > 0).length
 }
 
 const NUMBER_TOKEN =

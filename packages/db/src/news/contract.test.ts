@@ -1045,22 +1045,22 @@ void test('voices (C3a.1): doubled word lists, used one or two at a time; format
   for (const id of REPORTER_IDS) {
     const r = REPORTERS[id]
     assert.deepEqual(SIGNATURE_WORDS[id], r.signatureWords, id)
-    assert.ok(r.typicalWords.length >= 2 * r.signatureWords.length, id)
-    assert.deepEqual(r.typicalWords.slice(0, r.signatureWords.length), [...r.signatureWords], id)
+    assert.ok(r.typicalWords.length >= 10, id)
+    // The counted signature words are a subset of the typical words the voice lists.
+    for (const w of r.signatureWords) assert.ok(r.typicalWords.includes(w), `${id}: ${w}`)
     for (const w of r.typicalWords) assert.ok(r.voice.includes(w), `${id}: ${w}`)
     assert.match(r.voice, /Use one or two of them at most per piece, and vary them/, id)
     assert.match(r.voice, /This format is for articles only\. A post makes one point/, id)
     // The blocked format labels never appear in a voice the writer could copy.
     assert.ok(!/the tactical point|less comfortable|the detail:/i.test(r.voice), id)
   }
-  assert.deepEqual(SIGNATURE_WORDS.barlow, [
-    'clean',
-    'messy',
-    'repeatable',
-    'detail',
-    'structure',
-    'survive',
-  ])
+  // C3a fix S3: generic and label words are not counted as signature words.
+  assert.deepEqual(SIGNATURE_WORDS.barlow, ['messy', 'repeatable', 'structure', 'survive'])
+  assert.deepEqual(SIGNATURE_WORDS.voss, ['settled', 'weight', 'belief', 'voice'])
+  assert.deepEqual(SIGNATURE_WORDS.halberd, ['volume', 'balance', 'gap'])
+  assert.deepEqual(SIGNATURE_WORDS.quill, ['signal', 'sustainable', 'variance', 'underlying'])
+  assert.deepEqual(SIGNATURE_WORDS.rink, ['ghosts', 'storm', 'teeth', 'iron', 'blood'])
+  assert.deepEqual(SIGNATURE_WORDS.bergstrom, ['compete', 'this time of year', 'in my experience'])
   assert.deepEqual(SIGNATURE_WORDS.pettibone, [
     'frankly',
     'overrated',
@@ -1068,6 +1068,24 @@ void test('voices (C3a.1): doubled word lists, used one or two at a time; format
     'soft',
     'embarrassing',
   ])
+  for (const id of REPORTER_IDS) {
+    for (const generic of [
+      'clean',
+      'detail',
+      'quiet',
+      'room',
+      'the room',
+      'margin',
+      'pressure',
+      'support',
+      'trend',
+      'conversion',
+      'night',
+      'honest',
+    ]) {
+      assert.ok(!SIGNATURE_WORDS[id].includes(generic), `${id}: ${generic}`)
+    }
+  }
 })
 
 void test('voices (C3a.1): Barlow worries only after a loss, a one-goal or OT game, a lost shot count', () => {
