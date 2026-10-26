@@ -93,9 +93,10 @@ export function takeCritics(t: NewsTake): ReporterId[] {
 }
 
 /**
- * The takes that are due: not voiced in the last `TAKE_REUSE_DAYS` days, and
- * only one take per player (the oldest id) so a piece never gets two takes
- * on the same player.
+ * The takes that are due. The weekly limit is per PLAYER (spec §12.19: "at
+ * most about once a week per player"): a player with ANY take voiced in the
+ * last `TAKE_REUSE_DAYS` days gets none; otherwise one take per player (the
+ * oldest id), so a piece never gets two takes on the same player.
  */
 export function dueTakes(
   takes: readonly NewsTake[],
@@ -103,12 +104,15 @@ export function dueTakes(
   now: Date,
 ): NewsTake[] {
   const cutoff = now.getTime() - TAKE_REUSE_DAYS * DAY_MS
+  const recent = new Set<number>()
+  for (const t of takes) {
+    const used = lastUsed.get(t.id)
+    if (used !== undefined && used.getTime() > cutoff) recent.add(t.playerId)
+  }
   const players = new Set<number>()
   const out: NewsTake[] = []
   for (const t of [...takes].sort((a, b) => a.id - b.id)) {
-    const used = lastUsed.get(t.id)
-    if (used !== undefined && used.getTime() > cutoff) continue
-    if (players.has(t.playerId)) continue
+    if (recent.has(t.playerId) || players.has(t.playerId)) continue
     players.add(t.playerId)
     out.push(t)
   }

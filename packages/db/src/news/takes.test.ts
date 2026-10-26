@@ -82,9 +82,14 @@ void test('dueTakes: not voiced in the last 7 days; one take per player', () => 
     dueTakes(takes, new Map(), now).map((t) => t.id),
     [1, 3],
   )
+  // The limit is per player: take 1 on player 2 was used, so take 2 (same player) waits too (C3a fix S1).
   assert.deepEqual(
     dueTakes(takes, new Map([[1, recent]]), now).map((t) => t.id),
-    [2, 3],
+    [3],
+  )
+  assert.deepEqual(
+    dueTakes(takes, new Map([[2, recent]]), now).map((t) => t.id),
+    [3],
   )
   assert.deepEqual(
     dueTakes(
