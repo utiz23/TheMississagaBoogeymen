@@ -519,16 +519,56 @@ function zeroCalledProblems(
   }
   if (zeroCalled.length === 0) {
     for (const sentence of sentences(text)) {
-      if (!ZERO_STAT.test(sentence)) continue
-      const named = facts.people.find((p) => containsName(sentence, p.name))
-      if (named !== undefined) {
+      const named = zeroSubject(sentence, facts)
+      if (named !== null) {
         problems.push(
-          `"${sentence}" calls out ${named.name} for a zero: list the player in "zeroCalled", or drop the zero.`,
+          `"${sentence}" calls out ${named} for a zero: list the player in "zeroCalled", or drop the zero.`,
         )
       }
     }
   }
   return problems
+}
+
+/** Words before a zero that make it a goal or shot conceded, not a player's zero (C3a fix I5). */
+const CONCEDED_BEFORE =
+  /\b(allowed|allowing|allows|conceded|conceding|concedes|gave up|giving up|gives up|surrendered|let in|faced|facing)\b[^.!?;]{0,15}$/i
+const CONCEDED_AFTER = /^\s*(against|allowed|conceded)\b/i
+/** A subject between the player and the zero (the opponent, "they"): the zero is not his. */
+const OTHER_SUBJECT = /\b(opponents?|they|them|their|the other side)\b/i
+
+/**
+ * The player a sentence calls out for a zero, or null: a zero stat ("0
+ * shots", "no points") whose subject is a named player — his name comes
+ * before it with no other subject (the opponent, an opponent club, "they")
+ * in between, and it is not a goal or shot allowed ("allowed no goals", "no
+ * goals against").
+ */
+export function zeroSubject(sentence: string, facts: NewsFacts): string | null {
+  const re = new RegExp(ZERO_STAT.source, 'gi')
+  for (const m of sentence.matchAll(re)) {
+    const at = m.index ?? 0
+    const before = sentence.slice(0, at)
+    const after = sentence.slice(at + m[0].length)
+    if (CONCEDED_BEFORE.test(before) || CONCEDED_AFTER.test(after)) continue
+    let last: { name: string; end: number } | null = null
+    for (const p of facts.people) {
+      const nameRe = new RegExp(
+        `(?<![\\p{L}\\p{N}_])${escapeRegExp(collapse(p.name))}(?![\\p{L}\\p{N}_])`,
+        'giu',
+      )
+      for (const n of before.matchAll(nameRe)) {
+        const end = (n.index ?? 0) + n[0].length
+        if (last === null || end > last.end) last = { name: p.name, end }
+      }
+    }
+    if (last === null) continue
+    const between = before.slice(last.end)
+    if (OTHER_SUBJECT.test(between)) continue
+    if (facts.games.some((g) => containsName(between, g.opponentName))) continue
+    return last.name
+  }
+  return null
 }
 
 /**

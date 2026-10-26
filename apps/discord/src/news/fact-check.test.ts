@@ -1163,3 +1163,19 @@ void test('C3a fix S2: the two-sentence contrast "It wasn\'t luck. It was struct
     ),
   )
 })
+
+void test('C3a fix I5: a zero is a call-out only when the named player is its subject, not a goal allowed', () => {
+  const z = (text: string) => checkFacts(text, facts, FORBIDDEN, { ...none, zeroCalled: [] })
+  for (const t of [
+    'Goalie G stopped all 23 shots and allowed no goals.',
+    'Goalie G made 23 saves; the opponent had no goals in the first.',
+    'Skater A scored, and Shake N Bake had zero shots in the 3rd.',
+    'Goalie G conceded no goals.',
+    'Skater A had 2 points and no goals against while he was out there.',
+  ]) {
+    assert.ok(!has(z(t), /zeroCalled/), t)
+  }
+  for (const t of ['Skater A had 0 points.', 'Skater A finished with no shots.']) {
+    assert.ok(has(z(t), /list the player in "zeroCalled"/), t)
+  }
+})
