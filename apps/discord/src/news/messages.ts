@@ -8,6 +8,11 @@ export interface NewsWebhookPayload {
   allowed_mentions: { parse: never[] }
 }
 
+/** A test-mode copy for the bot test channel: the reporter's name says it is a test. */
+export function testModePayload(payload: NewsWebhookPayload): NewsWebhookPayload {
+  return { ...payload, username: `${payload.username} (test)` }
+}
+
 function base(reporter: Reporter, siteUrl: string, content: string): NewsWebhookPayload {
   return {
     username: reporter.name,

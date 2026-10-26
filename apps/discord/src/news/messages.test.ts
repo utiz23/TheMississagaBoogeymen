@@ -1,7 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { REPORTERS } from '@eanhl/db/news'
-import { articleSlug, buildArticlePayload, buildNewsPostPayload } from './messages.ts'
+import {
+  articleSlug,
+  buildArticlePayload,
+  buildNewsPostPayload,
+  testModePayload,
+} from './messages.ts'
 
 const SITE = 'https://boogeymen.app'
 
@@ -66,4 +71,14 @@ void test('articleSlug', () => {
   assert.ok(!long.endsWith('-'))
   assert.match(long, /^[a-z0-9-]+$/)
   assert.equal(articleSlug('2026-10-12', '???'), '2026-10-12')
+})
+
+void test('testModePayload: the reporter name says test; content and mentions unchanged', () => {
+  const p = {
+    username: 'Mara Quill',
+    avatar_url: 'a',
+    content: 'Hello',
+    allowed_mentions: { parse: [] as never[] },
+  }
+  assert.deepEqual(testModePayload(p), { ...p, username: 'Mara Quill (test)' })
 })
