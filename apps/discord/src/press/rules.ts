@@ -144,13 +144,17 @@ export function questionLimit(role: 'picked' | 'volunteer'): number {
   return role === 'picked' ? 2 : 1
 }
 
-/** A follow-up is allowed until the role's limit is used (same number as the question limit). */
+/**
+ * At most one follow-up per question, and no more than the role's limit.
+ * A follow-up comes after the answer to the current question, so the
+ * follow-ups so far must be fewer than the questions asked.
+ */
 export function followUpAllowed(p: {
   questionsAsked: number
   followupsAsked: number
   role: 'picked' | 'volunteer'
 }): boolean {
-  return p.followupsAsked < questionLimit(p.role)
+  return p.followupsAsked < p.questionsAsked && p.followupsAsked < questionLimit(p.role)
 }
 
 /** Extras may run while the month's spend is under 80% of the limit. */

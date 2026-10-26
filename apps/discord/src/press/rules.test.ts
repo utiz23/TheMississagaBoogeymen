@@ -234,11 +234,17 @@ void test('questionLimit: picked 2, volunteer 1', () => {
   assert.equal(questionLimit('volunteer'), 1)
 })
 
-void test('followUpAllowed: a volunteer gets 1 follow-up, a picked player 2', () => {
-  assert.equal(followUpAllowed({ questionsAsked: 1, followupsAsked: 0, role: 'volunteer' }), true)
-  assert.equal(followUpAllowed({ questionsAsked: 1, followupsAsked: 1, role: 'volunteer' }), false)
-  assert.equal(followUpAllowed({ questionsAsked: 1, followupsAsked: 1, role: 'picked' }), true)
-  assert.equal(followUpAllowed({ questionsAsked: 1, followupsAsked: 2, role: 'picked' }), false)
+void test('followUpAllowed: at most one follow-up per question, capped by the role limit', () => {
+  const f = (questionsAsked: number, followupsAsked: number, role: 'picked' | 'volunteer') =>
+    followUpAllowed({ questionsAsked, followupsAsked, role })
+  assert.equal(f(1, 0, 'picked'), true)
+  assert.equal(f(1, 1, 'picked'), false)
+  assert.equal(f(2, 1, 'picked'), true)
+  assert.equal(f(2, 2, 'picked'), false)
+  assert.equal(f(1, 0, 'volunteer'), true)
+  assert.equal(f(1, 1, 'volunteer'), false)
+  assert.equal(f(2, 1, 'volunteer'), false)
+  assert.equal(f(0, 0, 'picked'), false)
 })
 
 void test('extrasBudgetLeft: spent must stay under 80% of the limit', () => {
