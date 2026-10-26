@@ -75,7 +75,11 @@ void test('ladders match the season-cards spec (spot checks)', () => {
     gpoke: 50,
     gso: 30,
   })
-  assert.deepEqual(BADGE_LADDERS.pgoals.slice(0, 5), [5, 10, 15, 20, 25])
+  // Goals and Assists: round steps (operator, 2026-10-26): 5s to 20, 10s to 150 (level 17), 50s to 800.
+  const scoring = [5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]
+  for (let t = 200; t <= 800; t += 50) scoring.push(t)
+  assert.deepEqual(BADGE_LADDERS.pgoals, scoring)
+  assert.deepEqual(BADGE_LADDERS.pasts, scoring)
   assert.deepEqual(BADGE_LADDERS.phits.slice(0, 5), [5, 10, 20, 35, 55])
   assert.deepEqual(BADGE_LADDERS.pht.slice(10, 15), [11, 12, 15, 20, 25])
   assert.deepEqual(BADGE_LADDERS.gso.slice(0, 5), [1, 2, 3, 4, 5])

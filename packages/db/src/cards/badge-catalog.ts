@@ -300,6 +300,10 @@ export function poolOf(family: BadgeFamily): TierPool {
  * docs/superpowers/specs/2026-10-08-season-cards-design.md). Level = number of
  * thresholds the season total meets. Level 30 = the operator's ceiling; levels
  * are multiples of 5/10/50, except plain counts for rare stats' first levels.
+ * Goals and Assists use round steps (operator, 2026-10-26): 5s to 20, 10s to
+ * 150 at level 17, then 50s to 800. Badges count club games only since then
+ * (docs/superpowers/specs/2026-10-26-club-only-badges-design.md); the other
+ * ladders were kept.
  */
 // prettier-ignore
 export const BADGE_LADDERS: Readonly<Record<BadgeFamilyId, readonly number[]>> = {
@@ -307,8 +311,8 @@ export const BADGE_LADDERS: Readonly<Record<BadgeFamilyId, readonly number[]>> =
   p6v6: [5, 10, 15, 20, 25, 30, 35, 40, 45, 55, 65, 80, 95, 110, 130, 140, 160, 180, 200, 220, 250, 270, 290, 320, 350, 380, 410, 440, 470, 500],
   p6g: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],
   pwins: [1, 2, 3, 6, 9, 12, 20, 25, 30, 35, 45, 50, 60, 70, 80, 90, 100, 120, 130, 140, 160, 170, 190, 200, 220, 240, 260, 280, 300, 320],
-  pgoals: [5, 10, 15, 20, 25, 30, 45, 55, 70, 90, 110, 130, 150, 170, 200, 230, 260, 290, 320, 360, 390, 430, 470, 510, 560, 600, 650, 700, 750, 800],
-  pasts: [5, 10, 15, 20, 25, 30, 45, 55, 70, 90, 110, 130, 150, 170, 200, 230, 260, 290, 320, 360, 390, 430, 470, 510, 560, 600, 650, 700, 750, 800],
+  pgoals: [5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800],
+  pasts: [5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800],
   pshots: [5, 10, 25, 45, 70, 100, 140, 180, 230, 280, 340, 400, 470, 540, 630, 710, 800, 900, 1000, 1100, 1250, 1350, 1450, 1600, 1750, 1900, 2050, 2200, 2350, 2500],
   pdekes: [5, 10, 15, 20, 25, 30, 45, 55, 70, 90, 110, 130, 150, 170, 200, 230, 260, 290, 320, 360, 390, 430, 470, 510, 560, 600, 650, 700, 750, 800],
   pht: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],
