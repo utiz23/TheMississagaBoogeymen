@@ -16,7 +16,7 @@ import { confidenceTone } from './ocr-provenance-footer'
 // the disclosure, where an input the match never captured is shown as an
 // excluded row rather than quietly dropped.
 //
-// DESIGN OF RECORD: `Game sheet prototype layout (1)/Game Sheet copy.dc.html`
+// DESIGN OF RECORD: `docs/design/handoffs/2026-07-game-sheet/Game Sheet copy.dc.html`
 // lines 657-730 — the REVISED file, not the plain `Game Sheet.dc.html` this
 // module was first built from. The copy file's DtW is an a11y/legibility pass:
 // a 12px type floor (no 10/11px anywhere), the opponent drawn in `--opp` /

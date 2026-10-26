@@ -14,9 +14,9 @@
 
 - Master plan: `/home/michal/.claude/plans/multi-session-strategic-fix-for-misty-hamster.md` §A3 (lines 291-320).
 - HANDOFF.md current state (2026-05-27 PM3): S5.5 complete, v2 weights shipped, proving bench green.
-- [ocr-decoder-runs.ts](packages/db/src/schema/ocr-decoder-runs.ts) — schema (already has `isActive`, `decoderVersion`, `weightsHash`, `configHash`, partial-unique `one_active_per_match`).
-- [loadout-v2.ts:280-293](apps/worker/src/ocr-promoters/loadout-v2.ts#L280-L293) — promoter already gates `writeSnapshots` on `effectiveRunIdForWrites === activeRunId`, so candidate-run promotions skip canonical writes (no extra plumbing needed there).
-- [video_ingest/cli.py:57](tools/video_ingest/video_ingest/cli.py#L57) — existing `--run-id` plumbing for the `ingest` subcommand.
+- [ocr-decoder-runs.ts](../../../packages/db/src/schema/ocr-decoder-runs.ts) — schema (already has `isActive`, `decoderVersion`, `weightsHash`, `configHash`, partial-unique `one_active_per_match`).
+- [loadout-v2.ts:280-293](../../../apps/worker/src/ocr-promoters/loadout-v2.ts#L280-L293) — promoter already gates `writeSnapshots` on `effectiveRunIdForWrites === activeRunId`, so candidate-run promotions skip canonical writes (no extra plumbing needed there).
+- [video_ingest/cli.py:57](../../../tools/video_ingest/video_ingest/cli.py#L57) — existing `--run-id` plumbing for the `ingest` subcommand.
 
 ---
 
@@ -48,7 +48,7 @@
 
 These are checked first so subsequent tasks don't waste effort if the assumption is wrong:
 
-1. `ocrDecoderRuns` table exists and has the constraints documented in [ocr-decoder-runs.ts](packages/db/src/schema/ocr-decoder-runs.ts). Verified via `\d ocr_decoder_runs` in psql.
+1. `ocrDecoderRuns` table exists and has the constraints documented in [ocr-decoder-runs.ts](../../../packages/db/src/schema/ocr-decoder-runs.ts). Verified via `\d ocr_decoder_runs` in psql.
 2. `promoteLoadoutFromEvidence({ matchId, runId })` and `promoteLobbyFromEvidence({ matchId, runId })` are the v2 entry points; both already gate canonical-snapshot writes on `runId === activeRunId`.
 3. `ocr_promotions` table has all the columns needed to project back to `player_loadout_snapshots` (gamertag, position, team_side, build_class, etc.), OR `rebuildCanonicalsFromActiveRun` reads from `ocr_field_evidence` + `ocr_extractions` joined against the active `runId` instead of from `ocr_promotions`. **This is the central design question and decides Task 1's body — confirm during Task 0 inspection.**
 

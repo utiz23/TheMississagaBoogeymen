@@ -62,7 +62,7 @@ They can still drive team showcases, carousel slots, and card augmentations.
 
 ## 3v3 Games Completed
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `1`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -76,7 +76,7 @@ Card weight: `1`
 
 ## 6v6 Games Completed
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `1`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -90,7 +90,7 @@ Card weight: `1`
 
 ## 6v6 Games With Goalie
 
-Source status: `derived`  
+Source status: `derived`\
 Card weight: `1`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -104,7 +104,7 @@ Card weight: `1`
 
 ## Wins
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `2`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -118,7 +118,7 @@ Card weight: `2`
 
 ## Goals
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `4`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -132,7 +132,7 @@ Card weight: `4`
 
 ## Assists
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `4`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -146,7 +146,7 @@ Card weight: `4`
 
 ## Shots
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `2`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -160,7 +160,7 @@ Card weight: `2`
 
 ## Dekes
 
-Source status: `future`  
+Source status: `future`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -174,7 +174,7 @@ Card weight: `0`
 
 ## Hat Tricks
 
-Source status: `derived`  
+Source status: `derived`\
 Card weight: `3`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -188,7 +188,7 @@ Card weight: `3`
 
 ## Breakaways
 
-Source status: `future`  
+Source status: `future`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -202,7 +202,7 @@ Card weight: `0`
 
 ## Hits
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `3`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -216,7 +216,7 @@ Card weight: `3`
 
 ## Faceoffs Won
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `3`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -230,7 +230,7 @@ Card weight: `3`
 
 ## Takeaways
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `3`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -244,8 +244,8 @@ Card weight: `3`
 
 ## Blocked Shots
 
-Source status: `available`  
-Card weight: `2`  
+Source status: `available`\
+Card weight: `2`\
 Note: validate these thresholds against real totals before seeding.
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -259,7 +259,7 @@ Note: validate these thresholds against real totals before seeding.
 
 ## Fights Won
 
-Source status: `future`  
+Source status: `future`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -273,7 +273,7 @@ Card weight: `0`
 
 ## Goalie Games Completed
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `2`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -287,8 +287,8 @@ Card weight: `2`
 
 ## Goalie Wins
 
-Source status: `available`  
-Card weight: `3`  
+Source status: `available`\
+Card weight: `3`\
 Note: validate these thresholds against actual goalie usage; they may be high.
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -302,7 +302,7 @@ Note: validate these thresholds against actual goalie usage; they may be high.
 
 ## Saves
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `4`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -316,7 +316,7 @@ Card weight: `4`
 
 ## Desperation Saves
 
-Source status: `future`  
+Source status: `future`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -330,7 +330,7 @@ Card weight: `0`
 
 ## Goalie Poke Checks
 
-Source status: `future`  
+Source status: `future`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -344,7 +344,7 @@ Card weight: `0`
 
 ## Shutouts
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `4`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -364,7 +364,7 @@ an individual player card unless a later rule explicitly allows it.
 
 ## 3v3 Games Completed
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -376,7 +376,7 @@ Card weight: `0`
 
 ## 6v6 Games Completed
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -388,7 +388,7 @@ Card weight: `0`
 
 ## Games Completed
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -400,7 +400,7 @@ Card weight: `0`
 
 ## 6-Player Games Completed
 
-Source status: `derived`  
+Source status: `derived`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -412,7 +412,7 @@ Card weight: `0`
 
 ## 6v6 Games With Goalie
 
-Source status: `derived`  
+Source status: `derived`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -424,7 +424,7 @@ Card weight: `0`
 
 ## Wins
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -436,7 +436,7 @@ Card weight: `0`
 
 ## Wins With Goalie
 
-Source status: `derived`  
+Source status: `derived`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -448,7 +448,7 @@ Card weight: `0`
 
 ## Wins With 6 Players
 
-Source status: `derived`  
+Source status: `derived`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -462,7 +462,7 @@ Card weight: `0`
 
 Definition: win by 5 or more goals.
 
-Source status: `derived`  
+Source status: `derived`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -474,7 +474,7 @@ Card weight: `0`
 
 ## Goals
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -486,7 +486,7 @@ Card weight: `0`
 
 ## Power-Play Goals
 
-Source status: `future`  
+Source status: `future`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -498,7 +498,7 @@ Card weight: `0`
 
 ## Shutouts
 
-Source status: `available`  
+Source status: `available`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -510,7 +510,7 @@ Card weight: `0`
 
 ## Games With 1 Goal Against Or Fewer
 
-Source status: `derived`  
+Source status: `derived`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -522,7 +522,7 @@ Card weight: `0`
 
 ## Games With 2 Goals Against Or Fewer
 
-Source status: `derived`  
+Source status: `derived`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |
@@ -534,7 +534,7 @@ Card weight: `0`
 
 ## Perfect PK
 
-Source status: `future`  
+Source status: `future`\
 Card weight: `0`
 
 | Tier | Level 1 | Level 2 | Level 3 | Level 4 | Level 5 |

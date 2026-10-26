@@ -88,7 +88,7 @@ migration-0056 family review columns were present on `match_period_summaries`
 before this deployment: `goals_review_status`, `shots_review_status`,
 `faceoffs_review_status`. This deployment did **not** apply migration 0056 —
 it was already applied in a separate, earlier, separately-authorized session
-(see [`migration-0056-application-2026-08-15.md`](migration-0056-application-2026-08-15.md)).
+(see [`migration-0056-application-2026-08-15.md`](../migration-0056-application-2026-08-15.md)).
 This deployment only shipped the web code (Workstream B) that reads those
 already-present columns.
 

@@ -2454,10 +2454,10 @@ the badge catalog into a database seed file, verify them again:
 
 ### Skater Example — Overtime Assassin
 
-Category: Skater  
-Rarity: Epic  
-Tier: 4  
-Theme: Carbon-Fiber  
+Category: Skater\
+Rarity: Epic\
+Tier: 4\
+Theme: Carbon-Fiber\
 Trigger: Scores overtime game-winning goal
 
 Visuals:
@@ -2482,10 +2482,10 @@ Badge:
 
 ### Skater Example — The Menace
 
-Category: Skater  
-Rarity: Rare  
-Tier: 3  
-Theme: Alternate  
+Category: Skater\
+Rarity: Rare\
+Tier: 3\
+Theme: Alternate\
 Trigger: 10+ hits and at least 1 point
 
 Visuals:
@@ -2508,10 +2508,10 @@ Badge:
 
 ### Goalie Example — Brick Wall
 
-Category: Goalie  
-Rarity: Epic  
-Tier: 4  
-Theme: Carbon-Fiber or Frost  
+Category: Goalie\
+Rarity: Epic\
+Tier: 4\
+Theme: Carbon-Fiber or Frost\
 Trigger: 30+ saves and win
 
 Visuals:
@@ -2534,10 +2534,10 @@ Badge:
 
 ### Goalie Example — The Last Line
 
-Category: Goalie  
-Rarity: Legendary  
-Tier: 5  
-Theme: Smoke  
+Category: Goalie\
+Rarity: Legendary\
+Tier: 5\
+Theme: Smoke\
 Trigger: Shutout in playoff/championship game
 
 Visuals:

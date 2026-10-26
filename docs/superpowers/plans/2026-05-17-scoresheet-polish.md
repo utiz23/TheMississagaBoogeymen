@@ -12,7 +12,7 @@
 
 ## Context
 
-The UI review (`docs/reviews/Match-ID-UI-UX-Review.md`, section 6) flagged the Scoresheet as carrying the page's single most actively-misleading display: the "Shooting %" quick-stat tile shows 117% for MrHomicide on match 250. The user confirmed (this conversation, 2026-05-17) that ">100% Shot On Net %" is **real EA data**, not a render bug:
+The UI review (`docs/research/match-id-ui-ux-review.md`, section 6) flagged the Scoresheet as carrying the page's single most actively-misleading display: the "Shooting %" quick-stat tile shows 117% for MrHomicide on match 250. The user confirmed (this conversation, 2026-05-17) that ">100% Shot On Net %" is **real EA data**, not a render bug:
 
 > "It is possible to score without shooting. When some event happens that causes the puck to go into the net, the last opponent to touch the puck is credited with the goal."
 
@@ -43,10 +43,10 @@ The intended outcome is a single focused arc that lands the two CRITICAL fixes, 
 
 **Existing helpers to reuse (do not re-implement):**
 
-- [`colorForPosition(pos: string | null): string`](apps/web/src/lib/position-colors.ts#L64) — returns `var(--pos-*)` CSS-var reference. Accepts both long ("center", "leftWing") and short ("C", "LW") keys. Falls back to `var(--color-fg-5)` on unknown.
-- [`POSITION_META`](apps/web/src/lib/position-colors.ts#L37) — full position → `{tag, colorVar}` table. Defines `defenseMen` as alias of `leftDefenseMen` (both → `--pos-d` / `--pos-ld`).
-- [`OpponentCrest`](apps/web/src/components/ui/opponent-crest.tsx) — `<Image>` wrapper with URL fallback chain. Already used by `hero-card.tsx:122-140`. Takes `crestAssetId` + `useBaseAsset` props.
-- `/images/bgm-logo.png` — canonical BGM crest path. Used in [hero-card.tsx:95](apps/web/src/components/matches/hero-card.tsx#L95) and [lineup-section.tsx:219](apps/web/src/components/matches/lineup-section.tsx#L219).
+- [`colorForPosition(pos: string | null): string`](../../../apps/web/src/lib/position-colors.ts#L64) — returns `var(--pos-*)` CSS-var reference. Accepts both long ("center", "leftWing") and short ("C", "LW") keys. Falls back to `var(--color-fg-5)` on unknown.
+- [`POSITION_META`](../../../apps/web/src/lib/position-colors.ts#L37) — full position → `{tag, colorVar}` table. Defines `defenseMen` as alias of `leftDefenseMen` (both → `--pos-d` / `--pos-ld`).
+- [`OpponentCrest`](../../../apps/web/src/components/ui/opponent-crest.tsx) — `<Image>` wrapper with URL fallback chain. Already used by `hero-card.tsx:122-140`. Takes `crestAssetId` + `useBaseAsset` props.
+- `/images/bgm-logo.png` — canonical BGM crest path. Used in [hero-card.tsx:95](../../../apps/web/src/components/matches/hero-card.tsx#L95) and [lineup-section.tsx:219](apps/web/src/components/matches/lineup-section.tsx#L219).
 - `SkaterRow` fields used in Task 1: `goals` (line 838 of match-recap.ts), `shots` (line 842), `shotAttempts` (854). Both `goals` and `shots` are already on the type — no schema change needed.
 
 ---

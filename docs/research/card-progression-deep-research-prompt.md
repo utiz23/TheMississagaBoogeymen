@@ -5,8 +5,8 @@
 Survey prior art and commission a structured report covering how to design a
 collectible player-card progression system for a small private hockey team
 site. We have a working blueprint built from first principles
-([`blueprint.md`](./blueprint.md))
-and a draft badge catalog ([`badges.md`](./badges.md)), but no external
+([`blueprint.md`](../specs/cards/blueprint.md))
+and a draft badge catalog ([`badges.md`](../specs/cards/badges.md)), but no external
 survey yet. The report should pressure-test our blueprint against established
 patterns, surface anti-patterns, and give concrete recommendations we can apply.
 
@@ -356,11 +356,11 @@ draw on academic work (game studies, behavioral economics), cite it.
 The following internal documents define the existing system. Treat them
 as the _current state_ the research should engage with, not as gospel.
 
-1. [`blueprint.md`](./blueprint.md)
+1. [`blueprint.md`](../specs/cards/blueprint.md)
    — the full working blueprint (2500+ lines), including tier ladder,
    layer separation, badge-to-tier rules, augmentation budget,
    visual restraint rules, and stage-by-stage build order
-2. [`badges.md`](./badges.md) — the draft badge catalog with
+2. [`badges.md`](../specs/cards/badges.md) — the draft badge catalog with
    thresholds (19 player + 14 team families, 6 tiers × 5 levels)
 3. [`docs/specs/player-card.md`](../specs/player-card.md) — the current
    player card UI spec (slot anatomy, data mapping, responsive rules)

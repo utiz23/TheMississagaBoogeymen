@@ -592,7 +592,7 @@ Expected: `docs(spec): update position-colors palette ...` is HEAD.
 
 **Files:**
 
-- Create: `docs/templates/player-profile-fields.md`
+- Create: `docs/specs/player-dossiers/profile-fields-template.md`
 - Create: `docs/specs/news-personalities.md`
 - Create: `docs/specs/player-dossiers/README.md`
 - Create: `docs/specs/player-dossiers/camrazz.md`
@@ -609,7 +609,7 @@ Expected: `docs(spec): update position-colors palette ...` is HEAD.
 - [ ] **Step 1: Stage**
 
 ```bash
-git add docs/templates/player-profile-fields.md docs/specs/news-personalities.md docs/specs/player-dossiers/
+git add docs/specs/player-dossiers/profile-fields-template.md docs/specs/news-personalities.md docs/specs/player-dossiers/
 git status --short | grep -E '^A '
 ```
 

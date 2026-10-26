@@ -1,6 +1,6 @@
 /**
  * Opponent colour resolver — the clash-contingency ladder from the game-sheet
- * design spec (`Game sheet prototype layout (1)/Opponent Colour Rules.dc.html`).
+ * design spec (`docs/design/handoffs/2026-07-game-sheet/Opponent Colour Rules.dc.html`).
  *
  * BGM red (#E84131) is reserved: it always means "us" and is never issued to
  * an opponent. An opponent's brand hex is an INPUT to this resolver, never

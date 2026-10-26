@@ -44,7 +44,7 @@ Five commits, single file. Each task is line-disjoint from the others.
 
 **Existing helpers to reuse (do not re-implement):**
 
-- [`formatPeriodLabel(n: number): string`](apps/web/src/lib/period-label.ts#L8) — returns `'1ST'`, `'2ND'`, `'3RD'`, `'OT'`, `'OT2'`, `'OT3'`, or `P${n}`. Already used by Action Tracker filter bar and Faceoff Map filter bar.
+- [`formatPeriodLabel(n: number): string`](../../../apps/web/src/lib/period-label.ts#L8) — returns `'1ST'`, `'2ND'`, `'3RD'`, `'OT'`, `'OT2'`, `'OT3'`, or `P${n}`. Already used by Action Tracker filter bar and Faceoff Map filter bar.
 - Existing `text-fg-1` token = off-white headline color (used everywhere on the page).
 - Existing `bg-accent` / accent-tint pattern — `bg-accent/[0.04]` reads as a faint tint without dominating the text.
 

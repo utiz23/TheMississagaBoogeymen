@@ -9,7 +9,7 @@ returned dossier link.
 ## Active / Commissioned
 
 - **Card progression / collectibles design system** — prompt drafted at
-  [`docs/cards/card-progression-deep-research-prompt.md`](../cards/card-progression-deep-research-prompt.md).
+  [`docs/research/card-progression-deep-research-prompt.md`](../research/card-progression-deep-research-prompt.md).
   Awaiting submission.
 
 ## Queued — later research

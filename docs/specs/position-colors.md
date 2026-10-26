@@ -38,7 +38,7 @@ Neutral/unknown position falls back to:
 
 - `border: #3f3f46`, `bg: rgba(39,39,42,0.40)`, `text: #a1a1aa`
 
-Implementation: [apps/web/src/components/matches/position-pill.tsx](../../../apps/web/src/components/matches/position-pill.tsx)
+Implementation: [apps/web/src/components/matches/position-pill.tsx](../../apps/web/src/components/matches/position-pill.tsx)
 
 ## Donut Chart
 

@@ -10,7 +10,7 @@ Ongoing component-by-component review of the canonical match page using match 25
 
 ## 1. Top Performers
 
-Reviewed 2026-05-17. Source: [apps/web/src/components/matches/top-performers.tsx](apps/web/src/components/matches/top-performers.tsx), [apps/web/src/components/matches/star-card.tsx](apps/web/src/components/matches/star-card.tsx), [apps/web/src/components/matches/show-all-player-scores.tsx](apps/web/src/components/matches/show-all-player-scores.tsx).
+Reviewed 2026-05-17. Source: [apps/web/src/components/matches/top-performers.tsx](../../apps/web/src/components/matches/top-performers.tsx), [apps/web/src/components/matches/star-card.tsx](apps/web/src/components/matches/star-card.tsx), [apps/web/src/components/matches/show-all-player-scores.tsx](apps/web/src/components/matches/show-all-player-scores.tsx).
 
 **Critical caveat up-front:** an earlier review's "bright gold/silver/bronze fills break the dark esports aesthetic" was a misperception based on thumbnail-resolution screenshots. The current cards are already on a dark canvas with subtle accent gradients — the redesign that the original todo #16 calls for is largely done. Marking #16 as already-addressed; this section is refinement on the existing dark-theme cards.
 
@@ -165,7 +165,7 @@ Items 9, 10, 11 are stylistic / maintenance polish to address in a separate swee
 
 ## 3. Team Stats
 
-Reviewed 2026-05-17. Source: [apps/web/src/components/matches/team-stats.tsx](apps/web/src/components/matches/team-stats.tsx) (rendering, 116 lines) + [apps/web/src/lib/match-recap.ts:622-720](apps/web/src/lib/match-recap.ts#L622-L720) (data shape `BoxScoreGroup` / `BoxScoreRow` and `buildBoxScore`). Section header was renamed from "Box Score" to "Team Stats" at some point in the renovation — the new label is more accurate (this is team totals, not a per-player box score).
+Reviewed 2026-05-17. Source: [apps/web/src/components/matches/team-stats.tsx](../../apps/web/src/components/matches/team-stats.tsx) (rendering, 116 lines) + [apps/web/src/lib/match-recap.ts:622-720](../../apps/web/src/lib/match-recap.ts#L622-L720) (data shape `BoxScoreGroup` / `BoxScoreRow` and `buildBoxScore`). Section header was renamed from "Box Score" to "Team Stats" at some point in the renovation — the new label is more accurate (this is team totals, not a per-player box score).
 
 ### What's working
 
@@ -353,7 +353,7 @@ This is the highest-density-of-original-design section on the page. The drill-do
 
 ## 5. Box Score (Period-by-Period)
 
-Reviewed 2026-05-17. Source: [apps/web/src/components/matches/box-score.tsx](apps/web/src/components/matches/box-score.tsx). The original 4-card per-period strip (`period-summary.tsx`) has been replaced with a tabbed table. Renovation lands a much more compact and scannable design.
+Reviewed 2026-05-17. Source: [apps/web/src/components/matches/box-score.tsx](../../apps/web/src/components/matches/box-score.tsx). The original 4-card per-period strip (`period-summary.tsx`) has been replaced with a tabbed table. Renovation lands a much more compact and scannable design.
 
 ### What's working
 
@@ -591,7 +591,7 @@ This same EA quirk likely surfaces elsewhere on the page wherever per-player or 
 
 ## 7. Event Timeline
 
-Reviewed 2026-05-17. Source: [apps/web/src/components/matches/event-timeline.tsx](apps/web/src/components/matches/event-timeline.tsx) — 1064 lines. The page's primary narrative section: a vertical spine telling the chronological story of the game with running-score chips, period banners, lead-change tags, and special GWG treatment.
+Reviewed 2026-05-17. Source: [apps/web/src/components/matches/event-timeline.tsx](../../apps/web/src/components/matches/event-timeline.tsx) — 1064 lines. The page's primary narrative section: a vertical spine telling the chronological story of the game with running-score chips, period banners, lead-change tags, and special GWG treatment.
 
 **Recent baseline:** Tasks 3 and 7 from the critical block already landed here — period filter chips standardized + raw OCR `eventDetail` removed from goal cards. The clock direction inconsistency (spine=elapsed, card body=remaining) is resolved. This review covers what remains.
 

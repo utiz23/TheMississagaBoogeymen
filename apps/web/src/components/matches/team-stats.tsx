@@ -4,7 +4,7 @@ import { delayVar, staggerDelay } from '@/lib/motion'
 import { CountUp, MotionReveal } from './motion'
 
 // Rail module — team head-to-head, ported to the prototype's revised panel
-// (`Game sheet prototype layout (1)/Game Sheet copy.dc.html`, the TEAM STATS
+// (`docs/design/handoffs/2026-07-game-sheet/Game Sheet copy.dc.html`, the TEAM STATS
 // section; motion cues from `Team Stats Motion Recs.dc.html`).
 //
 // The panel is a FLAT list of duelling rows: one `.ds-section-label` header,

@@ -64,6 +64,10 @@ tools/historical_import/output_*/
 # Design system hand-off zips (extracted to docs/design/boogeymen-system/ as needed)
 *.zip
 
+# Local-only holding area: used design hand-offs, old backup zips, retired
+# labeling tools. Index in _local/README.md. Never committed.
+/_local/
+
 # Staged design system reference (source-of-truth lives in apps/web; this is local working copy)
 docs/design/boogeymen-system/
 

@@ -45,15 +45,15 @@ audited here were never deployed and are not part of that baseline.
 | `HANDOFF.md` | D | Net rewrite: 2,497 lines removed / 313 added. Consolidates completed/superseded entries (worker `/health` fix, 97-window rescue reconciliation) and trims stale content. Read-verified as containing accurate references to already-deployed `a97ce87`/`540777a` work; explicitly notes the rest of the dirty tree (this audit's subject) as untouched drift. |
 | `docs/README.md` | D | Index reorganization by purpose; adds links for previously-unlisted directories (`branding/`, `research/`, `reviews/`, `retrospectives/`, `runbook/`, `archive/`, etc.). |
 | `Asset 1.svg` (deleted) → `docs/branding/rink-event-map/faceoff-pin-reference.svg` (new) | D | SVG/XML content is identical (431→432 bytes); the sole difference is a normalized final newline added to the destination. Diffed against the HEAD blob directly. |
-| `polish list games.md` (deleted) → `docs/reviews/games-list-polish-scout-2026-07-04.md` (new) | D | Body is byte-identical to the HEAD blob starting at destination line 8, after a new 7-line header/status block. |
+| `polish list games.md` (deleted) → `docs/research/games-list-polish-scout-2026-07-04.md` (new) | D | Body is byte-identical to the HEAD blob starting at destination line 8, after a new 7-line header/status block. |
 | `docs/archive/handoff-history-2026-08-03.md` | D | New. Historical handoff snapshot, referenced by the new `HANDOFF.md`. |
 | `docs/calibration/live-schema-drift-audit-2026-08-15.md` | D | New. Record of already-completed schema-drift investigation. |
 | `docs/calibration/rescue-non-faceoff-exclusion-audit-2026-08-15.md` | D | New. Record of already-completed rescue audit. |
 | `docs/calibration/rescue-non-faceoff-resimulation-2026-08-15.md` | D | New. Record of already-completed resimulation. |
-| `docs/operations/deploy-540777a-period-family-2026-08-15.md` | D | New. Deploy record for already-deployed `540777a`. Per instructions, not treated as dirty *website* work. |
-| `docs/operations/deploy-a97ce87-worker-health-2026-08-16.md` | D | New. Deploy record for already-deployed `a97ce87` (the current baseline). Not treated as dirty website work. |
+| `docs/operations/records/deploy-540777a-period-family-2026-08-15.md` | D | New. Deploy record for already-deployed `540777a`. Per instructions, not treated as dirty *website* work. |
+| `docs/operations/records/deploy-a97ce87-worker-health-2026-08-16.md` | D | New. Deploy record for already-deployed `a97ce87` (the current baseline). Not treated as dirty website work. |
 | `docs/operations/migration-0056-application-2026-08-15.md` | D | New. Record of the already-applied migration 0056. |
-| `docs/reviews/games-list-polish-scout-2026-07-04.md` | D | New (relocation target — see above). Its findings are cross-checked against current code in §7. |
+| `docs/research/games-list-polish-scout-2026-07-04.md` | D | New (relocation target — see above). Its findings are cross-checked against current code in §7. |
 
 ---
 
@@ -129,7 +129,7 @@ weren't indexed, a Claude-model-naming-policy update in `AGENTS.md` and
 `agent-manager-workflow.md` (old `haiku`/`sonnet` names → `Sonnet 5`/`Opus 5`/`Fable 5`, with
 effort-tier guidance), two content-preserving file relocations (`Asset 1.svg` →
 `docs/branding/...faceoff-pin-reference.svg`, identical apart from a normalized final newline;
-`polish list games.md` → `docs/reviews/games-list-polish-scout-2026-07-04.md`, body byte-identical
+`polish list games.md` → `docs/research/games-list-polish-scout-2026-07-04.md`, body byte-identical
 past its new header block), and several new operations/calibration
 records documenting already-completed, already-deployed work (migration 0056 application, the
 `540777a` and `a97ce87` deploys, two rescue-audit reports, a schema-drift audit).
@@ -356,7 +356,7 @@ All run read-only; nothing was written except normal build output
 - `git status --short` captured before any work and re-captured after all reads, the `db` build,
   typecheck, lint, and test runs — **byte-identical**, diffed programmatically, confirmed matching.
 - The only new path on disk is this report,
-  `docs/reviews/dirty-website-workstream-audit-2026-08-16.md`.
+  `docs/research/dirty-website-workstream-audit-2026-08-16.md`.
 - `git diff --check` on all tracked dirty files — clean (§9).
 - All pre-existing dirty/untracked files are unmodified — proven by the identical `git status`
   snapshot (a modified or re-typed file would change `git status`'s hash-based dirty detection).
@@ -392,7 +392,7 @@ All run read-only; nothing was written except normal build output
 4. **`docs: reorganize docs index, update model-naming policy, consolidate handoff`** (workstream D)
    `AGENTS.md`, `docs/operations/agent-manager-workflow.md`, `docs/README.md`, `HANDOFF.md`,
    `Asset 1.svg` deletion + `docs/branding/rink-event-map/faceoff-pin-reference.svg` addition,
-   `polish list games.md` deletion + `docs/reviews/games-list-polish-scout-2026-07-04.md` addition,
+   `polish list games.md` deletion + `docs/research/games-list-polish-scout-2026-07-04.md` addition,
    plus the new `docs/archive/`, `docs/calibration/`, `docs/operations/deploy-*`,
    `docs/operations/migration-0056-application-2026-08-15.md` records. This can ship as one
    docs-only commit or be split further by the user's preference (e.g. the two file relocations

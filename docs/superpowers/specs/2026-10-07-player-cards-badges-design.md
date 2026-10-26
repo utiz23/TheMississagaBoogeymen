@@ -4,8 +4,8 @@
 
 **Status:** approved by the operator 2026-10-07, including the test-run amendment. Step 1 (badges) is next.
 **Supersedes:** for these features only, the open questions in
-[`docs/cards/card-system-brief.md`](../../cards/card-system-brief.md) and the
-"Reality check" ladders in [`docs/cards/badge-catalog.md`](../../cards/badge-catalog.md).
+[`docs/specs/cards/card-system-brief.md`](../../specs/cards/card-system-brief.md) and the
+"Reality check" ladders in [`docs/specs/cards/badge-catalog.md`](../../specs/cards/badge-catalog.md).
 Those files stay as background.
 
 ## Goal
@@ -23,7 +23,7 @@ Ship the operator's new Claude Design front-end work onto the live player page a
 
 ## Design sources
 
-| Design                | Source (repo root, git-ignored)     | Files                                                                                                                                                                                                           |
+| Design                | Source (`_local/design-handoffs/`)  | Files                                                                                                                                                                                                           |
 | --------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Cards, locker, badges | `Card Customization Page.zip`       | `PlayerCard.dc.html`, `Card Locker.dc.html`, `Badge.dc.html`, `Player Badges.dc.html`, `Badge Leveling.dc.html` (reference only), `card-data.js`, `badge-levels.js`, `badge-shapes.js`, `README.md`, `assets/*` |
 | Build Locker v2       | `Build Locker component design.zip` | `Build Locker v2.dc.html` (v1 and the wireframes are history only)                                                                                                                                              |

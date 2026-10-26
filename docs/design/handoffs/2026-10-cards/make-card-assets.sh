@@ -7,7 +7,7 @@
 # cover shows on the 264×421 card.
 set -euo pipefail
 
-ZIP="Card Customization Page.zip"
+ZIP="${CARD_ZIP:-_local/design-handoffs/Card Customization Page.zip}"
 OUT=apps/web/public/images/cards
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT

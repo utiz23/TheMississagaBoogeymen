@@ -12,7 +12,7 @@
 
 ## Context
 
-The `/games/[id]` UI review (`docs/reviews/Match-ID-UI-UX-Review.md`) called out five issues that look unrelated but share two root causes:
+The `/games/[id]` UI review (`docs/research/match-id-ui-ux-review.md`) called out five issues that look unrelated but share two root causes:
 
 1. **Color convention drift** — `possession-edge.tsx ContributorRow` colors its bar segments and number labels by "who wins this factor" instead of by team identity. Result: BGM losses on hits render in the same red as BGM wins on shots, so a fast scan can't distinguish "where BGM dominated" from "where BGM lost." The same root cause also makes positive and negative deltas (`+7.2 to DtW`, `-3.5 to DtW`) both render in accent red.
 
@@ -43,7 +43,7 @@ The intended outcome is a single sweep that makes the page's color and abbreviat
 
 **Existing helpers to reuse (do not re-implement):**
 
-- [`abbreviateTeamName(name: string): string`](apps/web/src/lib/format.ts#L128) — multi-word, filler-aware. `"4th Line"` → `"4L"`, `"Habs of Anarchy"` → `"HOA"`.
+- [`abbreviateTeamName(name: string): string`](../../../apps/web/src/lib/format.ts#L128) — multi-word, filler-aware. `"4th Line"` → `"4L"`, `"Habs of Anarchy"` → `"HOA"`.
 - Tailwind tokens already in use: `text-accent` (BGM red), `text-fg-1` (off-white), `text-fg-3` (muted), `text-fg-4` (more muted), `bg-fg-4` (neutral bar), `bg-accent` (BGM bar). All defined via CSS vars in `apps/web/src/app/globals.css`.
 - `text-emerald-400` / `text-rose-400` for signed deltas — same tokens as [`star-card.tsx:225`](apps/web/src/components/matches/star-card.tsx#L225) and [`scoresheet.tsx:94`](apps/web/src/components/matches/scoresheet.tsx#L94).
 
