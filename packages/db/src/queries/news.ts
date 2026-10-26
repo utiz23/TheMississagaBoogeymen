@@ -1860,9 +1860,8 @@ export interface NewsNormGame {
 
 /**
  * The title's counted (non-DNF) games strictly before `beforeMatchId` (the
- * sheet's first game; played_at, then id), oldest first. Shots: the sum of
- * reviewed OCR period rows (not the -1 total row) over EA's count, exactly
- * as `aggregateOcrShots` (a side with a period missing its value uses EA's). Raw SQL with aliases: the lateral subqueries must
+ * sheet's first game; played_at, then id), oldest first. Shots: EA's count,
+ * as the match page shows it (EA has precedence over OCR, 2026-10-26). Raw SQL with aliases: the lateral subqueries must
  * not bind to the inner tables. No active-title condition (the caller passes
  * the title of a sheet it already allowed).
  */
@@ -1870,23 +1869,13 @@ export function listNewsNormGamesSql(args: { gameTitleId: number; beforeMatchId:
   return sql`
     select m.id, to_char(${nightKeySql('m')}, 'YYYY-MM-DD') as night, m.game_mode, m.result,
       m.score_for, m.score_against, m.opponent_name, bgm.credited_goals, m.hits_for, m.hits_against,
-      coalesce(ocr.shots_for, m.shots_for) as shots_for,
-      coalesce(ocr.shots_against, m.shots_against) as shots_against,
+      m.shots_for, m.shots_against,
       m.time_on_attack, m.time_on_attack_against,
       m.pp_goals, m.pp_opportunities, m.pp_goals_against, m.pp_opportunities_against,
       bgm.pass_attempts, bgm.pass_completions,
       opp.pass_attempts as opp_pass_attempts, opp.pass_completions as opp_pass_completions
     from matches m
     join matches l on l.id = ${args.beforeMatchId}
-    left join lateral (
-      select case when count(*) = count(s.shots_for) then sum(s.shots_for) end as shots_for,
-        case when count(*) = count(s.shots_against) then sum(s.shots_against) end as shots_against
-      from match_period_summaries s
-      where s.match_id = m.id
-        and s.source = 'ocr'
-        and s.shots_review_status = 'reviewed'
-        and s.period_number <> -1
-    ) ocr on true
     left join lateral (
       select coalesce(sum(p.pass_attempts), 0) as pass_attempts,
         coalesce(sum(p.pass_completions), 0) as pass_completions,
@@ -2015,21 +2004,11 @@ export function listNewsPlayerGamesSql(args: {
     mg as (
       select m.id, m.game_title_id, to_char(${nightKeySql('m')}, 'YYYY-MM-DD') as night,
         m.played_at, m.game_mode, m.result, m.score_for, m.time_on_attack,
-        coalesce(ocr.shots_for, m.shots_for) as shots_for,
-        coalesce(ocr.shots_against, m.shots_against) as shots_against,
+        m.shots_for, m.shots_against,
         bgm.credited_goals
       from g
       join matches m on m.id = g.match_id
       join matches l on l.id = ${args.lastMatchId}
-      left join lateral (
-        select case when count(*) = count(s.shots_for) then sum(s.shots_for) end as shots_for,
-          case when count(*) = count(s.shots_against) then sum(s.shots_against) end as shots_against
-        from match_period_summaries s
-        where s.match_id = m.id
-          and s.source = 'ocr'
-          and s.shots_review_status = 'reviewed'
-          and s.period_number <> -1
-      ) ocr on true
       left join lateral (
         select coalesce(sum(greatest(p.goals, 0)), 0) as credited_goals
         from player_match_stats p

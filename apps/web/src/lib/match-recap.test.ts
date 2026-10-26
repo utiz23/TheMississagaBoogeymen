@@ -4,11 +4,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  aggregateOcrShots,
+  buildBoxScore,
   buildClassName,
   buildClassToArchetype,
   buildPossessionEdge,
-  possessionEdgeWithShots,
   lineupsForMatch,
   starsForMatch,
 } from './match-recap.ts'
@@ -61,23 +60,10 @@ const edgeMatch = {
   timeOnAttackAgainst: null,
 } as unknown as Parameters<typeof buildPossessionEdge>[0]
 
-void test('possession edge: reviewed OCR shots count by the shots family, not the legacy row status', () => {
-  const summary = {
-    source: 'ocr',
-    periodNumber: 1,
-    reviewStatus: 'pending_review',
-    shotsReviewStatus: 'reviewed',
-    shotsFor: 15,
-    shotsAgainst: 5,
-  } as unknown as NonNullable<Parameters<typeof buildPossessionEdge>[1]>[number]
-  const edge = buildPossessionEdge(edgeMatch, [summary])
-  assert.deepEqual(edge?.inputs.shots, { us: 15, them: 5, source: 'ocr' })
-})
-
-void test('possession edge from pre-summed OCR shots matches the period-summary path', () => {
-  const a = possessionEdgeWithShots(edgeMatch, { for: 15, against: 5 })
-  assert.equal(a?.bgmRaw, 67.5)
-  assert.deepEqual(possessionEdgeWithShots(edgeMatch, null)?.inputs.shots.source, 'ea')
+void test("possession edge: team shots are EA's; OCR shots no longer override them (2026-10-26)", () => {
+  const edge = buildPossessionEdge(edgeMatch)
+  assert.deepEqual(edge?.inputs.shots, { us: 10, them: 10 })
+  assert.equal(edge?.bgmRaw, 50)
 })
 
 void test('starsForMatch: no players, no stars', () => {
@@ -99,25 +85,23 @@ void test('lineupsForMatch: no OCR rows ⇒ box-score lineup', () => {
   assert.deepEqual(r.bgm, [])
 })
 
-void test('OCR shots: a side with a period missing its value falls back to EA (match 979: 8 + ? + 2 is not 10)', () => {
-  const row = (periodNumber: number, shotsFor: number | null, shotsAgainst: number | null) =>
-    ({
-      source: 'ocr',
-      periodNumber,
-      shotsReviewStatus: 'reviewed',
-      shotsFor,
-      shotsAgainst,
-    }) as unknown as Parameters<typeof aggregateOcrShots>[0][number]
-  // Match 979 on live: shots for missing in the 2nd, shots against complete.
-  assert.deepEqual(aggregateOcrShots([row(1, 8, 8), row(2, null, 9), row(3, 2, 0), row(4, 0, 0)]), {
-    for: null,
-    against: 17,
-  })
-  // Match 1042: shots against missing in the 2nd and 3rd.
-  assert.deepEqual(aggregateOcrShots([row(1, 5, 0), row(2, 2, null), row(3, 4, null)]), {
-    for: 11,
-    against: null,
-  })
-  assert.deepEqual(aggregateOcrShots([row(1, 5, 4), row(2, 6, 3)]), { for: 11, against: 7 })
-  assert.deepEqual(aggregateOcrShots([]), { for: null, against: null })
+void test("box score: Shots are EA's even with reviewed OCR period rows (EA over OCR, 2026-10-26)", () => {
+  const summary = {
+    source: 'ocr',
+    periodNumber: 1,
+    shotsReviewStatus: 'reviewed',
+    shotsFor: 29,
+    shotsAgainst: 16,
+  } as unknown as NonNullable<Parameters<typeof buildBoxScore>[3]>[number]
+  const groups = buildBoxScore(
+    { ...edgeMatch, scoreFor: 2, scoreAgainst: 1 } as unknown as Parameters<
+      typeof buildBoxScore
+    >[0],
+    [],
+    [],
+    [summary],
+  )
+  const shots = groups.flatMap((g) => g.rows).find((r) => r.label === 'Shots')
+  assert.deepEqual([shots?.us, shots?.them], ['10', '10'])
+  assert.equal(groups.find((g) => g.title === 'Offense')?.footnote, undefined)
 })

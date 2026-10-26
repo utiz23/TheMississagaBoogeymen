@@ -9,7 +9,6 @@ import {
   getOpponentClub,
   getRecentMatches,
   getMatchFaceoffTotals,
-  getOcrShotTotalsForMatches,
   getRoster,
   getEARoster,
   getRosterCarryOvers,
@@ -139,7 +138,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
   let lastMatchOpponent = null
   let lastMatchFaceoffs: Awaited<ReturnType<typeof getMatchFaceoffTotals>> | null = null
-  let lastMatchOcrShots: { for: number | null; against: number | null } | undefined
   if (lastMatch !== null) {
     try {
       lastMatchOpponent = await getOpponentClub(lastMatch.opponentClubId)
@@ -147,10 +145,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
       // Logo display degrades gracefully to initial badge
     }
     lastMatchFaceoffs = await getMatchFaceoffTotals(lastMatch.id)
-    // Reviewed OCR shots, so the DtW chip agrees with the game sheet (fails soft).
-    lastMatchOcrShots = await getOcrShotTotalsForMatches([lastMatch.id])
-      .then((m) => m.get(lastMatch.id))
-      .catch(() => undefined)
   }
 
   // The carousel also carries last title's members who haven't played this
@@ -211,7 +205,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
               opponentCrestAssetId={lastMatchOpponent?.crestAssetId ?? null}
               opponentCrestUseBaseAsset={lastMatchOpponent?.useBaseAsset ?? null}
               faceoffs={lastMatchFaceoffs}
-              ocrShots={lastMatchOcrShots}
               divisionName={seasonRank?.divisionName ?? null}
             />
           </section>

@@ -184,7 +184,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
     seasonAvgs,
   )
   const allTeamScores = buildAllTeamScores(match, playerStatsForStars, opponentStatsForStars)
-  const possessionEdge = buildPossessionEdge(match, periodSummaries)
+  const possessionEdge = buildPossessionEdge(match)
   const boxScore = buildBoxScore(match, playerStats, opponentPlayerStats, periodSummaries)
 
   // OT is derived — no schema column. OCR period rows past regulation cover

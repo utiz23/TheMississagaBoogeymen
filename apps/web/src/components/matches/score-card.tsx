@@ -7,7 +7,7 @@ import { ResultPill } from '@/components/ui/result-pill'
 import type { OcrCoverageStreams } from '@/lib/ocr-coverage'
 import { dtwBandColor } from '@/lib/dtw'
 import { abbreviateTeamName, formatMatchDate, formatMatchTime, formatTOA } from '@/lib/format'
-import { possessionEdgeWithShots } from '@/lib/match-recap'
+import { buildPossessionEdge } from '@/lib/match-recap'
 import { getResultStyle } from '@/lib/result-colors'
 
 const OUR_ABBREV = 'BGM'
@@ -67,8 +67,6 @@ interface ScoreCardProps {
    * callers without the batched coverage lookup simply don't show one.
    */
   ocrCoverage?: OcrCoverageStreams | undefined
-  /** Reviewed OCR shot totals (getOcrShotTotalsForMatches), so DtW matches the game sheet. */
-  ocrShots?: { for: number | null; against: number | null } | undefined
 }
 
 /** Stat labels read at fg-5 (~4.6:1), the site's floor for small text. */
@@ -121,7 +119,6 @@ export function ScoreCard({
   opponentCrestUseBaseAsset,
   href,
   ocrCoverage,
-  ocrShots,
 }: ScoreCardProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
 
@@ -140,7 +137,7 @@ export function ScoreCard({
 
   const toa = match.timeOnAttack !== null ? formatTOA(match.timeOnAttack) : null
 
-  const possEdge = possessionEdgeWithShots(match, ocrShots)
+  const possEdge = buildPossessionEdge(match)
   const dtw = possEdge !== null ? possEdge.bgmRaw : null
 
   const isPrivate = match.matchType === 'club_private'

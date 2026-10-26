@@ -725,25 +725,14 @@ void test('week history games: one title, not DNF, night key in [from, to), olde
 void test("norm games: the title's counted games before the sheet's first game, page shots, pass sums (C1.2)", () => {
   const q = dialect.sqlToQuery(listNewsNormGamesSql({ gameTitleId: 7, beforeMatchId: 900 }))
   const s = flat(q.sql)
-  // A side with a reviewed period missing its value is not a total: EA's count (match 979).
-  assert.match(
-    s,
-    /case when count\(\*\) = count\(s\.shots_for\) then sum\(s\.shots_for\) end as shots_for, case when count\(\*\) = count\(s\.shots_against\) then sum\(s\.shots_against\) end as shots_against/,
-  )
+  // Team shots are EA's (EA over OCR, 2026-10-26): no OCR period sum.
+  assert.match(s, /m\.shots_for, m\.shots_against/)
+  assert.doesNotMatch(s, /match_period_summaries/)
   assert.match(s, /from matches m join matches l on l\.id = \$\d+/)
   assert.match(s, /m\.game_title_id = \$\d+/)
   assert.match(s, /m\.result <> 'DNF'/)
   // Strictly before the first game of the sheet (ties on played_at broken by id).
   assert.match(s, /\(m\.played_at, m\.id\) < \(l\.played_at, l\.id\)/)
-  // Shots as the match page shows them: reviewed OCR period rows over EA's count.
-  assert.match(
-    s,
-    /coalesce\(ocr\.shots_for, m\.shots_for\) as shots_for, coalesce\(ocr\.shots_against, m\.shots_against\) as shots_against/,
-  )
-  assert.match(
-    s,
-    /from match_period_summaries s where s\.match_id = m\.id and s\.source = 'ocr' and s\.shots_review_status = 'reviewed' and s\.period_number <> -1/,
-  )
   // Pass % from the player rows of both sides (as the page's Pass % row), credited goals from the club rows.
   assert.match(
     s,
@@ -840,11 +829,9 @@ void test("night posts for the prompt: the night's not-deleted posts, oldest fir
 void test("player games: the named players' rows in every title up to the sheet's last game, with the ended-early inputs (C2.3)", () => {
   const q = dialect.sqlToQuery(listNewsPlayerGamesSql({ playerIds: [2, 5], lastMatchId: 900 }))
   const s = flat(q.sql)
-  // A side with a reviewed period missing its value is not a total: EA's count (match 979).
-  assert.match(
-    s,
-    /case when count\(\*\) = count\(s\.shots_for\) then sum\(s\.shots_for\) end as shots_for, case when count\(\*\) = count\(s\.shots_against\) then sum\(s\.shots_against\) end as shots_against/,
-  )
+  // Team shots are EA's (EA over OCR, 2026-10-26): no OCR period sum.
+  assert.match(s, /m\.shots_for, m\.shots_against/)
+  assert.doesNotMatch(s, /match_period_summaries/)
   // The matches of those players, once each, bounded by the last game (ties on played_at by id).
   assert.match(
     s,
@@ -855,12 +842,7 @@ void test("player games: the named players' rows in every title up to the sheet'
   // Every title and every result (DNF rows count for the title totals; callers skip them for runs and norms).
   assert.doesNotMatch(s, /game_title_id = /)
   assert.doesNotMatch(s, /DNF/)
-  // Shots as the match page shows them, credited goals of the club rows.
-  assert.match(s, /coalesce\(ocr\.shots_for, m\.shots_for\) as shots_for/)
-  assert.match(
-    s,
-    /s\.source = 'ocr' and s\.shots_review_status = 'reviewed' and s\.period_number <> -1/,
-  )
+  // Credited goals of the club rows.
   assert.match(s, /coalesce\(sum\(greatest\(p\.goals, 0\)\), 0\) as credited_goals/)
   assert.match(
     s,

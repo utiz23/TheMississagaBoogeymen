@@ -908,51 +908,6 @@ export async function countPendingOcrPeriodFamilies(
 
 export type MatchPeriodSummaryRow = Awaited<ReturnType<typeof getMatchPeriodSummaries>>[number]
 
-/**
- * Reviewed OCR shot totals per match, for lists (game cards, latest result)
- * whose Deserve-to-Win must agree with the game sheet's. Same gate as
- * getMatchPeriodSummaries' shots family: OCR rows whose `shots_review_status`
- * is 'reviewed', real periods only. A side is null when any of those periods
- * lacks its value (a partial sum is not a total; `aggregateOcrShots` does the
- * same). A match without any usable side is absent.
- */
-export async function getOcrShotTotalsForMatches(
-  matchIds: readonly number[],
-): Promise<Map<number, { for: number | null; against: number | null }>> {
-  const out = new Map<number, { for: number | null; against: number | null }>()
-  if (matchIds.length === 0) return out
-  const rows = await db
-    .select({
-      matchId: matchPeriodSummaries.matchId,
-      shotsFor: sql<
-        string | null
-      >`case when count(*) = count(${matchPeriodSummaries.shotsFor}) then sum(${matchPeriodSummaries.shotsFor}) end`,
-      shotsAgainst: sql<
-        string | null
-      >`case when count(*) = count(${matchPeriodSummaries.shotsAgainst}) then sum(${matchPeriodSummaries.shotsAgainst}) end`,
-    })
-    .from(matchPeriodSummaries)
-    .where(
-      and(
-        inArray(matchPeriodSummaries.matchId, [...matchIds]),
-        eq(matchPeriodSummaries.source, 'ocr'),
-        eq(matchPeriodSummaries.shotsReviewStatus, 'reviewed'),
-        gte(matchPeriodSummaries.periodNumber, 1),
-      ),
-    )
-    .groupBy(matchPeriodSummaries.matchId)
-  const side = (v: string | number | null): number | null => {
-    if (v === null) return null
-    const n = Number(v)
-    return Number.isFinite(n) ? n : null
-  }
-  for (const r of rows) {
-    const shots = { for: side(r.shotsFor), against: side(r.shotsAgainst) }
-    if (shots.for === null && shots.against === null) continue
-    out.set(r.matchId, shots)
-  }
-  return out
-}
 export type MatchShotTypeSummaryRow = Awaited<ReturnType<typeof getMatchShotTypeSummaries>>[number]
 export type MatchFaceoffDotRow = Awaited<ReturnType<typeof getMatchFaceoffDots>>[number]
 export type MatchFaceoffZoneSummaryRow = Awaited<

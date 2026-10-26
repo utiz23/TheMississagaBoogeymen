@@ -6,7 +6,6 @@ import {
   countMatches,
   getOpponentClubs,
   getOcrCoverageForMatches,
-  getOcrShotTotalsForMatches,
   type MatchOcrCoverage,
 } from '@eanhl/db/queries'
 import type { GameMode, MatchResult } from '@eanhl/db'
@@ -182,14 +181,9 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   // OCR coverage drives a decorative pill only, so it fails soft — an empty
   // map renders no pills rather than taking the whole list down with it.
   const pageIds = pageMatches.map((match) => match.id)
-  // Reviewed OCR shots keep each card's DtW equal to its game sheet's. Fails
-  // soft too: EA shot counts are the fallback.
-  const [ocrCoverage, ocrShots] = await Promise.all([
-    getOcrCoverageForMatches(pageIds).catch(() => new Map<number, MatchOcrCoverage>()),
-    getOcrShotTotalsForMatches(pageIds).catch(
-      () => new Map<number, { for: number; against: number }>(),
-    ),
-  ])
+  const ocrCoverage = await getOcrCoverageForMatches(pageIds).catch(
+    () => new Map<number, MatchOcrCoverage>(),
+  )
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   // Clamp page to valid range — handles stale bookmarks
@@ -274,7 +268,6 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
                         opponentCrestAssetId={opponent?.crestAssetId ?? null}
                         opponentCrestUseBaseAsset={opponent?.useBaseAsset ?? null}
                         ocrCoverage={ocrCoverage.get(match.id)}
-                        ocrShots={ocrShots.get(match.id)}
                       />
                     )
                   })}

@@ -768,7 +768,7 @@ export interface PossessionEdge {
   bgmRaw: number
   oppRaw: number
   inputs: {
-    shots: { us: number; them: number; source: 'ea' | 'ocr' }
+    shots: { us: number; them: number }
     /** BGM faceoff percentage (0-100), or null if unknown. */
     faceoffPct: number | null
     hits: { us: number; them: number }
@@ -781,25 +781,14 @@ export interface PossessionEdge {
   weights: { shots: number; faceoff: number; hits: number; toa: number }
 }
 
-export function buildPossessionEdge(
-  match: Match,
-  periodSummaries: MatchPeriodSummaryRow[] = [],
-): PossessionEdge | null {
-  return possessionEdgeWithShots(match, aggregateOcrShots(periodSummaries))
-}
-
 /**
- * The same model from pre-summed reviewed OCR shots (getOcrShotTotalsForMatches),
- * so list cards agree with the game sheet. `null` → EA's shot counts.
+ * Team shot totals are EA's (operator decision 2026-10-26: EA has precedence
+ * over OCR). Reviewed OCR shots stay in the per-period table only, so the game
+ * sheet, the list cards and the news sheets all use the same count.
  */
-export function possessionEdgeWithShots(
-  match: Match,
-  ocr: { for: number | null; against: number | null } | null | undefined,
-): PossessionEdge | null {
-  const ocrShots = ocr ?? { for: null, against: null }
-  const shotsFor = ocrShots.for ?? match.shotsFor
-  const shotsAgainst = ocrShots.against ?? match.shotsAgainst
-  const shotsSource: 'ea' | 'ocr' = ocrShots.for !== null ? 'ocr' : 'ea'
+export function buildPossessionEdge(match: Match): PossessionEdge | null {
+  const shotsFor = match.shotsFor
+  const shotsAgainst = match.shotsAgainst
 
   const totalShots = shotsFor + shotsAgainst
   const totalHits = match.hitsFor + match.hitsAgainst
@@ -844,7 +833,7 @@ export function possessionEdgeWithShots(
     bgmRaw: Math.round(bgmRaw * 10) / 10,
     oppRaw: Math.round((100 - bgmRaw) * 10) / 10,
     inputs: {
-      shots: { us: shotsFor, them: shotsAgainst, source: shotsSource },
+      shots: { us: shotsFor, them: shotsAgainst },
       faceoffPct: faceoffPctNum,
       hits: { us: match.hitsFor, them: match.hitsAgainst },
       timeOnAttackSeconds: match.timeOnAttack,
@@ -890,19 +879,14 @@ export function buildBoxScore(
   const bgmAgg = aggregatePlayerSide(bgm)
   const oppAgg = aggregateOpponentSide(opponent)
 
-  // OCR-derived shot totals override EA's number when reviewed OCR exists for
-  // this match. EA's Pro Clubs API consistently under-counts shots vs the
-  // in-game Box Score; treating reviewed OCR as canonical fixes the cognitive
-  // dissonance between this widget and the per-period OCR summary below it.
-  const ocrShots = aggregateOcrShots(periodSummaries)
-  const shotsFor = ocrShots.for ?? match.shotsFor
-  const shotsAgainst = ocrShots.against ?? match.shotsAgainst
-  const shotsLabel = ocrShots.for !== null ? 'Shots *' : 'Shots'
+  // Team shots are EA's (EA has precedence over OCR, 2026-10-26).
+  const shotsFor = match.shotsFor
+  const shotsAgainst = match.shotsAgainst
 
   const offenseRows: BoxScoreRow[] = [
     row('Goals', match.scoreFor, match.scoreAgainst),
     row('Assists', bgmAgg.assists, oppAgg.assists),
-    row(shotsLabel, shotsFor, shotsAgainst),
+    row('Shots', shotsFor, shotsAgainst),
     pctRow('Shooting %', pct(match.scoreFor, shotsFor), pct(match.scoreAgainst, shotsAgainst)),
     pctRow(
       'Shot On Net %',
@@ -966,45 +950,13 @@ export function buildBoxScore(
 
   const groups: BoxScoreGroup[] = []
   if (offenseRows.length > 0) {
-    const offense: BoxScoreGroup = { title: 'Offense', rows: offenseRows }
-    if (ocrShots.for !== null) {
-      offense.footnote = '* Shots and shooting % are from the in-game Box Score (OCR-reviewed).'
-    }
-    groups.push(offense)
+    groups.push({ title: 'Offense', rows: offenseRows })
   }
   if (possessionRows.length > 0) groups.push({ title: 'Possession', rows: possessionRows })
   if (defenseRows.length > 0) groups.push({ title: 'Defense', rows: defenseRows })
   if (disciplineRows.length > 0) groups.push({ title: 'Discipline', rows: disciplineRows })
   if (goalieRows.length > 0) groups.push({ title: 'Goalie', rows: goalieRows })
   return groups
-}
-
-/**
- * Sum BGM and opponent shot totals across reviewed OCR period summaries.
- * Returns null on either side when no usable data is found, or when any
- * reviewed period lacks that side's value (a partial sum is not a total), so
- * the caller can fall back to EA's headline value.
- */
-export function aggregateOcrShots(rows: MatchPeriodSummaryRow[]): {
-  for: number | null
-  against: number | null
-} {
-  let totalFor: number | null = null
-  let totalAgainst: number | null = null
-  let missingFor = false
-  let missingAgainst = false
-  for (const r of rows) {
-    if (r.source !== 'ocr') continue
-    // Gate on the shots family, not the legacy row-level status: a row can
-    // carry reviewed shots while review_status is still pending.
-    if (r.shotsReviewStatus !== 'reviewed') continue
-    if (r.periodNumber === -1) continue // ignore aggregate "TOT" sentinels if any
-    if (r.shotsFor === null) missingFor = true
-    else totalFor = (totalFor ?? 0) + r.shotsFor
-    if (r.shotsAgainst === null) missingAgainst = true
-    else totalAgainst = (totalAgainst ?? 0) + r.shotsAgainst
-  }
-  return { for: missingFor ? null : totalFor, against: missingAgainst ? null : totalAgainst }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

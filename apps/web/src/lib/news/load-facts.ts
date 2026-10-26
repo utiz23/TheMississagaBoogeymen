@@ -1,6 +1,6 @@
 // Loads the fact sheets for the news desk. Every number comes from the same
 // functions the match page and the Discord poster use (stars, overtime,
-// OCR-reviewed shots, loadout positions), so a story can never disagree with the page.
+// EA's team shots, loadout positions), so a story can never disagree with the page.
 // Active game title only, unless `includeInactive` (the backfill of old
 // nights); DNF games are left out. Throws on a database failure
 // (the news service retries).
@@ -40,12 +40,7 @@ import {
   type NewsFacts,
   type NewsFactsResponse,
 } from '@eanhl/db/news'
-import {
-  aggregateOcrShots,
-  applyLoadoutOverrides,
-  starsForMatch,
-  wentToOvertime,
-} from '@/lib/match-recap'
+import { applyLoadoutOverrides, starsForMatch, wentToOvertime } from '@/lib/match-recap'
 import { normalizeLineupTag } from '@/lib/lineup-slots'
 import {
   buildAiGoalieWeek,
@@ -167,8 +162,7 @@ async function loadGame(match: Match): Promise<LoadedGame | null> {
     }
   })
 
-  // Shots exactly as the match page's box score: reviewed OCR over EA's count.
-  const ocrShots = aggregateOcrShots(periodSummaries)
+  // Shots exactly as the match page's box score: EA's count (EA over OCR).
   const passAttempts = playerStats.reduce((n, p) => n + p.passAttempts, 0)
   const passCompletions = playerStats.reduce((n, p) => n + p.passCompletions, 0)
   const oppPassAttempts = opponentPlayerStats.reduce((n, p) => n + p.passAttempts, 0)
@@ -179,8 +173,8 @@ async function loadGame(match: Match): Promise<LoadedGame | null> {
     result,
     overtime,
     shots: {
-      for: ocrShots.for ?? match.shotsFor,
-      against: ocrShots.against ?? match.shotsAgainst,
+      for: match.shotsFor,
+      against: match.shotsAgainst,
     },
     passPct: passPctOf(passCompletions, passAttempts),
     passPctAgainst: passPctOf(oppPassCompletions, oppPassAttempts),

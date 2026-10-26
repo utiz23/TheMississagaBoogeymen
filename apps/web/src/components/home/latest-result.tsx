@@ -11,7 +11,7 @@ import {
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { ResultPill } from '@/components/ui/result-pill'
 import { DtwChip } from '@/components/home/dtw-chip'
-import { possessionEdgeWithShots } from '@/lib/match-recap'
+import { buildPossessionEdge } from '@/lib/match-recap'
 
 const OUR_NAME = 'Boogeymen'
 
@@ -41,7 +41,6 @@ interface LatestResultProps {
   /** Current season division placement (from EA clubs/seasonRank). */
   divisionName: string | null
   /** Reviewed OCR shot totals, so DtW matches the game sheet. */
-  ocrShots?: { for: number | null; against: number | null } | undefined
 }
 
 export function LatestResult({
@@ -51,11 +50,10 @@ export function LatestResult({
   opponentCrestUseBaseAsset,
   faceoffs,
   divisionName,
-  ocrShots,
 }: LatestResultProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
   const matchTypeLabel = MATCH_TYPE_LABEL[match.matchType]
-  const edge = possessionEdgeWithShots(match, ocrShots)
+  const edge = buildPossessionEdge(match)
   // OT detection — regulation is 60 minutes total ice time. If any player on
   // either side logged > 3600 seconds, the game went to overtime.
   const wentToOvertime = faceoffs !== null && faceoffs.maxToiSeconds > 3600
