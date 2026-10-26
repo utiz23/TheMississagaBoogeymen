@@ -22,7 +22,8 @@
 -- Part C3b (2026-10-25, edited in place): news_items.rules_version (the version
 -- of the writing rules that wrote the item, spec §12.18-6) and
 -- news_reporter_switch (one row per reporter switched on or off, §12.18-6) and
--- news_items.send_after (a big game's posts go to Discord a few minutes apart).
+-- news_items.send_after (a big game's posts go to Discord a few minutes apart) and
+-- news_items.is_correction (a code-built correction post after a deletion).
 -- Back-fills a skipped job for every existing game, night and week (Monday
 -- start, from the night key) so launch never covers history.
 --
@@ -175,6 +176,7 @@ END $$;
 -- Part C3b: the rules version that wrote the item (null on rows from before).
 ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "rules_version" text;
 ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "send_after" timestamp with time zone;
+ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "is_correction" boolean DEFAULT false NOT NULL;
 CREATE INDEX IF NOT EXISTS "news_items_send_after_idx" ON "news_items" ("send_after") WHERE "send_after" IS NOT NULL;
 
 DO $$ BEGIN

@@ -11,14 +11,18 @@ export function correctionText(reporter: ReporterId, kind: 'post' | 'article'): 
 
 /**
  * The correction post for a deleted item, or null when none is wanted (a test item was
- * never public). It has `send_after` = now, so the news service sends it on its next
- * pass; the site shows it at once. Same reporter and night as the deleted item.
+ * never public). The site shows it at once. It goes to Discord only when the deleted
+ * item had a Discord message: then `send_after` = now and the news service sends it on
+ * its next pass; otherwise it is marked skipped ("site only"). Same reporter and night
+ * as the deleted item. `isCorrection` keeps it out of the reporters' activity and counts.
  */
 export function correctionItem(
-  original: Pick<NewsItemRow, 'reporter' | 'kind' | 'night' | 'isTest'>,
+  original: Pick<NewsItemRow, 'reporter' | 'kind' | 'night' | 'isTest' | 'discordMessageId'>,
   now: Date,
+  rulesVersion: string,
 ): NewNewsItem | null {
   if (original.isTest) return null
+  const onDiscord = original.discordMessageId !== null
   return {
     kind: 'post',
     reporter: original.reporter,
@@ -27,6 +31,13 @@ export function correctionItem(
     mentions: [],
     facts: null,
     isTest: false,
-    sendAfter: now,
+    isCorrection: true,
+    rulesVersion,
+    ...(onDiscord
+      ? { sendAfter: now }
+      : {
+          discordStatus: 'skipped' as const,
+          lastError: 'site only: the deleted item was never on Discord',
+        }),
   }
 }

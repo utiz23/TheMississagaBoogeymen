@@ -42,6 +42,7 @@ function row(id: number, over: Partial<NewsItemRow> = {}): NewsItemRow {
     takesUsed: [],
     rulesVersion: null,
     sendAfter: null,
+    isCorrection: false,
     isTest: false,
     discordStatus: 'posted',
     discordAttempts: 1,

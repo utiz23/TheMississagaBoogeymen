@@ -52,6 +52,7 @@ const {
   disabledReportersQuery,
   adminTakesSql,
   seedPlayersSql,
+  skipHeldPostsSql,
   updateAdminTakeQuery,
   qualityItemsSql,
   rowToAdminTake,
@@ -183,7 +184,7 @@ void test('reporter activity: real, not deleted, since; kind = feature, night, r
   )
   assert.match(
     s,
-    /from news_items n left join news_items t on t\.id = n\.reply_to where n\.is_test = false and n\.deleted_at is null/,
+    /from news_items n left join news_items t on t\.id = n\.reply_to where n\.is_test = false and n\.is_correction = false and n\.deleted_at is null/,
   )
   assert.match(s, /and n\.created_at >= \$1::timestamptz order by n\.id asc/)
   assert.deepEqual(q.params, ['2026-10-10T00:00:00.000Z'])
@@ -817,7 +818,7 @@ void test("night posts for the prompt: the night's not-deleted posts, oldest fir
   const s = flat(real.sql)
   assert.match(
     s,
-    /select n\.reporter, n\.body from news_items n where n\.kind = 'post' and n\.night = \$1::date and n\.deleted_at is null and \(n\.is_test = false or \$2\) order by n\.created_at asc, n\.id asc/,
+    /select n\.reporter, n\.body from news_items n where n\.kind = 'post' and n\.is_correction = false and n\.night = \$1::date and n\.deleted_at is null and \(n\.is_test = false or \$2\) order by n\.created_at asc, n\.id asc/,
   )
   assert.deepEqual(real.params, ['2026-10-12', false])
   assert.deepEqual(dialect.sqlToQuery(nightPostsForPromptSql('2026-10-12', true)).params, [
@@ -1154,7 +1155,7 @@ void test('recent reporter pieces (C3a.3): posts and articles, newest first; tes
   const s = flat(q.sql)
   assert.match(
     s,
-    /select n\.kind, n\.body, n\.headline, n\.summary, n\.night from news_items n where \(n\.is_test = false or \$1\) and n\.deleted_at is null and n\.reporter = \$2 and not exists/,
+    /select n\.kind, n\.body, n\.headline, n\.summary, n\.night from news_items n where \(n\.is_test = false or \$1\) and n\.is_correction = false and n\.deleted_at is null and n\.reporter = \$2 and not exists/,
   )
   assert.match(s, /where pp\.press_level = 'out' ?\) order by n\.id desc limit \$3/)
   assert.deepEqual(q.params, [false, 'quill', 5])
@@ -1246,7 +1247,7 @@ void test('C3b.4: waiting posts: due query, claim and the send_after column', as
   const d = dueNewsItemsQuery(new Date('2026-10-24T12:00:00Z'), 20).toSQL()
   assert.match(
     flat(d.sql),
-    /from "news_items" where \("news_items"\."discord_status" = \$1 and "news_items"\."send_after" is not null and "news_items"\."send_after" <= \$2 and "news_items"\."is_test" = \$3 and "news_items"\."deleted_at" is null\) order by "news_items"\."send_after" asc, "news_items"\."id" asc limit \$4/,
+    /from "news_items" where \("news_items"\."discord_status" = \$1 and "news_items"\."send_after" is not null and "news_items"\."send_after" <= \$2 and "news_items"\."is_test" = \$3 and "news_items"\."deleted_at" is null and not exists \( select 1 from news_items r where r\.job_id = "news_items"\."job_id" and r\.id < "news_items"\."id" and r\.deleted_at is null and r\.send_after is null and r\.discord_status = 'failed' and r\.discord_attempts < 3 \)\) order by "news_items"\."send_after" asc, "news_items"\."id" asc limit \$4/,
   )
   assert.deepEqual(d.params, ['pending', '2026-10-24T12:00:00.000Z', false, 20])
   const c = claimDueNewsItemQuery(7).toSQL()
@@ -1299,9 +1300,14 @@ void test('C3b.6/7: admin takes and quality items: SQL pins and row mappers', ()
   const q = dialect.sqlToQuery(qualityItemsSql(new Date('2026-09-25T00:00:00Z')))
   assert.match(
     flat(q.sql),
-    /from news_items n where n\.deleted_at is null and n\.is_test = false and n\.created_at >= \$1::timestamptz order by n\.id/,
+    /from news_items n where n\.deleted_at is null and n\.is_test = false and n\.is_correction = false and n\.created_at >= \$1::timestamptz order by n\.id/,
   )
-  assert.match(flat(q.sql), /n\.facts->'games'->0->>'result'/)
+  // The result is the sheet game with the ITEM's match id, not the first game on the sheet.
+  assert.match(
+    flat(q.sql),
+    /select g\.value->>'result' from jsonb_array_elements\(n\.facts->'games'\) as g where \(g\.value->>'matchId'\)::bigint = n\.match_id limit 1/,
+  )
+  assert.ok(!flat(q.sql).includes("->0->>'result'"))
   assert.deepEqual(q.params, ['2026-09-25T00:00:00.000Z'])
   const item = rowToQualityItem({
     reporter: 'voss',
@@ -1343,4 +1349,23 @@ void test('C3b.9: the seed resolves names against human players and profile name
     flat(q.sql),
     /select p\.id, p\.gamertag, nullif\(btrim\(pp\.player_name\), ''\) as name from players p left join player_profiles pp on pp\.player_id = p\.id where p\.ai_goalie_side is null order by p\.id/,
   )
+})
+
+void test('C3b fix: is_correction column and the held-posts skip on switch-on', async () => {
+  const q = dialect.sqlToQuery(skipHeldPostsSql())
+  assert.match(
+    flat(q.sql),
+    /update news_items set discord_status = 'skipped', send_after = null, last_error = 'held while the desk was off' where discord_status = 'pending' and send_after is not null and is_correction = false/,
+  )
+  const { readFile } = await import('node:fs/promises')
+  const raw = await readFile(
+    new URL('../../../migrations/0071_news_desk.sql', import.meta.url),
+    'utf8',
+  )
+  assert.ok(
+    raw.includes(
+      'ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "is_correction" boolean DEFAULT false NOT NULL;',
+    ),
+  )
+  assert.ok(getTableConfig(newsItems).columns.some((c) => c.name === 'is_correction'))
 })

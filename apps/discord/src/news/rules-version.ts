@@ -1,6 +1,2 @@
-/**
- * The version of the writing rules (system prompt, voices, code checks, review
- * prompt). Stored on every item so the admin can tell which rules wrote it.
- * Bump it whenever a prompt or a rule changes: `YYYY-MM-DD.N`.
- */
-export const NEWS_RULES_VERSION = '2026-10-25.1'
+/** The writing-rules version lives in the db package (the web admin stamps corrections with it too). */
+export { NEWS_RULES_VERSION } from '@eanhl/db/news'

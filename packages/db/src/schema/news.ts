@@ -134,6 +134,11 @@ export const newsItems = pgTable(
      * a few minutes apart). Null = send now. Cleared when the delivery pass claims it.
      */
     sendAfter: timestamp('send_after', { withTimezone: true }),
+    /**
+     * Part C3b: a code-built correction post (spec §12.18-6). Not part of the
+     * reporters' activity, queues, own-piece lists or the quality numbers.
+     */
+    isCorrection: boolean('is_correction').notNull().default(false),
     isTest: boolean('is_test').notNull().default(false),
     discordStatus: text('discord_status').$type<DiscordPostStatus>().notNull().default('pending'),
     discordAttempts: integer('discord_attempts').notNull().default(0),

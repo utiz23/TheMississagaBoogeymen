@@ -53,7 +53,7 @@ function lossGame(matchId: number): NewsGameFacts {
     scoreFor: 2,
     scoreAgainst: 3,
     context: {
-      result: 'normal',
+      result: 'rolling',
       streakBefore: null,
       streakAfter: { kind: 'L', count: 1 },
       last10: { wins: 8, losses: 1, otl: 1 },
@@ -255,6 +255,7 @@ function harness(
         takesUsed: item.takesUsed ?? [],
         rulesVersion: item.rulesVersion ?? null,
         sendAfter: item.sendAfter ?? null,
+        isCorrection: item.isCorrection ?? false,
         isTest: item.isTest ?? false,
         discordStatus: item.discordStatus ?? 'pending',
         discordAttempts: 0,
@@ -352,7 +353,18 @@ function harness(
             i.sendAfter !== null &&
             i.sendAfter <= now &&
             !i.isTest &&
-            i.deletedAt === null,
+            i.deletedAt === null &&
+            // As the query: never ahead of an earlier failed post of the same job.
+            ![...items.values()].some(
+              (r) =>
+                r.jobId !== null &&
+                r.jobId === i.jobId &&
+                r.id < i.id &&
+                r.deletedAt === null &&
+                r.sendAfter === null &&
+                r.discordStatus === 'failed' &&
+                r.discordAttempts < 3,
+            ),
         )
         .sort((a, b) => a.sendAfter!.getTime() - b.sendAfter!.getTime() || a.id - b.id)
         .slice(0, limit),
@@ -1681,7 +1693,7 @@ void test('C3b.4: later passes send the posts whose time has come, in order, nev
   await runNewsCycle(h.deps, h.opts)
   assert.equal(h.sent.length, before + 2)
   // All of them, once the last is due.
-  clock.t = new Date(NOW.getTime() + 60 * 60_000)
+  clock.t = new Date(NOW.getTime() + 25 * 60_000)
   await runNewsCycle(h.deps, h.opts)
   assert.ok(posts.every((p) => p.discordStatus === 'posted'))
   assert.equal(h.sent.length, before + posts.length - 1)
@@ -1705,7 +1717,7 @@ void test('C3b.4: a deleted or switched-off desk sends no waiting posts; a delet
   await runNewsCycle(h.deps, h.opts)
   const posts = [...h.items.values()].filter((i) => i.kind === 'post')
   const before = h.sent.length
-  clock.t = new Date(NOW.getTime() + 60 * 60_000)
+  clock.t = new Date(NOW.getTime() + 25 * 60_000)
   h.state.enabled = false
   await runNewsCycle(h.deps, h.opts)
   assert.equal(h.sent.length, before)
@@ -1728,7 +1740,7 @@ void test('C3b.4: an unknown send outcome is not sent again; a normal game and a
     },
   })
   await runNewsCycle(h.deps, h.opts)
-  clock.t = new Date(NOW.getTime() + 60 * 60_000)
+  clock.t = new Date(NOW.getTime() + 25 * 60_000)
   await runNewsCycle(h.deps, h.opts)
   const afterFirst = calls
   await runNewsCycle(h.deps, h.opts)
@@ -1834,4 +1846,102 @@ void test('I4: an article or feature is offered a take only when the writer is a
   // Quill is a critic: the take is offered.
   const asCritic = await run({ ...TAKE, reporter: 'voss', critics: ['quill'], defender: null })
   assert.ok(asCritic.includes('Take 7 on Skater A'))
+})
+
+const correctionRow = (over: Partial<NewNewsItem> = {}): NewNewsItem => ({
+  kind: 'post',
+  reporter: 'mercer',
+  night: '2026-10-12',
+  body: 'Correction: an earlier post from Dex Mercer had a wrong fact and was removed.',
+  mentions: [],
+  facts: null,
+  isCorrection: true,
+  isTest: false,
+  ...over,
+})
+
+void test('fix: a held post more than 30 minutes late is dropped, never sent; a correction is not', async () => {
+  const clock = { t: NOW }
+  const h = hugeHarness(clock)
+  await runNewsCycle(h.deps, h.opts)
+  const posts = [...h.items.values()].filter((i) => i.kind === 'post')
+  const before = h.sent.length
+  const corrId = await h.deps.store.insertNewsItem(
+    correctionRow({ sendAfter: new Date(NOW.getTime() - 2 * 3600_000) }),
+  )
+  clock.t = new Date(NOW.getTime() + 70 * 60_000)
+  await runNewsCycle(h.deps, h.opts)
+  // Only the correction went out; the waiting posts were dropped and stay on the site.
+  assert.equal(h.sent.length, before + 1)
+  assert.equal(h.items.get(corrId)!.discordStatus, 'posted')
+  for (const p of posts.slice(1)) {
+    assert.equal(p.discordStatus, 'skipped')
+    assert.ok(h.events.includes(`item-skipped:${String(p.id)}:held too long: not sent`))
+    assert.equal(p.deletedAt, null)
+  }
+  // 20 minutes late is still sent.
+  const c2 = { t: NOW }
+  const h3 = hugeHarness(c2)
+  await runNewsCycle(h3.deps, h3.opts)
+  const b3 = h3.sent.length
+  c2.t = new Date(NOW.getTime() + 20 * 60_000)
+  await runNewsCycle(h3.deps, h3.opts)
+  assert.ok(h3.sent.length > b3)
+})
+
+void test('fix: in a dry run a due correction is written to a file and marked skipped, not left pending', async () => {
+  const h = harness()
+  h.opts.dryRun = true
+  const id = await h.deps.store.insertNewsItem(correctionRow({ sendAfter: NOW }))
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.items.get(id)!.discordStatus, 'skipped')
+  assert.ok(h.dry.some((d) => d.key === `news-${String(id)}`))
+  assert.equal(h.sent.length, 0)
+})
+
+void test('fix: an unknown send outcome on a due post is marked skipped, never left pending', async () => {
+  const clock = { t: NOW }
+  let calls = 0
+  const h = hugeHarness(clock, {
+    send: async () => {
+      calls++
+      if (calls === 4) throw new WebhookOutcomeUnknownError('timeout after the request left')
+      return `m${String(calls)}`
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  clock.t = new Date(NOW.getTime() + 20 * 60_000)
+  await runNewsCycle(h.deps, h.opts)
+  const posts = [...h.items.values()].filter((i) => i.kind === 'post')
+  const unknown = posts.filter((p) => p.discordStatus === 'skipped')
+  assert.equal(unknown.length, 1)
+  assert.ok(
+    h.events.includes(`item-skipped:${String(unknown[0]!.id)}:outcome unknown — check the channel`),
+  )
+  assert.ok(posts.every((p) => p.discordStatus !== 'pending'))
+})
+
+void test("fix: a game's later posts never overtake its recap while the recap is a failed send", async () => {
+  const clock = { t: NOW }
+  let calls = 0
+  const names: string[] = []
+  const h = hugeHarness(clock, {
+    send: async (payload) => {
+      calls++
+      if (calls === 1) throw new Error('Discord webhook HTTP 500') // the recap fails
+      if (!payload.content.includes('/news/')) names.push(payload.username)
+      return `m${String(calls)}`
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  const posts = [...h.items.values()].filter((i) => i.kind === 'post')
+  assert.equal(posts[0]!.discordStatus, 'failed')
+  clock.t = new Date(NOW.getTime() + 10 * 60_000)
+  await runNewsCycle(h.deps, h.opts)
+  // The recap was retried in that pass; the due posts waited behind it.
+  assert.equal(posts[0]!.discordStatus, 'posted')
+  assert.equal(posts[1]!.discordStatus, 'pending')
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(posts[1]!.discordStatus, 'posted')
+  assert.equal(names[0], REPORTERS[posts[0]!.reporter].name)
 })

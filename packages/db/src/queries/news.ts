@@ -35,6 +35,7 @@ import {
   type PressLevelSetBy,
 } from '../schema/index.js'
 import { correctionItem } from '../news/correction.js'
+import { NEWS_RULES_VERSION } from '../news/rules-version.js'
 import type { FeatureKind } from '../news/features.js'
 import { MEMBER_CONDITION } from './club-members.js'
 import { DISCORD_MAX_ATTEMPTS } from './discord-posts.js'
@@ -472,9 +473,15 @@ export function qualityItemsSql(since: Date): SQL {
   return sql`
     select n.reporter, n.kind, n.body, n.mentions, n.zero_called, n.takes_used,
       case when n.kind = 'post' and n.match_id is not null
-        then n.facts->'games'->0->>'result' end as result
+          and jsonb_typeof(n.facts->'games') = 'array'
+        then (
+          select g.value->>'result'
+          from jsonb_array_elements(n.facts->'games') as g
+          where (g.value->>'matchId')::bigint = n.match_id
+          limit 1
+        ) end as result
     from news_items n
-    where n.deleted_at is null and n.is_test = false
+    where n.deleted_at is null and n.is_test = false and n.is_correction = false
       and n.created_at >= ${since.toISOString()}::timestamptz
     order by n.id`
 }
@@ -696,6 +703,17 @@ export function dueNewsItemsQuery(now: Date, limit: number) {
         lte(newsItems.sendAfter, now),
         eq(newsItems.isTest, false),
         isNull(newsItems.deletedAt),
+        // A game's later posts wait while its own earlier post is a failed send that may still
+        // be retried: they never overtake it. Qualified names: a bare column would bind to r.
+        sql`not exists (
+          select 1 from news_items r
+          where r.job_id = "news_items"."job_id"
+            and r.id < "news_items"."id"
+            and r.deleted_at is null
+            and r.send_after is null
+            and r.discord_status = 'failed'
+            and r.discord_attempts < ${MAX}
+        )`,
       ),
     )
     .orderBy(asc(newsItems.sendAfter), asc(newsItems.id))
@@ -834,6 +852,7 @@ export function reporterActivitySql(since: Date): SQL {
     from news_items n
     left join news_items t on t.id = n.reply_to
     where n.is_test = false
+      and n.is_correction = false
       and n.deleted_at is null
       and n.created_at >= ${since.toISOString()}::timestamptz
     order by n.id asc`
@@ -1064,6 +1083,7 @@ export function nightPostsForPromptSql(night: string, includeTest: boolean): SQL
     select n.reporter, n.body
     from news_items n
     where n.kind = 'post'
+      and n.is_correction = false
       and n.night = ${night}::date
       and n.deleted_at is null
       and (n.is_test = false or ${includeTest})
@@ -1147,6 +1167,7 @@ export function recentReporterPiecesSql(
     select n.kind, n.body, n.headline, n.summary, n.night
     from news_items n
     where (n.is_test = false or ${includeTest})
+      and n.is_correction = false
       and n.deleted_at is null
       and n.reporter = ${reporter}
       and not exists (
@@ -1271,9 +1292,24 @@ export function skipBacklogWeeksSql(now: Date): SQL {
  * the last 3 days, and the current and previous week, as skipped, so the desk
  * never writes about the time it was off. Existing jobs are left alone.
  */
+/**
+ * Posts of a big game still waiting for their send time when the desk was switched
+ * off: they stay on the site but never reach Discord (they would be late).
+ * Corrections are exempt: they are about a deletion, not about a game.
+ */
+export function skipHeldPostsSql(): SQL {
+  return sql`
+    update news_items
+    set discord_status = 'skipped', send_after = null, last_error = 'held while the desk was off'
+    where discord_status = 'pending'
+      and send_after is not null
+      and is_correction = false`
+}
+
 export async function skipNewsBacklog(now: Date): Promise<void> {
   const since = new Date(now.getTime() - NEWS_BACKLOG_MS)
   await db.transaction(async (tx) => {
+    await tx.execute(skipHeldPostsSql())
     await tx.execute(skipBacklogGamesSql(since))
     await tx.execute(skipBacklogNightsSql(since))
     await tx.execute(skipBacklogWeeksSql(now))
@@ -1318,6 +1354,7 @@ type RawNewsItem = {
   /** Part C3b column; absent on an older row shape. */
   rules_version?: string | null
   send_after?: string | Date | null
+  is_correction?: boolean
   is_test: boolean
   discord_status: NewsItemRow['discordStatus']
   discord_attempts: number
@@ -1370,6 +1407,7 @@ export function rawToNewsItem(r: RawNewsItem): NewsItemRow {
     takesUsed: jsonArray<number>(r.takes_used),
     rulesVersion: r.rules_version ?? null,
     sendAfter: r.send_after == null ? null : toDate(r.send_after),
+    isCorrection: r.is_correction ?? false,
     isTest: r.is_test,
     discordStatus: r.discord_status,
     discordAttempts: r.discord_attempts,
@@ -1481,7 +1519,7 @@ export async function softDeleteNewsItemWithCorrection(
       .set({ deletedAt: sql`now()` })
       .where(and(or(eq(newsItems.id, id), eq(newsItems.replyTo, id)), isNull(newsItems.deletedAt)))
     if (original === undefined || original.deletedAt !== null) return null
-    const correction = correctionItem(original, now)
+    const correction = correctionItem(original, now, NEWS_RULES_VERSION)
     if (correction === null) return null
     const rows = await tx.insert(newsItems).values(correction).returning({ id: newsItems.id })
     return rows[0]?.id ?? null

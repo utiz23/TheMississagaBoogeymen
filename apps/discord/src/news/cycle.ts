@@ -109,6 +109,9 @@ const DUE_LIMIT = 20
  * apart (C3b.4, spec §12.18-6), so a busy night does not flood the channel.
  */
 export const NEWS_POST_SPACING_MS = 3 * 60_000
+
+/** A waiting post later than this is dropped, not sent late (it stays on the site). */
+export const HELD_POST_MAX_AGE_MS = 30 * 60_000
 const ACTIVITY_MS = 14 * 86_400_000
 
 type Kind = NewsJobKind
@@ -505,13 +508,27 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
   if (!(await store.getNewsEnabled())) return summary
 
   // ── Posts whose send time has come (C3b.4). Written already, so the money limit
-  // does not hold them back; each is taken before it is sent and never sent twice. ──
-  if (!opts.dryRun) {
-    for (const item of await store.listDueNewsItems(deps.now(), DUE_LIMIT)) {
+  // does not hold them back. Each is taken before it is sent and never sent twice; an
+  // unknown send outcome is marked skipped like on the retry path. A held post that is
+  // more than 30 minutes late is dropped (it stays on the site, never goes to Discord);
+  // a correction is never dropped. In a dry run a due correction is written to a file
+  // and marked skipped like every other item. ──
+  {
+    const at = deps.now()
+    for (const item of await store.listDueNewsItems(at, DUE_LIMIT)) {
       if (sendingStopped) break
       const tag = `news item ${String(item.id)}`
+      if (
+        !item.isCorrection &&
+        item.sendAfter !== null &&
+        at.getTime() - item.sendAfter.getTime() > HELD_POST_MAX_AGE_MS
+      ) {
+        await store.markNewsItemSkipped(item.id, 'held too long: not sent')
+        log(`${tag}: held more than 30 minutes — not sent to Discord`)
+        continue
+      }
       if (!(await store.claimDueNewsItem(item.id))) continue
-      await deliver(item.id, await payloadForStored(item), tag)
+      await deliver(item.id, await payloadForStored(item), tag, true)
     }
     if (sendingStopped) return summary
   }
