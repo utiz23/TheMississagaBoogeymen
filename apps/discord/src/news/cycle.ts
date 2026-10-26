@@ -831,9 +831,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         continue
       }
       const reporter = REPORTERS[w.reporter]
-      const mine = takes.filter(
-        (t) => takeCritics(t).includes(w.reporter) || t.defender === w.reporter,
-      )
+      const mine = takes.filter((t) => takeCritics(t).includes(w.reporter))
       const written = await write(jobId, tag, {
         user: buildGameArticleUserPrompt({
           facts,
@@ -1025,9 +1023,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         ...(nightPosts === undefined ? {} : { nightPosts }),
       }
       const who = reporterId
-      mine = (await takesDue(res, now)).filter(
-        (t) => takeCritics(t).includes(who) || t.defender === who,
-      )
+      mine = (await takesDue(res, now)).filter((t) => takeCritics(t).includes(who))
     } catch (err: unknown) {
       await failJob(jobId, tag, `could not prepare: ${message(err)}`)
       return 'go'

@@ -1801,3 +1801,37 @@ void test('I3: the game prompt lists only the takes offered to a post, not every
   assert.ok(!prompts[0]!.includes('Take 8'), 'a take no post was offered stays out of the prompt')
   assert.ok(!prompts[0]!.includes('SECOND INVENTED TAKE'))
 })
+
+void test('I4: an article or feature is offered a take only when the writer is a critic, not the defender', async () => {
+  const run = async (take: Record<string, unknown>) => {
+    const prompts: string[] = []
+    const h = harness({
+      deps: {
+        now: () => MONDAY_1201,
+        fetchFacts: async (kind, key) => {
+          const r = oct12Response(kind)
+          return { ...r, facts: { ...r.facts, key }, takes: [take as never] }
+        },
+        writer: async (req) => {
+          if (req.purpose === 'write') prompts.push(req.user)
+          return goodWriter(req)
+        },
+      },
+    })
+    h.state.nightGames['2026-10-22'] = 3
+    await runNewsCycle(h.deps, h.opts)
+    assert.equal(h.items.get(1)!.reporter, 'quill') // the trend column
+    return prompts[0]!
+  }
+  // Quill is only the defender: no take in his prompt.
+  const asDefender = await run({
+    ...TAKE,
+    reporter: 'voss',
+    critics: ['barlow'],
+    defender: 'quill',
+  })
+  assert.ok(!asDefender.includes('Take 7'), 'a defender is not offered the take')
+  // Quill is a critic: the take is offered.
+  const asCritic = await run({ ...TAKE, reporter: 'voss', critics: ['quill'], defender: null })
+  assert.ok(asCritic.includes('Take 7 on Skater A'))
+})
