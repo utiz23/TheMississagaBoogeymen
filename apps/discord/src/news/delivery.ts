@@ -46,18 +46,19 @@ export function newsDelivery(args: {
         }
 
   const remove: NewsDeps['remove'] = async (d) => {
+    // A message whose way out is not configured cannot be deleted: it stays on Discord,
+    // and resolving marks the item deleted so it is not tried again every pass.
+    const tag = `news item ${String(d.id)}`
     if (d.via === 'bot') {
-      // Retried every pass until PRESS_MODE=live is back: the message is still on Discord.
       if (bots === null || d.channelId === null) {
-        throw new Error('a bot message is deleted only with PRESS_MODE=live')
+        log(`${tag}: bot message not deleted: bots not configured`)
+        return
       }
       await deleteBotMessage(bots.tokens[d.reporter], d.channelId, d.messageId, fetchImpl)
       return
     }
-    // Live bots without a webhook: an old webhook message cannot be deleted. It stays on
-    // Discord, and resolving marks the item deleted so it is not tried again every pass.
     if (webhookUrl === null) {
-      log(`webhook message ${d.messageId} not deleted: no news webhook is set — it stays`)
+      log(`${tag}: webhook message not deleted: no news webhook is set — it stays`)
       return
     }
     await deleteWebhookMessage(webhookUrl, d.messageId, fetchImpl)

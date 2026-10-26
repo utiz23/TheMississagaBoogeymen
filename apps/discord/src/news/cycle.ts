@@ -87,7 +87,7 @@ import {
 export const NEWS_GAME_WINDOW_MS = 86_400_000
 /** At most this many games are written per pass, oldest first. */
 export const NEWS_GAME_LIMIT = 5
-/** Discord allows ~30 webhook messages a minute per channel. */
+/** Discord allows ~30 messages a minute per channel, by webhook or as a bot. */
 export const NEWS_GAP_MS = 2100
 /** A night is over 90 minutes after its last game. */
 export const NIGHT_ENDED_FOR_MS = 90 * 60_000
@@ -120,7 +120,7 @@ const SPACED_LEVELS: readonly BuzzPlan['level'][] = ['big', 'huge', 'historic']
 
 /** The news queries the cycle uses (packages/db/src/queries/news.ts), plus one lookup. */
 export interface NewsStore {
-  listDiscordDeletions(limit: number): Promise<({ id: number } & NewsRemoval)[]>
+  listDiscordDeletions(limit: number): Promise<NewsRemoval[]>
   markDiscordDeleted(id: number): Promise<void>
   getNewsEnabled(): Promise<boolean>
   monthNewsSpendUsd(now: Date): Promise<number>
@@ -198,6 +198,8 @@ export interface NewsSent {
 
 /** A deleted item's Discord message (`listDiscordDeletions`). */
 export interface NewsRemoval {
+  /** The deleted item (for the log line). */
+  id: number
   messageId: string
   via: 'webhook' | 'bot'
   channelId: string | null

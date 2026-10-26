@@ -424,8 +424,8 @@ function harness(
       events.push(`send:${m.payload.username}`)
       return viaWebhook(`m${String(msg++)}`)
     },
-    remove: async ({ messageId, via, channelId, reporter }) => {
-      removed.push({ messageId, via, channelId, reporter })
+    remove: async ({ id, messageId, via, channelId, reporter }) => {
+      removed.push({ id, messageId, via, channelId, reporter })
       events.push(`remove:${messageId}`)
     },
     writeDryRun: async (key, payload) => {
@@ -1074,7 +1074,7 @@ void test('deletions: a bot message ⇒ remove gets its channel and reporter', a
   ]
   await runNewsCycle(h.deps, h.opts)
   assert.deepEqual(h.removed, [
-    { messageId: 'b9', via: 'bot', channelId: '123456789012345678', reporter: 'quill' },
+    { id: 9, messageId: 'b9', via: 'bot', channelId: '123456789012345678', reporter: 'quill' },
   ])
   assert.ok(h.events.includes('deleted:9'))
 })

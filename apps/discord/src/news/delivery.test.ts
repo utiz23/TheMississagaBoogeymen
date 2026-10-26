@@ -114,6 +114,7 @@ void test('remove: a bot message is deleted by its reporter bot in its channel',
   const { fake, calls } = recorder(new Response(null, { status: 204 }))
   const d = newsDelivery({ webhookUrl: null, bots, log: () => {}, fetchImpl: fake })
   await d.remove({
+    id: 4,
     messageId: '88',
     via: 'bot',
     channelId: '999999999999999999',
@@ -124,19 +125,25 @@ void test('remove: a bot message is deleted by its reporter bot in its channel',
   assert.equal(calls[0]!.auth, 'Bot token-quill')
 })
 
-void test('remove: a bot message without the bots configured is retried later (throws)', async () => {
+void test('remove: a bot message without the bots configured logs one line and resolves', async () => {
   const { fake, calls } = recorder()
-  const d = newsDelivery({ webhookUrl: WEBHOOK, bots: null, log: () => {}, fetchImpl: fake })
-  await assert.rejects(
-    d.remove({ messageId: '88', via: 'bot', channelId: CHANNEL, reporter: 'quill' }),
-  )
+  const lines: string[] = []
+  const d = newsDelivery({
+    webhookUrl: WEBHOOK,
+    bots: null,
+    log: (m) => lines.push(m),
+    fetchImpl: fake,
+  })
+  await d.remove({ id: 4, messageId: '88', via: 'bot', channelId: CHANNEL, reporter: 'quill' })
   assert.equal(calls.length, 0)
+  assert.deepEqual(lines, ['news item 4: bot message not deleted: bots not configured'])
+  assert.doesNotMatch(lines[0]!, /token-|secret-hook/)
 })
 
 void test('remove: a webhook message goes through the webhook when it is set', async () => {
   const { fake, calls } = recorder(new Response(null, { status: 204 }))
   const d = newsDelivery({ webhookUrl: WEBHOOK, bots, log: () => {}, fetchImpl: fake })
-  await d.remove({ messageId: '77', via: 'webhook', channelId: null, reporter: 'mercer' })
+  await d.remove({ id: 3, messageId: '77', via: 'webhook', channelId: null, reporter: 'mercer' })
   assert.equal(calls[0]!.method, 'DELETE')
   assert.equal(calls[0]!.url, `${WEBHOOK}/messages/77`)
 })
@@ -145,9 +152,9 @@ void test('remove: a webhook message with no webhook set logs one line and resol
   const { fake, calls } = recorder()
   const lines: string[] = []
   const d = newsDelivery({ webhookUrl: null, bots, log: (m) => lines.push(m), fetchImpl: fake })
-  await d.remove({ messageId: '77', via: 'webhook', channelId: null, reporter: 'mercer' })
+  await d.remove({ id: 3, messageId: '77', via: 'webhook', channelId: null, reporter: 'mercer' })
   assert.equal(calls.length, 0)
   assert.equal(lines.length, 1)
-  assert.match(lines[0]!, /webhook message/)
+  assert.match(lines[0]!, /^news item 3: webhook message/)
   assert.doesNotMatch(lines[0]!, /secret-hook/)
 })
