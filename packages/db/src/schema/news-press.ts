@@ -250,5 +250,6 @@ export type NewNewsScrum = typeof newsScrums.$inferInsert
 export type NewsScrumPersonRow = typeof newsScrumPeople.$inferSelect
 export type NewNewsScrumPerson = typeof newsScrumPeople.$inferInsert
 export type NewNewsScrumAnswer = typeof newsScrumAnswers.$inferInsert
+export type NewsGmNoteRow = typeof newsGmNotes.$inferSelect
 export type NewNewsGmNote = typeof newsGmNotes.$inferInsert
 export type NewsPressSettingsRow = typeof newsPressSettings.$inferSelect

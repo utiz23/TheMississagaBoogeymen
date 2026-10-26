@@ -1,14 +1,18 @@
 import { REPORTERS, planBuzz, type NewsFactsResponse, type ReporterId } from '@eanhl/db/news'
 import type {
+  GmNoteUpdate,
   MirrorDeletion,
+  NewNewsGmNote,
   NewNewsScrum,
   NewNewsScrumAnswer,
   NewNewsScrumPerson,
   NewNewsUsage,
+  NewsGmNoteRow,
   NewsItemRow,
   NewsPressSettingsRow,
   NewsScrumRow,
   PressNote,
+  PressRosterEntry,
   PressQuote,
   RecapItemWithoutScrum,
   ScrumPersonDetail,
@@ -106,6 +110,17 @@ export interface PressStore {
   ): Promise<{ quotes: PressQuote[]; gmNotes: PressNote[] }>
   monthNewsSpendUsd(now: Date): Promise<number>
   recordNewsUsage(row: NewNewsUsage): Promise<void>
+  // GM controls (gm.ts)
+  latestPressNight(since: Date): Promise<string | null>
+  listPressRoster(): Promise<PressRosterEntry[]>
+  insertGmNote(values: NewNewsGmNote): Promise<number>
+  getGmNote(id: number): Promise<NewsGmNoteRow | null>
+  /** False when the note is gone or cancelled. Never with an empty patch. */
+  updateGmNote(id: number, patch: GmNoteUpdate): Promise<boolean>
+  upsertAlias(alias: string, playerId: number): Promise<void>
+  scrumForMatch(matchId: number, isTest: boolean): Promise<NewsScrumRow | null>
+  countGmAsksTonight(playerId: number, night: string, includeTest: boolean): Promise<number>
+  setHeat(heat: Heat, scope: 'next' | 'night', night: string | null): Promise<void>
 }
 
 /** The bots' Discord side. Errors name a status only, never a token. */

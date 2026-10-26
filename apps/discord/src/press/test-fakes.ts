@@ -1,13 +1,17 @@
 import type { NewsFactsResponse, ReporterId } from '@eanhl/db/news'
 import type {
+  GmNoteUpdate,
+  NewNewsGmNote,
   NewNewsScrum,
   NewNewsScrumAnswer,
   NewNewsScrumPerson,
   NewNewsUsage,
+  NewsGmNoteRow,
   NewsItemRow,
   NewsPressSettingsRow,
   NewsScrumPersonRow,
   NewsScrumRow,
+  PressRosterEntry,
   RecapItemWithoutScrum,
   ScrumPersonUpdate,
 } from '@eanhl/db/queries'
@@ -448,6 +452,84 @@ export class FakeStore implements PressStore {
   monthNewsSpendUsd = () => Promise.resolve(this.spend)
   recordNewsUsage = (row: NewNewsUsage) => {
     this.usage.push(row)
+    return Promise.resolve()
+  }
+
+  // ── GM controls ──
+  /** The night of the newest counted game within the window; null = no game. */
+  latestNight: string | null = NIGHT
+  latestNightSince: Date[] = []
+  roster: PressRosterEntry[] = [
+    { playerId: 1, name: 'Skater A', gamertag: 'skatera99', pressLevel: 'full', aliases: [] },
+    { playerId: 2, name: 'Skater B', gamertag: 'skaterb77', pressLevel: 'easy', aliases: [] },
+    { playerId: 3, name: 'Goalie G', gamertag: 'goalieg1', pressLevel: 'full', aliases: [] },
+    { playerId: 4, name: 'Hidden Hank', gamertag: 'hankhides', pressLevel: 'out', aliases: [] },
+  ]
+  /** Stored GM notes (separate from `gmNotes`, the night material). */
+  noteRows: NewsGmNoteRow[] = []
+  heatCalls: { heat: string; scope: string; night: string | null }[] = []
+  latestPressNight = (since: Date) => {
+    this.latestNightSince.push(since)
+    return Promise.resolve(this.latestNight)
+  }
+  listPressRoster = () =>
+    Promise.resolve(this.roster.map((r) => ({ ...r, aliases: [...r.aliases] })))
+  insertGmNote = (v: NewNewsGmNote) => {
+    const id = this.noteRows.length + 1
+    this.noteRows.push({
+      id,
+      matchId: v.matchId ?? null,
+      night: v.night,
+      playerId: v.playerId ?? null,
+      nickname: v.nickname ?? null,
+      note: v.note,
+      asksPlayer: v.asksPlayer ?? false,
+      critical: v.critical ?? false,
+      theme: v.theme ?? null,
+      status: v.status ?? 'active',
+      refusal: v.refusal ?? null,
+      isTest: v.isTest ?? false,
+      createdAt: NOW,
+    })
+    return Promise.resolve(id)
+  }
+  getGmNote = (id: number) => Promise.resolve(this.noteRows.find((n) => n.id === id) ?? null)
+  updateGmNote = (id: number, patch: GmNoteUpdate) => {
+    if (Object.keys(patch).length === 0) throw new Error('No values to set')
+    const n = this.noteRows.find((x) => x.id === id)
+    if (!n || n.status === 'cancelled') return Promise.resolve(false)
+    Object.assign(n, patch)
+    return Promise.resolve(true)
+  }
+  upsertAlias = (alias: string, playerId: number) => {
+    const key = alias.trim().toLowerCase()
+    for (const r of this.roster) r.aliases = r.aliases.filter((a) => a !== key)
+    this.roster.find((r) => r.playerId === playerId)?.aliases.push(key)
+    return Promise.resolve()
+  }
+  scrumForMatch = (matchId: number, isTest: boolean) =>
+    Promise.resolve(
+      this.scrums.filter((s) => s.matchId === matchId && s.isTest === isTest).at(-1) ?? null,
+    )
+  countGmAsksTonight = (playerId: number, night: string, includeTest: boolean) =>
+    Promise.resolve(
+      this.noteRows.filter(
+        (n) =>
+          n.playerId === playerId &&
+          n.night === night &&
+          n.asksPlayer &&
+          n.status === 'active' &&
+          (!n.isTest || includeTest),
+      ).length,
+    )
+  setHeat = (heat: 'cool' | 'normal' | 'hot', scope: 'next' | 'night', night: string | null) => {
+    this.heatCalls.push({ heat, scope, night })
+    this.settings = {
+      ...this.settings,
+      heat,
+      heatScope: scope,
+      heatNight: scope === 'night' ? night : null,
+    }
     return Promise.resolve()
   }
 }

@@ -27,6 +27,7 @@ import {
   playerProfiles,
   players,
   type NewNewsGmNote,
+  type NewsGmNoteRow,
   type NewNewsScrum,
   type NewNewsScrumAnswer,
   type NewNewsScrumPerson,
@@ -128,6 +129,23 @@ export function gmAskForMatchQuery(matchId: number, includeTest: boolean) {
 /** The player the GM asked for on this match; null when no note asks. */
 export async function gmAskForMatch(matchId: number, includeTest: boolean): Promise<number | null> {
   return (await gmAskForMatchQuery(matchId, includeTest))[0]?.playerId ?? null
+}
+
+/** The match's newest scrum: test scrums when `isTest` (the trial), real ones otherwise. */
+export function scrumForMatchQuery(matchId: number, isTest: boolean) {
+  return db
+    .select()
+    .from(newsScrums)
+    .where(and(eq(newsScrums.matchId, matchId), eq(newsScrums.isTest, isTest)))
+    .orderBy(desc(newsScrums.id))
+    .limit(1)
+}
+
+export async function scrumForMatch(
+  matchId: number,
+  isTest: boolean,
+): Promise<NewsScrumRow | null> {
+  return (await scrumForMatchQuery(matchId, isTest))[0] ?? null
 }
 
 export type PressMode = 'trial' | 'live'
@@ -703,6 +721,67 @@ export async function insertGmNote(values: NewNewsGmNote): Promise<number> {
   return row.id
 }
 
+export function getGmNoteQuery(id: number) {
+  return db.select().from(newsGmNotes).where(eq(newsGmNotes.id, id)).limit(1)
+}
+
+export async function getGmNote(id: number): Promise<NewsGmNoteRow | null> {
+  return (await getGmNoteQuery(id))[0] ?? null
+}
+
+export type GmNoteUpdate = Partial<Pick<NewNewsGmNote, 'playerId' | 'status' | 'refusal'>>
+
+/** Update a note while it is not cancelled (a cancel is final). */
+export function updateGmNoteQuery(id: number, patch: GmNoteUpdate) {
+  return db
+    .update(newsGmNotes)
+    .set(patch)
+    .where(and(eq(newsGmNotes.id, id), sql`${newsGmNotes.status} <> ${'cancelled'}`))
+    .returning({ id: newsGmNotes.id })
+}
+
+/** True when the note was updated; false when it is gone or cancelled. Never with an empty patch. */
+export async function updateGmNote(id: number, patch: GmNoteUpdate): Promise<boolean> {
+  return (await updateGmNoteQuery(id, patch)).length > 0
+}
+
+/** The player's active GM notes that ask them to talk, that night. Test notes only when `includeTest`. */
+export function countGmAsksTonightSql(playerId: number, night: string, includeTest: boolean): SQL {
+  return sql`
+    select count(*)::int as n
+    from news_gm_notes g
+    where g.player_id = ${playerId} and g.night = ${night}::date and g.asks_player
+      and g.status = 'active' and (g.is_test = false or ${includeTest})`
+}
+
+export async function countGmAsksTonight(
+  playerId: number,
+  night: string,
+  includeTest: boolean,
+): Promise<number> {
+  const rows = await db.execute<{ n: number }>(countGmAsksTonightSql(playerId, night, includeTest))
+  return Number(rows[0]?.n ?? 0)
+}
+
+/**
+ * The night (`YYYY-MM-DD`) of the newest counted (not DNF) game of an active
+ * title that ended after `since`; none = no game to attach a GM note to.
+ */
+export function latestPressNightSql(since: Date): SQL {
+  return sql`
+    select to_char(${nightKeySql('m')}, 'YYYY-MM-DD') as night
+    from matches m
+    join game_titles g on g.id = m.game_title_id and g.is_active
+    where m.played_at > ${since.toISOString()}::timestamptz and m.result <> 'DNF'
+    order by m.played_at desc, m.id desc
+    limit 1`
+}
+
+export async function latestPressNight(since: Date): Promise<string | null> {
+  const rows = await db.execute<{ night: string }>(latestPressNightSql(since))
+  return rows[0]?.night ?? null
+}
+
 export interface PressRosterEntry {
   playerId: number
   name: string
@@ -1017,5 +1096,6 @@ export type {
   NewNewsScrumPerson,
   NewNewsScrumAnswer,
   NewNewsGmNote,
+  NewsGmNoteRow,
   NewsPressSettingsRow,
 } from '../schema/index.js'

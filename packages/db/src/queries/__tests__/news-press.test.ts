@@ -52,6 +52,11 @@ const {
   acceptScrumPersonQuery,
   claimScrumAnswerQuery,
   latestScrumItemSql,
+  latestPressNightSql,
+  scrumForMatchQuery,
+  getGmNoteQuery,
+  updateGmNoteQuery,
+  countGmAsksTonightSql,
 } = await import('../news-press.js')
 const { nightCriticizedSql } = await import('../news.js')
 const dialect = new PgDialect()
@@ -495,4 +500,50 @@ void test("latest scrum item: newest recap within the window, of the player's ga
   const t = dialect.sqlToQuery(latestScrumItemSql({ playerId: null, since, isTest: true }))
   assert.doesNotMatch(flat(t.sql), /player_match_stats/)
   assert.deepEqual(t.params, [true, since.toISOString()])
+})
+
+void test('latest press night: night of the newest counted game of an active title after since', () => {
+  const since = new Date('2026-10-25T20:00:00Z')
+  const q = dialect.sqlToQuery(latestPressNightSql(since))
+  const s = flat(q.sql)
+  assert.match(
+    s,
+    /select to_char\(\(\(m\.played_at at time zone 'America\/Edmonton'\) - interval '6 hours'\)::date, 'YYYY-MM-DD'\) as night from matches m/,
+  )
+  assert.match(s, /join game_titles g on g\.id = m\.game_title_id and g\.is_active/)
+  assert.match(s, /m\.played_at > \$1::timestamptz and m\.result <> 'DNF'/)
+  assert.match(s, /order by m\.played_at desc, m\.id desc limit 1/)
+  assert.deepEqual(q.params, [since.toISOString()])
+})
+
+void test("scrum for match: the match's newest scrum of the mode (test or real)", () => {
+  const q = scrumForMatchQuery(90001, true).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /from "news_scrums"/)
+  assert.match(s, /"news_scrums"."match_id" = \$1 and "news_scrums"."is_test" = \$2/)
+  assert.match(s, /order by "news_scrums"."id" desc limit \$3/)
+  assert.deepEqual(q.params, [90001, true, 1])
+})
+
+void test('GM note by id, and its update only while not cancelled', () => {
+  const g = getGmNoteQuery(7).toSQL()
+  assert.match(flat(g.sql), /from "news_gm_notes" where "news_gm_notes"."id" = \$1/)
+  assert.deepEqual(g.params.slice(0, 1), [7])
+  const u = updateGmNoteQuery(7, { playerId: 3, status: 'refused', refusal: 'out' }).toSQL()
+  const s = flat(u.sql)
+  assert.match(s, /^update "news_gm_notes" set "player_id" = \$1, "status" = \$2, "refusal" = \$3/)
+  assert.match(s, /"news_gm_notes"."id" = \$4 and "news_gm_notes"."status" <> \$5/)
+  assert.match(s, /returning/)
+  assert.deepEqual(u.params, [3, 'refused', 'out', 7, 'cancelled'])
+})
+
+void test("GM asks tonight: the player's active notes that ask, per night, same test rule", () => {
+  const q = dialect.sqlToQuery(countGmAsksTonightSql(5, '2026-10-25', false))
+  const s = flat(q.sql)
+  assert.match(s, /select count\(\*\)::int as n from news_gm_notes g/)
+  assert.match(
+    s,
+    /g\.player_id = \$1 and g\.night = \$2::date and g\.asks_player and g\.status = 'active' and \(g\.is_test = false or \$3\)/,
+  )
+  assert.deepEqual(q.params, [5, '2026-10-25', false])
 })
