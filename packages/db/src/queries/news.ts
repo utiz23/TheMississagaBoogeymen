@@ -505,6 +505,92 @@ export async function listQualityItems(since: Date): Promise<NewsQualityItem[]> 
   return (await db.execute<RawQualityItem>(qualityItemsSql(since))).map(rowToQualityItem)
 }
 
+// ── Seeding the GM takes (apps/discord/src/news/seed-takes.ts) ──────────────
+
+export interface SeedPlayer {
+  id: number
+  gamertag: string
+  name: string | null
+}
+
+/** Every human player (AI goalies left out) with the profile name, to resolve names in the takes file. */
+export function seedPlayersSql(): SQL {
+  return sql`
+    select p.id, p.gamertag, nullif(btrim(pp.player_name), '') as name
+    from players p
+    left join player_profiles pp on pp.player_id = p.id
+    where p.ai_goalie_side is null
+    order by p.id`
+}
+
+export async function listSeedPlayers(): Promise<SeedPlayer[]> {
+  const rows = await db.execute<{ id: string | number; gamertag: string; name: string | null }>(
+    seedPlayersSql(),
+  )
+  return rows.map((r) => ({ id: Number(r.id), gamertag: r.gamertag, name: r.name }))
+}
+
+export interface ReporterTakeSeed {
+  reporter: NewsReporterId
+  playerId: number
+  take: string
+  spread: NewsReporterTakeRow['spread']
+  critics: NewsReporterId[]
+  defender: NewsReporterId | null
+  dataAngle: string | null
+  active: boolean
+  /** null = keep the stored intensity (a new take starts at 0). */
+  intensity: number | null
+}
+
+/**
+ * One take per (reporter, player): updates it when it exists, else inserts it. More than
+ * one existing row for the pair is an error. Running the seed twice changes nothing.
+ */
+export async function upsertReporterTake(seed: ReporterTakeSeed): Promise<'inserted' | 'updated'> {
+  return db.transaction(async (tx) => {
+    const found = await tx
+      .select({ id: newsReporterTakes.id })
+      .from(newsReporterTakes)
+      .where(
+        and(
+          eq(newsReporterTakes.reporter, seed.reporter),
+          eq(newsReporterTakes.playerId, seed.playerId),
+        ),
+      )
+    if (found.length > 1) {
+      throw new Error(`more than one take for ${seed.reporter} on player ${String(seed.playerId)}`)
+    }
+    const fields = {
+      take: seed.take,
+      spread: seed.spread,
+      critics: seed.critics,
+      defender: seed.defender,
+      dataAngle: seed.dataAngle,
+      active: seed.active,
+    }
+    const existing = found[0]
+    if (existing !== undefined) {
+      await tx
+        .update(newsReporterTakes)
+        .set({
+          ...fields,
+          ...(seed.intensity === null ? {} : { intensity: seed.intensity }),
+          updatedAt: sql`now()`,
+        })
+        .where(eq(newsReporterTakes.id, existing.id))
+      return 'updated'
+    }
+    await tx.insert(newsReporterTakes).values({
+      reporter: seed.reporter,
+      playerId: seed.playerId,
+      ...fields,
+      intensity: seed.intensity ?? 0,
+    })
+    return 'inserted'
+  })
+}
+
 // ── Backfill lookups (apps/discord/src/news/backfill.ts) ────────────────────
 
 /**

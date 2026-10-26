@@ -106,3 +106,6 @@ apps/web/src/probe-queries.mjs
 
 # Phase 3a diagnostic TSVs (regenerate via scripts/diagnose_segments.py)
 tools/game_ocr/diagnostics/
+
+# Private GM lore (spec 12.19): never commit take files
+*takes.local.json

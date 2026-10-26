@@ -51,6 +51,7 @@ const {
   takesUsedSinceSql,
   disabledReportersQuery,
   adminTakesSql,
+  seedPlayersSql,
   updateAdminTakeQuery,
   qualityItemsSql,
   rowToAdminTake,
@@ -1334,4 +1335,12 @@ void test('C3b.7: the takes editor update: only the editable columns, by id', ()
   )
   assert.equal(u.params[7], 7)
   assert.ok(!/reporter" =|player_id" =/.test(flat(u.sql)), 'holder and player are not editable')
+})
+
+void test('C3b.9: the seed resolves names against human players and profile names', () => {
+  const q = dialect.sqlToQuery(seedPlayersSql())
+  assert.match(
+    flat(q.sql),
+    /select p\.id, p\.gamertag, nullif\(btrim\(pp\.player_name\), ''\) as name from players p left join player_profiles pp on pp\.player_id = p\.id where p\.ai_goalie_side is null order by p\.id/,
+  )
 })
