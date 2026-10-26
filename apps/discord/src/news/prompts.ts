@@ -349,6 +349,10 @@ function header(facts: NewsFacts): string[] {
 const RECAP_RULES =
   'The recap of the game says the result and the score, who scored for the Boogeymen, and exactly one key number besides the score. Name a scorer only as in people[].name. A goal for the Boogeymen by someone not named on the sheet: call the scorer "a guest" only when the game\'s unnamedTeammates is 0; otherwise credit the team, never a person. A goal against the Boogeymen was scored by "an opponent"; never name an opponent player. You may use the goal timeline (the period and the clock of a goal).'
 
+/** The recap of a game that ended early (spec §12.12-3; C3a fix M1): the score only. */
+const RECAP_RULES_ENDED_EARLY =
+  'This game ended early ("endedEarly"): the recap is one neutral line with the result and the score, and no other number. Name a scorer only as in people[].name; a goal against the Boogeymen was scored by "an opponent".'
+
 const PIECE_FIELDS_NOTE =
   'List in "criticized" the people the piece criticises harshly, in "zeroCalled" a player it calls out for a zero, in "stances" any stance on a thread (by its key), and in "takesUsed" the id of a take it voiced; an empty list when none. Remember: only numbers, names and clubs from the sheet, no invented quotes or events.'
 
@@ -418,7 +422,7 @@ export function buildGameUserPrompt(args: {
   if (threads !== null) lines.push('', threads)
   lines.push(
     '',
-    RECAP_RULES,
+    facts.games.some((g) => g.endedEarly) ? RECAP_RULES_ENDED_EARLY : RECAP_RULES,
     'Set "reporter" on each post to the id above.',
     PIECE_FIELDS_NOTE,
     '',

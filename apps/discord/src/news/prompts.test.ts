@@ -807,3 +807,16 @@ void test('C3a fix I4: a defender post pushes back on the take and does not voic
     ),
   )
 })
+
+void test("C3a fix M1: an ended-early game's recap asks for the score only, no key number", () => {
+  const f = oct12Facts('game')
+  f.games = [{ ...f.games[0]!, endedEarly: true, team: null }]
+  const p = buildGameUserPrompt({ facts: f, posts: one('barlow') })
+  assert.ok(!p.includes('exactly one key number'))
+  assert.ok(p.includes('one neutral line with the result and the score, and no other number'))
+  assert.ok(
+    buildGameUserPrompt({ facts: oct12Facts(), posts: one('barlow') }).includes(
+      'exactly one key number',
+    ),
+  )
+})
