@@ -958,12 +958,20 @@ void test('night prompt: the PRESS ROOM block (notes as true events, fenced answ
         gmNotes: [
           {
             id: 5,
+            playerId: 1,
             playerName: 'Skater A',
             note: 'He broke his stick.',
             matchId: null,
             critical: false,
           },
-          { id: 6, playerName: null, note: 'The lights went out.', matchId: null, critical: false },
+          {
+            id: 6,
+            playerId: null,
+            playerName: null,
+            note: 'The lights went out.',
+            matchId: null,
+            critical: false,
+          },
         ],
       },
     },
@@ -996,7 +1004,14 @@ void test('night prompt: the PRESS ROOM block (notes as true events, fenced answ
       press: {
         quotes: [],
         gmNotes: [
-          { id: 6, playerName: null, note: 'The lights went out.', matchId: null, critical: false },
+          {
+            id: 6,
+            playerId: null,
+            playerName: null,
+            note: 'The lights went out.',
+            matchId: null,
+            critical: false,
+          },
         ],
       },
     },

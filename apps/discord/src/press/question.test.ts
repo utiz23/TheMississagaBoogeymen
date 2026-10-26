@@ -26,12 +26,20 @@ void test('startScrumQuestion: thread "<Reporter> — <player>", question with t
   t.store.gmNotes = [
     {
       id: 1,
+      playerId: 1,
       playerName: 'Skater A',
       note: 'Skater A broke a stick on the post.',
       matchId: 90001,
       critical: true,
     },
-    { id: 2, playerName: null, note: 'Other game note.', matchId: 90002, critical: false },
+    {
+      id: 2,
+      playerId: null,
+      playerName: null,
+      note: 'Other game note.',
+      matchId: 90002,
+      critical: false,
+    },
   ]
   t.store.answers.push({ personId: 99, question: 'Not theirs', answer: 'x', usability: 'usable' })
   await startScrumQuestion(t.deps, config('live'), personId)
@@ -186,6 +194,7 @@ void test('startScrumQuestion: a Go easy player gets no critical GM note; other 
   t.store.gmNotes = [
     {
       id: 1,
+      playerId: 2,
       playerName: 'Skater B',
       note: 'Skater B lost the puck twice.',
       matchId: 90001,
@@ -193,6 +202,7 @@ void test('startScrumQuestion: a Go easy player gets no critical GM note; other 
     },
     {
       id: 2,
+      playerId: 2,
       playerName: 'Skater B',
       note: 'Skater B blocked a big shot.',
       matchId: 90001,

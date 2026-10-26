@@ -130,6 +130,7 @@ export class FakeStore implements PressStore {
   ])
   gmNotes: {
     id: number
+    playerId: number | null
     playerName: string | null
     note: string
     matchId: number | null

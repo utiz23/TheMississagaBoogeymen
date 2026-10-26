@@ -640,6 +640,8 @@ export interface PressQuote {
 
 export interface PressNote {
   id: number
+  /** The player the note is about, or null for a note about the game. */
+  playerId: number | null
   playerName: string | null
   note: string
   matchId: number | null
@@ -664,7 +666,7 @@ export function nightPressMaterialSql(night: string, includeTest: boolean): SQL 
 /** The night's active GM notes, oldest first. */
 export function nightPressNotesSql(night: string, includeTest: boolean): SQL {
   return sql`
-    select g.id, ${DISPLAY_NAME} as player_name, g.note, g.match_id, g.critical
+    select g.id, g.player_id, ${DISPLAY_NAME} as player_name, g.note, g.match_id, g.critical
     from news_gm_notes g
     left join players p on p.id = g.player_id
     left join player_profiles pp on pp.player_id = g.player_id
@@ -688,6 +690,7 @@ export async function nightPressMaterial(
   }>(nightPressMaterialSql(night, includeTest))
   const notes = await db.execute<{
     id: string | number
+    player_id: string | number | null
     player_name: string | null
     note: string
     match_id: string | number | null
@@ -704,6 +707,7 @@ export async function nightPressMaterial(
     })),
     gmNotes: notes.map((r) => ({
       id: num(r.id),
+      playerId: r.player_id === null ? null : num(r.player_id),
       playerName: r.player_name,
       note: r.note,
       matchId: r.match_id === null ? null : num(r.match_id),

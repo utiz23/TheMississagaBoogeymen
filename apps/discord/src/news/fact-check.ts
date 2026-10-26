@@ -983,22 +983,30 @@ interface ListedQuote {
 
 const QUOTE_EDGES = /^[\s"'\u201C\u201D\u2018\u2019]+|[\s"'\u201C\u201D\u2018\u2019]+$/g
 
-/** The quoted words as a pattern: spacing-free, whole words, case ignored; null when empty. */
-function quotePattern(text: string): RegExp | null {
-  const words = collapse(text.replace(QUOTE_EDGES, ''))
-  if (words === '') return null
+/** A quote has at least this many words, so a lone number or "we" can never be a quote. */
+export const QUOTE_MIN_WORDS = 2
+
+/**
+ * One quoted span of the words: an opening mark (straight or curly) directly
+ * before them, then the words (any spacing, case ignored), then only closing
+ * punctuation (`"got outworked,"`) and a closing mark. Not global: one span.
+ */
+function quotedSpan(words: string): RegExp {
   return new RegExp(
-    `(?<![\\p{L}\\p{N}_])${words.split(' ').map(escapeRegExp).join('\\s+')}(?![\\p{L}\\p{N}_])`,
-    'giu',
+    `["\\u201C]${words.split(' ').map(escapeRegExp).join('\\s+')}[,.!?;:\\u2026]*["\\u201D]`,
+    'iu',
   )
 }
 
 /**
  * The quote rules (news desk bots): every quote is an offered answer of a
- * player on the sheet, its words are in the body, it names no forbidden
- * person and adds no number the answer lacks. `rest` is the body without
- * the quoted words: a player's "we" or nickname is theirs, not the reporter's,
- * so the other rules read only the rest.
+ * player on the sheet, has at least two words, and stands in the body inside
+ * quotation marks; it names no forbidden person, has no strong word and adds
+ * no number the answer lacks. Each quote removes exactly one quoted span
+ * (two quotes of the same words need two spans), and `rest` is the body
+ * without those spans: a player's "we" is theirs, not the reporter's, so the
+ * other rules read only the rest. The code checks only these things: whether
+ * the quote keeps the answer's words and meaning is the review's job.
  */
 function quoteProblems(
   body: string,
@@ -1045,14 +1053,19 @@ function quoteProblems(
         )
       }
     }
-    const pattern = quotePattern(q.text)
-    if (pattern === null || body.search(pattern) < 0) {
+    const words = collapse(q.text.replace(QUOTE_EDGES, ''))
+    if (words.split(' ').filter((w) => w !== '').length < QUOTE_MIN_WORDS) {
+      problems.push(`A quote needs at least two words: "${q.text}".`)
+      continue
+    }
+    const span = quotedSpan(words).exec(rest)
+    if (span === null) {
       problems.push(
-        `The words of quote ${id} are not in the article body: list them in "quotes" exactly as printed.`,
+        `The words of quote ${id} are not in the article body inside quotation marks: print each quote in quotation marks and list its words in "quotes" exactly as printed.`,
       )
       continue
     }
-    rest = rest.replace(pattern, ' ')
+    rest = `${rest.slice(0, span.index)} ${rest.slice(span.index + span[0].length)}`
   }
   return { problems, rest }
 }

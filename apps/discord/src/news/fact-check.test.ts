@@ -1465,3 +1465,142 @@ void test('quotes: a strong word in a quote fails, even when the player said it'
     r.join('\n'),
   )
 })
+
+// Fix round 1: one quoted span per quote, inside quotation marks, at least two words.
+
+const STICKS = { ...ANSWER_12, answer: 'I broke 4 sticks.' }
+
+void test('quotes: a one-word quote fails and hides nothing (the reviewer case: "4")', () => {
+  const r = problems(
+    checkArticleFacts(
+      quoted({
+        paragraphs: [`Skater A scored 4 goals. ${pad(260)}`],
+        quotes: [{ answerId: 12, text: '4' }],
+      }),
+      night,
+      FORBIDDEN,
+      [],
+      { press: press({ quotes: [STICKS] }) },
+    ),
+  )
+  assert.ok(r.includes('A quote needs at least two words: "4".'), r.join('\n'))
+  assert.ok(r.includes('The number 4 is not on the fact sheet.'), r.join('\n'))
+})
+
+void test('quotes: a quote removes only its own quoted span; an unquoted "4 goals" still fails', () => {
+  const art = quoted({
+    paragraphs: [`Skater A said he "broke 4" sticks. Skater A scored 4 goals. ${pad(260)}`],
+    quotes: [{ answerId: 12, text: 'broke 4' }],
+  })
+  const r = problems(
+    checkArticleFacts(art, night, FORBIDDEN, [], { press: press({ quotes: [STICKS] }) }),
+  )
+  assert.ok(!r.some((p) => /quote 12|Quote 12/.test(p)), r.join('\n'))
+  assert.ok(r.includes('The number 4 is not on the fact sheet.'), r.join('\n'))
+  // Without the unquoted "4 goals" the same quote passes.
+  assert.deepEqual(
+    problems(
+      checkArticleFacts(
+        { ...art, paragraphs: [`Skater A said he "broke 4" sticks. ${pad(260)}`] },
+        night,
+        FORBIDDEN,
+        [],
+        { press: press({ quotes: [STICKS] }) },
+      ),
+    ),
+    [],
+  )
+})
+
+void test('quotes: a quote of "we" no longer disables the "we" rule', () => {
+  const r = problems(
+    checkArticleFacts(
+      quoted({
+        paragraphs: [`Skater A said "we" a lot. We lost the game. ${pad(260)}`],
+        quotes: [{ answerId: 12, text: 'we' }],
+      }),
+      night,
+      FORBIDDEN,
+      [],
+      { press: press() },
+    ),
+  )
+  assert.ok(r.includes('A quote needs at least two words: "we".'), r.join('\n'))
+  assert.ok(
+    r.some((p) => /The reporters are outside media/.test(p)),
+    r.join('\n'),
+  )
+})
+
+void test('quotes: an unquoted occurrence of the words does not count; curly marks do', () => {
+  const plain = problems(
+    checkArticleFacts(
+      quoted({
+        paragraphs: [`Skater A said they scored two goals and got outworked. ${pad(260)}`],
+        quotes: [{ answerId: 12, text: 'scored two goals and got outworked' }],
+      }),
+      night,
+      FORBIDDEN,
+      [],
+      { press: press() },
+    ),
+  )
+  assert.ok(
+    plain.some((p) =>
+      /The words of quote 12 are not in the article body inside quotation marks/.test(p),
+    ),
+    plain.join('\n'),
+  )
+  assert.deepEqual(
+    problems(
+      checkArticleFacts(
+        quoted({
+          paragraphs: [`“We scored two goals and got outworked,” Skater A said. ${pad(260)}`],
+        }),
+        night,
+        FORBIDDEN,
+        [],
+        { press: press() },
+      ),
+    ),
+    [],
+  )
+})
+
+void test('quotes: two quotes with the same words need two quoted spans', () => {
+  const twice = [
+    { answerId: 12, text: 'got outworked' },
+    { answerId: 12, text: 'got outworked' },
+  ]
+  const once = problems(
+    checkArticleFacts(
+      quoted({
+        paragraphs: [`"Got outworked," Skater A said. ${pad(260)}`],
+        quotes: twice,
+      }),
+      night,
+      FORBIDDEN,
+      [],
+      { press: press() },
+    ),
+  )
+  assert.ok(
+    once.some((p) => /quote 12 are not in the article body/.test(p)),
+    once.join('\n'),
+  )
+  assert.deepEqual(
+    problems(
+      checkArticleFacts(
+        quoted({
+          paragraphs: [`"Got outworked," Skater A said. "Got outworked." ${pad(260)}`],
+          quotes: twice,
+        }),
+        night,
+        FORBIDDEN,
+        [],
+        { press: press() },
+      ),
+    ),
+    [],
+  )
+})

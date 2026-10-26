@@ -303,24 +303,22 @@ const rateLimited = (err: unknown) => /HTTP 429\b/.test(message(err))
 
 const SYSTEM_PROMPT = buildSystemPrompt(Object.values(REPORTERS))
 
-const nameKey = (s: string): string => s.replace(/\s+/g, ' ').trim().toLowerCase()
-
 /**
  * The night's press material as the recap may use it (news desk bots): answers
  * only from players on the sheet's people (never `out`, never a guest); GM notes
- * only about such a player or about no player, and a critical note never about
- * an "easy" player.
+ * only about such a player or about no player (matched by player id, never by
+ * display name), and a critical note never about an "easy" player.
  */
 export function pressForSheet(
   material: { quotes: readonly PressQuote[]; gmNotes: readonly PressNote[] },
   facts: NewsFacts,
 ): { quotes: PressQuote[]; gmNotes: PressNote[] } {
-  const ids = new Set(facts.people.map((p) => p.playerId))
+  const people = new Map(facts.people.map((p) => [p.playerId, p]))
   return {
-    quotes: material.quotes.filter((q) => ids.has(q.playerId)),
+    quotes: material.quotes.filter((q) => people.has(q.playerId)),
     gmNotes: material.gmNotes.filter((n) => {
-      if (n.playerName === null) return true
-      const person = facts.people.find((p) => nameKey(p.name) === nameKey(n.playerName!))
+      if (n.playerId === null) return true
+      const person = people.get(n.playerId)
       return person !== undefined && !(n.critical && person.pressLevel === 'easy')
     }),
   }

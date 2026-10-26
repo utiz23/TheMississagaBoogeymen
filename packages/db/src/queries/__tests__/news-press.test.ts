@@ -205,6 +205,7 @@ void test('night press notes: active notes of the night, same test rule', () => 
   const q = dialect.sqlToQuery(nightPressNotesSql('2026-10-25', true))
   const s = flat(q.sql)
   assert.match(s, /from news_gm_notes g/)
+  assert.match(s, /select g\.id, g\.player_id, /)
   assert.match(s, /g\.note, g\.match_id, g\.critical/)
   assert.match(s, /g\.status = 'active'/)
   assert.match(s, /g\.night = \$1::date/)

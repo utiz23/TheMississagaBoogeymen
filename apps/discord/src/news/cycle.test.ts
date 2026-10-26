@@ -12,6 +12,7 @@ import {
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
   createNewsCycleState,
+  pressForSheet,
   NEWS_GAME_WINDOW_MS,
   NEWS_POST_SPACING_MS,
   runNewsCycle,
@@ -2150,6 +2151,7 @@ const pressMaterial = async () => ({
   gmNotes: [
     {
       id: 5,
+      playerId: 1,
       playerName: 'Skater A',
       note: 'Skater A broke his stick.',
       matchId: null,
@@ -2158,15 +2160,24 @@ const pressMaterial = async () => ({
     // Skater B is at press level "easy": a critical note about them is dropped.
     {
       id: 6,
+      playerId: 2,
       playerName: 'Skater B',
       note: 'Skater B took a lazy penalty.',
       matchId: null,
       critical: true,
     },
     // Not on the sheet: dropped.
-    { id: 7, playerName: 'Drop In', note: 'Drop In was loud.', matchId: null, critical: false },
+    {
+      id: 7,
+      playerId: 77,
+      playerName: 'Drop In',
+      note: 'Drop In was loud.',
+      matchId: null,
+      critical: false,
+    },
     {
       id: 8,
+      playerId: null,
       playerName: null,
       note: 'The lights went out in the second.',
       matchId: null,
@@ -2255,4 +2266,33 @@ void test('press: a night without press material keeps its prompt and its review
   const review = calls.find((c) => c.purpose === 'review')!.user
   assert.ok(!review.includes('true events'))
   assert.ok(review.includes('1. An invented quote from a teammate or an opponent.'))
+})
+
+void test('press: GM notes are matched to the sheet by player id, not by display name', () => {
+  const facts = oct12Response('night').facts
+  const note = (id: number, playerId: number | null, playerName: string | null) => ({
+    id,
+    playerId,
+    playerName,
+    note: `Note ${String(id)}.`,
+    matchId: null,
+    critical: false,
+  })
+  const kept = pressForSheet(
+    {
+      quotes: [],
+      gmNotes: [
+        // Same display name as a sheet player, but another player: dropped.
+        note(1, 50, 'Skater A'),
+        // A sheet player whose display name is spelled differently: kept.
+        note(2, 1, 'Skater Alpha'),
+        note(3, null, null),
+      ],
+    },
+    facts,
+  )
+  assert.deepEqual(
+    kept.gmNotes.map((n) => n.id),
+    [2, 3],
+  )
 })
