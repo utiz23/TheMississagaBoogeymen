@@ -175,16 +175,20 @@ void test('buzz: timeline comeback and late winner; milestones, notes, AI goalie
     { period: '2nd', clock: '09:00', side: 'for', scorer: null, assists: [] },
     { period: '3rd', clock: '18:30', side: 'for', scorer: null, assists: [] },
   ] as NewsGameFacts['goals']
+  const pick = (h: ReturnType<typeof timelineHooks>) => ({
+    comeback: h.comeback,
+    lateWinner: h.lateWinner,
+  })
   assert.deepEqual(
-    timelineHooks({ result: 'WIN', scoreAgainst: 2, goals, clockMeaning: 'elapsed' }),
+    pick(timelineHooks({ result: 'WIN', scoreAgainst: 2, goals, clockMeaning: 'elapsed' })),
     { comeback: true, lateWinner: true },
   )
   assert.deepEqual(
-    timelineHooks({ result: 'WIN', scoreAgainst: 2, goals, clockMeaning: 'remaining' }),
+    pick(timelineHooks({ result: 'WIN', scoreAgainst: 2, goals, clockMeaning: 'remaining' })),
     { comeback: true, lateWinner: false },
   )
   assert.deepEqual(
-    timelineHooks({ result: 'LOSS', scoreAgainst: 2, goals, clockMeaning: 'elapsed' }),
+    pick(timelineHooks({ result: 'LOSS', scoreAgainst: 2, goals, clockMeaning: 'elapsed' })),
     {
       comeback: false,
       lateWinner: false,
@@ -231,4 +235,70 @@ void test('buzz fix 1: a player run adds buzz only at a round count (5, 10, 15, 
   assert.equal(withRun(8, 'ended'), BUZZ_WEIGHTS.streak)
   assert.equal(withRun(9, 'ended', 'noGoal'), BUZZ_WEIGHTS.streak)
   assert.equal(withRun(10, 'extended', 'noGoal'), 0) // a slump going on is no buzz
+})
+
+/** The 2026-05-08 4-3 OT win: 2-0, 2-1, 3-1, then two goals against in the last 70 s, OT winner. */
+const BLOWN = [
+  { period: '2nd', clock: '06:19', side: 'for', scorer: null, assists: [] },
+  { period: '2nd', clock: '14:53', side: 'for', scorer: null, assists: [] },
+  { period: '3rd', clock: '08:35', side: 'against', scorer: null, assists: [] },
+  { period: '3rd', clock: '13:58', side: 'for', scorer: null, assists: [] },
+  { period: '3rd', clock: '18:51', side: 'against', scorer: null, assists: [] },
+  { period: '3rd', clock: '19:08', side: 'against', scorer: null, assists: [] },
+  { period: 'OT', clock: '17:23', side: 'for', scorer: null, assists: [] },
+] as NewsGameFacts['goals']
+
+void test('buzz fix 2: a lead blown, a late equalizer and the win after it (the 4-3 OT game)', () => {
+  const h = timelineHooks({ result: 'WIN', scoreAgainst: 3, goals: BLOWN, clockMeaning: 'elapsed' })
+  assert.equal(h.leadBlown, true)
+  assert.equal(h.lateEqualizer, true)
+  assert.equal(h.winAfterBlown, true)
+  // The same goals counted down: 19:08 elapsed is 00:52 remaining.
+  const remaining = BLOWN!.map((g) => {
+    const [m, sec] = g.clock.split(':').map(Number)
+    const left = 20 * 60 - (m! * 60 + sec!)
+    return {
+      ...g,
+      clock: `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`,
+    }
+  })
+  assert.equal(
+    timelineHooks({ result: 'WIN', scoreAgainst: 3, goals: remaining, clockMeaning: 'remaining' })
+      .lateEqualizer,
+    true,
+  )
+  // A 2-goal lead that held: nothing blown.
+  const held = timelineHooks({
+    result: 'WIN',
+    scoreAgainst: 1,
+    goals: BLOWN!.slice(0, 4),
+    clockMeaning: 'elapsed',
+  })
+  assert.equal(held.leadBlown, false)
+  assert.equal(held.lateEqualizer, false)
+  // The 6s game lands at least big.
+  const g = game({
+    gameMode: '6s',
+    overtime: true,
+    scoreFor: 4,
+    scoreAgainst: 3,
+    goals: BLOWN,
+    clockMeaning: 'elapsed',
+    context: { ...game().context!, margin: 'close' },
+  })
+  const s = buzzScore(g, sheet)
+  assert.ok(
+    s.reasons.includes('lead blown') && s.reasons.includes('late equalizer'),
+    s.reasons.join(),
+  )
+  assert.ok(['big', 'huge'].includes(planBuzz(g, sheet).level), String(s.score))
+  // A loss after a blown lead is drama too (no win after it).
+  const lost = timelineHooks({
+    result: 'OTL',
+    scoreAgainst: 4,
+    goals: [...BLOWN!.slice(0, 6), { ...BLOWN![6]!, side: 'against' }],
+    clockMeaning: 'elapsed',
+  })
+  assert.equal(lost.leadBlown, true)
+  assert.equal(lost.winAfterBlown, false)
 })

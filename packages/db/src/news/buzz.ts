@@ -38,6 +38,12 @@ export const BUZZ_WEIGHTS = {
   comeback: 2,
   /** The winning goal in the last 2 minutes of the 3rd period (goal timeline). */
   lateWinner: 1,
+  /** A 2+ goal lead the opponent tied or passed (buzz fix 2). */
+  leadBlown: 2,
+  /** A game-tying goal in the last 2 minutes of the 3rd, either side. */
+  lateEqualizer: 2,
+  /** The club won after blowing a lead. */
+  winAfterBlown: 1,
   hatTrick: 3,
   fivePoints: 3,
   /** At most this much from one player's line ... */
@@ -68,6 +74,9 @@ export const BUZZ_WEIGHTS = {
   patternBroken: 0.5,
   patternMax: 1,
 } as const
+
+/** "Late": the last this many seconds of the 3rd period. */
+export const LATE_SECONDS = 120
 
 /** A player run adds buzz at every this many games (5, 10, 15, ...). */
 export const STREAK_ROUND = 5
@@ -131,28 +140,60 @@ const clockSeconds = (clock: string): number | null => {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null
 }
 
-/** Timeline hooks: a comeback from 2+ down and a late winner (last 2 minutes of the 3rd). */
+/** Seconds left in the period when a goal came, or null (elapsed clocks of a 20-minute period). */
+function secondsLeft(goal: NewsGoal, meaning: NewsGameFacts['clockMeaning']): number | null {
+  const s = clockSeconds(goal.clock)
+  if (s === null) return null
+  return meaning === 'remaining' ? s : 20 * 60 - s
+}
+
+/** The last 2 minutes of the 3rd period. */
+const isLate = (goal: NewsGoal, meaning: NewsGameFacts['clockMeaning']): boolean => {
+  if (goal.period !== '3rd') return false
+  const left = secondsLeft(goal, meaning)
+  return left !== null && left <= LATE_SECONDS
+}
+
+/**
+ * Timeline hooks (buzz fix 2): a comeback from 2+ down and a late winner (a
+ * win); a lead of 2+ blown (the opponent tied or went ahead after it), a
+ * game-tying goal in the last 2 minutes of the 3rd (either side), and a win
+ * after a blown lead.
+ */
 export function timelineHooks(
   g: Pick<NewsGameFacts, 'result' | 'scoreAgainst' | 'goals' | 'clockMeaning'>,
-): { comeback: boolean; lateWinner: boolean } {
+): {
+  comeback: boolean
+  lateWinner: boolean
+  leadBlown: boolean
+  lateEqualizer: boolean
+  winAfterBlown: boolean
+} {
   const goals: readonly NewsGoal[] = g.goals ?? []
-  if (g.result !== 'WIN' || goals.length === 0) return { comeback: false, lateWinner: false }
   let gf = 0
   let ga = 0
   let worst = 0
+  let best = 0
+  let leadBlown = false
+  let lateEqualizer = false
   let winner: NewsGoal | null = null
   for (const goal of goals) {
     if (goal.side === 'for') gf++
     else ga++
     worst = Math.min(worst, gf - ga)
-    if (goal.side === 'for' && gf === g.scoreAgainst + 1) winner = goal
+    best = Math.max(best, gf - ga)
+    if (best >= 2 && gf - ga <= 0) leadBlown = true
+    if (gf === ga && isLate(goal, g.clockMeaning)) lateEqualizer = true
+    if (g.result === 'WIN' && goal.side === 'for' && gf === g.scoreAgainst + 1) winner = goal
   }
-  let lateWinner = false
-  if (winner !== null && winner.period === '3rd') {
-    const s = clockSeconds(winner.clock)
-    if (s !== null) lateWinner = g.clockMeaning === 'remaining' ? s <= 120 : s >= 18 * 60
+  const win = g.result === 'WIN' && goals.length > 0
+  return {
+    comeback: win && worst <= -2,
+    lateWinner: win && winner !== null && isLate(winner, g.clockMeaning),
+    leadBlown,
+    lateEqualizer,
+    winAfterBlown: win && leadBlown,
   }
-  return { comeback: worst <= -2, lateWinner }
 }
 
 /** The buzz score of one game of the sheet, with the reasons (for tuning). */
@@ -181,6 +222,9 @@ export function buzzScore(
   const hooks = timelineHooks(g)
   if (hooks.comeback) add(W.comeback, 'comeback')
   if (hooks.lateWinner) add(W.lateWinner, 'late winner')
+  if (hooks.leadBlown) add(W.leadBlown, 'lead blown')
+  if (hooks.lateEqualizer) add(W.lateEqualizer, 'late equalizer')
+  if (hooks.winAfterBlown) add(W.winAfterBlown, 'won after a blown lead')
   let playersTotal = 0
   for (const p of g.players) {
     let w = 0
