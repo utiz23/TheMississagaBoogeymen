@@ -12,6 +12,7 @@ import {
   numberTokens,
   shotPairs,
   signatureWordCount,
+  withoutSheetNames,
 } from './fact-check.ts'
 import { oct12Facts } from './test-fixtures.ts'
 
@@ -1178,4 +1179,28 @@ void test('C3a fix I5: a zero is a call-out only when the named player is its su
   for (const t of ['Skater A had 0 points.', 'Skater A finished with no shots.']) {
     assert.ok(has(z(t), /list the player in "zeroCalled"/), t)
   }
+})
+
+void test('C3a fix M3: digits inside sheet names are not numbers (per sentence, ended early)', () => {
+  const f = oct12Facts('game')
+  f.people = [...f.people, { playerId: 9, name: 'Sniper 99', pressLevel: 'full' }]
+  f.games = [{ ...f.games[0]!, opponentName: 'Club 77', players: [...f.games[0]!.players] }]
+  const t = 'Sniper 99 had 2 points, 5 shots and 14 team shots against Club 77 in NHL 27.'
+  assert.equal(numberTokens(t), 6)
+  assert.equal(numberTokens(withoutSheetNames(t, f)), 3)
+  assert.ok(
+    !has(
+      checkFacts(t, f, FORBIDDEN, { mentions: ['Sniper 99'], clubs: ['Club 77'] }),
+      /numbers\. Use at most 3/,
+    ),
+  )
+  const early = structuredClone(f)
+  early.games = [{ ...early.games[0]!, endedEarly: true, team: null }]
+  assert.deepEqual(
+    checkFacts('Club 77 won 6-2 in NHL 27; it ended early.', early, FORBIDDEN, {
+      mentions: [],
+      clubs: ['Club 77'],
+    }),
+    { ok: true },
+  )
 })

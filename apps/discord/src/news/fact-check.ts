@@ -474,6 +474,38 @@ function endedEarlyNumbers(facts: NewsFacts): Set<number> | null {
   return out
 }
 
+/** Every name the sheet allows: people, record holders, AI goalies, reporters, clubs, titles, lore. */
+function sheetNames(facts: NewsFacts): string[] {
+  return [
+    ...facts.people.map((p) => p.name),
+    ...facts.records.flatMap((r) => (r.holder === null ? [r.title] : [r.holder, r.title])),
+    ...aiGoalieNames(facts),
+    ...REPORTER_IDS.map((id) => REPORTERS[id].name),
+    ...facts.games.map((g) => g.opponentName),
+    ...facts.games.map((g) => g.gameTitleName),
+    facts.gameTitleName,
+    ...LORE_NAMES,
+  ].filter((n) => collapse(n) !== '')
+}
+
+/**
+ * The text with every sheet name replaced by "X" (longest first), so digits
+ * inside a name never count as numbers (C3a fix M3). Word-bounded; one space
+ * stands for any spacing inside a name.
+ */
+export function withoutSheetNames(text: string, facts: NewsFacts): string {
+  let out = text
+  const names = [...new Set(sheetNames(facts))].sort((a, b) => b.length - a.length)
+  for (const n of names) {
+    const re = new RegExp(
+      `(?<![\\p{L}\\p{N}_])${collapse(n).split(' ').map(escapeRegExp).join('\\s+')}(?![\\p{L}\\p{N}_])`,
+      'giu',
+    )
+    out = out.replace(re, 'X')
+  }
+  return out
+}
+
 /** The person a name means (case and spacing ignored), or undefined. */
 function personOf(facts: NewsFacts, name: string) {
   return facts.people.find((p) => sameName(p.name, name))
@@ -616,8 +648,10 @@ function styleProblems(
       `The reporters are outside media: never "${pronoun[0]}". Write "the Boogeymen" or "the club".`,
     )
   }
-  for (const sentence of sentences(text)) {
-    const n = numberTokens(sentence)
+  // Names on the sheet ("NHL 27", a gamertag or club with digits) are not numbers (C3a fix M3).
+  const unnamed = withoutSheetNames(text, facts)
+  for (const [i, sentence] of sentences(text).entries()) {
+    const n = numberTokens(sentences(unnamed)[i] ?? sentence)
     if (n > MAX_NUMBERS_PER_SENTENCE) {
       problems.push(
         `"${sentence}" has ${String(n)} numbers. Use at most ${String(MAX_NUMBERS_PER_SENTENCE)} in a sentence.`,
@@ -642,7 +676,7 @@ function styleProblems(
   }
   const early = endedEarlyNumbers(facts)
   if (early !== null) {
-    for (const m of flat.replace(CLOCK, ' ').matchAll(DIGIT_RUN)) {
+    for (const m of collapse(unnamed).replace(CLOCK, ' ').matchAll(DIGIT_RUN)) {
       if (!early.has(parseDigits(m[0]))) {
         problems.push(
           `The game ended early: give it one neutral line with the score only, no other numbers (${m[0]}).`,
