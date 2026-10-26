@@ -1,3 +1,6 @@
+import { amountOr, intOr, trimSlash } from '../env-parse.ts'
+import { loadPressDiscord, type PressDiscord } from '../press/config.ts'
+
 export interface NewsConfig {
   webhookUrl: string | null
   internalToken: string
@@ -9,6 +12,8 @@ export interface NewsConfig {
   model: string
   monthlyLimitUsd: number
   apiKeyPresent: boolean
+  /** Set only when PRESS_MODE=live: the reporters post as bots, not by webhook. */
+  bots: PressDiscord | null
 }
 
 export type NewsConfigResult = { ok: true; config: NewsConfig } | { ok: false; problems: string[] }
@@ -18,24 +23,14 @@ const WEBHOOK_PREFIXES = [
   'https://discordapp.com/api/webhooks/',
 ]
 
-const trimSlash = (s: string) => s.replace(/\/+$/, '')
-
-function intOr(value: string | undefined, fallback: number): number {
-  const n = value === undefined ? NaN : Number.parseInt(value, 10)
-  return Number.isSafeInteger(n) && n > 0 ? n : fallback
-}
-
-function amountOr(value: string | undefined, fallback: number): number {
-  const n = value === undefined || value.trim() === '' ? NaN : Number(value)
-  return Number.isFinite(n) && n > 0 ? n : fallback
-}
-
 /**
  * Reads the news desk's environment. Problems name the variable, never its
  * value (the webhook URL and the API key are secrets). Not ok ⇒ the service
  * idles: it writes nothing and posts nothing. Test mode is fail-closed:
  * anything but an explicit NEWS_DRY_RUN=0 is a dry run. The API key is
- * needed in both modes (a dry run still writes with Claude).
+ * needed in both modes (a dry run still writes with Claude). With
+ * PRESS_MODE=live the reporters post as bots: `bots` is set, and no webhook
+ * is needed.
  */
 export function loadNewsConfig(env: Record<string, string | undefined>): NewsConfigResult {
   const problems: string[] = []
@@ -45,7 +40,17 @@ export function loadNewsConfig(env: Record<string, string | undefined>): NewsCon
   const web = env['WEB_INTERNAL_URL']?.trim() ?? ''
   const apiKeyPresent = (env['ANTHROPIC_API_KEY']?.trim() ?? '') !== ''
 
-  if (webhook === null && !dryRun) problems.push('NEWS_WEBHOOK_URL is unset and NEWS_DRY_RUN is 0')
+  // Live press mode: the reporters post as bots, so no webhook is needed and
+  // the PRESS_* problems are news problems. Any other mode ignores PRESS_*.
+  let bots: PressDiscord | null = null
+  if (env['PRESS_MODE'] === 'live') {
+    const press = loadPressDiscord(env)
+    if (press.ok) bots = press.value
+    else problems.push(...press.problems)
+  }
+
+  if (webhook === null && !dryRun && env['PRESS_MODE'] !== 'live')
+    problems.push('NEWS_WEBHOOK_URL is unset and NEWS_DRY_RUN is 0')
   if (webhook !== null && !WEBHOOK_PREFIXES.some((p) => webhook.startsWith(p))) {
     problems.push('NEWS_WEBHOOK_URL is not a Discord webhook URL')
   }
@@ -68,6 +73,7 @@ export function loadNewsConfig(env: Record<string, string | undefined>): NewsCon
       model: env['NEWS_MODEL']?.trim() || 'claude-opus-5-5',
       monthlyLimitUsd: amountOr(env['NEWS_MONTHLY_LIMIT_USD'], 20),
       apiKeyPresent,
+      bots,
     },
   }
 }

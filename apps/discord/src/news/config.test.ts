@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { REPORTER_IDS } from '@eanhl/db/news'
 import { loadNewsConfig } from './config.ts'
 
 const HOOK = 'https://discord.com/api/webhooks/123/SECRET-NEWS-TOKEN'
@@ -93,4 +94,40 @@ void test('numbers: bad values fall back to defaults, good ones are used', () =>
   assert.equal(good.config.monthlyLimitUsd, 7.5)
   assert.equal(good.config.model, 'claude-sonnet-5-5')
   assert.equal(good.config.outDir, '/x')
+})
+
+const PRESS_LIVE_ENV = {
+  ...Object.fromEntries(REPORTER_IDS.map((id) => [`PRESS_TOKEN_${id.toUpperCase()}`, `T-${id}`])),
+  PRESS_MODE: 'live',
+  PRESS_GUILD_ID: '111111111111111111',
+  PRESS_LIVE_CHANNEL_ID: '333333333333333333',
+  PRESS_GM_USER_ID: '444444444444444444',
+}
+
+void test('no press vars ⇒ bots is null, old rules unchanged', () => {
+  const r = loadNewsConfig(BASE)
+  assert.ok(r.ok)
+  assert.equal(r.config.bots, null)
+  // Junk press vars are ignored when PRESS_MODE is not live.
+  const r2 = loadNewsConfig({ ...BASE, PRESS_MODE: 'trial', PRESS_GUILD_ID: 'junk' })
+  assert.ok(r2.ok)
+  assert.equal(r2.config.bots, null)
+  assert.equal(loadNewsConfig({ ...BASE, NEWS_DRY_RUN: '0' }).ok, false)
+})
+
+void test('PRESS_MODE=live with all press vars and no webhook ⇒ ok, bots live', () => {
+  const r = loadNewsConfig({ ...BASE, NEWS_DRY_RUN: '0', ...PRESS_LIVE_ENV })
+  assert.ok(r.ok)
+  assert.equal(r.config.bots?.mode, 'live')
+  assert.equal(r.config.bots?.channelId, '333333333333333333')
+  assert.equal(r.config.webhookUrl, null)
+})
+
+void test('PRESS_MODE=live with a press problem ⇒ not ok, names the variable only', () => {
+  const r = loadNewsConfig({ ...BASE, NEWS_DRY_RUN: '0', ...PRESS_LIVE_ENV, PRESS_TOKEN_RINK: '' })
+  assert.equal(r.ok, false)
+  if (!r.ok) {
+    assert.ok(r.problems.includes('PRESS_TOKEN_RINK is unset'))
+    assert.ok(!r.problems.join('\n').includes('T-voss'))
+  }
 })
