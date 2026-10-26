@@ -551,7 +551,7 @@ void test('system prompt (C3a.2): every writing rule of spec §12.8-§12.19', ()
     'never two "weaker player" takes in one piece',
     '"stances"',
     // Craft and style.
-    'At most 3 numbers in a sentence. No list of more than 3 values. At most 2 clock times in an article.',
+    'At most 3 numbers in a sentence: digits, number words ("two") and clock times all count; the mode names 3s and 6s do not.',
     'An article never opens with the date and the record.',
     'sentence case',
     'The dek never repeats the headline.',
