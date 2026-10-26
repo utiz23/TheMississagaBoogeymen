@@ -577,17 +577,21 @@ export async function latestScrumItem(args: {
   return id === undefined ? null : num(id)
 }
 
-/** Automatic pings this player got tonight (every scrum of the night, test or real). */
-export function countAutoPingsTonightSql(playerId: number, night: string): SQL {
+/**
+ * Pings this player got tonight that count toward the nightly ping limit:
+ * automatic ones and `/scrum random` / `@player` ones (every scrum of the
+ * night, test or real). GM-requested pings are not limited.
+ */
+export function countLimitedPingsTonightSql(playerId: number, night: string): SQL {
   return sql`
     select count(*)::int as n
     from news_scrum_people p
     join news_scrums s on s.id = p.scrum_id
-    where p.requested_by = 'auto' and p.player_id = ${playerId} and s.night = ${night}::date`
+    where p.requested_by in ('auto', 'command') and p.player_id = ${playerId} and s.night = ${night}::date`
 }
 
-export async function countAutoPingsTonight(playerId: number, night: string): Promise<number> {
-  const rows = await db.execute<{ n: number }>(countAutoPingsTonightSql(playerId, night))
+export async function countLimitedPingsTonight(playerId: number, night: string): Promise<number> {
+  const rows = await db.execute<{ n: number }>(countLimitedPingsTonightSql(playerId, night))
   return Number(rows[0]?.n ?? 0)
 }
 

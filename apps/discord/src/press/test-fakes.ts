@@ -267,11 +267,13 @@ export class FakeStore implements PressStore {
     return Promise.resolve(id)
   }
   private scrumOf = (p: NewsScrumPersonRow) => this.scrums.find((s) => s.id === p.scrumId)!
-  countAutoPingsTonight = (playerId: number, night: string) =>
+  countLimitedPingsTonight = (playerId: number, night: string) =>
     Promise.resolve(
       this.people.filter(
         (p) =>
-          p.requestedBy === 'auto' && p.playerId === playerId && this.scrumOf(p).night === night,
+          (p.requestedBy === 'auto' || p.requestedBy === 'command') &&
+          p.playerId === playerId &&
+          this.scrumOf(p).night === night,
       ).length,
     )
   countCommandUsesTonight = (userId: string, night: string) =>

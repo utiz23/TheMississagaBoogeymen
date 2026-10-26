@@ -304,6 +304,55 @@ void test('a closed scrum or a test scrum in live mode gets no person', async ()
   assert.equal(testScrum.store.people.length, 0)
 })
 
+void test('an asking note that cannot add a scrum person says why: Ask: no — <reason>', async () => {
+  const text = (r: Awaited<ReturnType<typeof onGmNote>>) => (r.kind === 'ephemeral' ? r.text : '')
+  // The scrum has closed.
+  const closed = gmSetup(parse({ nickname: 'Skater A', asksPlayer: true }))
+  scrumOn(closed)
+  closed.store.scrums[0]!.openUntil = new Date(NOW.getTime() - 1)
+  assert.equal(
+    text(await onGmNote(closed.deps, config('live'), GM, 'Skater A, ask him', null)),
+    'Got it: Skater A — game 2 vs WestKent Creamers. Ask: no — the scrum has closed.',
+  )
+  // No linked Discord (the goalie has none in the fakes).
+  const unlinked = gmSetup(parse({ nickname: 'Goalie G', asksPlayer: true }))
+  scrumOn(unlinked)
+  assert.equal(
+    text(await onGmNote(unlinked.deps, config('live'), GM, 'Goalie G, ask him', null)),
+    'Got it: Goalie G — game 2 vs WestKent Creamers. Ask: no — no linked Discord.',
+  )
+  // Not in that game.
+  const res = oct12Response('night')
+  res.facts.games[1] = {
+    ...res.facts.games[1]!,
+    players: res.facts.games[1]!.players.filter((l) => l.playerId !== 1),
+  }
+  const model = noteModel(parse({ nickname: 'Skater A', asksPlayer: true }))
+  const out = setup({ response: res, model: model.call })
+  scrumOn(out)
+  assert.equal(
+    text(await onGmNote(out.deps, config('live'), GM, 'Skater A, ask him', null)),
+    'Got it: Skater A — game 2 vs WestKent Creamers. Ask: no — not in that game.',
+  )
+  for (const t of [closed, unlinked, out]) assert.equal(t.store.people.length, 0)
+})
+
+void test('a correction while the extras budget is out: Ask: no — the press is off', async () => {
+  const t = gmSetup(parse({ nickname: 'Skater A', asksPlayer: true }))
+  // Asked with no scrum yet: yes, the pass reads the note later.
+  const first = await onGmNote(t.deps, config('live'), GM, 'Skater A, ask him', null)
+  assert.match(first.kind === 'ephemeral' ? first.text : '', /Ask: yes\.$/)
+  t.store.spend = 16
+  scrumOn(t)
+  assert.deepEqual(
+    await onGmNoteCorrect(t.deps, config('live'), GM, 1, 1),
+    ephemeral(
+      'Got it: Skater A — game 2 vs WestKent Creamers. Ask: no — the press is off until next month.',
+    ),
+  )
+  assert.equal(t.store.people.length, 0)
+})
+
 void test('trial: the note is a test note and joins the test scrum', async () => {
   const t = gmSetup(parse({ nickname: 'Skater A', asksPlayer: true }))
   scrumOn(t, 90002, true)

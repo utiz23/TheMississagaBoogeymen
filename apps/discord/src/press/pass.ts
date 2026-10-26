@@ -35,6 +35,7 @@ import {
   PRESS_PING_LIMIT,
   chooseScrumReporter,
   effectiveHeat,
+  extrasBudgetLeft,
   pickScrumPlayer,
   scrumCandidates,
   shouldPing,
@@ -71,7 +72,8 @@ export interface PressStore {
   lastScrumReporter(): Promise<ReporterId | null>
   insertScrum(values: NewNewsScrum): Promise<number | null>
   insertScrumPerson(values: NewNewsScrumPerson): Promise<number | null>
-  countAutoPingsTonight(playerId: number, night: string): Promise<number>
+  /** Automatic and command pings tonight (the ping limit); GM pings are not counted. */
+  countLimitedPingsTonight(playerId: number, night: string): Promise<number>
   countCommandUsesTonight(userId: string, night: string): Promise<number>
   getPlayerDiscordUserId(playerId: number): Promise<string | null>
   listPeopleToPing(): Promise<ScrumPersonDetail[]>
@@ -183,6 +185,8 @@ const reporterName = (id: ReporterId): string => REPORTERS[id].name
 
 /** Recap items whose scrum failed, per deps (one process): each is logged once. */
 const failedScrumItems = new WeakMap<PressDeps, Set<number>>()
+/** The month each deps last logged that scrums stopped for the budget (`YYYY-MM`). */
+const budgetStopMonth = new WeakMap<PressDeps, string>()
 
 export async function runPressPass(
   deps: PressDeps,
@@ -321,10 +325,25 @@ export async function runPressPass(
     summary.scrums++
     if (setHeat.next) await store.consumeNextHeat()
 
+    // The extras budget is spent (80%): the scrum stays empty, so nobody is
+    // pinged and the night recap does not wait for it.
+    const now = deps.now()
+    if (!extrasBudgetLeft(await store.monthNewsSpendUsd(now), config.monthlyLimitUsd)) {
+      const month = now.toISOString().slice(0, 7)
+      if (budgetStopMonth.get(deps) !== month) {
+        budgetStopMonth.set(deps, month)
+        log(`[press] scrums: extras budget for ${month} is spent; scrums ask nobody`)
+      }
+      return
+    }
+
     if (pick === null || pick.discordUserId === null) return
     const gmAsked = gmAsk !== null && pick.playerId === gmAsk
     if (!shouldPing(plan.level, gmAsked)) return
-    if (!gmAsked && (await store.countAutoPingsTonight(pick.playerId, night)) >= PRESS_PING_LIMIT) {
+    if (
+      !gmAsked &&
+      (await store.countLimitedPingsTonight(pick.playerId, night)) >= PRESS_PING_LIMIT
+    ) {
       log(
         `[press] scrums: ${tag}: player ${String(pick.playerId)} had ${String(PRESS_PING_LIMIT)} pings tonight, no ping`,
       )

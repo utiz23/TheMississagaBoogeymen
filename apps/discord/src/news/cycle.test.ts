@@ -18,7 +18,6 @@ import {
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
   createNewsCycleState,
-  pressForSheet,
   NEWS_GAME_WINDOW_MS,
   NEWS_POST_SPACING_MS,
   runNewsCycle,
@@ -30,6 +29,8 @@ import {
   type NewsStore,
 } from './cycle.ts'
 import { assignGamePosts, type ActivityKind } from './assign.ts'
+import { pressForSheet } from './press-material.ts'
+import { PRESS_ROOM_START } from './prompts.ts'
 import { classifyGame } from './situation.ts'
 import type { NewsWebhookPayload } from './messages.ts'
 import { ARTICLE_SCHEMA, FEATURE_SCHEMA, GAME_POSTS_SCHEMA, REVIEW_SCHEMA } from './outputs.ts'
@@ -2258,7 +2259,7 @@ void test('press: the night prompt has the PRESS ROOM with the offered answers; 
   await runNewsCycle(h.deps, h.opts)
   assert.equal(h.jobs.get(`night:${PRESS_NIGHT}`)?.status, 'done')
   const write = calls.find((c) => c.purpose === 'write')!.user
-  assert.ok(write.includes('PRESS ROOM'))
+  assert.ok(write.includes(PRESS_ROOM_START))
   assert.ok(write.includes('answerId 12'))
   assert.ok(write.includes('We got outworked, plain and simple.'))
   // A player who is not on the sheet's people is not offered at all.
@@ -2303,7 +2304,7 @@ void test('press: a night without press material keeps its prompt and its review
   })
   pressNight(h)
   await runNewsCycle(h.deps, h.opts)
-  assert.ok(!calls.find((c) => c.purpose === 'write')!.user.includes('PRESS ROOM'))
+  assert.ok(!calls.find((c) => c.purpose === 'write')!.user.includes(PRESS_ROOM_START))
   const review = calls.find((c) => c.purpose === 'review')!.user
   assert.ok(!review.includes('true events'))
   assert.ok(review.includes('1. An invented quote from a teammate or an opponent.'))

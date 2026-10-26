@@ -116,11 +116,32 @@ void test('unlinked user: told to link their Discord', async () => {
   assert.equal(t.store.people.length, 0)
 })
 
+// ── Extras budget ──────────────────────────────────────────────────────────
+
+void test('budget out (80%): Talk, Accept and /scrum say the press is off, and change nothing', async () => {
+  const t = setup()
+  const personId = await scrumWithPerson(t)
+  t.store.spend = 16 // 80% of the 20 USD limit
+  const off = ephemeral('The press is off until next month.')
+  const live = config('live')
+  const before = JSON.stringify(t.store.people)
+  assert.deepEqual(await onTalk(t.deps, live, 10, USER_B), off)
+  assert.deepEqual(await onAccept(t.deps, live, personId, USER_A), off)
+  assert.deepEqual(await onScrumCommand(t.deps, live, USER_B, { player: null, random: false }), off)
+  assert.deepEqual(
+    await onScrumCommand(t.deps, live, USER_A, { player: USER_B, random: false }),
+    off,
+  )
+  assert.deepEqual(await onScrumCommand(t.deps, live, USER_A, { player: null, random: true }), off)
+  assert.equal(JSON.stringify(t.store.people), before)
+  assert.equal(t.sent.length, 0)
+  assert.equal(t.modelCalls.length, 0)
+})
+
 // ── Talk to the press ──────────────────────────────────────────────────────
 
 void test('onTalk: closed scrum, a player not in the game, already in it', async () => {
   const t = setup()
-  t.store.spend = 100
   const personId = await scrumWithPerson(t)
   t.store.discordIds.set(4, USER_C)
   const live = config('live')
@@ -166,7 +187,6 @@ void test('onTalk: a volunteer is asked their question in the thread', async () 
 
 void test('onTalk in the trial: the GM volunteers as the scrum pick, mentions go to the GM', async () => {
   const t = setup()
-  t.store.spend = 100
   // The trial mirrors item 10 into the test channel; the scrum hangs on the mirror.
   t.store.settings.mirrorFromItemId = 0
   t.store.items.push(itemRow({ id: 10, isGameRecap: true }))
@@ -216,7 +236,6 @@ void test('onAccept: another user, too late, twice; the person accepts and is as
 
 void test('onAccept in the trial: the GM accepts for the picked player', async () => {
   const t = setup()
-  t.store.spend = 100
   const personId = await scrumWithPerson(t)
   t.store.scrums[0]!.isTest = true
   assert.deepEqual(await onAccept(t.deps, config('trial'), personId, GM), { kind: 'ack' })
@@ -288,6 +307,8 @@ void test('onAnswerSubmit: the echo is escaped and mentions nobody; 600 characte
   assert.equal(echo.reporter, t.store.scrums[0]!.reporter)
   assert.equal(echo.msg.content, '**Skater A:** @everyone \\<@123\\> \\*\\*x\\*\\*')
   assert.deepEqual(echo.msg.allowed_mentions, { parse: [] })
+  // No link previews (SUPPRESS_EMBEDS).
+  assert.equal(echo.msg.flags, 4)
 
   const t2 = setup({
     model: pressModel({
@@ -392,6 +413,58 @@ void test('onAnswerSubmit: an unusable answer is stored as unusable', async () =
   assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Fair enough. Next game.`)
 })
 
+void test('onAnswerSubmit: a usable answer is echoed after the judgement', async () => {
+  const m = pressModel({
+    judgements: [{ usability: 'usable', followUp: '', closing: 'Thanks, Skater A.' }],
+  })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  asking(t, personId, 'Why?', 2)
+  let echoedBeforeJudgement = false
+  const call = t.deps.call
+  t.deps.call = (req) => {
+    if (t.sent.some((s) => s.msg.content.startsWith('**Skater A:**'))) echoedBeforeJudgement = true
+    return call(req)
+  }
+  await submit(t, config('live'), personId, USER_A, 'We pushed hard.')
+  assert.equal(echoedBeforeJudgement, false)
+  const echo = t.sent.find((s) => s.msg.content.startsWith('**Skater A:**'))!
+  assert.equal(echo.msg.content, '**Skater A:** We pushed hard.')
+  assert.equal(echo.msg.flags, 4)
+  assert.deepEqual(echo.msg.allowed_mentions, { parse: [] })
+})
+
+void test('onAnswerSubmit: an answer naming a Leave me out person is unusable: no model call, no echo', async () => {
+  const m = pressModel({ questions: ['Skater A, and the third period?'] })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  asking(t, personId, 'Why?')
+  assert.deepEqual(
+    await submit(t, config('live'), personId, USER_A, 'Ask hidden hank, he saw it.'),
+    { kind: 'ack' },
+  )
+  assert.equal(t.store.answerRows[0]!.usability, 'unusable')
+  assert.ok(!m.reqs.some((r) => r.schema === JUDGEMENT_SCHEMA))
+  assert.ok(!t.sent.some((s) => s.msg.content.includes('hidden hank')))
+  // The normal next step: question 2 (no follow-up).
+  const p = t.store.people[0]!
+  assert.equal(p.questionsAsked, 2)
+  assert.equal(p.followupsAsked, 0)
+  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Skater A, and the third period?`)
+})
+
+void test('onAnswerSubmit: an unusable answer is never echoed', async () => {
+  const m = pressModel({
+    judgements: [{ usability: 'unusable', followUp: '', closing: 'Fair enough. Next game.' }],
+  })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  asking(t, personId, 'Why?', 2)
+  await submit(t, config('live'), personId, USER_A, 'my boss yelled at me all day')
+  assert.ok(!t.sent.some((s) => s.msg.content.startsWith('**Skater A:**')))
+  assert.equal(t.sent.length, 1)
+})
+
 void test('onAnswerSubmit: extras budget spent → stored unusable, fallback closing, no model call', async () => {
   const t = setup()
   t.store.spend = 16
@@ -443,7 +516,6 @@ void test('onAnswerSubmit: another user, or after the answer window, changes not
 
 void test('/scrum with no options volunteers for the latest game the user played', async () => {
   const t = setup()
-  t.store.spend = 100
   await liveScrum(t)
   const reply = await onScrumCommand(t.deps, config('live'), USER_B, {
     player: null,
@@ -514,6 +586,70 @@ void test('/scrum random: twice a night per user', async () => {
   assert.equal(p.requestedBy, 'command')
 })
 
+/** `n` pings of `requestedBy` for `playerId` tonight, each in its own earlier scrum. */
+function earlierPings(
+  t: ReturnType<typeof setup>,
+  playerId: number,
+  requestedBy: 'auto' | 'command' | 'gm',
+  n: number,
+) {
+  for (let i = 0; i < n; i++) {
+    const id = t.store.scrums.length + 1
+    t.store.scrums.push({ ...t.store.scrums[0]!, id, recapItemId: 1000 + id, matchId: 80000 + id })
+    void t.store.insertScrumPerson({
+      scrumId: id,
+      playerId,
+      discordUserId: playerId === 1 ? USER_A : USER_B,
+      role: 'picked',
+      requestedBy,
+      status: 'done',
+      pingedAt: NOW,
+    })
+  }
+}
+
+void test('/scrum @player: a player with 2 pings tonight has been asked enough; GM pings do not count', async () => {
+  const t = setup()
+  await liveScrum(t)
+  const live = config('live')
+  earlierPings(t, 2, 'auto', 1)
+  earlierPings(t, 2, 'command', 1)
+  const before = t.store.people.length
+  assert.deepEqual(
+    await onScrumCommand(t.deps, live, USER_A, { player: USER_B, random: false }),
+    ephemeral('Skater B has been asked enough tonight.'),
+  )
+  assert.equal(t.store.people.length, before)
+  // GM pings are not limited, and do not count.
+  const t2 = setup()
+  await liveScrum(t2)
+  earlierPings(t2, 2, 'gm', 2)
+  assert.deepEqual(
+    await onScrumCommand(t2.deps, live, USER_A, { player: USER_B, random: false }),
+    ephemeral(`${REPORTERS[t2.store.scrums[0]!.reporter].name} will ping Skater B.`),
+  )
+})
+
+void test('/scrum random: skips players with 2 pings tonight', async () => {
+  const t = setup()
+  await liveScrum(t)
+  const live = config('live')
+  // Skater A is capped: random must not choose them.
+  earlierPings(t, 1, 'auto', 2)
+  const before = t.store.people.length
+  assert.deepEqual(
+    await onScrumCommand(t.deps, live, USER_B, { player: null, random: true }),
+    ephemeral('Nobody else can be asked about this game.'),
+  )
+  assert.equal(t.store.people.length, before)
+  // The goalie (no Discord in the fakes) gets a link: random picks them, not Skater A.
+  t.store.discordIds.set(3, USER_C)
+  const reply = await onScrumCommand(t.deps, live, USER_B, { player: null, random: true })
+  assert.equal(reply.kind, 'ephemeral')
+  assert.equal(t.store.people.at(-1)!.playerId, 3)
+  assert.equal(t.store.people.at(-1)!.scrumId, 1)
+})
+
 void test('onAnswerSubmit: picked — no follow-up on Q1, Q2 may get one, never a second', async () => {
   const m = pressModel({
     questions: ['Skater A, what changed after the first period?', 'Skater A, and the third?'],
@@ -568,7 +704,6 @@ void test('onAnswerSubmit: picked — Q1, its follow-up, then question 2 (no sec
 
 void test('onTalk: the question could not be posted → the reporter will be right with you', async () => {
   const t = setup()
-  t.store.spend = 100
   await liveScrum(t)
   t.threadFails(new Error('Discord bot HTTP 500'))
   assert.deepEqual(
@@ -582,7 +717,6 @@ void test('onTalk: the question could not be posted → the reporter will be rig
 
 void test('/scrum @self is /scrum: a volunteer, no command use', async () => {
   const t = setup()
-  t.store.spend = 100
   await liveScrum(t)
   assert.deepEqual(
     await onScrumCommand(t.deps, config('live'), USER_B, { player: USER_B, random: false }),

@@ -32,6 +32,7 @@ import type {
 } from '@eanhl/db/queries'
 // rules.ts imports only '@eanhl/db/news' (no discord.js), so the news container may use it.
 import { PRESS_NIGHT_WAIT_MS, extrasBudgetLeft } from '../press/rules.ts'
+import { pressForSheet } from './press-material.ts'
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
   assignFeature,
@@ -321,27 +322,6 @@ const message = (err: unknown) => (err instanceof Error ? err.message : String(e
 const rateLimited = (err: unknown) => /HTTP 429\b/.test(message(err))
 
 const SYSTEM_PROMPT = buildSystemPrompt(Object.values(REPORTERS))
-
-/**
- * The night's press material as the recap may use it (news desk bots): answers
- * only from players on the sheet's people (never `out`, never a guest); GM notes
- * only about such a player or about no player (matched by player id, never by
- * display name), and a critical note never about an "easy" player.
- */
-export function pressForSheet(
-  material: { quotes: readonly PressQuote[]; gmNotes: readonly PressNote[] },
-  facts: NewsFacts,
-): { quotes: PressQuote[]; gmNotes: PressNote[] } {
-  const people = new Map(facts.people.map((p) => [p.playerId, p]))
-  return {
-    quotes: material.quotes.filter((q) => people.has(q.playerId)),
-    gmNotes: material.gmNotes.filter((n) => {
-      if (n.playerId === null) return true
-      const person = people.get(n.playerId)
-      return person !== undefined && !(n.critical && person.pressLevel === 'easy')
-    }),
-  }
-}
 
 /** The review's view of the press material: the notes as lines, the answers by player. */
 function trustedOf(press: {

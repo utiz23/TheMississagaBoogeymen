@@ -490,6 +490,10 @@ export function buildReactionUserPrompt(args: {
   return lines.join('\n')
 }
 
+/** The `quotes` field of an article or a feature: empty unless the PRESS ROOM lists answers. */
+const QUOTES_FIELD_NOTE =
+  "- quotes: an empty list ([]) unless a PRESS ROOM block below lists players' answers; then only as the PRESS ROOM says."
+
 function articleFields(words: string): string[] {
   return [
     'Output fields:',
@@ -499,6 +503,7 @@ function articleFields(words: string): string[] {
     "- summary: one or two plain sentences saying what the article covers, for the reporter's own memory. Facts from the sheet only.",
     '- mentions and clubs: as in the rules.',
     '- criticized, zeroCalled, stances, takesUsed: as in the rules; empty lists when none.',
+    QUOTES_FIELD_NOTE,
   ]
 }
 
@@ -670,6 +675,7 @@ export function buildFeatureUserPrompt(args: {
     "- summary: one or two plain sentences saying what the feature covers, for the reporter's own memory. Facts from the sheet only.",
     '- mentions and clubs: as in the rules.',
     '- criticized, zeroCalled, stances, takesUsed: as in the rules; empty lists when none.',
+    QUOTES_FIELD_NOTE,
     '- prediction: one short prediction about next week, in the reporter\'s voice, with no digits and no number words. It is printed as the last paragraph; do not repeat it in "paragraphs".',
     previousPrediction === null
       ? '- receipt: an empty string (there was no prediction last week).'

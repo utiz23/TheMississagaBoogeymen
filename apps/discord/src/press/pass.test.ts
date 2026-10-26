@@ -181,6 +181,66 @@ void test('the third automatic ping of a night for the same player is not sent',
   assert.equal(pings(t.sent).length, 0)
 })
 
+void test('command pings count toward the ping limit; GM pings do not', async () => {
+  const t = setup({ response: bigResponse() })
+  for (const [id, requestedBy] of [
+    [1, 'command'],
+    [2, 'gm'],
+    [3, 'command'],
+  ] as const) {
+    t.store.scrums.push({
+      id,
+      matchId: 80000 + id,
+      night: NIGHT,
+      recapItemId: id,
+      channelId: 'chel',
+      messageId: `old-${String(id)}`,
+      threadId: null,
+      reporter: 'barlow',
+      heat: 'normal',
+      buzzLevel: 'big',
+      openUntil: NOW,
+      isTest: false,
+      createdAt: NOW,
+    })
+    await t.store.insertScrumPerson({
+      scrumId: id,
+      playerId: 1,
+      discordUserId: USER_A,
+      role: 'picked',
+      requestedBy,
+      status: 'done',
+      pingedAt: NOW,
+    })
+  }
+  liveRecap(t.store)
+  await runPressPass(t.deps, config('live'))
+  assert.equal(t.store.scrums.length, 4)
+  assert.equal(t.store.people.length, 3)
+  assert.equal(pings(t.sent).length, 0)
+  assert.ok(t.logs.some((l) => l.includes('had 2 pings tonight, no ping')))
+})
+
+void test('budget out (80%): the scrum is made but nobody is picked or pinged; logged once a month', async () => {
+  const t = setup({ response: bigResponse() })
+  t.store.spend = 16 // 80% of the 20 USD limit
+  liveRecap(t.store)
+  await runPressPass(t.deps, config('live'))
+  t.store.items.push(itemRow({ id: 11, isGameRecap: true, reporter: 'voss' }))
+  await runPressPass(t.deps, config('live'))
+  assert.equal(t.store.scrums.length, 2)
+  assert.equal(t.store.people.length, 0)
+  assert.equal(pings(t.sent).length, 0)
+  assert.equal(t.logs.filter((l) => l.includes('extras budget')).length, 1)
+  // A GM ask is not pinged either.
+  const t2 = setup()
+  t2.store.spend = 16
+  t2.store.gmAsks.set(90001, 2)
+  liveRecap(t2.store)
+  await runPressPass(t2.deps, config('live'))
+  assert.equal(t2.store.people.length, 0)
+})
+
 void test('heat: a "next" heat is used once; a Go easy pick lowers Hot to normal and the GM is told', async () => {
   const res = bigResponse()
   // Skater B (Go easy) becomes the pick through a GM note.

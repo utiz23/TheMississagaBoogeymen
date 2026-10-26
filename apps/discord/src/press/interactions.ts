@@ -2,6 +2,7 @@ import { REPORTERS, mulberry32 } from '@eanhl/db/news'
 import type { NewsScrumRow, ScrumPersonDetail } from '@eanhl/db/queries'
 import { answerButton } from '../bot-rest.ts'
 import { escapeMarkdown } from '../message.ts'
+import { containsName } from '../news/fact-check.ts'
 import { FALLBACK_CLOSING, judgeAnswer, type Usability } from './asker.ts'
 import type { PressConfig } from './config.ts'
 import { SCRUM_SOURCE_WINDOW_MS, type PressDeps } from './pass.ts'
@@ -17,6 +18,7 @@ import {
   PRESS_ACCEPT_MS,
   PRESS_ANSWER_MS,
   PRESS_COMMAND_LIMIT,
+  PRESS_PING_LIMIT,
   extrasBudgetLeft,
   followUpAllowed,
   pickScrumPlayer,
@@ -46,6 +48,8 @@ export type Reply =
 export const ANSWER_MAX_CHARS = 500
 /** Discord's limit for a modal title and a text input label. */
 const MODAL_TEXT_MAX = 45
+/** Discord's SUPPRESS_EMBEDS message flag: a link in an answer gets no preview. */
+const SUPPRESS_EMBEDS = 4
 
 export const TEXT = {
   trial: 'The press bots are on trial.',
@@ -63,6 +67,7 @@ export const TEXT = {
   noGame: 'No game with the press in the last 6 hours.',
   inThread: "The reporter's question is in the scrum thread.",
   nobody: 'Nobody else can be asked about this game.',
+  pressOff: 'The press is off until next month.',
 } as const
 
 const say = (text: string): Reply => ({ kind: 'ephemeral', text })
@@ -79,6 +84,11 @@ function cut(text: string, max: number): string {
 /** Only the GM acts in the trial, and on a scrum left over from it. */
 function gmOnly(config: PressConfig, isTest: boolean): boolean {
   return config.mode === 'trial' || isTest
+}
+
+/** The extras budget is spent (80% of the month): scrums stop until next month. */
+async function pressOff(deps: PressDeps, config: PressConfig): Promise<boolean> {
+  return !extrasBudgetLeft(await deps.store.monthNewsSpendUsd(deps.now()), config.monthlyLimitUsd)
 }
 
 /** The refusal for a user who may not act for this person, or null. */
@@ -151,6 +161,7 @@ export async function onTalk(
   const { store } = deps
   const isGm = userId === config.gmUserId
   if (config.mode === 'trial' && !isGm) return say(TEXT.trial)
+  if (await pressOff(deps, config)) return say(TEXT.pressOff)
   const me = config.mode === 'trial' ? null : await store.getPlayerForDiscordUser(userId)
   if (config.mode === 'live' && me === null && !isGm) return say(TEXT.link)
   const scrum = await store.scrumByRecapItem(itemId)
@@ -196,6 +207,7 @@ export async function onAccept(
 ): Promise<Reply> {
   const { store } = deps
   if (config.mode === 'trial' && userId !== config.gmUserId) return say(TEXT.trial)
+  if (await pressOff(deps, config)) return say(TEXT.pressOff)
   const person = await store.getScrumPerson(personId)
   if (person === null) return say(TEXT.tooLate)
   const refusal = actorRefusal(config, person, userId)
@@ -265,6 +277,8 @@ interface Verdict {
 /**
  * Judge the answer. Fails closed to unusable + `FALLBACK_CLOSING` + end when
  * the extras budget is spent, the person is off the sheet, or anything throws.
+ * An answer that names a forbidden person ("Leave me out", a guest) is
+ * unusable with no model call; the round goes on (no follow-up).
  */
 async function judge(
   deps: PressDeps,
@@ -290,6 +304,10 @@ async function judge(
     const onSheet = res.facts.people.find((p) => p.playerId === person.playerId)
     // A guest, or "Leave me out" since the question: nothing about them goes anywhere.
     if (onSheet === undefined) return closed
+    // An answer that names a forbidden person is never used, shown or sent to the model.
+    if (res.forbiddenNames.some((n) => containsName(answer, n))) {
+      return { usability: 'unusable', followUp: null, closing: FALLBACK_CLOSING, end: false }
+    }
     // The last history entry is the question being answered.
     const history = [
       ...scrumHistory(await store.listScrumAnswers(person.id)),
@@ -313,9 +331,10 @@ async function judge(
 /**
  * The pop-up submit. `seen` = the counters in the pop-up's custom id (the
  * item it was opened for). Claims the answer on those counters (a second or
- * stale submit gets "Already answered."), echoes it in the thread as the reporter (escaped, no
- * mentions), judges it, stores it, then asks the follow-up, the next
- * question, or closes the round.
+ * stale submit gets "Already answered."), judges it, echoes a usable or joke
+ * answer in the thread as the reporter (escaped, no mentions, no link
+ * previews; an unusable answer is never shown), stores it, then asks the
+ * follow-up, the next question, or closes the round.
  */
 export async function onAnswerSubmit(
   deps: PressDeps,
@@ -341,17 +360,21 @@ export async function onAnswerSubmit(
   const scrum = person.scrum
   const threadId = scrum.threadId ?? scrum.messageId
   const mention = scrumMention(config, scrum.isTest, person.discordUserId)
-  try {
-    await discord.send(scrum.reporter, threadId, {
-      content: `**${escapeMarkdown(person.name)}:** ${escapeMarkdown(answer)}`,
-      allowed_mentions: { parse: [] },
-    })
-  } catch (err: unknown) {
-    // The answer still counts: it came through the bots' own pop-up.
-    log(`[press] answer: person ${String(personId)}: echo failed (${reason(err)})`)
-  }
 
   const verdict = await judge(deps, config, person, question, answer)
+  // Echoed after the judgement: an unusable answer is never shown.
+  if (verdict.usability !== 'unusable') {
+    try {
+      await discord.send(scrum.reporter, threadId, {
+        content: `**${escapeMarkdown(person.name)}:** ${escapeMarkdown(answer)}`,
+        allowed_mentions: { parse: [] },
+        flags: SUPPRESS_EMBEDS,
+      })
+    } catch (err: unknown) {
+      // The answer still counts: it came through the bots' own pop-up.
+      log(`[press] answer: person ${String(personId)}: echo failed (${reason(err)})`)
+    }
+  }
   await store.insertScrumAnswer({
     personId,
     scrumId: scrum.id,
@@ -401,8 +424,9 @@ function shuffled<T>(items: readonly T[], seed: number): T[] {
 /**
  * `/scrum`: no options = "Talk to the press" on the latest game the user
  * played (within 6 h). `random` / `player` = ask a teammate of that game (at
- * most twice a night per user); the person is inserted `picked` and the timer
- * pass pings them. In the trial the GM acts for any latest game.
+ * most twice a night per user; a teammate who already had `PRESS_PING_LIMIT`
+ * automatic or command pings tonight is not asked); the person is inserted
+ * `picked` and the timer pass pings them. In the trial the GM acts for any latest game.
  */
 export async function onScrumCommand(
   deps: PressDeps,
@@ -413,6 +437,7 @@ export async function onScrumCommand(
   const { store } = deps
   const trial = config.mode === 'trial'
   if (trial && userId !== config.gmUserId) return say(TEXT.trial)
+  if (await pressOff(deps, config)) return say(TEXT.pressOff)
   const me = trial ? null : await store.getPlayerForDiscordUser(userId)
   if (!trial && me === null) return say(TEXT.link)
   const now = deps.now()
@@ -437,6 +462,9 @@ export async function onScrumCommand(
     return say(TEXT.twice)
   }
   const { candidates } = await gameCandidates(deps, scrum)
+  // Command pings count toward the nightly ping limit (GM pings do not).
+  const askedEnough = async (c: Candidate): Promise<boolean> =>
+    (await store.countLimitedPingsTonight(c.playerId, scrum.night)) >= PRESS_PING_LIMIT
   let targets: Candidate[]
   let named: string | null = null
   if (opts.player !== null) {
@@ -444,6 +472,7 @@ export async function onScrumCommand(
     named = escapeMarkdown(target?.name ?? 'That player')
     const hit = target === null ? undefined : candidates.find((c) => c.playerId === target.playerId)
     if (hit === undefined) return say(`${named} can't be asked about this game.`)
+    if (await askedEnough(hit)) return say(`${named} has been asked enough tonight.`)
     targets = [hit]
   } else {
     targets = shuffled(
@@ -453,6 +482,8 @@ export async function onScrumCommand(
   }
   for (const c of targets) {
     if (c.discordUserId === null) continue
+    // `random` skips a player who reached the nightly ping limit.
+    if (opts.player === null && (await askedEnough(c))) continue
     const id = await store.insertScrumPerson({
       scrumId: scrum.id,
       playerId: c.playerId,

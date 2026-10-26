@@ -22,13 +22,13 @@ export const PRESS_ACCEPT_MS = 300_000
 export const PRESS_ANSWER_MS = 900_000
 /** A scrum stays open for this long in all. */
 export const PRESS_OPEN_MS = 3_600_000
-/** A late-night scrum waits this long before the first ping. */
+/** The night recap waits at most this long for the night's open scrums. */
 export const PRESS_NIGHT_WAIT_MS = 1_800_000
 /** A GM-requested person waits this long before the ping: the GM may still correct or cancel the note. */
 export const PRESS_GM_PING_DELAY_MS = 60_000
-/** Pings sent to one player for one scrum. */
+/** Automatic and command pings one player may get per night (GM pings are not limited). */
 export const PRESS_PING_LIMIT = 2
-/** Scrum commands one member may use in a row. */
+/** `/scrum random` and `/scrum @player` uses per member per night. */
 export const PRESS_COMMAND_LIMIT = 2
 /** Extras (scrums, reactions) stop at this share of the monthly limit. */
 export const EXTRAS_BUDGET_SHARE = 0.8

@@ -3,6 +3,7 @@ import type { NewsScrumRow } from '@eanhl/db/queries'
 import { answerButton, type BotMessage } from '../bot-rest.ts'
 import { escapeMarkdown } from '../message.ts'
 import { costUsd } from '../news/cost.ts'
+import { pressForSheet } from '../news/press-material.ts'
 import {
   FALLBACK_QUESTION,
   askQuestion,
@@ -67,8 +68,9 @@ export function pressRecorder(store: PressStore): Recorder {
 
 /**
  * The asker context for a person on the game sheet: the scrum's heat (never
- * Hot for "Go easy"), this match's active GM notes (no critical note for "Go
- * easy"), the takes and the history.
+ * Hot for "Go easy"), this match's active GM notes (filtered like the night
+ * recap's by each note's own player, and no critical note at all for a "Go
+ * easy" person asked), the takes and the history.
  */
 export async function scrumAskContext(
   store: PressStore,
@@ -87,8 +89,8 @@ export async function scrumAskContext(
     heat: effectiveHeat(scrum.heat, onSheet.pressLevel).heat,
     player: { name: onSheet.name, pressLevel: onSheet.pressLevel },
     // "Go easy" means no criticism: a critical note is never used for them.
-    gmNotes: material.gmNotes
-      .filter((n) => n.matchId === scrum.matchId && !(easy && n.critical))
+    gmNotes: pressForSheet(material, res.facts)
+      .gmNotes.filter((n) => n.matchId === scrum.matchId && !(easy && n.critical))
       .map((n) => n.note),
     takes: res.takes,
     history,

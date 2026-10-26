@@ -215,6 +215,43 @@ void test('startScrumQuestion: a Go easy player gets no critical GM note; other 
   assert.match(write.user, /blocked a big shot/)
 })
 
+void test("startScrumQuestion: GM notes are filtered by the note's own player, then by the scrum's match", async () => {
+  const reqs: Parameters<ModelCall>[0][] = []
+  const model: ModelCall = (req) => {
+    reqs.push(req)
+    return Promise.reject(new Error('stop after the prompt'))
+  }
+  const t = setup({ model })
+  // Skater A (full) is asked.
+  const personId = await scrumWithPerson(t, 1)
+  const note = (id: number, playerId: number | null, text: string, over = {}) => ({
+    id,
+    playerId,
+    playerName: playerId === null ? null : `Player ${String(playerId)}`,
+    note: text,
+    matchId: 90001,
+    critical: false,
+    ...over,
+  })
+  t.store.gmNotes = [
+    // A critical note about a "Go easy" teammate: never used, whoever is asked.
+    note(1, 2, 'NOTE-EASY-CRITICAL', { critical: true }),
+    // A note about a player not on the sheet ("Leave me out"): never used.
+    note(2, 4, 'NOTE-OFF-SHEET'),
+    // Another game's note: not this scrum's.
+    note(3, 1, 'NOTE-OTHER-GAME', { matchId: 90002 }),
+    note(4, 2, 'NOTE-EASY-POSITIVE'),
+    note(5, null, 'NOTE-GAME'),
+    note(6, 1, 'NOTE-SELF-CRITICAL', { critical: true }),
+  ]
+  await startScrumQuestion(t.deps, config('live'), personId)
+  const write = reqs.find((r) => r.purpose === 'write')!
+  assert.doesNotMatch(write.user, /NOTE-EASY-CRITICAL|NOTE-OFF-SHEET|NOTE-OTHER-GAME/)
+  assert.match(write.user, /NOTE-EASY-POSITIVE/)
+  assert.match(write.user, /NOTE-GAME/)
+  assert.match(write.user, /NOTE-SELF-CRITICAL/)
+})
+
 void test('startScrumQuestion: a person no longer on the sheet gets no thread and no question, and ends', async () => {
   const res = oct12Response('game')
   res.facts.people = res.facts.people.filter((p) => p.playerId !== 1)

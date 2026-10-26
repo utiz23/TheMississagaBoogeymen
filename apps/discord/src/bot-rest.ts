@@ -7,6 +7,8 @@ export interface BotMessage {
   allowed_mentions: { parse: never[]; users?: string[] }
   components?: unknown[]
   message_reference?: { message_id: string; fail_if_not_exists: false }
+  /** Discord message flags, e.g. 4 = SUPPRESS_EMBEDS (no link previews). */
+  flags?: number
 }
 
 /** Failures that happen before anything is sent: safe to retry. */

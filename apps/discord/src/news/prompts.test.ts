@@ -21,6 +21,7 @@ import {
   BACKGROUND_FACTS,
   DESK_CONTEXT_END,
   DESK_CONTEXT_START,
+  PRESS_ROOM_START,
   buildGameArticleUserPrompt,
   deskContextBlock,
   setDeskContext,
@@ -923,7 +924,7 @@ void test('review prompt: extra rules are printed before the problem list', () =
 void test('night prompt: the PRESS ROOM block (notes as true events, fenced answers with ids)', () => {
   const facts = oct12Facts('night')
   const plain = buildArticleUserPrompt({ facts, reporter: REPORTERS.quill })
-  assert.ok(!plain.includes('PRESS ROOM'))
+  assert.ok(!plain.includes(PRESS_ROOM_START))
   // An empty press room prints nothing: the prompt stays as it was.
   assert.equal(
     buildArticleUserPrompt({
@@ -978,7 +979,7 @@ void test('night prompt: the PRESS ROOM block (notes as true events, fenced answ
       },
     },
   })
-  assert.ok(p.includes('PRESS ROOM'))
+  assert.ok(p.includes(PRESS_ROOM_START))
   assert.ok(p.includes('describe them as seen; never say where they came from'))
   assert.ok(p.includes('- About Skater A: He broke his stick.'))
   assert.ok(p.includes('- The lights went out.'))
@@ -996,7 +997,7 @@ void test('night prompt: the PRESS ROOM block (notes as true events, fenced answ
     ),
   )
   // The block sits before the desk context, so the backfill's swap leaves it alone.
-  assert.ok(p.indexOf('PRESS ROOM') < p.indexOf(DESK_CONTEXT_START))
+  assert.ok(p.indexOf(PRESS_ROOM_START) < p.indexOf(DESK_CONTEXT_START))
   // Notes only: no quote is allowed.
   const notesOnly = buildArticleUserPrompt({
     facts,
@@ -1085,5 +1086,23 @@ void test('fan reaction prompt: an article is shown by its headline and dek', ()
   assert.equal(
     reactionItemText({ kind: 'post', headline: null, dek: null, body: 'A post.' }),
     'A post.',
+  )
+})
+
+void test('article and feature fields: "quotes" is [] unless a PRESS ROOM block lists answers', () => {
+  const line =
+    "- quotes: an empty list ([]) unless a PRESS ROOM block below lists players' answers; then only as the PRESS ROOM says."
+  const facts = oct12Facts('night')
+  assert.ok(buildArticleUserPrompt({ facts, reporter: REPORTERS.quill }).includes(line))
+  assert.ok(
+    buildGameArticleUserPrompt({ facts, reporter: REPORTERS.barlow, kind: 'game' }).includes(line),
+  )
+  assert.ok(
+    buildFeatureUserPrompt({
+      facts,
+      reporter: REPORTERS.quill,
+      kind: 'trend',
+      previousPrediction: null,
+    }).includes(line),
   )
 })

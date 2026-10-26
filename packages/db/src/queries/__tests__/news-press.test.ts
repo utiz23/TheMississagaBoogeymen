@@ -30,7 +30,7 @@ const {
   nightPressNotesSql,
   listRecapItemsWithoutScrumSql,
   listPressRosterSql,
-  countAutoPingsTonightSql,
+  countLimitedPingsTonightSql,
   countCommandUsesTonightSql,
   consumeNextHeatSql,
   listItemsToMirrorQuery,
@@ -255,11 +255,11 @@ void test('press roster: members without AI goalies, display name, aliases', () 
   assert.match(s, /from news_player_aliases a where a\.player_id = p\.id/)
 })
 
-void test('auto pings and command uses are counted per night', () => {
-  const a = dialect.sqlToQuery(countAutoPingsTonightSql(5, '2026-10-25'))
+void test('limited pings (auto and command) and command uses are counted per night', () => {
+  const a = dialect.sqlToQuery(countLimitedPingsTonightSql(5, '2026-10-25'))
   assert.match(
     flat(a.sql),
-    /p\.requested_by = 'auto' and p\.player_id = \$1 and s\.night = \$2::date/,
+    /p\.requested_by in \('auto', 'command'\) and p\.player_id = \$1 and s\.night = \$2::date/,
   )
   const c = dialect.sqlToQuery(countCommandUsesTonightSql('u1', '2026-10-25'))
   assert.match(
