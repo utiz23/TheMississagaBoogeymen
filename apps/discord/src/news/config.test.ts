@@ -94,3 +94,23 @@ void test('numbers: bad values fall back to defaults, good ones are used', () =>
   assert.equal(good.config.model, 'claude-sonnet-5-5')
   assert.equal(good.config.outDir, '/x')
 })
+
+void test('NEWS_TEST_WEBHOOK_URL: a test-mode copy channel; ignored when live, checked as a Discord URL', () => {
+  const testHook = 'https://discord.com/api/webhooks/456/SECRET-TEST-TOKEN'
+  const dry = loadNewsConfig({ ...BASE, NEWS_TEST_WEBHOOK_URL: testHook })
+  assert.ok(dry.ok)
+  assert.equal(dry.config.testWebhookUrl, testHook)
+  // Live: the test channel is never used.
+  const live = loadNewsConfig({
+    ...BASE,
+    NEWS_DRY_RUN: '0',
+    NEWS_WEBHOOK_URL: HOOK,
+    NEWS_TEST_WEBHOOK_URL: testHook,
+  })
+  assert.ok(live.ok)
+  assert.equal(live.config.testWebhookUrl, null)
+  const bad = loadNewsConfig({ ...BASE, NEWS_TEST_WEBHOOK_URL: 'https://example.com/hook' })
+  assert.ok(!bad.ok)
+  assert.ok(bad.problems.some((p) => p.includes('NEWS_TEST_WEBHOOK_URL')))
+  assert.ok(!bad.problems.join(' ').includes('example.com'))
+})

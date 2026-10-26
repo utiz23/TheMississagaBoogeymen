@@ -1,5 +1,7 @@
 export interface NewsConfig {
   webhookUrl: string | null
+  /** Test mode only: also post each message to this channel (the bot test channel), marked as a test. */
+  testWebhookUrl: string | null
   internalToken: string
   webBaseUrl: string
   siteUrl: string
@@ -41,6 +43,7 @@ export function loadNewsConfig(env: Record<string, string | undefined>): NewsCon
   const problems: string[] = []
   const dryRun = env['NEWS_DRY_RUN']?.trim() !== '0'
   const webhook = env['NEWS_WEBHOOK_URL']?.trim() || null
+  const testWebhook = env['NEWS_TEST_WEBHOOK_URL']?.trim() || null
   const token = env['DISCORD_INTERNAL_TOKEN'] ?? ''
   const web = env['WEB_INTERNAL_URL']?.trim() ?? ''
   const apiKeyPresent = (env['ANTHROPIC_API_KEY']?.trim() ?? '') !== ''
@@ -48,6 +51,9 @@ export function loadNewsConfig(env: Record<string, string | undefined>): NewsCon
   if (webhook === null && !dryRun) problems.push('NEWS_WEBHOOK_URL is unset and NEWS_DRY_RUN is 0')
   if (webhook !== null && !WEBHOOK_PREFIXES.some((p) => webhook.startsWith(p))) {
     problems.push('NEWS_WEBHOOK_URL is not a Discord webhook URL')
+  }
+  if (testWebhook !== null && !WEBHOOK_PREFIXES.some((p) => testWebhook.startsWith(p))) {
+    problems.push('NEWS_TEST_WEBHOOK_URL is not a Discord webhook URL')
   }
   if (!apiKeyPresent) problems.push('ANTHROPIC_API_KEY is unset')
   if (token.length < 16)
@@ -59,6 +65,7 @@ export function loadNewsConfig(env: Record<string, string | undefined>): NewsCon
     ok: true,
     config: {
       webhookUrl: webhook,
+      testWebhookUrl: dryRun ? testWebhook : null,
       internalToken: token,
       webBaseUrl: trimSlash(web),
       siteUrl: trimSlash(env['DISCORD_SITE_URL']?.trim() || 'https://boogeymen.app'),

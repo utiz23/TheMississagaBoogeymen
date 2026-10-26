@@ -8,12 +8,15 @@
  *
  * Env: DATABASE_URL, NEWS_WEBHOOK_URL, DISCORD_INTERNAL_TOKEN, WEB_INTERNAL_URL,
  * DISCORD_SITE_URL, NEWS_DRY_RUN, NEWS_OUT_DIR, NEWS_POLL_INTERVAL_MS,
- * NEWS_MODEL, NEWS_MONTHLY_LIMIT_USD, ANTHROPIC_API_KEY.
+ * NEWS_MODEL, NEWS_MONTHLY_LIMIT_USD, ANTHROPIC_API_KEY, NEWS_TEST_WEBHOOK_URL
+ * (test mode only: a copy of each message goes to that channel).
  */
 import { loadNewsConfig } from './news/config.ts'
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 const log = (m: string) => console.log(`[news] ${m}`)
+/** Test-channel copies are spaced out (Discord webhooks allow about 5 per 2 s). */
+const TEST_SEND_GAP_MS = 1500
 
 async function main(): Promise<void> {
   const loaded = loadNewsConfig(process.env)
@@ -31,6 +34,7 @@ async function main(): Promise<void> {
   const { anthropicModelCall } = await import('./news/writer.ts')
   const { sendWebhook, deleteWebhookMessage } = await import('./webhook.ts')
   const { writeDryRunFiles } = await import('./dry-run.ts')
+  const { testModePayload } = await import('./news/messages.ts')
 
   if (!config.dryRun) {
     // Release step: nothing written in test mode is ever published (jobs are kept, R8).
@@ -62,6 +66,15 @@ async function main(): Promise<void> {
           remove: (messageId) => deleteWebhookMessage(webhook(), messageId),
           writeDryRun: async (key, payload) => {
             log(`dry run → ${await writeDryRunFiles(config.outDir, key, payload, null)}`)
+            if (config.testWebhookUrl === null) return
+            // Test mode: a copy goes to the bot test channel. A failed send is
+            // only logged, so the item is still settled and never sent twice.
+            try {
+              await sendWebhook(config.testWebhookUrl, testModePayload(payload), null)
+            } catch (err: unknown) {
+              log(`test channel: not sent (${err instanceof Error ? err.message : String(err)})`)
+            }
+            await sleep(TEST_SEND_GAP_MS)
           },
           pause: sleep,
           log,

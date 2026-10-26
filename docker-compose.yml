@@ -142,6 +142,7 @@ services:
     environment:
       DATABASE_URL: postgresql://eanhl:${POSTGRES_PASSWORD}@db:5432/eanhl
       NEWS_WEBHOOK_URL: ${NEWS_WEBHOOK_URL:-}
+      NEWS_TEST_WEBHOOK_URL: ${NEWS_TEST_WEBHOOK_URL:-}
       DISCORD_INTERNAL_TOKEN: ${DISCORD_INTERNAL_TOKEN:-}
       NEWS_DRY_RUN: ${NEWS_DRY_RUN:-1}
       DISCORD_SITE_URL: ${DISCORD_SITE_URL:-https://boogeymen.app}
