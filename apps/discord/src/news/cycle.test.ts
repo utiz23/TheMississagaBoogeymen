@@ -1744,3 +1744,28 @@ void test('C3b.4: an unknown send outcome is not sent again; a normal game and a
   await runNewsCycle(dry.deps, dry.opts)
   assert.ok([...dry.items.values()].every((i) => i.sendAfter === null))
 })
+
+void test('I2: a Discord 429 after the posts of a big game does not lose its articles', async () => {
+  const clock = { t: NOW }
+  let calls = 0
+  const h = hugeHarness(clock, {
+    send: async (payload) => {
+      calls++
+      if (calls === 1) throw new Error('Discord webhook HTTP 429')
+      return `m${String(calls)}`
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  // The articles were still written (one job each, done) ...
+  const articles = [...h.items.values()].filter((i) => i.kind === 'article')
+  assert.equal(articles.length, 2)
+  assert.equal(h.jobs.get('game_article:701:game')?.status, 'done')
+  assert.equal(h.jobs.get('game:701')?.status, 'done')
+  // ... but nothing more was sent into the rate limit, and the pass stopped.
+  assert.equal(calls, 1)
+  assert.ok(articles.every((a) => a.discordStatus === 'failed'))
+  // The next pass sends the failed recap and articles from the undelivered list.
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(articles.every((a) => a.discordStatus === 'posted'))
+  assert.equal([...h.items.values()].filter((i) => i.kind === 'article').length, 2)
+})

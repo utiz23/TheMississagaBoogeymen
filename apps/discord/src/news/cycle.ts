@@ -602,8 +602,11 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         continue
       }
       const plan = planBuzz(game, res.facts)
-      if ((await writeGame(jobId, tag, res, game, plan)) === 'end') return 'end'
+      // A Discord rate limit during the send ends the pass but must not cost the game its
+      // articles (their jobs are only created here): write them, then stop (I2).
+      if ((await writeGame(jobId, tag, res, game, plan)) === 'end' && !sendingStopped) return 'end'
       if ((await gameArticles(res, game, plan, plan.articles)) === 'end') return 'end'
+      if (sendingStopped) return 'end'
     }
     // Big-game articles whose job failed earlier (C3a.8): written again under the cap.
     for (const jobKey of await store.listGameArticleRetries({ since, limit: NEWS_GAME_LIMIT })) {
@@ -889,10 +892,11 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         url: `${opts.siteUrl}/news/${slug}`,
         siteUrl: opts.siteUrl,
       })
+      // After a rate limit deliver() keeps the item for the retry list; the game's other
+      // articles are still written, or their jobs would never be created again.
       await deliver(id, payload, `${tag} item ${String(id)}`)
-      if (sendingStopped) return 'end'
     }
-    return 'go'
+    return sendingStopped ? 'end' : 'go'
   }
 
   /** Stances are a side record: a failed insert is logged, never fails the item. */
