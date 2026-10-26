@@ -30,6 +30,7 @@ import {
 import { qualityReport } from '@/lib/news/quality'
 import { PRESS_LEVEL_OPTIONS } from '@/lib/profile-edit'
 import { QualitySection } from './quality-section'
+import { TakesSection } from './takes-section'
 import {
   deleteNewsItemAction,
   deleteNewsItemWithCorrectionAction,
@@ -233,6 +234,8 @@ export default async function AdminNewsPage() {
       </AdminSection>
 
       <QualitySection report={quality} />
+
+      <TakesSection takes={takes} />
 
       <AdminSection
         title="Press levels"

@@ -8,11 +8,13 @@ import {
   setReporterEnabled,
   skipNewsBacklog,
   softDeleteNewsItem,
+  updateAdminTake,
   softDeleteNewsItemWithCorrection,
 } from '@eanhl/db/queries'
 import { PRESS_LEVELS, type PressLevel } from '@eanhl/db/schema'
 import { requireAdmin } from '@/lib/auth'
 import { parseReporterId } from '@/lib/news/admin-display'
+import { parseTakeEdit } from '@/lib/news/takes-edit'
 import { switchNewsDesk } from '@/lib/news/switch'
 import { pressLevelSetBy } from '@/lib/profile-edit'
 
@@ -73,4 +75,13 @@ export async function setReporterEnabledAction(reporter: string, enabled: boolea
   if (id === null) return
   await setReporterEnabled(id, enabled === true)
   refresh()
+}
+
+/** Save the GM takes editor's form for one take (C3b.7). Admin only; every field is re-checked. */
+export async function saveTakeAction(formData: FormData): Promise<void> {
+  await requireAdmin()
+  const parsed = parseTakeEdit(formData)
+  if (!parsed.ok) return
+  await updateAdminTake(parsed.id, parsed.edit)
+  revalidatePath('/admin/news')
 }

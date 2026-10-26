@@ -51,6 +51,7 @@ const {
   takesUsedSinceSql,
   disabledReportersQuery,
   adminTakesSql,
+  updateAdminTakeQuery,
   qualityItemsSql,
   rowToAdminTake,
   rowToQualityItem,
@@ -1315,4 +1316,22 @@ void test('C3b.6/7: admin takes and quality items: SQL pins and row mappers', ()
     ['Skater A'],
   )
   assert.deepEqual(item.takesUsed, [7])
+})
+
+void test('C3b.7: the takes editor update: only the editable columns, by id', () => {
+  const u = updateAdminTakeQuery(7, {
+    take: 'INVENTED',
+    spread: 'most',
+    critics: ['voss'],
+    defender: null,
+    dataAngle: null,
+    intensity: 2,
+    active: false,
+  }).toSQL()
+  assert.match(
+    flat(u.sql),
+    /^update "news_reporter_takes" set "take" = \$1, "spread" = \$2, "critics" = \$3, "defender" = \$4, "data_angle" = \$5, "active" = \$6, "intensity" = \$7, "updated_at" = now\(\) where "news_reporter_takes"\."id" = \$8 returning "id"$/,
+  )
+  assert.equal(u.params[7], 7)
+  assert.ok(!/reporter" =|player_id" =/.test(flat(u.sql)), 'holder and player are not editable')
 })

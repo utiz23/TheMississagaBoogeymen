@@ -423,6 +423,39 @@ export async function listAdminTakes(): Promise<AdminTake[]> {
   return (await db.execute<RawAdminTake>(adminTakesSql())).map(rowToAdminTake)
 }
 
+/** The fields the admin may change on a take (already validated by the web app). */
+export interface AdminTakeEdit {
+  take: string
+  spread: NewsReporterTakeRow['spread']
+  critics: NewsReporterId[]
+  defender: NewsReporterId | null
+  dataAngle: string | null
+  intensity: number
+  active: boolean
+}
+
+export function updateAdminTakeQuery(id: number, edit: AdminTakeEdit) {
+  return db
+    .update(newsReporterTakes)
+    .set({
+      take: edit.take,
+      spread: edit.spread,
+      critics: edit.critics,
+      defender: edit.defender,
+      dataAngle: edit.dataAngle,
+      intensity: edit.intensity,
+      active: edit.active,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(newsReporterTakes.id, id))
+    .returning({ id: newsReporterTakes.id })
+}
+
+/** True when the take existed. */
+export async function updateAdminTake(id: number, edit: AdminTakeEdit): Promise<boolean> {
+  return (await updateAdminTakeQuery(id, edit)).length > 0
+}
+
 /** What the quality dashboard reads about one real item. */
 export interface NewsQualityItem {
   reporter: NewsReporterId
