@@ -1,6 +1,6 @@
 # News Desk bots — Design (release 1: reporter bots, post-game scrums, quotes)
 
-**Status:** draft from the brainstorm of 2026-10-25, for operator review.
+**Status:** approved by the operator 2026-10-26. Build plan after `feat/news-desk` merges to `main` (§9).
 **Scope:** release 1 of the bot project (news desk design §10). Later parts are in
 §11 as notes only; each gets its own design.
 **Builds on** (these files are on branch `feat/news-desk` until it merges):
