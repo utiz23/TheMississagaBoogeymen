@@ -21,7 +21,7 @@
   - Every worker CLI run must print `database=eanhl_preview` before it writes.
   - The main PC's existing `eanhl` database (the frozen 2026-10-05 fallback) is never written.
 - **Existing pages and components are not modified.** New files only, plus these exact edits: `packages/db/package.json`, `packages/db/src/schema/index.ts`, `packages/db/src/queries/index.ts`, `apps/worker/package.json`, `apps/worker/src/ingest.ts`, `apps/web/package.json`.
-- **Never stage `apps/web/src/app/preview/archetypes/`** (the operator's own untracked file), `docs/cards/*` (the operator's untracked drafts), or any `*.zip`. Always `git add` exact paths.
+- **Never stage `apps/web/src/app/preview/archetypes/`** (the operator's own untracked file), `docs/specs/cards/*` (the operator's untracked drafts), or any `*.zip`. Always `git add` exact paths.
 - **Migrations:** 0046 and later are hand-written idempotent SQL applied with `psql`. Never run `drizzle-kit generate` or `migrate`.
 - **Rebuild before consumers:** after editing `packages/db/src/`, run `pnpm --filter @eanhl/db build` before typechecking the worker or web.
 - **Lint:** `pnpm lint` is red repo-wide from earlier problems. Lint new files in isolation with `pnpm --filter <pkg> exec eslint <paths>`. The green gates are typecheck, these unit tests, and prettier.
@@ -61,7 +61,7 @@
 
 ```bash
 cd /home/michal/projects/eanhl-team-website
-git status --short   # expect only: apps/web/src/app/preview/ (archetypes), docs/cards/badge-catalog.md, docs/cards/card-system-brief.md
+git status --short   # expect only: apps/web/src/app/preview/ (archetypes), docs/specs/cards/badge-catalog.md, docs/specs/cards/card-system-brief.md
 git checkout -b feat/player-cards
 ```
 

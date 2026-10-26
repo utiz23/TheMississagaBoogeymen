@@ -28,14 +28,13 @@ OCR and video-stats work moved to the sister repo `eanhl-live-engine` on
 
 Documents:
 
-| Path                               | What it is                                                         |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `HANDOFF.md`                       | Current state and next actions — start here                        |
-| `CLAUDE.md`, `AGENTS.md`           | Rules for AI agents (commands, conventions, commit protocol)       |
-| `DEPLOY.md`                        | Cold-start deployment checklist                                    |
-| `docs/`                            | All other documents — index in [`docs/README.md`](docs/README.md)  |
-| `research/`                        | Raw research captures (EA API, ChelHead, old NHL stats, OCR shots) |
-| `Game sheet prototype layout (1)/` | Game-sheet design of record (code comments cite it by path)        |
+| Path                     | What it is                                                         |
+| ------------------------ | ------------------------------------------------------------------ |
+| `HANDOFF.md`             | Current state and next actions — start here                        |
+| `CLAUDE.md`, `AGENTS.md` | Rules for AI agents (commands, conventions, commit protocol)       |
+| `DEPLOY.md`              | Cold-start deployment checklist                                    |
+| `docs/`                  | All other documents — index in [`docs/README.md`](docs/README.md)  |
+| `research/`              | Raw research captures (EA API, ChelHead, old NHL stats, OCR shots) |
 
 Local only (git-ignored, on this machine only — **not backed up by git**):
 

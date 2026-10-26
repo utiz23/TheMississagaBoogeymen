@@ -45,7 +45,7 @@ touched and no container had changed yet — and asked for `DEPLOY CLEAN HEAD 54
   17 `match_period_summaries` columns, 3 family CHECK constraints, 0 backfill mismatches, 259 rows /
   65 matches, family distribution 171 `pending_review` / 88 `reviewed` per family, visibility parity
   88 rows — all matching the authoritative
-  [migration-0056-application-2026-08-15.md](migration-0056-application-2026-08-15.md) record.
+  [migration-0056-application-2026-08-15.md](../migration-0056-application-2026-08-15.md) record.
 - Selected samples: **match 250** (all 4 periods `reviewed` — the canonical OCR benchmark match) and
   **match 253** (all 4 periods `pending_review`). Captured expected period values for match 250
   (P1 0-0/5-2/6-2, P2 2-0/9-3/5-3, P3 1-3/6-9/5-3, P4(OT) 1-0/9-2/5-1 — goals/shots/faceoffs) for

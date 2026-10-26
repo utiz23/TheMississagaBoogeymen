@@ -36,7 +36,7 @@
   /* Opponent colour vars (game sheet) — NOT defined here. Set per match as
      inline style on the /games/[id] page root by resolveOpponentColors()
      (src/lib/opponent-colors.ts), which runs every brand hex through the
-     clash ladder from the design spec (`Game sheet prototype layout (1)/
+     clash ladder from the design spec (`docs/design/handoffs/2026-07-game-sheet/
      Opponent Colour Rules.dc.html`) so BGM red always means us:
        --opp       resolved opponent colour — never the raw brand hex
        --opp-2     74% alpha — secondary numerals
@@ -86,7 +86,7 @@
   /* Foreground neutral scale (warm, anchored on paper #ebebeb).
 
      The lower three steps carry the prototype's re-tuned values (the a11y pass
-     in `Game sheet prototype layout (1)/Game Sheet copy.dc.html`, which lifts
+     in `docs/design/handoffs/2026-07-game-sheet/Game Sheet copy.dc.html`, which lifts
      them off the floor so everything that carries TEXT clears AA 4.5:1 at
      12px on --color-surface). Adopted as the global standard: fg-4/fg-5 are
      now legitimate text colours anywhere, not decoration-only. Old values were

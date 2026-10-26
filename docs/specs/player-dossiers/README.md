@@ -10,7 +10,7 @@ Purpose:
 
 Notes:
 
-- seeded fields come from `docs/templates/player-profile-fields.md`
+- seeded fields come from `docs/specs/player-dossiers/profile-fields-template.md`
 - known roster/profile data is prefilled
 - dossiers now use a question-driven 9-part worksheet
 - career-history prompts are included so player timelines do not get lost

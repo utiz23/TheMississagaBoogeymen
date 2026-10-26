@@ -133,7 +133,7 @@ None.
 0. Discord: operator's live ping check (award + clear a mythic for a player with an ID).
    Logins/admin open choices: club role display, more flags, a 6v6 banner.
 1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
-2. Polish passes deployed 2026-10-09 (`5269fbe`); every backlog entry has an outcome ([`docs/POLISH_BACKLOG.md`](docs/POLISH_BACKLOG.md), journal 10-09).
+2. Polish passes deployed 2026-10-09 (`5269fbe`); every backlog entry has an outcome ([`docs/planning/polish-backlog.md`](docs/planning/polish-backlog.md), journal 10-09).
 3. Backup hardening from the Codex review (optional, small): weekly/monthly
    copies after a missed Sunday/1st, and a run lock for manual + scheduled
    overlap. Watch teammates' feedback (including on speed). OCR writing to

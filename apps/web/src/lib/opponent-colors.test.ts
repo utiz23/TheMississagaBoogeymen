@@ -1,6 +1,6 @@
 /**
  * Unit tests for resolveOpponentColors — the opponent clash-contingency
- * ladder from `Game sheet prototype layout (1)/Opponent Colour Rules.dc.html`.
+ * ladder from `docs/design/handoffs/2026-07-game-sheet/Opponent Colour Rules.dc.html`.
  * Pure function, no React/DOM.
  *
  * The dominant production path is a NULL brand hex (brand colour exists for

@@ -54,8 +54,9 @@ and verified repository code, using these exports only for visual structure.
 
 This archive predates the four 2026-09-08 exports above (it was not part of
 that supply batch) and is the older Claude Design export that production code
-already cites directly — `top-nav.tsx`'s doc-comment names `Game sheet
-prototype layout (1)/Game Sheet copy.dc.html` as its source. The operator
+already cites directly — `top-nav.tsx`'s doc-comment names its unzipped
+`Game Sheet copy.dc.html` (now in `docs/design/handoffs/2026-07-game-sheet/`)
+as its source. The operator
 already accepted it as integrated: the matching implementation landed through
 the completed July/August 12-phase game-sheet revamp, and `HANDOFF.md`'s "E1K
 FINAL OPERATOR DECISIONS RECORDED" Active State entry (2026-09-08) closed the

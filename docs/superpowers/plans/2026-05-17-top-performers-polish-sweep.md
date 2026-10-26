@@ -41,7 +41,7 @@ Intended outcome: Top Performers becomes the page's cleanest medal-podium surfac
 | Task 2     | `apps/web/src/components/matches/star-card.tsx`              | Add `— no season data` placeholder when `vsSeasonAvg === null` (lines 220-234) |
 | Task 3     | `apps/web/src/components/matches/star-card.tsx`              | Drop `off: '☆'` / `off: '☆☆'` from `RANK_STARS` (lines 16-20)                  |
 | Task 4     | `apps/web/src/components/matches/show-all-player-scores.tsx` | Graduated row tints for ranks 1-3 (line 143)                                   |
-| Task 5     | `docs/reviews/Match-ID-UI-UX-Review.md`                      | Mark UI review §1 #4 + §1 #14 Resolved                                         |
+| Task 5     | `docs/research/match-id-ui-ux-review.md`                     | Mark UI review §1 #4 + §1 #14 Resolved                                         |
 
 Five commits. Tasks 1-3 all touch `star-card.tsx`; line-disjoint. Task 4 is `show-all-player-scores.tsx`. Task 5 is doc-only.
 
@@ -359,7 +359,7 @@ EOF
 
 **Files:**
 
-- Modify: `docs/reviews/Match-ID-UI-UX-Review.md` (§1 issue #4 body + #14 body + suggested-next-moves table rows)
+- Modify: `docs/research/match-id-ui-ux-review.md` (§1 issue #4 body + #14 body + suggested-next-moves table rows)
 
 **Why this task:** Pre-implementation audit found that two §1 items don't need any code work:
 
@@ -370,7 +370,7 @@ Mark both Resolved at the issue bodies + suggested-next-moves rows.
 
 - [ ] **Step 1: Add Status notes under §1 #4 and §1 #14**
 
-In `docs/reviews/Match-ID-UI-UX-Review.md`, find the §1 #4 body — currently reads (approximately):
+In `docs/research/match-id-ui-ux-review.md`, find the §1 #4 body — currently reads (approximately):
 
 ```markdown
 **4. Archetype pill colors lack a legend.** PLY (lavender), SNP (red), PMD (blue), TWF, DFD, etc. Users will see colors change between rows and intuit meaning, but there's no key. Two options: tooltip on hover (cheap), or a tiny `?` icon in the section header that opens a one-row legend.
@@ -429,7 +429,7 @@ Replace with:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/reviews/Match-ID-UI-UX-Review.md
+git add docs/research/match-id-ui-ux-review.md
 git commit -m "$(cat <<'EOF'
 docs(reviews): mark Top Performers §1 #4 + #14 resolved
 

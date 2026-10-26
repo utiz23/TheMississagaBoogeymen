@@ -51,8 +51,9 @@ async function fetchRosterMenu(defaultId: number | null): Promise<RosterMenuMemb
 /**
  * Site-wide top bar (rendered once, by the root layout).
  *
- * Ported from the game sheet design prototype (`Game sheet prototype layout
- * (1)/Game Sheet copy.dc.html`): accent rail above the bar, brand left, links
+ * Ported from the game sheet design prototype
+ * (`docs/design/handoffs/2026-07-game-sheet/Game Sheet copy.dc.html`): accent
+ * rail above the bar, brand left, links
  * centred as accent-filled pills, one CTA right, and a burger + slide-in drawer
  * below the `nav` breakpoint. Box metrics follow the prototype's — nav pills
  * 8px/16px, CTA 9px/20px, burger 44px, all at 2px radius. Stats and Roster

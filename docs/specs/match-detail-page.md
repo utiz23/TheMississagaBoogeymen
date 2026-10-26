@@ -5,7 +5,7 @@
 > This spec described the **first** `/games/[id]` design. The page was rebuilt in
 > the 12-phase game-sheet revamp (Phases 1–11 shipped 2026-07-26 → 07-29) and
 > the **design of record is now the prototype bundle** at repo root
-> `Game sheet prototype layout (1)/` — `Game Sheet.dc.html` plus
+> `docs/design/handoffs/2026-07-game-sheet/` — `Game Sheet.dc.html` plus
 > `Opponent Colour Rules.dc.html`, `final-review.md`, `lineup-review-todo.md`,
 > and the per-module motion recs. Where the two disagree, **the prototype wins**.
 >

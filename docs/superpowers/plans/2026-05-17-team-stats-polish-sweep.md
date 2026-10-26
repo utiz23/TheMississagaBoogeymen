@@ -22,7 +22,7 @@ After today's two earlier Team Stats fixes (RATINGS placeholder removal in commi
 | 4   | Side label `OPP` should use real abbreviation `4L`                    | §3 #6       | Consistency     |
 | 5   | `rounded-full` bars break sharp esports aesthetic                     | §3 #9       | Polish          |
 
-**Important data correction:** The UI review (and an earlier draft of this plan) framed the `possession` field as a "touches" counter. The DB schema is explicit at [packages/db/src/schema/player-match-stats.ts:75](packages/db/src/schema/player-match-stats.ts#L75): `/** Possession time in seconds. EA field: skpossession. */`. Match 250's `1471 vs 1162` = `24:31 vs 19:22`. This is total puck-time anywhere on the rink — distinct from `Time on Attack` (TOA), which is only offensive-zone seconds. Both metrics stay.
+**Important data correction:** The UI review (and an earlier draft of this plan) framed the `possession` field as a "touches" counter. The DB schema is explicit at [packages/db/src/schema/player-match-stats.ts:75](../../../packages/db/src/schema/player-match-stats.ts#L75): `/** Possession time in seconds. EA field: skpossession. */`. Match 250's `1471 vs 1162` = `24:31 vs 19:22`. This is total puck-time anywhere on the rink — distinct from `Time on Attack` (TOA), which is only offensive-zone seconds. Both metrics stay.
 
 User decisions (2026-05-17):
 
@@ -48,7 +48,7 @@ Five commits. Tasks 1 + 2 both touch `match-recap.ts`; line-disjoint. Tasks 3, 4
 
 **Existing helpers to reuse (do not re-implement):**
 
-- [`abbreviateTeamName(name: string): string`](apps/web/src/lib/format.ts#L128) — same helper used by Event Timeline, Action Tracker, Faceoff Map, Box Score, Scoresheet. `"4th Line"` → `"4L"`.
+- [`abbreviateTeamName(name: string): string`](../../../apps/web/src/lib/format.ts#L128) — same helper used by Event Timeline, Action Tracker, Faceoff Map, Box Score, Scoresheet. `"4th Line"` → `"4L"`.
 - `match.opponentName` is already in scope on the games page (used by every other section).
 
 ---

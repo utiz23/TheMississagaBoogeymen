@@ -44,7 +44,7 @@ Intended outcome: Scoresheet drops to ~1 deferred item (#3a — data-layer work)
 | Task 4     | `apps/web/src/components/matches/scoresheet.tsx` | Add tooltip on Score tile pointing to Top Performers (line 214 area)                                 |
 | Task 5     | `apps/web/src/components/matches/scoresheet.tsx` | Render "Opponent — no profile" placeholder when `row.playerId === null` (lines 201-211)              |
 | Task 6     | `apps/web/src/components/matches/scoresheet.tsx` | Align GoalieTable `min-w-[480px]` → `min-w-[640px]` to match SkaterTable (line 339)                  |
-| Task 7     | `docs/reviews/Match-ID-UI-UX-Review.md`          | Mark §6 #9 Resolved (PIM tile already removed by morning sweep)                                      |
+| Task 7     | `docs/research/match-id-ui-ux-review.md`         | Mark §6 #9 Resolved (PIM tile already removed by morning sweep)                                      |
 
 Seven commits. Tasks 1-6 all touch `scoresheet.tsx`; line-disjoint. Task 7 is doc-only.
 
@@ -453,13 +453,13 @@ EOF
 
 **Files:**
 
-- Modify: `docs/reviews/Match-ID-UI-UX-Review.md` (§6 issue #9 body + suggested-next-moves row if present)
+- Modify: `docs/research/match-id-ui-ux-review.md` (§6 issue #9 body + suggested-next-moves row if present)
 
 **Why this task:** UI review §6 #9 called out that the quick-stat tile order mixed PIM (penalty minutes) with offensive metrics — confusing reader scan. Today's morning Scoresheet polish sweep (commit `0a0546d`) removed the PIM tile entirely (PIM stays in the Discipline detail group below). The remaining 6 tiles (SCORE / Shot On Net % / Shooting % / Pass % / FO % / Possession) are all positive/neutral metrics — no mixing concern. The original §9 critique is moot.
 
 - [ ] **Step 1: Add Status note under §6 #9**
 
-In `docs/reviews/Match-ID-UI-UX-Review.md`, find the §6 #9 body (around line 516):
+In `docs/research/match-id-ui-ux-review.md`, find the §6 #9 body (around line 516):
 
 ```markdown
 **9. Quick-stat tile order isn't ordered by importance.** SCORE / SHOOTING % / PASS % / FO % / PIM / POSSESSION. Score and PIM are quite different concerns — Score is "how much did this player help win?" and PIM is "how many penalty minutes did they take?". The 3×2 grid layout shows them adjacent. Could reorder by category (offensive metrics first, then discipline) or by importance.
@@ -476,7 +476,7 @@ Append a Status paragraph beneath it (mirroring the format used for prior Resolv
 - [ ] **Step 2: Commit**
 
 ```bash
-git add docs/reviews/Match-ID-UI-UX-Review.md
+git add docs/research/match-id-ui-ux-review.md
 git commit -m "$(cat <<'EOF'
 docs(reviews): mark Scoresheet §6 #9 (tile order) resolved
 

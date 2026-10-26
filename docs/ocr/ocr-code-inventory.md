@@ -137,7 +137,7 @@ tracker on `app/games/[id]/page.tsx`. No OCR admin page or API route.
 
 - Closest system overview (2026-06-13, partly out of date):
   `docs/ocr/current-in-game-data-extraction-system-report.md`.
-- Current operations: `docs/runbook/ocr-corpus-mass-ingest.md`.
+- Current operations: `docs/ocr/ocr-corpus-mass-ingest-runbook.md`.
 - Live tracking direction (2026-05-28):
   `docs/research/video-extraction-architecture-review-2026-05-28.md`
   ("Track B"), `docs/research/nvidia-cv-stack-recommendation-2026-05-28.md`,

@@ -10,7 +10,6 @@ Branding assets are grouped by use. Keep new files in the narrowest folder that 
 - `flags/` - country flag references.
 - `icons/archetypes/` - source SVGs for player archetype icons.
 - `icons/hockey/` - generic hockey source SVGs.
-- `icons/archive/duplicates/` - exact duplicate files kept for traceability instead of deleted.
 - `rink-event-map/` - rink diagram and shot, hit, goal, and penalty marker art.
 
 ## Naming

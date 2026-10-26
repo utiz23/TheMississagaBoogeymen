@@ -4,8 +4,8 @@
 
 **Status:** approved by the operator 2026-10-07, including the test-run amendment. Step 1 (badges) is next.
 **Supersedes:** for these features only, the open questions in
-[`docs/cards/card-system-brief.md`](../../cards/card-system-brief.md) and the
-"Reality check" ladders in [`docs/cards/badge-catalog.md`](../../cards/badge-catalog.md).
+[`docs/specs/cards/card-system-brief.md`](../../specs/cards/card-system-brief.md) and the
+"Reality check" ladders in [`docs/specs/cards/badge-catalog.md`](../../specs/cards/badge-catalog.md).
 Those files stay as background.
 
 ## Goal
