@@ -214,8 +214,13 @@ export interface PostAssignment {
   replyTo: number | null
   /** The `topFacts` id this post builds on (distinct per post), else null. */
   factId: string | null
-  /** The due take this post may voice (angle `take`), else null. */
+  /** The due take this post may voice (angle `take`, critics only), else null. */
   takeId: number | null
+  /**
+   * The take this post pushes back on: its defender answers the critic's post
+   * of this game (a reply), never voicing the take (C3a fix I4). Absent otherwise.
+   */
+  pushesBack?: number
 }
 
 const hasRelationship = (from: ReporterId, to: ReporterId) =>
@@ -244,7 +249,8 @@ export function pairWeight(from: ReporterId, to: ReporterId, recent: ReadonlySet
  * answers an earlier post, its target drawn by pair weights (relationship
  * 3x, a pair used recently 0.2x). Mercer and Rink limits hold, except on a
  * historic game (all nine post); Rink is on a game's list only when historic.
- * A due take whose critic is drawn gives that post the `take` angle. Seeded
+ * A due take whose critic is drawn gives that post the `take` angle; its
+ * defender, when drawn later, replies to that post (C3a fix I4). Seeded
  * from the match id, so a rerun gives the same posts.
  */
 export function assignGamePosts(args: {
@@ -287,6 +293,7 @@ export function assignGamePosts(args: {
   const usedAngles = new Set<PostAngle>()
   const recent = recentPairs(activity)
   const takes = [...(args.takes ?? [])]
+  const voiced: { take: NewsTake; index: number }[] = []
   const want = Math.min(plan.posts, 1 + pool.length)
   while (posts.length < want) {
     const remaining = pool.filter((r) => !posts.some((p) => p.reporter === r))
@@ -296,10 +303,22 @@ export function assignGamePosts(args: {
       ),
       rng,
     )
-    const take = takes.find((t) => takeCritics(t).includes(reporter) || t.defender === reporter)
+    // Only a critic voices a take; its defender answers the critic's post (C3a fix I4).
+    const take = takes.find((t) => takeCritics(t).includes(reporter))
+    const defended = voiced.find((v) => v.take.defender === reporter)
     let angle: PostAngle
+    let replyTo: number | null = null
+    let pushesBack: number | undefined
     if (take !== undefined && !usedAngles.has('take')) {
       angle = 'take'
+    } else if (defended !== undefined) {
+      angle = !usedAngles.has('reply')
+        ? 'reply'
+        : !usedAngles.has('counterpoint')
+          ? 'counterpoint'
+          : 'reply'
+      replyTo = defended.index
+      pushesBack = defended.take.id
     } else {
       const open = POST_ANGLES.filter((a) => a !== 'take' && !usedAngles.has(a))
       angle =
@@ -311,16 +330,25 @@ export function assignGamePosts(args: {
             )
     }
     usedAngles.add(angle)
-    let replyTo: number | null = null
-    if (angle === 'reply' || angle === 'counterpoint') {
+    if (replyTo === null && (angle === 'reply' || angle === 'counterpoint')) {
       replyTo = weightedPick(
         posts.map((p, i) => [i, pairWeight(reporter, p.reporter, recent)] as const),
         rng,
       )
     }
     const takeId = angle === 'take' && take !== undefined ? take.id : null
-    if (takeId !== null) takes.splice(takes.indexOf(take!), 1)
-    posts.push({ reporter, angle, replyTo, factId: angle === 'take' ? null : nextFact(), takeId })
+    if (takeId !== null) {
+      takes.splice(takes.indexOf(take!), 1)
+      voiced.push({ take: take!, index: posts.length })
+    }
+    posts.push({
+      reporter,
+      angle,
+      replyTo,
+      factId: angle === 'take' ? null : nextFact(),
+      takeId,
+      ...(pushesBack === undefined ? {} : { pushesBack }),
+    })
   }
   return posts
 }

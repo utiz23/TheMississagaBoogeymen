@@ -402,6 +402,11 @@ export function buildGameUserPrompt(args: {
         )
       }
       if (p.takeId !== null) parts.push(`It may voice take ${String(p.takeId)} (below).`)
+      if (p.pushesBack !== undefined) {
+        parts.push(
+          `It pushes back on take ${String(p.pushesBack)} (below) with the take's data angle and a number from the sheet; it does not voice the take and lists no take in "takesUsed".`,
+        )
+      }
       lines.push(parts.join(' '))
     })
     lines.push(

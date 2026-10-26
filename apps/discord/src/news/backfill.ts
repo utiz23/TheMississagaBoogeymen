@@ -225,9 +225,9 @@ export function itemCreatedAt(job: BackfillJob, index: number): Date {
   return new Date(last + ARTICLE_DELAY_MS)
 }
 
-/** The takes of the sheet a reporter may voice or answer (critic or defender). */
+/** The takes of the sheet a reporter may voice: only its critics (C3a fix I4). */
 function takesOf(takes: readonly NewsTake[], reporter: ReporterId): NewsTake[] {
-  return takes.filter((t) => takeCritics(t).includes(reporter) || t.defender === reporter)
+  return takes.filter((t) => takeCritics(t).includes(reporter))
 }
 
 // ── plan ─────────────────────────────────────────────────────────────────────
@@ -432,7 +432,18 @@ function parsePosts(v: unknown, bad: (why: string) => never): PostAssignment[] {
     const takeId = o.takeId ?? null
     if (takeId !== null && !Number.isSafeInteger(takeId))
       bad(`posts[${String(i)}].takeId is invalid`)
-    return { reporter: o.reporter, angle: angle!, replyTo, factId, takeId }
+    const pushesBack = o.pushesBack
+    if (pushesBack !== undefined && !Number.isSafeInteger(pushesBack)) {
+      bad(`posts[${String(i)}].pushesBack is invalid`)
+    }
+    return {
+      reporter: o.reporter,
+      angle: angle!,
+      replyTo,
+      factId,
+      takeId,
+      ...(pushesBack === undefined ? {} : { pushesBack }),
+    }
   })
 }
 

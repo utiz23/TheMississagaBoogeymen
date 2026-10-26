@@ -559,3 +559,46 @@ void test('C3b.3: a benched reporter never writes the recap, a night recap, a fe
     /no feature writer/,
   )
 })
+
+void test('C3a fix I4: only critics voice a take; the defender replies to the critic, never voicing it', () => {
+  const take: NewsTake = {
+    id: 7,
+    reporter: 'mercer',
+    critics: ['pettibone'],
+    defender: 'quill',
+    playerId: 1,
+    player: 'Skater A',
+    take: 'Invented take for a test.',
+    spread: 'some',
+    dataAngle: 'shots per game',
+    intensity: 0,
+    mild: false,
+  }
+  let pushed = 0
+  for (let id = 1; id < 80; id++) {
+    const { facts, game } = gameSetup()
+    const p = assignGamePosts({
+      game: { ...game, matchId: id },
+      facts,
+      situation: 'loss',
+      plan: { level: 'huge', posts: 8 },
+      now: NOW,
+      night: NIGHT,
+      activity: [],
+      takes: [take],
+    })
+    p.forEach((x, i) => {
+      if (x.takeId !== null) assert.ok(['mercer', 'pettibone'].includes(x.reporter), x.reporter)
+      if (x.reporter === 'quill') assert.equal(x.takeId, null, 'the defender never voices it')
+      if (x.pushesBack !== undefined) {
+        pushed++
+        assert.equal(x.reporter, 'quill')
+        assert.equal(x.pushesBack, 7)
+        assert.ok(x.replyTo !== null && x.replyTo < i)
+        assert.equal(p[x.replyTo]!.takeId, 7)
+        assert.ok(x.angle === 'reply' || x.angle === 'counterpoint')
+      }
+    })
+  }
+  assert.ok(pushed > 0, 'some games have the defender answer')
+})

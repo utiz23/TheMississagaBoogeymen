@@ -790,3 +790,20 @@ void test('C3a.10 review prompt: labels, takes fairness, language level, AI goal
     withTake.includes('refer to a take only as "take N" (its id); never repeat or quote its words'),
   )
 })
+
+void test('C3a fix I4: a defender post pushes back on the take and does not voice it', () => {
+  const p = buildGameUserPrompt({
+    facts: oct12Facts(),
+    posts: [
+      recap('barlow'),
+      { reporter: 'mercer', angle: 'take', replyTo: null, factId: null, takeId: 7 },
+      { reporter: 'quill', angle: 'reply', replyTo: 1, factId: null, takeId: null, pushesBack: 7 },
+    ],
+  })
+  assert.ok(p.includes('It may voice take 7 (below).'))
+  assert.ok(
+    p.includes(
+      "It pushes back on take 7 (below) with the take's data angle and a number from the sheet; it does not voice the take",
+    ),
+  )
+})
