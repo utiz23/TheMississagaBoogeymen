@@ -87,6 +87,19 @@ export interface PressStore {
     question: string
     at: Date
   }): Promise<boolean>
+  acceptScrumPerson(personId: number, cutoff: Date, at: Date): Promise<boolean>
+  claimScrumAnswer(args: {
+    personId: number
+    questionsAsked: number
+    followupsAsked: number
+    at: Date
+  }): Promise<boolean>
+  getPlayerForDiscordUser(userId: string): Promise<{ playerId: number; name: string } | null>
+  latestScrumItem(args: {
+    playerId: number | null
+    since: Date
+    isTest: boolean
+  }): Promise<number | null>
   nightPressMaterial(
     night: string,
     includeTest: boolean,

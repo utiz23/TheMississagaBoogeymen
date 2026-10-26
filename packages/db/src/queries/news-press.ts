@@ -1,4 +1,17 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   newsGmNotes,
@@ -440,6 +453,108 @@ export async function claimScrumQuestion(args: {
   at: Date
 }): Promise<boolean> {
   return (await claimScrumQuestionQuery(args)).length > 0
+}
+
+/**
+ * Accept a ping: `pinged` → `asking`, only while the ping is inside the accept
+ * window (`pinged_at` ≥ `cutoff`), so a late accept and the expiry pass never
+ * both win. `last_asked_at` starts the answer window: if the first question
+ * never goes out, the expiry pass still closes the round.
+ */
+export function acceptScrumPersonQuery(personId: number, cutoff: Date, at: Date) {
+  return db
+    .update(newsScrumPeople)
+    .set({ status: 'asking', lastAskedAt: at })
+    .where(
+      and(
+        eq(newsScrumPeople.id, personId),
+        eq(newsScrumPeople.status, 'pinged'),
+        gte(newsScrumPeople.pingedAt, cutoff),
+      ),
+    )
+    .returning({ id: newsScrumPeople.id })
+}
+
+/** True when this call took the accept. */
+export async function acceptScrumPerson(
+  personId: number,
+  cutoff: Date,
+  at: Date,
+): Promise<boolean> {
+  return (await acceptScrumPersonQuery(personId, cutoff, at)).length > 0
+}
+
+/**
+ * Take the answer to the current question: only from the expected counts and
+ * while a question is open. Clears the question (a second submit finds none)
+ * and renews `last_asked_at` (the expiry pass does not close the round while
+ * the answer is judged).
+ */
+export function claimScrumAnswerQuery(args: {
+  personId: number
+  questionsAsked: number
+  followupsAsked: number
+  at: Date
+}) {
+  return db
+    .update(newsScrumPeople)
+    .set({ currentQuestion: null, lastAskedAt: args.at })
+    .where(
+      and(
+        eq(newsScrumPeople.id, args.personId),
+        eq(newsScrumPeople.status, 'asking'),
+        eq(newsScrumPeople.questionsAsked, args.questionsAsked),
+        eq(newsScrumPeople.followupsAsked, args.followupsAsked),
+        isNotNull(newsScrumPeople.currentQuestion),
+      ),
+    )
+    .returning({ id: newsScrumPeople.id })
+}
+
+/** True when this call took the answer. */
+export async function claimScrumAnswer(args: {
+  personId: number
+  questionsAsked: number
+  followupsAsked: number
+  at: Date
+}): Promise<boolean> {
+  return (await claimScrumAnswerQuery(args)).length > 0
+}
+
+/**
+ * The recap item of the newest scrum whose recap is newer than `since`; with
+ * a `playerId`, only a game that player played. Test scrums only when `isTest`
+ * (the trial), real ones only otherwise.
+ */
+export function latestScrumItemSql(args: {
+  playerId: number | null
+  since: Date
+  isTest: boolean
+}): SQL {
+  const played =
+    args.playerId === null
+      ? sql``
+      : sql`and exists (select 1 from player_match_stats pms
+          where pms.match_id = s.match_id and pms.player_id = ${args.playerId})`
+  return sql`
+    select s.recap_item_id
+    from news_scrums s
+    join news_items n on n.id = s.recap_item_id
+    where s.is_test = ${args.isTest} and n.deleted_at is null
+      and n.created_at > ${args.since.toISOString()}::timestamptz
+      ${played}
+    order by n.created_at desc, s.id desc
+    limit 1`
+}
+
+export async function latestScrumItem(args: {
+  playerId: number | null
+  since: Date
+  isTest: boolean
+}): Promise<number | null> {
+  const rows = await db.execute<{ recap_item_id: string | number }>(latestScrumItemSql(args))
+  const id = rows[0]?.recap_item_id
+  return id === undefined ? null : num(id)
 }
 
 /** Automatic pings this player got tonight (every scrum of the night, test or real). */

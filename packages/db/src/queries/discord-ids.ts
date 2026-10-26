@@ -25,6 +25,37 @@ export async function getPlayerDiscordUserId(playerId: number): Promise<string |
   return id !== null && DISCORD_USER_ID_RE.test(id) ? id : null
 }
 
+/**
+ * The player whose Discord ID is `userId`, by the same rule as
+ * `playerDiscordUserIdSql` (sign-in first, then the manual ID), with their
+ * display name (profile name, else gamertag).
+ */
+export function playerForDiscordUserSql(userId: string): SQL {
+  return sql`
+    select p.id, coalesce(nullif(btrim(pp.player_name), ''), p.gamertag) as name
+    from players p
+    left join player_profiles pp on pp.player_id = p.id
+    where coalesce(
+      (select a.account_id from user_player_claims c
+        join accounts a on a.user_id = c.user_id and a.provider_id = 'discord'
+        where c.player_id = p.id limit 1),
+      p.discord_user_id
+    ) = ${userId}
+    order by p.id
+    limit 1`
+}
+
+export async function getPlayerForDiscordUser(
+  userId: string,
+): Promise<{ playerId: number; name: string } | null> {
+  if (!DISCORD_USER_ID_RE.test(userId)) return null
+  const rows = await db.execute<{ id: number | string; name: string }>(
+    playerForDiscordUserSql(userId),
+  )
+  const row = rows[0]
+  return row === undefined ? null : { playerId: Number(row.id), name: row.name }
+}
+
 export interface DiscordPingRow {
   playerId: number
   gamertag: string

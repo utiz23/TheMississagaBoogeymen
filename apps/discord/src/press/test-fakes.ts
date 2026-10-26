@@ -1,6 +1,7 @@
 import type { NewsFactsResponse, ReporterId } from '@eanhl/db/news'
 import type {
   NewNewsScrum,
+  NewNewsScrumAnswer,
   NewNewsScrumPerson,
   NewNewsUsage,
   NewsItemRow,
@@ -130,6 +131,13 @@ export class FakeStore implements PressStore {
     matchId: number | null
     critical: boolean
   }[] = []
+  /** Every stored answer row (insertScrumAnswer also adds to `answers`). */
+  answerRows: NewNewsScrumAnswer[] = []
+  /** Players of each match (player_match_stats). */
+  played = new Map<number, number[]>([
+    [90001, [1, 2, 3]],
+    [90002, [1, 2, 3]],
+  ])
   usage: NewNewsUsage[] = []
   spend = 0
   disabled: ReporterId[] = []
@@ -349,7 +357,16 @@ export class FakeStore implements PressStore {
         .filter((a) => a.personId === personId)
         .map(({ question, answer, usability }) => ({ question, answer, usability })),
     )
-  insertScrumAnswer = () => Promise.resolve(1)
+  insertScrumAnswer = (v: NewNewsScrumAnswer) => {
+    this.answerRows.push(v)
+    this.answers.push({
+      personId: v.personId,
+      question: v.question,
+      answer: v.answer,
+      usability: v.usability,
+    })
+    return Promise.resolve(this.answerRows.length)
+  }
   setScrumThread = (scrumId: number, threadId: string) => {
     const s = this.scrums.find((x) => x.id === scrumId)!
     if (s.threadId !== null) return Promise.resolve(false)
@@ -375,6 +392,55 @@ export class FakeStore implements PressStore {
     p.currentQuestion = args.question
     p.lastAskedAt = args.at
     return Promise.resolve(true)
+  }
+  acceptScrumPerson = (personId: number, cutoff: Date, at: Date) => {
+    const p = this.people.find((x) => x.id === personId)
+    if (!p || p.status !== 'pinged' || p.pingedAt === null || p.pingedAt < cutoff) {
+      return Promise.resolve(false)
+    }
+    p.status = 'asking'
+    p.lastAskedAt = at
+    return Promise.resolve(true)
+  }
+  claimScrumAnswer = (args: {
+    personId: number
+    questionsAsked: number
+    followupsAsked: number
+    at: Date
+  }) => {
+    const p = this.people.find((x) => x.id === args.personId)
+    if (
+      !p ||
+      p.status !== 'asking' ||
+      p.questionsAsked !== args.questionsAsked ||
+      p.followupsAsked !== args.followupsAsked ||
+      p.currentQuestion === null
+    ) {
+      return Promise.resolve(false)
+    }
+    p.currentQuestion = null
+    p.lastAskedAt = args.at
+    return Promise.resolve(true)
+  }
+  getPlayerForDiscordUser = (userId: string) => {
+    const hit = [...this.discordIds].find(([, id]) => id === userId)
+    return Promise.resolve(
+      hit === undefined
+        ? null
+        : { playerId: hit[0], name: NAMES.get(hit[0]) ?? `Player ${String(hit[0])}` },
+    )
+  }
+  latestScrumItem = (args: { playerId: number | null; since: Date; isTest: boolean }) => {
+    const hits = this.scrums.filter((s) => {
+      const item = this.items.find((i) => i.id === s.recapItemId)
+      if (s.isTest !== args.isTest || !item || item.deletedAt !== null) return false
+      if (item.createdAt <= args.since) return false
+      return (
+        args.playerId === null ||
+        (s.matchId !== null && (this.played.get(s.matchId) ?? []).includes(args.playerId))
+      )
+    })
+    return Promise.resolve(hits.at(-1)?.recapItemId ?? null)
   }
   nightPressMaterial = () => Promise.resolve({ quotes: [], gmNotes: this.gmNotes })
   monthNewsSpendUsd = () => Promise.resolve(this.spend)

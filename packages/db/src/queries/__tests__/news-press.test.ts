@@ -49,6 +49,9 @@ const {
   listScrumAnswersQuery,
   expireScrumPersonQuery,
   claimScrumQuestionQuery,
+  acceptScrumPersonQuery,
+  claimScrumAnswerQuery,
+  latestScrumItemSql,
 } = await import('../news-press.js')
 const { nightCriticizedSql } = await import('../news.js')
 const dialect = new PgDialect()
@@ -429,4 +432,60 @@ void test('expire scrum person without a cutoff: state check only (a person take
   )
   assert.doesNotMatch(s, /last_asked_at/)
   assert.ok(q.params.includes('done'))
+})
+
+void test('accept: pinged to asking, only within the accept window', () => {
+  const cutoff = new Date('2026-10-25T19:55:00Z')
+  const at = new Date('2026-10-25T20:00:00Z')
+  const q = acceptScrumPersonQuery(3, cutoff, at).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /set "status" = \$1, "last_asked_at" = \$2/)
+  assert.match(
+    s,
+    /"news_scrum_people"."id" = \$\d+ and "news_scrum_people"."status" = \$\d+ and "news_scrum_people"."pinged_at" >= \$\d+/,
+  )
+  assert.equal(q.params[0], 'asking')
+  assert.ok(q.params.includes('pinged'))
+  assert.match(s, /returning/)
+})
+
+void test('claim scrum answer: only for the current question, once', () => {
+  const q = claimScrumAnswerQuery({
+    personId: 3,
+    questionsAsked: 2,
+    followupsAsked: 1,
+    at: new Date('2026-10-25T20:00:00Z'),
+  }).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /set "current_question" = \$1, "last_asked_at" = \$2/)
+  assert.equal(q.params[0], null)
+  assert.match(
+    s,
+    /"news_scrum_people"."id" = \$\d+ and "news_scrum_people"."status" = \$\d+ and "news_scrum_people"."questions_asked" = \$\d+ and "news_scrum_people"."followups_asked" = \$\d+ and "news_scrum_people"."current_question" is not null/,
+  )
+  assert.ok(q.params.includes('asking'))
+  assert.ok(q.params.includes(2))
+  assert.ok(q.params.includes(1))
+  assert.match(s, /returning/)
+})
+
+void test("latest scrum item: newest recap within the window, of the player's game", () => {
+  const since = new Date('2026-10-25T14:00:00Z')
+  const q = dialect.sqlToQuery(latestScrumItemSql({ playerId: 7, since, isTest: false }))
+  const s = flat(q.sql)
+  assert.match(
+    s,
+    /select s\.recap_item_id from news_scrums s join news_items n on n\.id = s\.recap_item_id/,
+  )
+  assert.match(s, /s\.is_test = \$1 and n\.deleted_at is null and n\.created_at > \$2::timestamptz/)
+  assert.match(
+    s,
+    /exists \( ?select 1 from player_match_stats pms where pms\.match_id = s\.match_id and pms\.player_id = \$3 ?\)/,
+  )
+  assert.match(s, /order by n\.created_at desc, s\.id desc limit 1/)
+  assert.deepEqual(q.params, [false, since.toISOString(), 7])
+  // The trial GM acts for any game: no player filter.
+  const t = dialect.sqlToQuery(latestScrumItemSql({ playerId: null, since, isTest: true }))
+  assert.doesNotMatch(flat(t.sql), /player_match_stats/)
+  assert.deepEqual(t.params, [true, since.toISOString()])
 })

@@ -1,10 +1,17 @@
-import { REPORTERS, type ReporterId } from '@eanhl/db/news'
+import { REPORTERS, type NewsFactsResponse, type NewsPerson, type ReporterId } from '@eanhl/db/news'
+import type { NewsScrumRow } from '@eanhl/db/queries'
 import { answerButton, type BotMessage } from '../bot-rest.ts'
 import { escapeMarkdown } from '../message.ts'
 import { costUsd } from '../news/cost.ts'
-import { FALLBACK_QUESTION, askQuestion, type ScrumHistoryEntry } from './asker.ts'
+import {
+  FALLBACK_QUESTION,
+  askQuestion,
+  type AskContext,
+  type Recorder,
+  type ScrumHistoryEntry,
+} from './asker.ts'
 import type { PressConfig } from './config.ts'
-import type { PressDeps } from './pass.ts'
+import type { PressDeps, PressStore } from './pass.ts'
 import { effectiveHeat, extrasBudgetLeft } from './rules.ts'
 
 /**
@@ -30,6 +37,63 @@ export function threadLine(userId: string, text: string, components?: unknown[])
   }
   if (components !== undefined) msg.components = components
   return msg
+}
+
+/** Earlier answers as asker history: an unusable answer goes in as no answer. */
+export function scrumHistory(
+  answers: Awaited<ReturnType<PressStore['listScrumAnswers']>>,
+): ScrumHistoryEntry[] {
+  return answers.map((a) =>
+    a.usability === 'unusable'
+      ? { question: a.question, answer: null }
+      : { question: a.question, answer: a.answer, usability: a.usability },
+  )
+}
+
+/** Records a scrum model call (no news job). */
+export function pressRecorder(store: PressStore): Recorder {
+  return (purpose, model, usage) =>
+    store.recordNewsUsage({
+      jobId: null,
+      purpose,
+      model,
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+      cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
+      costUsd: costUsd(model, usage),
+    })
+}
+
+/**
+ * The asker context for a person on the game sheet: the scrum's heat (never
+ * Hot for "Go easy"), this match's active GM notes (no critical note for "Go
+ * easy"), the takes and the history.
+ */
+export async function scrumAskContext(
+  store: PressStore,
+  scrum: NewsScrumRow,
+  res: NewsFactsResponse,
+  onSheet: NewsPerson,
+  history: ScrumHistoryEntry[],
+  questionNumber: number,
+): Promise<AskContext> {
+  const easy = onSheet.pressLevel === 'easy'
+  const material = await store.nightPressMaterial(scrum.night, scrum.isTest)
+  return {
+    facts: res.facts,
+    forbiddenNames: res.forbiddenNames,
+    reporter: scrum.reporter,
+    heat: effectiveHeat(scrum.heat, onSheet.pressLevel).heat,
+    player: { name: onSheet.name, pressLevel: onSheet.pressLevel },
+    // "Go easy" means no criticism: a critical note is never used for them.
+    gmNotes: material.gmNotes
+      .filter((n) => n.matchId === scrum.matchId && !(easy && n.critical))
+      .map((n) => n.note),
+    takes: res.takes,
+    history,
+    questionNumber,
+  }
 }
 
 /** Discord: a thread started from a message already exists (HTTP 400, code 160004). */
@@ -79,40 +143,11 @@ export async function startScrumQuestion(
       }
       return null
     }
-    const easy = onSheet.pressLevel === 'easy'
-    const material = await store.nightPressMaterial(scrum.night, scrum.isTest)
-    const history: ScrumHistoryEntry[] = (await store.listScrumAnswers(personId)).map((a) =>
-      a.usability === 'unusable'
-        ? { question: a.question, answer: null }
-        : { question: a.question, answer: a.answer, usability: a.usability },
-    )
+    const history = scrumHistory(await store.listScrumAnswers(personId))
     return askQuestion(
       deps.call,
-      {
-        facts: res.facts,
-        forbiddenNames: res.forbiddenNames,
-        reporter,
-        heat: effectiveHeat(scrum.heat, onSheet.pressLevel).heat,
-        player: { name: onSheet.name, pressLevel: onSheet.pressLevel },
-        // "Go easy" means no criticism: a critical note is never used for them.
-        gmNotes: material.gmNotes
-          .filter((n) => n.matchId === matchId && !(easy && n.critical))
-          .map((n) => n.note),
-        takes: res.takes,
-        history,
-        questionNumber: person!.questionsAsked + 1,
-      },
-      (purpose, model, usage) =>
-        store.recordNewsUsage({
-          jobId: null,
-          purpose,
-          model,
-          inputTokens: usage.input_tokens,
-          outputTokens: usage.output_tokens,
-          cacheReadTokens: usage.cache_read_input_tokens ?? 0,
-          cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
-          costUsd: costUsd(model, usage),
-        }),
+      await scrumAskContext(store, scrum, res, onSheet, history, person!.questionsAsked + 1),
+      pressRecorder(store),
     )
   }
 
