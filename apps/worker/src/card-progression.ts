@@ -41,9 +41,21 @@ export interface RecomputeResult {
   firstRun: boolean
 }
 
+/** Mythic events survive a rebase: they record the operator's awards, not stats. */
+const REBASE_KEPT_KINDS = sql`('mythic_awarded', 'mythic_cleared')`
+
+/**
+ * `rebase` (spec docs/superpowers/specs/2026-10-26-club-only-badges-design.md):
+ * the one-time switch to club-only badges. It deletes the card titles' history
+ * events (mythic events stay), lets standings drop to the computed ones and
+ * writes no events, so Discord posts nothing about the switch. Stop the worker
+ * first, so its own recompute cannot run between the delete and the upsert.
+ */
 export async function recomputeCardProgression(opts: {
   dryRun: boolean
+  rebase?: boolean
 }): Promise<RecomputeResult[]> {
+  const rebase = opts.rebase === true
   const titles = await loadCardTitles()
   const totals = await loadSeasonTotals(titles.map((t) => t.id))
   const [storedProgress, storedLevels, names] = await Promise.all([
@@ -86,6 +98,7 @@ export async function recomputeCardProgression(opts: {
       prevStanding,
       prevLevels,
       laddersOf,
+      { rebase },
     )
     // The featured badge compares the whole club's season, so it is picked per title.
     // A mythic card still features a badge from its stats pool.
@@ -135,8 +148,31 @@ export async function recomputeCardProgression(opts: {
     }
   }
 
+  const titleIds = sql.join(
+    titles.map((t) => sql`${t.id}`),
+    sql`, `,
+  )
+  if (rebase && opts.dryRun && titles.length > 0) {
+    const [row] = await rows<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM player_card_events
+        WHERE game_title_id IN (${titleIds}) AND kind NOT IN ${REBASE_KEPT_KINDS}`,
+    )
+    console.log(
+      `[card-recompute] rebase (dry-run): would delete ${String(row?.n ?? 0)} history events`,
+    )
+  }
+
   if (!opts.dryRun) {
     await db.transaction(async (tx) => {
+      if (rebase && titles.length > 0) {
+        // discord_unlock_posts / discord_card_posts rows go with them (ON DELETE CASCADE).
+        const deleted = (await tx.execute(
+          sql`DELETE FROM player_card_events
+            WHERE game_title_id IN (${titleIds}) AND kind NOT IN ${REBASE_KEPT_KINDS}
+            RETURNING id`,
+        )) as unknown as unknown[]
+        console.log(`[card-recompute] rebase: deleted ${String(deleted.length)} history events`)
+      }
       if (levelRows.length > 0) {
         await tx
           .insert(playerBadgeLevels)

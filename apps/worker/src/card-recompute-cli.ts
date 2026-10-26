@@ -1,9 +1,13 @@
 /**
- * pnpm --filter @eanhl/worker card-recompute [--dry-run]
+ * pnpm --filter @eanhl/worker card-recompute [--dry-run] [--rebase]
  *
  * Recomputes badge levels, card tier/level and card events for every player's
  * card in every card title (spec docs/superpowers/specs/2026-10-08-season-cards-design.md)
  * and prints one standing table per title. --dry-run computes and prints without writing.
+ * --rebase is the one-time silent switch to club-only badges (spec
+ * docs/superpowers/specs/2026-10-26-club-only-badges-design.md): it deletes the
+ * card history (mythic events stay), lets cards drop, and writes no events.
+ * Stop the worker before a --rebase write.
  * Prints the connected database first — check it before trusting a write.
  */
 import { sql as dbSql } from '@eanhl/db'
@@ -11,13 +15,15 @@ import { TIER_LABELS } from '@eanhl/db/cards'
 import { currentDatabase, recomputeCardProgression } from './card-progression.js'
 
 async function main(): Promise<void> {
-  const dryRun = process.argv.slice(2).includes('--dry-run')
+  const args = process.argv.slice(2)
+  const dryRun = args.includes('--dry-run')
+  const rebase = args.includes('--rebase')
   const database = await currentDatabase()
   console.log(
-    `[card-recompute] database=${database} mode=${dryRun ? 'dry-run (no writes)' : 'write'}`,
+    `[card-recompute] database=${database} mode=${dryRun ? 'dry-run (no writes)' : 'write'}${rebase ? ' rebase' : ''}`,
   )
 
-  const results = await recomputeCardProgression({ dryRun })
+  const results = await recomputeCardProgression({ dryRun, rebase })
   const titles = [...new Set(results.map((r) => r.titleName))]
   for (const titleName of titles) {
     const inTitle = results.filter((r) => r.titleName === titleName)
