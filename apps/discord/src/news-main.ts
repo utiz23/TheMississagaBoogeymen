@@ -8,7 +8,9 @@
  *
  * Env: DATABASE_URL, NEWS_WEBHOOK_URL, DISCORD_INTERNAL_TOKEN, WEB_INTERNAL_URL,
  * DISCORD_SITE_URL, NEWS_DRY_RUN, NEWS_OUT_DIR, NEWS_POLL_INTERVAL_MS,
- * NEWS_MODEL, NEWS_MONTHLY_LIMIT_USD, ANTHROPIC_API_KEY.
+ * NEWS_MODEL, NEWS_MONTHLY_LIMIT_USD, ANTHROPIC_API_KEY. With PRESS_MODE=live
+ * the posts go out as the reporters' bots (PRESS_TOKEN_*, PRESS_* channel IDs)
+ * instead of the webhook (news/delivery.ts).
  */
 import { loadNewsConfig } from './news/config.ts'
 
@@ -29,7 +31,7 @@ async function main(): Promise<void> {
   const { runNewsCycle, createNewsCycleState } = await import('./news/cycle.ts')
   const { fetchNewsFacts } = await import('./news/web-client.ts')
   const { anthropicModelCall } = await import('./news/writer.ts')
-  const { sendWebhook, deleteWebhookMessage } = await import('./webhook.ts')
+  const { newsDelivery } = await import('./news/delivery.ts')
   const { writeDryRunFiles } = await import('./dry-run.ts')
 
   if (!config.dryRun) {
@@ -38,17 +40,14 @@ async function main(): Promise<void> {
     log(`live mode: removed ${String(removed)} test item(s)`)
   }
   log(
-    `started (${config.dryRun ? 'DRY RUN' : 'live'}), model ${config.model}, limit ${String(config.monthlyLimitUsd)} USD/month, every ${String(config.pollIntervalMs)}ms`,
+    `started (${config.dryRun ? 'DRY RUN' : 'live'}, ${config.bots === null ? 'webhook' : 'reporter bots'}), model ${config.model}, limit ${String(config.monthlyLimitUsd)} USD/month, every ${String(config.pollIntervalMs)}ms`,
   )
 
   // Reads ANTHROPIC_API_KEY from the environment; the key is never logged.
   const writer = anthropicModelCall(new Anthropic(), config.model)
   const web = { webBaseUrl: config.webBaseUrl, token: config.internalToken }
   const state = createNewsCycleState()
-  const webhook = () => {
-    if (config.webhookUrl === null) throw new Error('no news webhook configured')
-    return config.webhookUrl
-  }
+  const { send, remove } = newsDelivery({ webhookUrl: config.webhookUrl, bots: config.bots, log })
 
   for (;;) {
     const start = Date.now()
@@ -58,8 +57,8 @@ async function main(): Promise<void> {
           store: newsDbStore,
           fetchFacts: (kind, key) => fetchNewsFacts({ ...web, kind, key }),
           writer,
-          send: (payload) => sendWebhook(webhook(), payload, null),
-          remove: (messageId) => deleteWebhookMessage(webhook(), messageId),
+          send,
+          remove,
           writeDryRun: async (key, payload) => {
             log(`dry run → ${await writeDryRunFiles(config.outDir, key, payload, null)}`)
           },

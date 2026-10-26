@@ -120,7 +120,7 @@ const SPACED_LEVELS: readonly BuzzPlan['level'][] = ['big', 'huge', 'historic']
 
 /** The news queries the cycle uses (packages/db/src/queries/news.ts), plus one lookup. */
 export interface NewsStore {
-  listDiscordDeletions(limit: number): Promise<{ id: number; messageId: string }[]>
+  listDiscordDeletions(limit: number): Promise<({ id: number } & NewsRemoval)[]>
   markDiscordDeleted(id: number): Promise<void>
   getNewsEnabled(): Promise<boolean>
   monthNewsSpendUsd(now: Date): Promise<number>
@@ -179,14 +179,44 @@ export interface NewsStore {
   listDisabledReporters(): Promise<ReporterId[]>
 }
 
+/** One stored item on its way to Discord. */
+export interface NewsOutgoing {
+  itemId: number
+  reporter: ReporterId
+  payload: NewsWebhookPayload
+  /** A game's first post: as a bot it carries the "Talk to the press" button. */
+  isGameRecap: boolean
+}
+
+/** Where a sent item went: stored on the item, so its delete goes the same way. */
+export interface NewsSent {
+  messageId: string | null
+  via: 'webhook' | 'bot'
+  /** The bot's channel; null for a webhook message. */
+  channelId: string | null
+}
+
+/** A deleted item's Discord message (`listDiscordDeletions`). */
+export interface NewsRemoval {
+  messageId: string
+  via: 'webhook' | 'bot'
+  channelId: string | null
+  reporter: ReporterId
+}
+
 export interface NewsDeps {
   store: NewsStore
   /** The fact sheet from the web app's internal route. Any error (404 included) ⇒ retry next pass. */
   fetchFacts(kind: 'game' | 'night' | 'week', key: string): Promise<NewsFactsResponse>
   /** The Claude call (Task 5's `anthropicModelCall`). */
   writer: ModelCall
-  send(payload: NewsWebhookPayload): Promise<string | null>
-  remove(messageId: string): Promise<void>
+  /**
+   * Post one item: by webhook, or as the reporter's bot when PRESS_MODE=live.
+   * WebhookOutcomeUnknownError = the message may exist; the item is never sent again.
+   */
+  send(msg: NewsOutgoing): Promise<NewsSent>
+  /** Delete one message the way it was sent (`via`). Resolving marks it deleted. */
+  remove(d: NewsRemoval): Promise<void>
   writeDryRun(key: string, payload: NewsWebhookPayload): Promise<void>
   pause(ms: number): Promise<void>
   log(message: string): void
@@ -378,12 +408,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
    * `retry`: the item came from the undelivered list (status failed). An unknown
    * outcome then marks it skipped, or the list would send it again next pass.
    */
-  async function deliver(
-    id: number,
-    payload: NewsWebhookPayload,
-    tag: string,
-    retry = false,
-  ): Promise<void> {
+  async function deliver(msg: NewsOutgoing, tag: string, retry = false): Promise<void> {
+    const { itemId: id, payload } = msg
     if (opts.dryRun) {
       try {
         await deps.writeDryRun(`news-${String(id)}`, payload)
@@ -400,9 +426,9 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       return
     }
     await gap()
-    let messageId: string | null
+    let sent: NewsSent
     try {
-      messageId = await deps.send(payload)
+      sent = await deps.send(msg)
     } catch (err: unknown) {
       summary.failed++
       if (err instanceof WebhookOutcomeUnknownError) {
@@ -426,7 +452,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     }
     summary.posted++
     try {
-      await store.markNewsItemPosted(id, messageId, 'webhook', null)
+      await store.markNewsItemPosted(id, sent.messageId, sent.via, sent.channelId)
     } catch (err: unknown) {
       log(`${tag}: posted but not recorded — left pending, not retried (${message(err)})`)
     }
@@ -492,7 +518,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     const tag = `news item ${String(d.id)}`
     await gap()
     try {
-      await deps.remove(d.messageId)
+      await deps.remove(d)
     } catch (err: unknown) {
       log(`${tag}: Discord delete failed, will retry (${message(err)})`)
       if (rateLimited(err)) {
@@ -533,7 +559,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         continue
       }
       if (!(await store.claimDueNewsItem(item.id))) continue
-      await deliver(item.id, await payloadForStored(item), tag, true)
+      await deliver(await outgoingFor(item), tag, true)
     }
     if (sendingStopped) return summary
   }
@@ -545,7 +571,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     for (const item of await store.listUndeliveredNewsItems(UNDELIVERED_LIMIT)) {
       if (sendingStopped) break
       const tag = `news item ${String(item.id)}`
-      await deliver(item.id, await payloadForStored(item), tag, true)
+      await deliver(await outgoingFor(item), tag, true)
     }
     if (sendingStopped) return summary
   }
@@ -573,6 +599,15 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
   if ((await nightPass()) === 'end') return summary
   await weekPass()
   return summary
+
+  async function outgoingFor(item: NewsItemRow): Promise<NewsOutgoing> {
+    return {
+      itemId: item.id,
+      reporter: item.reporter,
+      payload: await payloadForStored(item),
+      isGameRecap: item.isGameRecap,
+    }
+  }
 
   async function payloadForStored(item: NewsItemRow): Promise<NewsWebhookPayload> {
     const reporter = REPORTERS[item.reporter]
@@ -741,6 +776,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       text: string
       replyTo: number | null
       sendAfter: Date | null
+      isGameRecap: boolean
     }[] = []
     // A big game's posts after the recap wait, 3 minutes apart (never in a dry run: nothing is sent).
     const spaced = !opts.dryRun && SPACED_LEVELS.includes(plan.level)
@@ -763,10 +799,18 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           takesUsed: p.takesUsed,
           rulesVersion: NEWS_RULES_VERSION,
           sendAfter,
+          isGameRecap: i === 0,
           facts,
           isTest: opts.dryRun,
         })
-        stored.push({ id, reporter: p.reporter, text: p.text, replyTo: target, sendAfter })
+        stored.push({
+          id,
+          reporter: p.reporter,
+          text: p.text,
+          replyTo: target,
+          sendAfter,
+          isGameRecap: i === 0,
+        })
         await saveStances(stancesToStore(p.stances, facts, p.reporter, night, id), tag)
         noteWritten(
           p.reporter,
@@ -795,7 +839,10 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         replyToName: s.replyTo === null ? null : REPORTERS[stored[s.replyTo]!.reporter].name,
         siteUrl: opts.siteUrl,
       })
-      await deliver(s.id, payload, `${tag} item ${String(s.id)}`)
+      await deliver(
+        { itemId: s.id, reporter: s.reporter, payload, isGameRecap: s.isGameRecap },
+        `${tag} item ${String(s.id)}`,
+      )
     }
     return sendingStopped ? 'end' : 'go'
   }
@@ -919,7 +966,10 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       })
       // After a rate limit deliver() keeps the item for the retry list; the game's other
       // articles are still written, or their jobs would never be created again.
-      await deliver(id, payload, `${tag} item ${String(id)}`)
+      await deliver(
+        { itemId: id, reporter: w.reporter, payload, isGameRecap: false },
+        `${tag} item ${String(id)}`,
+      )
     }
     return sendingStopped ? 'end' : 'go'
   }
@@ -1157,7 +1207,10 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       url: `${opts.siteUrl}/news/${slug}`,
       siteUrl: opts.siteUrl,
     })
-    await deliver(id, payload, `${tag} item ${String(id)}`)
+    await deliver(
+      { itemId: id, reporter: reporterId, payload, isGameRecap: false },
+      `${tag} item ${String(id)}`,
+    )
     return sendingStopped ? 'end' : 'go'
   }
 }

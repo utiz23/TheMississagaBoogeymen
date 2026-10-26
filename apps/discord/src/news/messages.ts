@@ -1,4 +1,5 @@
 import type { Reporter } from '@eanhl/db/news'
+import { talkButton, type BotMessage } from '../bot-rest.ts'
 import { escapeMarkdown } from '../message.ts'
 
 export interface NewsWebhookPayload {
@@ -38,6 +39,17 @@ export function buildArticlePayload(args: {
 }): NewsWebhookPayload {
   const content = `**${escapeMarkdown(args.headline)}**\n${escapeMarkdown(args.dek)}\n${args.url}`
   return base(args.reporter, args.siteUrl, content)
+}
+
+/**
+ * The same post sent as the reporter's bot (PRESS_MODE=live). The bot has its
+ * own name and avatar, so only the content and the no-mentions rule carry over.
+ * `talkItemId` set (a game recap only) adds the "Talk to the press" button.
+ */
+export function toBotMessage(payload: NewsWebhookPayload, talkItemId: number | null): BotMessage {
+  const msg: BotMessage = { content: payload.content, allowed_mentions: payload.allowed_mentions }
+  if (talkItemId !== null) msg.components = [{ type: 1, components: [talkButton(talkItemId)] }]
+  return msg
 }
 
 /** `<key>-<lowercase words joined by ->`, ASCII only, at most 80 characters. */

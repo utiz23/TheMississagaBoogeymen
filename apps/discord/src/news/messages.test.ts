@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { REPORTERS } from '@eanhl/db/news'
-import { articleSlug, buildArticlePayload, buildNewsPostPayload } from './messages.ts'
+import { articleSlug, buildArticlePayload, buildNewsPostPayload, toBotMessage } from './messages.ts'
 
 const SITE = 'https://boogeymen.app'
 
@@ -66,4 +66,37 @@ void test('articleSlug', () => {
   assert.ok(!long.endsWith('-'))
   assert.match(long, /^[a-z0-9-]+$/)
   assert.equal(articleSlug('2026-10-12', '???'), '2026-10-12')
+})
+
+void test('toBotMessage: the recap gets the talk button, with the same content and no mentions', () => {
+  const p = buildNewsPostPayload({
+    reporter: REPORTERS.mercer,
+    text: '@everyone x_Sniper_x scored.',
+    replyToName: null,
+    siteUrl: SITE,
+  })
+  const m = toBotMessage(p, 5)
+  assert.equal(m.content, p.content)
+  assert.deepEqual(m.allowed_mentions, { parse: [] })
+  assert.deepEqual(m.components, [
+    {
+      type: 1,
+      components: [{ type: 2, style: 1, label: 'Talk to the press', custom_id: 'press:talk:5' }],
+    },
+  ])
+  // The bot has its own name and avatar: the webhook fields are not sent.
+  assert.ok(!('username' in m))
+  assert.ok(!('avatar_url' in m))
+})
+
+void test('toBotMessage: without an item id there are no components', () => {
+  const p = buildNewsPostPayload({
+    reporter: REPORTERS.barlow,
+    text: 'Fraud.',
+    replyToName: 'Dex Mercer',
+    siteUrl: SITE,
+  })
+  const m = toBotMessage(p, null)
+  assert.deepEqual(m, { content: p.content, allowed_mentions: { parse: [] } })
+  assert.ok(!('components' in m))
 })

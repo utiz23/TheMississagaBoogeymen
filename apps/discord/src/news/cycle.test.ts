@@ -17,6 +17,9 @@ import {
   runNewsCycle,
   type NewsCycleOptions,
   type NewsDeps,
+  type NewsOutgoing,
+  type NewsRemoval,
+  type NewsSent,
   type NewsStore,
 } from './cycle.ts'
 import { assignGamePosts, type ActivityKind } from './assign.ts'
@@ -29,6 +32,20 @@ import { NewsJobError, NewsRetryableError, NewsStopError, type ModelCall } from 
 
 const NOW = new Date('2026-10-24T12:00:00Z') // a Saturday
 const MIN = 60_000
+
+/** A webhook send result, as the webhook adapter returns it. */
+const viaWebhook = (messageId: string): NewsSent => ({ messageId, via: 'webhook', channelId: null })
+
+type Deletion = Awaited<ReturnType<NewsStore['listDiscordDeletions']>>[number]
+
+/** A deleted item whose webhook message is still on Discord. */
+const webhookDeletion = (id: number): Deletion => ({
+  id,
+  messageId: `m${String(id)}`,
+  via: 'webhook',
+  channelId: null,
+  reporter: 'barlow',
+})
 
 type Job = {
   id: number
@@ -165,6 +182,8 @@ function harness(
   const usage: NewNewsUsage[] = []
   const stances: NewNewsStance[] = []
   const sent: NewsWebhookPayload[] = []
+  const outgoing: NewsOutgoing[] = []
+  const removed: NewsRemoval[] = []
   const dry: { key: string; payload: NewsWebhookPayload }[] = []
   const writerCalls: string[] = []
   const state = {
@@ -173,7 +192,7 @@ function harness(
     candidates: over.candidates ?? [],
     nights: [] as { night: string; lastEnd: Date }[],
     nightGames: {} as Record<string, number>,
-    deletions: [] as { id: number; messageId: string }[],
+    deletions: [] as Deletion[],
     disabled: [] as ReporterId[],
   }
   let nextJob = 1
@@ -271,10 +290,12 @@ function harness(
       events.push(`insert:${String(id)}`)
       return id
     },
-    markNewsItemPosted: async (id, messageId) => {
+    markNewsItemPosted: async (id, messageId, via, channelId) => {
       const i = items.get(id)!
       i.discordStatus = 'posted'
       i.discordMessageId = messageId
+      i.discordVia = via
+      i.discordChannelId = channelId
       events.push(`posted:${String(id)}`)
     },
     markNewsItemFailed: async (id, error) => {
@@ -397,12 +418,16 @@ function harness(
       writerCalls.push(req.purpose)
       return goodWriter(req)
     },
-    send: async (payload) => {
-      sent.push(payload)
-      events.push(`send:${payload.username}`)
-      return `m${String(msg++)}`
+    send: async (m) => {
+      outgoing.push(m)
+      sent.push(m.payload)
+      events.push(`send:${m.payload.username}`)
+      return viaWebhook(`m${String(msg++)}`)
     },
-    remove: async (messageId) => void events.push(`remove:${messageId}`),
+    remove: async ({ messageId, via, channelId, reporter }) => {
+      removed.push({ messageId, via, channelId, reporter })
+      events.push(`remove:${messageId}`)
+    },
     writeDryRun: async (key, payload) => {
       dry.push({ key, payload })
       events.push(`dry:${key}`)
@@ -418,7 +443,21 @@ function harness(
     monthlyLimitUsd: 10,
     state: createNewsCycleState(),
   }
-  return { deps, opts, state, events, jobs, items, usage, sent, dry, writerCalls, stances }
+  return {
+    deps,
+    opts,
+    state,
+    events,
+    jobs,
+    items,
+    usage,
+    sent,
+    outgoing,
+    removed,
+    dry,
+    writerCalls,
+    stances,
+  }
 }
 
 const logs = (events: string[]) => events.filter((e) => e.startsWith('log:'))
@@ -598,7 +637,7 @@ void test('game: WebhookOutcomeUnknownError ⇒ item not marked failed and never
           throw new WebhookOutcomeUnknownError(
             'Discord webhook request outcome unknown (TimeoutError)',
           )
-        return 'm9'
+        return viaWebhook('m9')
       },
     },
   })
@@ -620,7 +659,7 @@ void test('game: HTTP 429 ⇒ sending stops for the pass, the unsent post is kep
       send: async () => {
         calls++
         if (calls === 1) throw new Error('Discord webhook HTTP 429')
-        return `m${String(calls)}`
+        return viaWebhook(`m${String(calls)}`)
       },
     },
   })
@@ -686,7 +725,7 @@ void test('undelivered: not retried in a dry run (nothing is ever sent in test m
 void test('gates: disabled ⇒ only deletions run', async () => {
   const h = harness({ candidates: [501] })
   h.state.enabled = false
-  h.state.deletions = [{ id: 7, messageId: 'm7' }]
+  h.state.deletions = [webhookDeletion(7)]
   await runNewsCycle(h.deps, h.opts)
   assert.deepEqual(
     h.events.filter((e) => !e.startsWith('log:')),
@@ -999,10 +1038,7 @@ void test('week: not on a Tuesday', async () => {
 
 void test('deletions: a deleted posted item ⇒ remove(messageId) then markDiscordDeleted', async () => {
   const h = harness()
-  h.state.deletions = [
-    { id: 7, messageId: 'm7' },
-    { id: 8, messageId: 'm8' },
-  ]
+  h.state.deletions = [webhookDeletion(7), webhookDeletion(8)]
   const s = await runNewsCycle(h.deps, h.opts)
   const ev = h.events.filter((e) => /^(remove|deleted|pause):/.test(e))
   assert.deepEqual(ev, ['remove:m7', 'deleted:7', 'pause:2100', 'remove:m8', 'deleted:8'])
@@ -1017,7 +1053,7 @@ void test('deletions: a failed Discord delete is not marked (retried next pass) 
       },
     },
   })
-  h.state.deletions = [{ id: 7, messageId: 'm7' }]
+  h.state.deletions = [webhookDeletion(7)]
   await runNewsCycle(h.deps, h.opts)
   assert.ok(!h.events.includes('deleted:7'))
   assert.ok(logs(h.events).some((l) => l.includes('HTTP 500')))
@@ -1026,9 +1062,92 @@ void test('deletions: a failed Discord delete is not marked (retried next pass) 
 void test('deletions: run while out of money too', async () => {
   const h = harness()
   h.state.spend = 50
-  h.state.deletions = [{ id: 7, messageId: 'm7' }]
+  h.state.deletions = [webhookDeletion(7)]
   await runNewsCycle(h.deps, h.opts)
   assert.ok(h.events.includes('deleted:7'))
+})
+
+void test('deletions: a bot message ⇒ remove gets its channel and reporter', async () => {
+  const h = harness()
+  h.state.deletions = [
+    { id: 9, messageId: 'b9', via: 'bot', channelId: '123456789012345678', reporter: 'quill' },
+  ]
+  await runNewsCycle(h.deps, h.opts)
+  assert.deepEqual(h.removed, [
+    { messageId: 'b9', via: 'bot', channelId: '123456789012345678', reporter: 'quill' },
+  ])
+  assert.ok(h.events.includes('deleted:9'))
+})
+
+// ── Bot delivery (news desk bots, Task 4) ───────────────────────────────────
+
+void test('bots: a game recap is sent with isGameRecap, the reply without', async () => {
+  const h = harness({ candidates: [REPLY_GAME] })
+  await runNewsCycle(h.deps, h.opts)
+  const [recap, reply] = [h.items.get(1)!, h.items.get(2)!]
+  assert.equal(recap.isGameRecap, true)
+  assert.equal(reply.isGameRecap, false)
+  assert.deepEqual(
+    h.outgoing.map((m) => [m.itemId, m.reporter, m.isGameRecap]),
+    [
+      [recap.id, recap.reporter, true],
+      [reply.id, reply.reporter, false],
+    ],
+  )
+})
+
+void test('bots: markNewsItemPosted stores the via and channel that send returned', async () => {
+  const h = harness({
+    candidates: [REPLY_GAME],
+    deps: {
+      send: async (m) => ({
+        messageId: `b${String(m.itemId)}`,
+        via: 'bot',
+        channelId: '123456789012345678',
+      }),
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  const recap = h.items.get(1)!
+  assert.equal(recap.discordMessageId, 'b1')
+  assert.equal(recap.discordVia, 'bot')
+  assert.equal(recap.discordChannelId, '123456789012345678')
+})
+
+void test('bots: a retried recap keeps isGameRecap; a retried correction and article do not get it', async () => {
+  const h = harness()
+  const recap = await h.deps.store.insertNewsItem({
+    kind: 'post',
+    reporter: 'mercer',
+    body: 'Recap.',
+    isGameRecap: true,
+  })
+  const correction = await h.deps.store.insertNewsItem({
+    kind: 'post',
+    reporter: 'barlow',
+    body: 'Correction.',
+    isCorrection: true,
+  })
+  const article = await h.deps.store.insertNewsItem({
+    kind: 'article',
+    reporter: 'quill',
+    body: 'Body.',
+    headline: 'Head',
+    dek: 'Dek.',
+    slug: '2026-10-12-head',
+  })
+  for (const id of [recap, correction, article]) {
+    await h.deps.store.markNewsItemFailed(id, 'Discord webhook HTTP 500')
+  }
+  await runNewsCycle(h.deps, h.opts)
+  assert.deepEqual(
+    h.outgoing.map((m) => [m.itemId, m.reporter, m.isGameRecap]),
+    [
+      [recap, 'mercer', true],
+      [correction, 'barlow', false],
+      [article, 'quill', false],
+    ],
+  )
 })
 
 // ── Fix round 1 ─────────────────────────────────────────────────────────────
@@ -1097,7 +1216,7 @@ void test('gates: NewsRetryableError ⇒ no writing for 15 min; deletions and un
   assert.equal(h.jobs.get('game:501')?.attempts, 1)
   down = false
   now = new Date(NOW.getTime() + 14 * MIN)
-  h.state.deletions = [{ id: 7, messageId: 'm7' }]
+  h.state.deletions = [webhookDeletion(7)]
   const b = await h.deps.store.insertNewsItem({ kind: 'post', reporter: 'barlow', body: 'X.' })
   await h.deps.store.markNewsItemFailed(b, 'Discord webhook HTTP 500')
   await runNewsCycle(h.deps, h.opts)
@@ -1735,11 +1854,11 @@ void test('C3b.4: an unknown send outcome is not sent again; a normal game and a
   const clock = { t: NOW }
   let calls = 0
   const h = hugeHarness(clock, {
-    send: async (payload) => {
+    send: async ({ payload }) => {
       calls++
       // Calls 1-3: the recap and the two articles of the first pass. 4: the first waiting post.
       if (calls === 4) throw new WebhookOutcomeUnknownError('timeout after the request left')
-      return `m${String(calls)}`
+      return viaWebhook(`m${String(calls)}`)
     },
   })
   await runNewsCycle(h.deps, h.opts)
@@ -1764,10 +1883,10 @@ void test('I2: a Discord 429 after the posts of a big game does not lose its art
   const clock = { t: NOW }
   let calls = 0
   const h = hugeHarness(clock, {
-    send: async (payload) => {
+    send: async () => {
       calls++
       if (calls === 1) throw new Error('Discord webhook HTTP 429')
-      return `m${String(calls)}`
+      return viaWebhook(`m${String(calls)}`)
     },
   })
   await runNewsCycle(h.deps, h.opts)
@@ -1909,7 +2028,7 @@ void test('fix: an unknown send outcome on a due post is marked skipped, never l
     send: async () => {
       calls++
       if (calls === 4) throw new WebhookOutcomeUnknownError('timeout after the request left')
-      return `m${String(calls)}`
+      return viaWebhook(`m${String(calls)}`)
     },
   })
   await runNewsCycle(h.deps, h.opts)
@@ -1929,11 +2048,11 @@ void test("fix: a game's later posts never overtake its recap while the recap is
   let calls = 0
   const names: string[] = []
   const h = hugeHarness(clock, {
-    send: async (payload) => {
+    send: async ({ payload }) => {
       calls++
       if (calls === 1) throw new Error('Discord webhook HTTP 500') // the recap fails
       if (!payload.content.includes('/news/')) names.push(payload.username)
-      return `m${String(calls)}`
+      return viaWebhook(`m${String(calls)}`)
     },
   })
   await runNewsCycle(h.deps, h.opts)
