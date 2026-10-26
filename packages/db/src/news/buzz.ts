@@ -43,13 +43,13 @@ export const BUZZ_WEIGHTS = {
   /** A game-tying goal in the last 2 minutes of the 3rd, either side. */
   lateEqualizer: 2,
   /** The club won after blowing a lead. */
-  winAfterBlown: 1,
+  winAfterBlown: 1.5,
   hatTrick: 3,
   fivePoints: 3,
   /** At most this much from one player's line ... */
-  playerMax: 4,
+  playerMax: 5,
   /** ... and from all player lines of the game together. */
-  playersMax: 5,
+  playersMax: 6,
   bigForHim: 0.5,
   careerHigh: 2,
   seasonHigh: 0.5,
@@ -91,7 +91,7 @@ export const BUZZ_MODE_FACTOR: Readonly<Record<'3s' | '6s' | 'none', number>> = 
 }
 
 /** The lowest score of each level (a new club record is always historic). */
-export const BUZZ_CUTOFFS = { normal: 4, big: 8, huge: 11.5 } as const
+export const BUZZ_CUTOFFS = { normal: 6, big: 10.5, huge: 14 } as const
 
 /** Posts per level, as weighted choices (spec §12.14). */
 export const BUZZ_POSTS: Readonly<Record<BuzzLevel, readonly (readonly [number, number])[]>> = {

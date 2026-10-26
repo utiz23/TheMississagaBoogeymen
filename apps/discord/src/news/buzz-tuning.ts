@@ -5,7 +5,9 @@
  * targets, posts and articles per game, and the score quantiles that would
  * hit the target shares. Counts only, no names. No database, no network.
  *
- *   node apps/discord/src/news/buzz-tuning.ts .superpowers/backfill-nhl26/jobs
+ *   node apps/discord/src/news/buzz-tuning.ts .superpowers/backfill-nhl26-tune/jobs [--games 249,250]
+ *
+ * `--games` also prints the level, score and reasons of those matches.
  *
  * Edit `BUZZ_WEIGHTS` / `BUZZ_CUTOFFS` in packages/db/src/news/buzz.ts, rebuild
  * @eanhl/db and run again. Job files of an older contract are counted as
@@ -20,6 +22,7 @@ import {
   BUZZ_TARGET_SHARE,
   parseNewsFactsResponse,
   planBuzz,
+  type NewsGameFacts,
   type BuzzLevel,
   type NewsFacts,
 } from '@eanhl/db/news'
@@ -85,7 +88,26 @@ export function formatDistribution(d: BuzzDistribution, unreadable: number): str
   return lines
 }
 
-function main(dir: string): void {
+/** One line per asked match: level, posts, score and the reasons (no names). */
+export function gameLines(sheets: readonly NewsFacts[], ids: readonly number[]): string[] {
+  const out: string[] = []
+  for (const id of ids) {
+    const facts = sheets.find((f) => f.kind === 'game' && f.games.some((g) => g.matchId === id))
+    const g: NewsGameFacts | undefined = facts?.games.find((x) => x.matchId === id)
+    if (facts === undefined || g === undefined) {
+      out.push(`  g${String(id)}: not found`)
+      continue
+    }
+    const p = planBuzz(g, facts)
+    const reasons = p.reasons.map((r) => (r.startsWith('player ') ? 'player' : r))
+    out.push(
+      `  g${String(id)} ${g.gameMode ?? '-'} ${String(g.scoreFor)}-${String(g.scoreAgainst)} ${g.result}${g.overtime ? ' OT' : ''}: ${p.level} (${String(p.posts)} posts, ${String(p.articles.length)} articles), score ${String(p.score)} — ${reasons.join(', ')}`,
+    )
+  }
+  return out
+}
+
+function main(dir: string, ids: readonly number[]): void {
   const sheets: NewsFacts[] = []
   let unreadable = 0
   for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
@@ -97,8 +119,12 @@ function main(dir: string): void {
     }
   }
   for (const line of formatDistribution(buzzDistribution(sheets), unreadable)) console.log(line)
+  for (const line of gameLines(sheets, ids)) console.log(line)
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.argv[2] ?? '.superpowers/backfill-nhl26/jobs')
+  const at = process.argv.indexOf('--games')
+  const ids =
+    at < 0 ? [] : (process.argv[at + 1] ?? '').split(',').map(Number).filter(Number.isSafeInteger)
+  main(process.argv[2] ?? '.superpowers/backfill-nhl26-tune/jobs', ids)
 }

@@ -94,10 +94,14 @@ void test('buzz: a routine win is quiet; labels raise it; 6s weighs more than 3s
   assert.equal(planBuzz(game(), sheet).posts, 1)
   const ot = game({ overtime: true, context: { ...game().context!, margin: 'close' } })
   assert.equal(buzzScore(ot, sheet).score, 3)
-  // An overtime one-goal game alone stays quiet (tuned cut-offs); with an upset it is normal.
+  // An overtime one-goal game alone stays quiet (tuned cut-offs); a 6s one with an upset is normal.
   assert.equal(buzzLevel(3, ot), 'quiet')
-  const otUpset = { ...ot, context: { ...ot.context!, surprise: 'upset' as const } }
-  assert.equal(buzzScore(otUpset, sheet).score, 5)
+  const otUpset = {
+    ...ot,
+    gameMode: '6s' as const,
+    context: { ...ot.context!, surprise: 'upset' as const },
+  }
+  assert.equal(buzzScore(otUpset, sheet).score, 6.25)
   assert.equal(planBuzz(otUpset, sheet).level, 'normal')
   assert.equal(planBuzz(otUpset, sheet).posts, 2)
   assert.deepEqual(planBuzz(otUpset, sheet).articles, [])
@@ -108,7 +112,7 @@ void test('buzz: a routine win is quiet; labels raise it; 6s weighs more than 3s
   assert.ok(six > three)
 })
 
-void test('buzz: an 11-2 blowout with a hat trick and 5 points is big; a record is historic; ended early is quiet', () => {
+void test('buzz: an 11-2 rout of a routine opponent with a hat trick and 5 points; an upset rout is big; a record is historic; ended early is quiet', () => {
   const big = game({
     gameMode: '6s',
     scoreFor: 11,
@@ -118,11 +122,15 @@ void test('buzz: an 11-2 blowout with a hat trick and 5 points is big; a record 
   })
   const s = buzzScore(big, sheet)
   // blowout 3 + many goals 1 (a routine opponent: capped at 3) + player (hat trick 3 +
-  // 5 points 3, capped at 4) = 7, x1.25 for 6s
-  assert.equal(s.score, 8.75)
-  assert.ok(s.score >= BUZZ_CUTOFFS.big && s.score < BUZZ_CUTOFFS.huge)
-  assert.equal(planBuzz(big, sheet).level, 'big')
-  assert.deepEqual(planBuzz(big, sheet).articles, ['game'])
+  // 5 points 3, capped at 5) = 8, x1.25 for 6s: a normal game (two posts) on the tuned cut-offs.
+  assert.equal(s.score, 10)
+  assert.equal(planBuzz(big, sheet).level, 'normal')
+  // The same rout as an upset: no cap (blowout 3 + many goals 1 + upset 2 + player 5) = 11 x 1.25.
+  const upset = { ...big, context: { ...big.context!, surprise: 'upset' as const } }
+  assert.equal(buzzScore(upset, sheet).score, 13.75)
+  assert.ok(buzzScore(upset, sheet).score >= BUZZ_CUTOFFS.big)
+  assert.equal(planBuzz(upset, sheet).level, 'big')
+  assert.deepEqual(planBuzz(upset, sheet).articles, ['game'])
   const record = game({
     newRecords: [{ stat: 'goals', name: 'Skater A', value: 62, previous: 61 } as never],
   })
@@ -140,11 +148,11 @@ void test('buzz: post counts per level and the huge articles; reproducible per m
   const huge = game({
     overtime: true,
     gameMode: '6s',
-    context: { ...game().context!, margin: 'close', result: 'turnaround', surprise: 'big upset' },
+    context: { ...game().context!, margin: 'close', result: 'panic', surprise: 'big upset' },
     players: [line({ goals: 3, points: 3 })],
   })
-  // overtime 2 + close 1 + turnaround 2 + big upset 3 + hat trick 3 = 11 x 1.25
-  assert.equal(buzzScore(huge, sheet).score, 13.75)
+  // overtime 2 + close 1 + panic 3 + big upset 3 + hat trick 3 = 12 x 1.25
+  assert.equal(buzzScore(huge, sheet).score, 15)
   for (let id = 1; id < 60; id++) {
     const p = planBuzz({ ...huge, matchId: id }, sheet)
     assert.equal(p.level, 'huge')
@@ -158,6 +166,8 @@ void test('buzz: post counts per level and the huge articles; reproducible per m
     const p = planBuzz(
       game({
         matchId: id,
+        gameMode: '6s',
+        overtime: true,
         context: { ...game().context!, margin: 'blowout', surprise: 'big upset', result: 'blip' },
       }),
       sheet,
