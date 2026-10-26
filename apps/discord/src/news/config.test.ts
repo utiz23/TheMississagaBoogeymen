@@ -20,7 +20,7 @@ void test('dry run (unset) with no webhook ⇒ ok, defaults applied', () => {
   assert.equal(r.config.outDir, '/tmp/news-out')
   assert.equal(r.config.pollIntervalMs, 60000)
   assert.equal(r.config.model, 'claude-opus-5-5')
-  assert.equal(r.config.monthlyLimitUsd, 10)
+  assert.equal(r.config.monthlyLimitUsd, 20)
   assert.equal(r.config.apiKeyPresent, true)
 })
 
@@ -80,7 +80,7 @@ void test('numbers: bad values fall back to defaults, good ones are used', () =>
   })
   assert.ok(bad.ok)
   assert.equal(bad.config.pollIntervalMs, 60000)
-  assert.equal(bad.config.monthlyLimitUsd, 10)
+  assert.equal(bad.config.monthlyLimitUsd, 20)
   const good = loadNewsConfig({
     ...BASE,
     NEWS_POLL_INTERVAL_MS: '30000',

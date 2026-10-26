@@ -71,7 +71,7 @@ mute the news channel.
 | Roast limits             | Three levels per player; **all players start at "Full press"** (§7.3)                               | levels Claude's call; start level operator          |
 | Player names             | The **profile name** (`player_profiles.player_name`); the gamertag only when no profile name is set | operator; fallback Claude's call                    |
 | Quotes                   | No invented quotes from teammates; reporters may quote each other (§5.1)                            | Claude's suggestion, not objected to                |
-| Monthly limit            | **$10 a month**, as the spend limit of its own Console workspace                                    | operator                                            |
+| Monthly limit            | **$20 a month** (was $10; §12.18-3), as the spend limit of its own Console workspace                | operator                                            |
 | Delete                   | Admin can delete any item; it goes from the site and from Discord                                   | Claude's call                                       |
 | Fact check               | Automatic check before posting; one retry; else skip (§7.1)                                         | Claude's call                                       |
 | Cost cap                 | Monthly spending limit; desk pauses when reached (§7.5)                                             | Claude's call                                       |

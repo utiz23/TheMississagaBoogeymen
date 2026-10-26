@@ -8,11 +8,11 @@ import {
   pressLevelSetByLabel,
 } from './admin-display.ts'
 
-void test('the monthly limit defaults to 10 unless a positive number is set', () => {
-  assert.equal(monthlyLimitUsd(undefined), 10)
-  assert.equal(monthlyLimitUsd(''), 10)
-  assert.equal(monthlyLimitUsd('-3'), 10)
-  assert.equal(monthlyLimitUsd('abc'), 10)
+void test('the monthly limit defaults to 20 unless a positive number is set', () => {
+  assert.equal(monthlyLimitUsd(undefined), 20)
+  assert.equal(monthlyLimitUsd(''), 20)
+  assert.equal(monthlyLimitUsd('-3'), 20)
+  assert.equal(monthlyLimitUsd('abc'), 20)
   assert.equal(monthlyLimitUsd('7.5'), 7.5)
 })
 

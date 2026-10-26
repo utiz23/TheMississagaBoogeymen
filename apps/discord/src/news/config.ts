@@ -66,7 +66,7 @@ export function loadNewsConfig(env: Record<string, string | undefined>): NewsCon
       outDir: env['NEWS_OUT_DIR']?.trim() || '/tmp/news-out',
       pollIntervalMs: intOr(env['NEWS_POLL_INTERVAL_MS'], 60000),
       model: env['NEWS_MODEL']?.trim() || 'claude-opus-5-5',
-      monthlyLimitUsd: amountOr(env['NEWS_MONTHLY_LIMIT_USD'], 10),
+      monthlyLimitUsd: amountOr(env['NEWS_MONTHLY_LIMIT_USD'], 20),
       apiKeyPresent,
     },
   }

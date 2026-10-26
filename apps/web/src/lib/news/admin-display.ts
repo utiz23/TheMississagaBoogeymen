@@ -1,9 +1,9 @@
 import type { NewsItemRow, PressLevelSetBy } from '@eanhl/db/schema'
 
-/** The news service's monthly limit in USD: a positive number, else 10 (same rule as the service). */
+/** The news service's monthly limit in USD: a positive number, else 20 (same rule as the service). */
 export function monthlyLimitUsd(value: string | undefined): number {
   const n = value === undefined || value.trim() === '' ? NaN : Number(value)
-  return Number.isFinite(n) && n > 0 ? n : 10
+  return Number.isFinite(n) && n > 0 ? n : 20
 }
 
 /** What the admin list shows for an item: the headline of an article, else the start of the text. */
