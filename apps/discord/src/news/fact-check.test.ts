@@ -1604,3 +1604,20 @@ void test('quotes: two quotes with the same words need two quoted spans', () => 
     [],
   )
 })
+
+void test('fan follow-ups: a post written from a night sheet is checked as a post, not an article', () => {
+  const post = (text: string) =>
+    checkGamePosts(
+      [{ reporter: 'mercer', text, mentions: [], clubs: [], criticized: [] }],
+      night,
+      FORBIDDEN,
+      [],
+      { replies: [true] },
+    )
+  assert.deepEqual(post('Shots were 14 to 29. That is the story.'), { ok: true })
+  assert.ok(
+    problems(post(`Shots were 14 to 29. ${'That is the story. '.repeat(16)}`)).some((p) =>
+      /The post has \d+ characters/.test(p),
+    ),
+  )
+})

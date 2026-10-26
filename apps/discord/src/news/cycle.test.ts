@@ -1,6 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import type { NewNewsItem, NewNewsStance, NewNewsUsage, NewsItemRow } from '@eanhl/db/queries'
+import type {
+  NewNewsItem,
+  NewNewsStance,
+  NewNewsUsage,
+  NewsItemRow,
+  NewsJobKind,
+} from '@eanhl/db/queries'
 import {
   REPORTER_IDS,
   REPORTERS,
@@ -28,6 +34,7 @@ import { classifyGame } from './situation.ts'
 import type { NewsWebhookPayload } from './messages.ts'
 import { ARTICLE_SCHEMA, FEATURE_SCHEMA, GAME_POSTS_SCHEMA, REVIEW_SCHEMA } from './outputs.ts'
 import { oct12Response } from './test-fixtures.ts'
+import { itemRow } from '../press/test-fakes.ts'
 import { NEWS_RULES_VERSION } from './rules-version.ts'
 import { NewsJobError, NewsRetryableError, NewsStopError, type ModelCall } from './writer.ts'
 
@@ -195,6 +202,7 @@ function harness(
     nightGames: {} as Record<string, number>,
     deletions: [] as Deletion[],
     disabled: [] as ReporterId[],
+    triggers: [] as { itemId: number; night: string; isTest: boolean }[],
   }
   let nextJob = 1
   let nextItem = 1
@@ -406,6 +414,39 @@ function harness(
     recordNewsUsage: async (row) => void usage.push(row),
     nightHasActiveScrum: async () => false,
     nightPressMaterial: async () => ({ quotes: [], gmNotes: [] }),
+    listReactionTriggersWithoutJob: async (includeTest, limit) =>
+      state.triggers
+        .filter(
+          (t) =>
+            (includeTest || !t.isTest) &&
+            items.get(t.itemId)?.deletedAt === null &&
+            open(jobs.get(`reaction:${String(t.itemId)}`)),
+        )
+        .slice(0, limit)
+        .map((t) => ({
+          ...t,
+          matchId: items.get(t.itemId)!.matchId,
+          reporter: items.get(t.itemId)!.reporter,
+        })),
+    getReactionItem: async (id) => {
+      const i = items.get(id)
+      if (i === undefined || i.deletedAt !== null) return null
+      const job = [...jobs.values()].find((j) => j.id === i.jobId)
+      return {
+        id: i.id,
+        kind: i.kind,
+        reporter: i.reporter,
+        matchId: i.matchId,
+        night: i.night,
+        headline: i.headline,
+        dek: i.dek,
+        body: i.body,
+        isTest: i.isTest,
+        isCorrection: i.isCorrection,
+        jobKind: (job?.kind ?? null) as NewsJobKind | null,
+        createdAt: i.createdAt,
+      }
+    },
     ...over.store,
   }
 
@@ -2295,4 +2336,156 @@ void test('press: GM notes are matched to the sheet by player id, not by display
     kept.gmNotes.map((n) => n.id),
     [2, 3],
   )
+})
+
+// ── Fan reactions (news desk bots) ──────────────────────────────────────────
+
+/** An original item the fans reacted to, with a trigger. */
+function reacted(
+  h: ReturnType<typeof harness>,
+  id: number,
+  over: Partial<NewsItemRow> = {},
+  isTest = false,
+): void {
+  h.items.set(id, itemRow({ id, matchId: 501, night: '2026-10-12', isTest, ...over }))
+  h.state.triggers.push({ itemId: id, night: '2026-10-12', isTest })
+}
+
+void test('reactions: one reply post to the reacted item, by another reporter, sent with the reply prefix', async () => {
+  const h = harness()
+  reacted(h, 500, { reporter: 'barlow' })
+  const s = await runNewsCycle(h.deps, h.opts)
+  assert.ok(h.events.includes('fetch:game:501'))
+  assert.equal(h.jobs.get('reaction:500')?.status, 'done')
+  const written = [...h.items.values()].filter((i) => i.id !== 500)
+  assert.equal(written.length, 1)
+  const f = written[0]!
+  assert.equal(f.kind, 'post')
+  assert.equal(f.replyTo, 500)
+  assert.equal(f.matchId, 501)
+  assert.equal(f.night, '2026-10-12')
+  assert.equal(f.isGameRecap, false)
+  assert.equal(f.isTest, false)
+  assert.equal(f.rulesVersion, NEWS_RULES_VERSION)
+  assert.notEqual(f.reporter, 'barlow')
+  assert.notEqual(f.reporter, 'rink')
+  assert.equal(f.discordStatus, 'posted')
+  assert.ok(h.sent[0]!.content.startsWith('↪ to Wade Barlow: '))
+  assert.equal(h.outgoing[0]!.isGameRecap, false)
+  assert.deepEqual(
+    h.usage.map((u) => [u.jobId, u.purpose]),
+    [
+      [1, 'write'],
+      [1, 'review'],
+    ],
+  )
+  assert.equal(s.posted, 1)
+})
+
+void test('reactions: never the original reporter, never rink, never a switched-off reporter', async () => {
+  for (const original of REPORTER_IDS) {
+    for (let id = 600; id < 606; id++) {
+      const h = harness()
+      h.state.disabled = ['halberd']
+      reacted(h, id, { reporter: original })
+      await runNewsCycle(h.deps, h.opts)
+      const f = [...h.items.values()].find((i) => i.replyTo === id)
+      assert.ok(f, `a follow-up to ${original}`)
+      assert.ok(!['rink', 'halberd', original].includes(f.reporter), `${original} -> ${f.reporter}`)
+    }
+  }
+})
+
+void test('reactions: at 80% of the monthly limit the pass does nothing', async () => {
+  const h = harness()
+  reacted(h, 500)
+  h.state.spend = 8 // of 10
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(!h.events.some((e) => e.startsWith('claim:reaction') || e.startsWith('fetch:')))
+  assert.deepEqual(h.writerCalls, [])
+})
+
+void test("reactions: a trigger runs only when its test flag is the cycle's dry run", async () => {
+  const live = harness()
+  reacted(live, 500, {}, true)
+  await runNewsCycle(live.deps, live.opts)
+  assert.equal(live.jobs.get('reaction:500'), undefined)
+
+  const dry = harness()
+  reacted(dry, 500, {}, false)
+  reacted(dry, 501, {}, true)
+  await runNewsCycle(dry.deps, { ...dry.opts, dryRun: true })
+  assert.equal(dry.jobs.get('reaction:500'), undefined)
+  assert.equal(dry.jobs.get('reaction:501')?.status, 'done')
+  const f = [...dry.items.values()].find((i) => i.replyTo === 501)!
+  assert.equal(f.isTest, true)
+  assert.equal(dry.sent.length, 0)
+  assert.equal(dry.dry.length, 1)
+})
+
+void test('reactions: a night article is followed up from its night sheet (headline and dek)', async () => {
+  const h = harness()
+  reacted(h, 500, {
+    kind: 'article',
+    matchId: null,
+    reporter: 'quill',
+    headline: 'Net gain',
+    dek: 'A night of saves.',
+  })
+  const prompts: string[] = []
+  const writer = h.deps.writer
+  h.deps.writer = async (req) => {
+    if (req.purpose === 'write') prompts.push(req.user)
+    return writer(req)
+  }
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(h.events.includes('fetch:night:2026-10-12'), JSON.stringify(logs(h.events)))
+  assert.equal(h.jobs.get('reaction:500')?.status, 'done', JSON.stringify(logs(h.events)))
+  assert.ok(prompts[0]!.includes('"Net gain — A night of saves."'))
+  const f = [...h.items.values()].find((i) => i.replyTo === 500)!
+  assert.equal(f.matchId, null)
+  assert.equal(f.night, '2026-10-12')
+})
+
+void test('reactions: no follow-up to a correction or to a follow-up (job skipped)', async () => {
+  const h = harness()
+  reacted(h, 500, { isCorrection: true })
+  h.jobs.set('reaction:400', {
+    id: 77,
+    kind: 'reaction',
+    key: '400',
+    status: 'done',
+    attempts: 1,
+    error: null,
+  })
+  reacted(h, 501, { jobId: 77 })
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('reaction:500')?.status, 'skipped')
+  assert.equal(h.jobs.get('reaction:501')?.status, 'skipped')
+  assert.deepEqual(h.writerCalls, [])
+})
+
+void test('reactions: a fact sheet fetch failure leaves the trigger for the next pass', async () => {
+  const h = harness({
+    deps: {
+      fetchFacts: async () => {
+        throw new Error('web 503')
+      },
+    },
+  })
+  reacted(h, 500)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('reaction:500'), undefined)
+  assert.ok(logs(h.events).some((e) => e.includes('reaction 500: facts unavailable')))
+})
+
+void test('reactions: the pass runs after the night articles', async () => {
+  const h = harness()
+  h.state.nights = [{ night: '2026-10-12', lastEnd: new Date(NOW.getTime() - 120 * MIN) }]
+  h.state.nightGames = { '2026-10-12': 1 }
+  reacted(h, 500)
+  await runNewsCycle(h.deps, h.opts)
+  const night = h.events.indexOf('claim:night:2026-10-12')
+  const reaction = h.events.indexOf('claim:reaction:500')
+  assert.ok(night >= 0 && reaction > night)
 })

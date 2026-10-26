@@ -7,6 +7,8 @@ import {
   buildFeatureUserPrompt,
   spotlightPlayer,
   buildGameUserPrompt,
+  buildReactionUserPrompt,
+  reactionItemText,
   buildReviewPrompt,
   buildSystemPrompt,
   reporterVoice,
@@ -1029,5 +1031,59 @@ void test('system prompt rule 6: teammate quotes only from the PRESS ROOM answer
     s.includes(
       '6. No invented quotes. Teammate quotes only from the PRESS ROOM answers, as described there.',
     ),
+  )
+})
+
+void test('fan reaction prompt: one reply post by another reporter, one new point, the usual limits', () => {
+  const f = oct12Facts('game')
+  const take = {
+    id: 9,
+    reporter: 'mercer' as const,
+    critics: [],
+    defender: null,
+    playerId: 2,
+    player: 'Skater B',
+    take: 'Invented: he hides in the big games.',
+    spread: 'a few' as const,
+    dataAngle: null,
+    intensity: 1,
+    mild: true,
+  }
+  const p = buildReactionUserPrompt({
+    facts: f,
+    original: { reporter: 'barlow', text: 'The Boogeymen beat Shake N Bake 4-2.' },
+    reporter: 'mercer',
+    ctx: { ...EMPTY_DESK_CONTEXT, criticizedTonight: ['Skater A'], takes: [take] },
+  })
+  // Exactly one reporter to write as: the follow-up's.
+  assert.deepEqual(
+    [...p.matchAll(/\(id "(\w+)"\)/g)].map((m) => m[1]),
+    ['mercer'],
+  )
+  assert.ok(p.includes('Task: write exactly one post'))
+  assert.ok(p.includes('at most 280 characters'))
+  assert.ok(p.includes('The fans reacted to this piece by Wade Barlow'))
+  assert.ok(p.includes('"The Boogeymen beat Shake N Bake 4-2."'))
+  assert.ok(p.includes('one new point from the sheet'))
+  assert.ok(p.includes(pairAttitude('mercer', 'barlow')))
+  assert.ok(p.includes(criticizedTonightLine(['Skater A'])))
+  assert.ok(p.includes('- Take 9 on Skater B'))
+  assert.ok(p.includes('Skater B is at press level "easy": keep it mild'))
+  assert.ok(p.includes(DESK_CONTEXT_START) && p.includes(DESK_CONTEXT_END))
+})
+
+void test('fan reaction prompt: an article is shown by its headline and dek', () => {
+  assert.equal(
+    reactionItemText({
+      kind: 'article',
+      headline: 'Net gain',
+      dek: 'Goalie G stole one.',
+      body: 'x',
+    }),
+    'Net gain — Goalie G stole one.',
+  )
+  assert.equal(
+    reactionItemText({ kind: 'post', headline: null, dek: null, body: 'A post.' }),
+    'A post.',
   )
 })

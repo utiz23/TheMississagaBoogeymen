@@ -14,6 +14,7 @@ import type {
   PressNote,
   PressRosterEntry,
   PressQuote,
+  ReactionItem,
   RecapItemWithoutScrum,
   ScrumPersonDetail,
   ScrumPersonUpdate,
@@ -124,6 +125,18 @@ export interface PressStore {
   /** False when there was no waiting GM person (none, or already pinged). */
   expireUnpingedGmPerson(scrumId: number, playerId: number): Promise<boolean>
   setHeat(heat: Heat, scope: 'next' | 'night', night: string | null): Promise<void>
+  // Fan reactions (reactions.ts)
+  findReactionItem(messageId: string, mode: 'trial' | 'live'): Promise<ReactionItem | null>
+  /** True when this person had not voted for the item before. */
+  insertReactionVote(itemId: number, userId: string): Promise<boolean>
+  countReactionPeople(itemId: number): Promise<number>
+  countReactionTriggersTonight(night: string): Promise<number>
+  /** The item id; null when the item already has a trigger. */
+  insertReactionTrigger(args: {
+    itemId: number
+    night: string
+    isTest: boolean
+  }): Promise<number | null>
 }
 
 /** The bots' Discord side. Errors name a status only, never a token. */

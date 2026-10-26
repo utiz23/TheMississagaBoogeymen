@@ -29,6 +29,8 @@ import {
   claimDueNewsItem,
   nightHasActiveScrum,
   nightPressMaterial,
+  listReactionTriggersWithoutJob,
+  getReactionItem,
 } from '@eanhl/db/queries'
 import { REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
 import type { NewsStore } from './cycle.ts'
@@ -88,4 +90,6 @@ export const newsDbStore: NewsStore = {
   claimDueNewsItem,
   nightHasActiveScrum,
   nightPressMaterial,
+  listReactionTriggersWithoutJob,
+  getReactionItem,
 }

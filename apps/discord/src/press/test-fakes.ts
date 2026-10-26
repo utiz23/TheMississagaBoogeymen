@@ -11,7 +11,9 @@ import type {
   NewsPressSettingsRow,
   NewsScrumPersonRow,
   NewsScrumRow,
+  NewsJobKind,
   PressRosterEntry,
+  ReactionItem,
   RecapItemWithoutScrum,
   ScrumPersonUpdate,
 } from '@eanhl/db/queries'
@@ -541,6 +543,53 @@ export class FakeStore implements PressStore {
     if (!p) return Promise.resolve(false)
     p.status = 'expired'
     return Promise.resolve(true)
+  }
+  // ── Fan reactions ──
+  votes: { itemId: number; userId: string }[] = []
+  triggers: { itemId: number; night: string; isTest: boolean }[] = []
+  /** Job id -> kind, for an item's `jobKind`. */
+  jobKinds = new Map<number, NewsJobKind>()
+  findReactionItem = (messageId: string, mode: 'trial' | 'live') => {
+    const item =
+      mode === 'live'
+        ? this.items.find((i) => i.discordMessageId === messageId)
+        : this.items.find((i) =>
+            this.mirrors.some(
+              (m) => m.itemId === i.id && m.messageId === messageId && m.deletedAt === null,
+            ),
+          )
+    if (item === undefined || item.deletedAt !== null) return Promise.resolve(null)
+    const out: ReactionItem = {
+      id: item.id,
+      kind: item.kind,
+      reporter: item.reporter,
+      matchId: item.matchId,
+      night: item.night,
+      headline: item.headline,
+      dek: item.dek,
+      body: item.body,
+      isTest: item.isTest,
+      isCorrection: item.isCorrection,
+      jobKind: item.jobId === null ? null : (this.jobKinds.get(item.jobId) ?? null),
+      createdAt: item.createdAt,
+    }
+    return Promise.resolve(out)
+  }
+  insertReactionVote = (itemId: number, userId: string) => {
+    if (this.votes.some((v) => v.itemId === itemId && v.userId === userId)) {
+      return Promise.resolve(false)
+    }
+    this.votes.push({ itemId, userId })
+    return Promise.resolve(true)
+  }
+  countReactionPeople = (itemId: number) =>
+    Promise.resolve(this.votes.filter((v) => v.itemId === itemId).length)
+  countReactionTriggersTonight = (night: string) =>
+    Promise.resolve(this.triggers.filter((x) => x.night === night).length)
+  insertReactionTrigger = (args: { itemId: number; night: string; isTest: boolean }) => {
+    if (this.triggers.some((x) => x.itemId === args.itemId)) return Promise.resolve(null)
+    this.triggers.push(args)
+    return Promise.resolve(args.itemId)
   }
   setHeat = (heat: 'cool' | 'normal' | 'hot', scope: 'next' | 'night', night: string | null) => {
     this.heatCalls.push({ heat, scope, night })

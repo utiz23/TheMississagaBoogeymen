@@ -4,8 +4,8 @@
  * `discord` and `news` services. The timer pass (press/pass.ts) runs in a
  * non-overlapping loop (async wait) every PRESS_POLL_INTERVAL_MS (15 s); the
  * gateway clients (press/gateway.ts) receive the buttons, pop-ups and slash
- * commands. Bad config ⇒ log once and idle (no restart loop, no Discord
- * login, no Claude calls).
+ * commands, and Barlow's client the fan reactions. Bad config ⇒ log once and
+ * idle (no restart loop, no Discord login, no Claude calls).
  *
  * Env: DATABASE_URL, DISCORD_INTERNAL_TOKEN, WEB_INTERNAL_URL, DISCORD_SITE_URL,
  * NEWS_MODEL, NEWS_MONTHLY_LIMIT_USD, ANTHROPIC_API_KEY, PRESS_MODE,
@@ -31,8 +31,15 @@ async function main(): Promise<void> {
   const { default: Anthropic } = await import('@anthropic-ai/sdk')
   const { pressDbStore } = await import('./press/store.ts')
   const { runPressPass } = await import('./press/pass.ts')
-  const { attachRouter, createRouter, registerCommands, restDiscordOps, startClients } =
-    await import('./press/gateway.ts')
+  const {
+    attachReactions,
+    attachRouter,
+    createReactionRouter,
+    createRouter,
+    registerCommands,
+    restDiscordOps,
+    startClients,
+  } = await import('./press/gateway.ts')
   const { fetchNewsFacts } = await import('./news/web-client.ts')
   const { anthropicModelCall } = await import('./news/writer.ts')
 
@@ -57,7 +64,10 @@ async function main(): Promise<void> {
   const clients = await startClients(config, log)
   for (const client of clients.values()) attachRouter(client, route)
   const barlow = clients.get('barlow')
-  if (barlow !== undefined) registerCommands(barlow, config.guildId, log)
+  if (barlow !== undefined) {
+    registerCommands(barlow, config.guildId, log)
+    attachReactions(barlow, createReactionRouter({ deps, config, log }), log)
+  }
 
   log(
     `[press] started (${config.mode}) in ${config.mode === 'live' ? 'the live channel' : 'the test channel'}, ${String(clients.size)} bots`,

@@ -1164,7 +1164,8 @@ export function checkArticleFacts(
 }
 
 /**
- * The fact check of a game's posts (each post as `checkFacts`). The pile-on
+ * The fact check of a game's posts (each post as `checkFacts` on a game
+ * sheet: the post length rule, whatever the sheet). The pile-on
  * limit counts the night's earlier items and the earlier post of the same game.
  */
 export interface GamePostsContext {
@@ -1195,11 +1196,13 @@ export function checkGamePosts(
   const problems: string[] = []
   posts.forEach((p, i) => {
     const earlier = posts.slice(0, i)
-    const r = checkFacts(
+    // Always the post rules, also on a night sheet (a fan follow-up to a night article).
+    const r = check(
       p.text,
       facts,
       forbiddenNames,
       listed(p),
+      'post',
       [...criticizedTonight, ...earlier.flatMap((q) => q.criticized)],
       {
         ...(p.reporter === undefined ? {} : { reporter: p.reporter }),
@@ -1212,7 +1215,7 @@ export function checkGamePosts(
         offeredTakes: ctx.offeredTakes?.[i] ?? [],
       },
     )
-    if (!r.ok) problems.push(...r.problems)
+    problems.push(...r)
     const side = sideText((p.stances ?? []).map((st) => st.stance))
     if (side !== '')
       problems.push(...check(side, facts, forbiddenNames, { mentions: [], clubs: [] }, 'none'))

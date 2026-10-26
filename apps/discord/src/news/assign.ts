@@ -227,7 +227,7 @@ const hasRelationship = (from: ReporterId, to: ReporterId) =>
   RELATIONSHIPS.some((r) => r.from === from && r.to === to)
 
 /** Reply pairs among the latest `RECENT_REPLY_PAIRS` replies of the activity. */
-function recentPairs(activity: Activity): Set<string> {
+export function recentPairs(activity: Activity): Set<string> {
   const replies = activity
     .filter((a) => a.replyTo !== undefined && a.replyTo !== null)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())

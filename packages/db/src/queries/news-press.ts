@@ -32,6 +32,7 @@ import {
   type NewNewsScrumAnswer,
   type NewNewsScrumPerson,
   type NewsItemRow,
+  type NewsJobKind,
   type NewsPressSettingsRow,
   type NewsReporterId,
   type NewsScrumPersonRow,
@@ -1119,6 +1120,97 @@ export async function listReactionTriggersWithoutJob(
     matchId: r.match_id === null ? null : num(r.match_id),
     reporter: r.reporter,
   }))
+}
+
+/** A news item as fan reactions see it: what it says, and the kind of job that wrote it. */
+export interface ReactionItem {
+  id: number
+  kind: 'post' | 'article'
+  reporter: NewsReporterId
+  matchId: number | null
+  /** The item's night, else its game's night; null for a weekly piece. */
+  night: string | null
+  headline: string | null
+  dek: string | null
+  body: string
+  isTest: boolean
+  isCorrection: boolean
+  /** The job kind that wrote it ('reaction' = a fan follow-up); null when none. */
+  jobKind: NewsJobKind | null
+  createdAt: Date
+}
+
+function reactionItemSql(where: SQL, mirror: boolean): SQL {
+  return sql`
+    select n.id, n.kind, n.reporter, n.match_id,
+      coalesce(to_char(n.night, 'YYYY-MM-DD'), to_char(${nightKeySql('m')}, 'YYYY-MM-DD')) as night,
+      n.headline, n.dek, n.body, n.is_test, n.is_correction, j.kind as job_kind, n.created_at
+    from news_items n
+    left join news_jobs j on j.id = n.job_id
+    left join matches m on m.id = n.match_id
+    ${mirror ? sql`join news_press_mirrors mi on mi.item_id = n.id` : sql``}
+    where n.deleted_at is null and ${where}
+    limit 1`
+}
+
+/**
+ * The not deleted item a Discord message shows. Live: the item's own message.
+ * Trial: its mirror in the test channel (a deleted mirror shows nothing).
+ */
+export function findReactionItemSql(messageId: string, mode: PressMode): SQL {
+  return mode === 'live'
+    ? reactionItemSql(sql`n.discord_message_id = ${messageId}`, false)
+    : reactionItemSql(sql`mi.deleted_at is null and mi.message_id = ${messageId}`, true)
+}
+
+export function getReactionItemSql(itemId: number): SQL {
+  return reactionItemSql(sql`n.id = ${itemId}`, false)
+}
+
+type RawReactionItem = {
+  id: string | number
+  kind: 'post' | 'article'
+  reporter: NewsReporterId
+  match_id: string | number | null
+  night: string | null
+  headline: string | null
+  dek: string | null
+  body: string
+  is_test: boolean
+  is_correction: boolean
+  job_kind: NewsJobKind | null
+  created_at: string | Date
+}
+
+function toReactionItem(r: RawReactionItem | undefined): ReactionItem | null {
+  if (r === undefined) return null
+  return {
+    id: num(r.id),
+    kind: r.kind,
+    reporter: r.reporter,
+    matchId: r.match_id === null ? null : num(r.match_id),
+    night: r.night,
+    headline: r.headline,
+    dek: r.dek,
+    body: r.body,
+    isTest: r.is_test,
+    isCorrection: r.is_correction,
+    jobKind: r.job_kind,
+    createdAt: toDate(r.created_at),
+  }
+}
+
+export async function findReactionItem(
+  messageId: string,
+  mode: PressMode,
+): Promise<ReactionItem | null> {
+  const rows = await db.execute<RawReactionItem>(findReactionItemSql(messageId, mode))
+  return toReactionItem(rows[0])
+}
+
+export async function getReactionItem(itemId: number): Promise<ReactionItem | null> {
+  const rows = await db.execute<RawReactionItem>(getReactionItemSql(itemId))
+  return toReactionItem(rows[0])
 }
 
 export type {

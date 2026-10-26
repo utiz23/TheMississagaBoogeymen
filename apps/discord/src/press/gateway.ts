@@ -29,6 +29,7 @@ import {
   type Reply,
 } from './interactions.ts'
 import type { PressDeps, PressDiscordOps } from './pass.ts'
+import { onReaction } from './reactions.ts'
 import type { Heat } from './rules.ts'
 
 /**
@@ -45,6 +46,8 @@ import type { Heat } from './rules.ts'
  * or `deferUpdate` for the GM note's own controls); only Answer, which opens
  * the pop-up, answers directly. No error leaves a handler: it is logged
  * (`[press] interaction <kind>: <reason>`) and the user gets FAILED_TEXT.
+ * Reactions on Barlow's client go to `onReaction` (reactions.ts), one at a
+ * time, with errors logged the same way (`[press] reaction: <reason>`).
  */
 
 export const FAILED_TEXT = 'Something went wrong — try again.'
@@ -420,6 +423,37 @@ export function createRouter(args: {
   }
 }
 
+// ── Fan reactions ────────────────────────────────────────────────────────────
+
+/** One added reaction, without discord.js. */
+export interface ReactionInput {
+  channelId: string
+  messageId: string
+  userId: string
+  userIsBot: boolean
+}
+
+/**
+ * The reaction router: one reaction at a time (the night limit is counted
+ * before the trigger is inserted), and it never throws: an error is logged
+ * as `[press] reaction: <reason>`.
+ */
+export function createReactionRouter(args: {
+  deps: PressDeps
+  config: PressConfig
+  log: (m: string) => void
+  handler?: typeof onReaction
+}): (input: ReactionInput) => Promise<void> {
+  const { deps, config, log, handler = onReaction } = args
+  let chain: Promise<void> = Promise.resolve()
+  return (input) => {
+    chain = chain
+      .then(() => handler(deps, config, input))
+      .catch((err: unknown) => log(`[press] reaction: ${reason(err)}`))
+    return chain
+  }
+}
+
 // ── discord.js glue (not unit-tested: it only converts) ──────────────────────
 
 const EPHEMERAL = MessageFlags.Ephemeral
@@ -508,6 +542,34 @@ export function attachRouter(
   client.on(Events.InteractionCreate, (i) => {
     const a = adapt(i)
     if (a !== null) void route(a.input, a.port)
+  })
+}
+
+/**
+ * Wire the reaction router to Barlow's `messageReactionAdd` (the only client
+ * with the reactions intent). Partials are fetched first; a fetch error is
+ * logged like a handler error.
+ */
+export function attachReactions(
+  client: Client,
+  route: (input: ReactionInput) => Promise<void>,
+  log: (m: string) => void,
+): void {
+  client.on(Events.MessageReactionAdd, (reaction, user) => {
+    void (async () => {
+      try {
+        const r = reaction.partial ? await reaction.fetch() : reaction
+        const u = user.partial ? await user.fetch() : user
+        await route({
+          channelId: r.message.channelId,
+          messageId: r.message.id,
+          userId: u.id,
+          userIsBot: u.bot,
+        })
+      } catch (err: unknown) {
+        log(`[press] reaction: ${reason(err)}`)
+      }
+    })()
   })
 }
 

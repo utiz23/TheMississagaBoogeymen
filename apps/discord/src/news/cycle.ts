@@ -1,6 +1,8 @@
 import {
   GAME_ARTICLE_KINDS,
   REPORTERS,
+  mulberry32,
+  weightedPick,
   TAKE_REUSE_DAYS,
   dueTakes,
   nightsOfWeek,
@@ -25,16 +27,21 @@ import type {
   NewsMention,
   PressNote,
   PressQuote,
+  ReactionItem,
+  ReactionTriggerToRun,
 } from '@eanhl/db/queries'
 // rules.ts imports only '@eanhl/db/news' (no discord.js), so the news container may use it.
-import { PRESS_NIGHT_WAIT_MS } from '../press/rules.ts'
+import { PRESS_NIGHT_WAIT_MS, extrasBudgetLeft } from '../press/rules.ts'
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
   assignFeature,
   assignGameArticles,
   assignGamePosts,
   assignNightRecap,
+  isAllowed,
+  pairWeight,
   predictionToJudge,
+  recentPairs,
   type PostAssignment,
   type Activity,
   type ActivityKind,
@@ -74,7 +81,9 @@ import {
   buildFeatureUserPrompt,
   buildGameArticleUserPrompt,
   buildGameUserPrompt,
+  buildReactionUserPrompt,
   buildSystemPrompt,
+  reactionItemText,
   type DeskContext,
   type NightPost,
   type OwnPiece,
@@ -105,6 +114,9 @@ export const STOP_PAUSE_MS = 3_600_000
 export const RETRYABLE_PAUSE_MS = 900_000
 /** After a week's facts fetch fails, that week is not fetched again for this long (Mondays run every pass). */
 export const WEEK_FETCH_PAUSE_MS = 900_000
+
+/** At most this many fan follow-ups per pass (the press allows 2 a night). */
+const REACTION_LIMIT = 5
 
 const DELETE_LIMIT = 20
 const UNDELIVERED_LIMIT = 10
@@ -190,6 +202,13 @@ export interface NewsStore {
     night: string,
     includeTest: boolean,
   ): Promise<{ quotes: PressQuote[]; gmNotes: PressNote[] }>
+  /** Fan-reaction triggers with no job, or a failed one under the cap; test ones only when asked. */
+  listReactionTriggersWithoutJob(
+    includeTest: boolean,
+    limit: number,
+  ): Promise<ReactionTriggerToRun[]>
+  /** A not deleted item as its fan follow-up needs it, or null. */
+  getReactionItem(id: number): Promise<ReactionItem | null>
 }
 
 /** One stored item on its way to Discord. */
@@ -386,7 +405,8 @@ type Step = 'go' | 'end'
  * One pass of the news desk, in this order:
  *  1. Discord deletions of deleted items (always, also when off or out of money).
  *  2. The on/off switch.  3. The money limit (logged once a month).
- *  4. Retry of undelivered items.  5. Game posts.  6. Night articles.  7. The week piece.
+ *  4. Retry of undelivered items.  5. Game posts.  6. Night articles.
+ *  6b. Fan follow-ups (below 80% of the money limit).  7. The week piece.
  * Rules (as in cycle-unlocks.ts): fetch the facts first, then claim the job, then
  * write; a claimed job is never claimed again unless it is marked failed (3 tries).
  * A send that may have reached Discord is never re-sent. HTTP 429 stops sending
@@ -659,6 +679,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
 
   if ((await gamePass()) === 'end') return summary
   if ((await nightPass()) === 'end') return summary
+  if ((await reactionPass()) === 'end') return summary
   await weekPass()
   return summary
 
@@ -1095,6 +1116,171 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     if (now - since < PRESS_NIGHT_WAIT_MS) return true
     log(`${tag}: the scrum is still open after 30 minutes — the recap is written now`)
     return false
+  }
+
+  // ── 6b. Fan follow-ups (news desk bots, spec §7) ──────────────────────────
+  /**
+   * An item whose fans reacted (the press counts, press/reactions.ts) gets one
+   * reply post by another reporter, written from a fresh fact sheet: the
+   * game's for a game item, else the night's. Only below 80% of the money
+   * limit; a trigger runs only in the mode it was made in (`is_test` = dry run).
+   * A fetch failure leaves the trigger for the next pass. Never a reply to a
+   * correction or to another follow-up.
+   */
+  async function reactionPass(): Promise<Step> {
+    const extrasLeft = async () =>
+      extrasBudgetLeft(await store.monthNewsSpendUsd(deps.now()), opts.monthlyLimitUsd)
+    if (!(await extrasLeft())) return 'go'
+    const triggers = (
+      await store.listReactionTriggersWithoutJob(opts.dryRun, REACTION_LIMIT)
+    ).filter((t) => t.isTest === opts.dryRun)
+    for (const t of triggers) {
+      if (!(await extrasLeft())) return 'go'
+      if ((await writeReaction(t)) === 'end') return 'end'
+    }
+    return 'go'
+  }
+
+  async function skipJob(jobId: number, tag: string, reason: string): Promise<void> {
+    try {
+      await store.markNewsJob(jobId, 'skipped', reason)
+      summary.jobsSkipped++
+      log(`${tag}: no follow-up (${reason})`)
+    } catch (err: unknown) {
+      await failJob(jobId, tag, `could not mark skipped: ${message(err)}`)
+    }
+  }
+
+  async function writeReaction(t: ReactionTriggerToRun): Promise<Step> {
+    const key = String(t.itemId)
+    const tag = `reaction ${key}`
+    const original = await store.getReactionItem(t.itemId)
+    if (original === null) return 'go'
+    const night = original.night ?? t.night
+    if (original.isCorrection || original.jobKind === 'reaction') {
+      const jobId = await store.claimNewsJob('reaction', key, opts.dryRun)
+      if (jobId !== null) {
+        await skipJob(jobId, tag, original.isCorrection ? 'a correction' : 'a follow-up')
+      }
+      return 'go'
+    }
+    let res: NewsFactsResponse
+    try {
+      res =
+        original.matchId !== null
+          ? await deps.fetchFacts('game', String(original.matchId))
+          : await deps.fetchFacts('night', night)
+    } catch (err: unknown) {
+      log(`${tag}: facts unavailable, will retry (${message(err)})`)
+      return 'go'
+    }
+    const jobId = await store.claimNewsJob('reaction', key, opts.dryRun)
+    if (jobId === null) return 'go'
+    const { facts, forbiddenNames } = res
+    if (original.matchId !== null && !facts.games.some((g) => g.matchId === original.matchId)) {
+      await skipJob(jobId, tag, 'the fact sheet has no such game')
+      return 'go'
+    }
+    const now = deps.now()
+    // The job is claimed: any error before the write must mark it failed, never leave it pending.
+    let reporter: ReporterId
+    let ctx: DeskContext
+    let mine: NewsTake[]
+    try {
+      const activity = await loadActivity(now)
+      const recent = recentPairs(activity)
+      const pool = REPORTER_IDS.filter(
+        (r) =>
+          r !== original.reporter &&
+          r !== 'rink' &&
+          !disabled.includes(r) &&
+          isAllowed(r, now, night, activity),
+      )
+      if (pool.length === 0) {
+        await skipJob(jobId, tag, 'no reporter available')
+        return 'go'
+      }
+      // Seeded from the item id, so a rerun picks the same reporter.
+      const rng = mulberry32((t.itemId * 2654435761) >>> 0)
+      reporter = weightedPick(
+        pool.map((r) => [r, pairWeight(r, original.reporter, recent)] as const),
+        rng,
+      )
+      mine = (await takesDue(res, now)).filter((x) => takeCritics(x).includes(reporter))
+      const zero = await store.nightZeroCalled(night, opts.dryRun)
+      ctx = {
+        criticizedTonight: await store.nightCriticized(night, opts.dryRun),
+        zeroCalledTonight: zero.tonight,
+        zeroCalledPrevious: zero.previous,
+        ownRecent: await ownRecentOf([reporter]),
+        takes: mine,
+      }
+    } catch (err: unknown) {
+      await failJob(jobId, tag, `could not prepare: ${message(err)}`)
+      return 'go'
+    }
+    const written = await write(jobId, tag, {
+      user: buildReactionUserPrompt({
+        facts,
+        original: { reporter: original.reporter, text: reactionItemText(original) },
+        reporter,
+        ctx,
+      }),
+      schema: GAME_POSTS_SCHEMA,
+      parse: (v) => parseGamePosts(v, [reporter]),
+      check: (out) =>
+        checkGamePosts(out.posts, facts, forbiddenNames, ctx.criticizedTonight, {
+          replies: [true],
+          zeroCalledTonight: ctx.zeroCalledTonight,
+          zeroCalledPrevious: ctx.zeroCalledPrevious,
+          offeredTakes: [mine.map((x) => x.id)],
+        }),
+      textForReview: (out) =>
+        out.posts.map((p) => `${REPORTERS[p.reporter].name}: ${p.text}`).join('\n\n'),
+      criticizedForReview: (out) => [...new Set(out.posts.flatMap((p) => p.criticized))],
+      takesForReview: mine,
+      facts,
+    })
+    if (written === 'end') return 'end'
+    if (written === 'failed') return 'go'
+    const p = written.out.posts[0]!
+    let id: number
+    try {
+      id = await store.insertNewsItem({
+        jobId,
+        kind: 'post',
+        reporter,
+        matchId: original.matchId,
+        night,
+        replyTo: original.id,
+        body: p.text,
+        mentions: mentionsOf(p.mentions, facts),
+        criticized: criticizedAsOnSheet(p.criticized, facts),
+        zeroCalled: zeroCalledAsOnSheet(p.zeroCalled, facts),
+        takesUsed: p.takesUsed,
+        rulesVersion: NEWS_RULES_VERSION,
+        isGameRecap: false,
+        facts,
+        isTest: opts.dryRun,
+      })
+    } catch (err: unknown) {
+      await failJob(jobId, tag, `could not store: ${message(err)}`)
+      return 'go'
+    }
+    await saveStances(stancesToStore(p.stances, facts, reporter, night, id), tag)
+    noteWritten(reporter, night, 'reaction', original.reporter)
+    await markDone(jobId, tag)
+    const payload = buildNewsPostPayload({
+      reporter: REPORTERS[reporter],
+      text: p.text,
+      replyToName: REPORTERS[original.reporter].name,
+      siteUrl: opts.siteUrl,
+    })
+    await deliver(
+      { itemId: id, reporter, payload, isGameRecap: false },
+      `${tag} item ${String(id)}`,
+    )
+    return sendingStopped ? 'end' : 'go'
   }
 
   // ── 7. Week piece: Mondays from 12:00 America/Edmonton, for the week before ─

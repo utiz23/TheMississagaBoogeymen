@@ -442,6 +442,54 @@ export function buildGameUserPrompt(args: {
   return lines.join('\n')
 }
 
+/** A reacted item as the follow-up sees it: a post's text, an article's headline and dek. */
+export function reactionItemText(item: {
+  kind: 'post' | 'article'
+  headline: string | null
+  dek: string | null
+  body: string
+}): string {
+  if (item.kind !== 'article') return item.body
+  return [item.headline, item.dek].filter((x): x is string => x !== null && x !== '').join(' — ')
+}
+
+/**
+ * A fan follow-up (news desk bots): fans reacted to a piece, so another
+ * reporter replies to it with one post that adds one new point from the
+ * sheet. The pile-on limit, the takes and the press levels hold as for game posts.
+ */
+export function buildReactionUserPrompt(args: {
+  facts: NewsFacts
+  original: { reporter: ReporterId; text: string }
+  reporter: ReporterId
+  ctx?: DeskContext
+}): string {
+  const { facts, original } = args
+  const ctx = args.ctx ?? EMPTY_DESK_CONTEXT
+  const r = REPORTERS[args.reporter]
+  const o = REPORTERS[original.reporter]
+  const lines: string[] = [
+    ...header(facts),
+    `Task: write exactly one post, as ${r.name} (id "${r.id}") of ${r.outlet}. The post is at most 280 characters, one to three sentences, with no line breaks, and makes one point.`,
+    `The fans reacted to this piece by ${o.name}, so the desk follows it up. The post answers it directly, and the reader sees it right under it:`,
+    `"${original.text}"`,
+    `How they feel about each other: ${pairAttitude(args.reporter, original.reporter)}`,
+    "Add one new point from the sheet that the piece did not make, with its own number. Do not repeat the piece's point, its score line or its list of scorers.",
+    '',
+    storyBlock(storyFacts(facts), facts),
+  ]
+  const threads = threadsBlock(facts)
+  if (threads !== null) lines.push('', threads)
+  lines.push(
+    '',
+    'Set "reporter" on the post to the id above.',
+    PIECE_FIELDS_NOTE,
+    '',
+    deskContextBlock(ctx, [args.reporter]),
+  )
+  return lines.join('\n')
+}
+
 function articleFields(words: string): string[] {
   return [
     'Output fields:',

@@ -4,6 +4,7 @@ import {
   ANSWER_INPUT_ID,
   FAILED_TEXT,
   commandDefinitions,
+  createReactionRouter,
   createRouter,
   modalBody,
   routeCustomId,
@@ -456,4 +457,37 @@ test('router: a modal reply after a defer is a logged failure, not a crash', asy
   await h.run({ type: 'button', customId: 'press:talk:7', userId: USER })
   assert.deepEqual(h.calls, [['deferReply'], ['editReply', { content: FAILED_TEXT }]])
   assert.equal(h.logs.length, 1)
+})
+
+test('reaction router: one reaction at a time; an error is logged and never thrown', async () => {
+  const logs: string[] = []
+  const order: string[] = []
+  let release: () => void = () => undefined
+  const first = new Promise<void>((resolve) => (release = resolve))
+  const route = createReactionRouter({
+    deps: {} as never,
+    config: config('live'),
+    log: (m) => logs.push(m),
+    handler: async (_d, _c, args) => {
+      order.push(`start:${args.userId}`)
+      if (args.userId === 'a') await first
+      if (args.userId === 'b') throw new Error('db down')
+      order.push(`end:${args.userId}`)
+    },
+  })
+  const input = (userId: string) => ({
+    channelId: 'chel',
+    messageId: 'm',
+    userId,
+    userIsBot: false,
+  })
+  const a = route(input('a'))
+  const b = route(input('b'))
+  const c = route(input('c'))
+  await Promise.resolve()
+  assert.deepEqual(order, ['start:a'])
+  release()
+  await Promise.all([a, b, c])
+  assert.deepEqual(order, ['start:a', 'end:a', 'start:b', 'start:c', 'end:c'])
+  assert.deepEqual(logs, ['[press] reaction: db down'])
 })

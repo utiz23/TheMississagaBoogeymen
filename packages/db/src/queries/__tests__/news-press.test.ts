@@ -36,6 +36,8 @@ const {
   listItemsToMirrorQuery,
   listMirrorDeletionsSql,
   listReactionTriggersWithoutJobSql,
+  findReactionItemSql,
+  getReactionItemSql,
   insertScrumQuery,
   insertScrumPersonQuery,
   insertReactionVoteQuery,
@@ -564,4 +566,34 @@ void test('expire unpinged GM person: only a GM-requested person still waiting f
   )
   assert.match(s, /returning/)
   assert.deepEqual(q.params, ['expired', 4, 7, 'gm', 'pinged'])
+})
+
+void test("reaction item by message: live = the item's own message, trial = its mirror; with the job kind", () => {
+  const live = dialect.sqlToQuery(findReactionItemSql('900000000000000001', 'live'))
+  const l = flat(live.sql)
+  assert.match(
+    l,
+    /from news_items n left join news_jobs j on j\.id = n\.job_id left join matches m on m\.id = n\.match_id/,
+  )
+  assert.match(l, /j\.kind as job_kind/)
+  assert.match(l, /n\.is_correction/)
+  assert.match(l, /coalesce\(to_char\(n\.night, 'YYYY-MM-DD'\), to_char\(/)
+  assert.match(l, /where n\.deleted_at is null and n\.discord_message_id = \$1/)
+  assert.doesNotMatch(l, /news_press_mirrors/)
+  assert.deepEqual(live.params, ['900000000000000001'])
+  const trial = dialect.sqlToQuery(findReactionItemSql('900000000000000002', 'trial'))
+  const t = flat(trial.sql)
+  assert.match(t, /join news_press_mirrors mi on mi\.item_id = n\.id/)
+  assert.match(t, /where n\.deleted_at is null and mi\.deleted_at is null and mi\.message_id = \$1/)
+  assert.doesNotMatch(t, /n\.discord_message_id =/)
+  assert.deepEqual(trial.params, ['900000000000000002'])
+})
+
+void test('reaction item by id: not deleted, with the job kind', () => {
+  const q = dialect.sqlToQuery(getReactionItemSql(42))
+  const s = flat(q.sql)
+  assert.match(s, /left join news_jobs j on j\.id = n\.job_id/)
+  assert.match(s, /where n\.deleted_at is null and n\.id = \$1/)
+  assert.doesNotMatch(s, /news_press_mirrors/)
+  assert.deepEqual(q.params, [42])
 })
