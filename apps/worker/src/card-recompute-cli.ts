@@ -12,12 +12,11 @@
  */
 import { sql as dbSql } from '@eanhl/db'
 import { TIER_LABELS } from '@eanhl/db/cards'
+import { parseCardRecomputeArgs } from './card-recompute-args.js'
 import { currentDatabase, recomputeCardProgression } from './card-progression.js'
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2)
-  const dryRun = args.includes('--dry-run')
-  const rebase = args.includes('--rebase')
+  const { dryRun, rebase } = parseCardRecomputeArgs(process.argv.slice(2))
   const database = await currentDatabase()
   console.log(
     `[card-recompute] database=${database} mode=${dryRun ? 'dry-run (no writes)' : 'write'}${rebase ? ' rebase' : ''}`,

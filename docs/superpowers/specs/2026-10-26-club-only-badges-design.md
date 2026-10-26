@@ -22,7 +22,7 @@ The worker already stores every club game per player (`player_match_stats`). Tha
 
 1. Badge values count club games only, from the site's per-game club records.
 2. EA's totals are used only for stats that the per-game records do not have.
-3. The ladders are sized again for a club-only season, so the pace is sustainable.
+3. The ladders are checked for a club-only season, so the pace is sustainable (result: the 10-08 ladders stay; see Decisions).
 4. The switch-over does not post a burst of false level-ups to Discord.
 
 ## Non-goals
@@ -53,24 +53,24 @@ All per-game values come from `player_match_stats` joined to `matches`, for that
 
 "Club games" means all three match types the worker ingests (`gameType5`, `gameType10`, `club_private`), the same as the per-title aggregates. EA's club record counts the same games (Claude's call, 2026-10-26).
 
-| Family                | Name                   | New source (per-game club records)                                                          |
-| --------------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
-| `pwins`               | Wins                   | Club games the player played that the club won (`matches.result = 'WIN'`), skater or goalie |
-| `pgoals`              | Goals                  | Sum of `goals`                                                                              |
-| `pasts`               | Assists                | Sum of `assists`                                                                            |
-| `pshots`              | Shots                  | Sum of `shots`                                                                              |
-| `pht`                 | Hat-Tricks             | Count of games with `goals >= 3`                                                            |
-| `phits`               | Hits                   | Sum of `hits`                                                                               |
-| `pfo`                 | Faceoffs Won           | Sum of `faceoff_wins`                                                                       |
-| `ptka`                | Takeaways              | Sum of `takeaways`                                                                          |
-| `pblk`                | Blocked Shots          | Sum of `blocked_shots`                                                                      |
-| `gg`                  | Goalie Games Completed | Count of goalie games the player completed (`is_goalie`, not `player_dnf`)                  |
-| `gw`                  | Goalie Wins            | Count of goalie games that the club won                                                     |
-| `gsv`                 | Saves                  | Sum of `saves` in goalie games                                                              |
-| `gdsv`                | Desperation Saves      | Sum of `desp_saves` in goalie games                                                         |
-| `gpoke`               | Poke-Checks            | Sum of `pokechecks` in goalie games                                                         |
-| `gso`                 | Shutouts               | Count of completed goalie games with `goals_against = 0`                                    |
-| `p3v3`, `p6v6`, `p6g` | Games by mode          | No change. These already use site records.                                                  |
+| Family                | Name                   | New source (per-game club records)                                                                |
+| --------------------- | ---------------------- | ------------------------------------------------------------------------------------------------- |
+| `pwins`               | Wins                   | Club games the player played that the club won (`matches.result = 'WIN'`), skater or goalie       |
+| `pgoals`              | Goals                  | Sum of `goals`                                                                                    |
+| `pasts`               | Assists                | Sum of `assists`                                                                                  |
+| `pshots`              | Shots                  | Sum of `shots`                                                                                    |
+| `pht`                 | Hat-Tricks             | Count of games with `goals >= 3`                                                                  |
+| `phits`               | Hits                   | Sum of `hits`                                                                                     |
+| `pfo`                 | Faceoffs Won           | Sum of `faceoff_wins`                                                                             |
+| `ptka`                | Takeaways              | Sum of `takeaways`                                                                                |
+| `pblk`                | Blocked Shots          | Sum of `blocked_shots`                                                                            |
+| `gg`                  | Goalie Games Completed | Count of goalie games the player completed (`is_goalie`, not `player_dnf`, club result not `DNF`) |
+| `gw`                  | Goalie Wins            | Count of goalie games that the club won                                                           |
+| `gsv`                 | Saves                  | Sum of `saves` in goalie games                                                                    |
+| `gdsv`                | Desperation Saves      | Sum of `desp_saves` in goalie games                                                               |
+| `gpoke`               | Poke-Checks            | Sum of `pokechecks` in goalie games                                                               |
+| `gso`                 | Shutouts               | Count of completed goalie games (as `gg`) with `goals_against = 0`                                |
+| `p3v3`, `p6v6`, `p6g` | Games by mode          | No change. These already use site records.                                                        |
 
 Families that stay on EA's totals, drop-ins included:
 
@@ -82,7 +82,7 @@ Families that stay on EA's totals, drop-ins included:
 
 The badge UI labels these three badges as EA season totals that include drop-ins. The other 18 badges are labeled as club games. (Wording and placement: builder's call.)
 
-The AI goalies (Matteo Lehmann, Jonas Wagner) use the same per-game rules. They keep their own ladder set (`AI_GOALIE_LADDERS`), which is sized again with the same method.
+The AI goalies (Matteo Lehmann, Jonas Wagner) use the same per-game rules. They keep their own ladder set (`AI_GOALIE_LADDERS`) unchanged. A goalie game counts as completed (and can be a shutout) only when neither the goalie nor the team quit (`player_dnf`, `matches.result = 'DNF'`).
 
 ## Ladders
 

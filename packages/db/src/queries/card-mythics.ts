@@ -42,21 +42,13 @@ export async function loadCardTitles(): Promise<CardTitle[]> {
 }
 
 /**
- * Season totals for the given titles: title id → player id → badge values.
- * Club games only (spec 2026-10-26-club-only-badges-design.md): every badge
- * except dekes, fights and breakaways sums the per-game club records of all
- * three match types. Rows count like player_game_title_stats (DNF games count,
- * no removed_reason filter); a goalie DNF is not a completed game or shutout.
- * Those three stats come from EA's member totals, which include drop-ins.
+ * Per-game club totals per (player, title); `ids` is a joined list of title ids.
+ * A goalie game counts as completed (and can be a shutout) only when neither the
+ * goalie (`player_dnf`) nor the team (`matches.result = 'DNF'`) quit: AI-goalie
+ * lines never set `player_dnf`, the same rule as lib/ai-goalies.ts.
  */
-export async function loadSeasonTotals(titleIds: readonly number[]): Promise<SeasonTotals> {
-  if (titleIds.length === 0) return new Map()
-  const ids = sql.join(
-    titleIds.map((id) => sql`${id}`),
-    sql`, `,
-  )
-  const [club, eaOnly, recordedModes, recordedSixesWithGoalie] = await Promise.all([
-    rows<ClubTitleTotals>(sql`
+export function clubSeasonTotalsSql(ids: SQL): SQL {
+  return sql`
       SELECT p.player_id AS "playerId", m.game_title_id AS "gameTitleId",
         (COUNT(DISTINCT m.id) FILTER (WHERE m.result = 'WIN'))::int AS "wins",
         COALESCE(SUM(COALESCE(p.goals, 0)), 0)::int AS "goals",
@@ -68,7 +60,8 @@ export async function loadSeasonTotals(titleIds: readonly number[]): Promise<Sea
         COALESCE(SUM(COALESCE(p.takeaways, 0)), 0)::int AS "takeaways",
         COALESCE(SUM(COALESCE(p.blocked_shots, 0)), 0)::int AS "blockedShots",
         (COUNT(DISTINCT m.id) FILTER (
-          WHERE p.is_goalie AND NOT COALESCE(p.player_dnf, false)))::int AS "goalieGamesCompleted",
+          WHERE p.is_goalie AND NOT COALESCE(p.player_dnf, false)
+            AND m.result <> 'DNF'))::int AS "goalieGamesCompleted",
         (COUNT(DISTINCT m.id) FILTER (
           WHERE p.is_goalie AND m.result = 'WIN'))::int AS "goalieWins",
         COALESCE(SUM(COALESCE(p.saves, 0)) FILTER (WHERE p.is_goalie), 0)::int AS "goalieSaves",
@@ -78,11 +71,29 @@ export async function loadSeasonTotals(titleIds: readonly number[]): Promise<Sea
           AS "goaliePokeChecks",
         (COUNT(DISTINCT m.id) FILTER (
           WHERE p.is_goalie AND NOT COALESCE(p.player_dnf, false)
-            AND p.goals_against = 0))::int AS "goalieShutouts"
+            AND m.result <> 'DNF' AND p.goals_against = 0))::int AS "goalieShutouts"
       FROM player_match_stats p
       JOIN matches m ON m.id = p.match_id
       WHERE m.game_title_id IN (${ids})
-      GROUP BY p.player_id, m.game_title_id`),
+      GROUP BY p.player_id, m.game_title_id`
+}
+
+/**
+ * Season totals for the given titles: title id → player id → badge values.
+ * Club games only (spec 2026-10-26-club-only-badges-design.md): every badge
+ * except dekes, fights and breakaways sums the per-game club records of all
+ * three match types. Rows count like player_game_title_stats (DNF games count,
+ * no removed_reason filter); a goalie or team DNF is not a completed game or shutout.
+ * Those three stats come from EA's member totals, which include drop-ins.
+ */
+export async function loadSeasonTotals(titleIds: readonly number[]): Promise<SeasonTotals> {
+  if (titleIds.length === 0) return new Map()
+  const ids = sql.join(
+    titleIds.map((id) => sql`${id}`),
+    sql`, `,
+  )
+  const [club, eaOnly, recordedModes, recordedSixesWithGoalie] = await Promise.all([
+    rows<ClubTitleTotals>(clubSeasonTotalsSql(ids)),
     rows<EaOnlyTotals>(sql`
       SELECT player_id AS "playerId", game_title_id AS "gameTitleId",
         COALESCE(dekes_made, 0) AS "dekesMade", COALESCE(fights_won, 0) AS "fightsWon",
