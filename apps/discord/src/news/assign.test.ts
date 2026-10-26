@@ -506,3 +506,56 @@ void test('predictionToJudge: only the prediction of the week right before (spec
     last.prediction,
   )
 })
+
+// ── The per-reporter switch (C3b.3) ─────────────────────────────────────────
+
+void test('C3b.3: a benched reporter never writes the recap, a night recap, a feature or a game article', () => {
+  // routine_win's recap is Barlow; benched, the next fitting reporter writes.
+  assert.equal(assignRecap('routine_win', NOW, NIGHT, [], false, ['barlow']), 'halberd')
+  // The recap of a post list never goes to a benched reporter, for any seed.
+  for (let id = 1; id < 30; id++) {
+    const { facts, game } = gameSetup()
+    const list = assignGamePosts({
+      game: { ...game, matchId: id },
+      facts,
+      situation: 'routine_win',
+      plan: { level: 'big', posts: 4 },
+      now: NOW,
+      night: NIGHT,
+      activity: [],
+      disabled: ['barlow', 'vale'],
+    })
+    assert.ok(list.every((p) => p.reporter !== 'barlow' && p.reporter !== 'vale'))
+  }
+  // Night recap: a sweep fits vale first; benched, the queue moves on.
+  assert.equal(assignNightRecap(nightFacts(3, 0, 0, 3), NOW, [], ['vale']), 'barlow')
+  // Rink's own night is not his when he is benched.
+  assert.equal(assignNightRecap(nightFacts(4, 0, 0, 4), NOW, [], ['rink']), 'vale')
+  // Only one reporter left, and he wrote the previous night: he writes again.
+  const only = REPORTER_IDS.filter((r) => r !== 'quill')
+  assert.equal(
+    assignNightRecap(
+      nightFacts(1, 1, 0, 2),
+      NOW,
+      [act('quill', 'night', daysAgo(1), '2026-10-11')],
+      only,
+    ),
+    'quill',
+  )
+  // Weekly features: a benched writer's kind is skipped, the rotation moves on.
+  assert.deepEqual(assignFeature(null, NOW, [], ['quill']), { kind: 'spotlight', reporter: 'voss' })
+  assert.deepEqual(assignFeature('trend', NOW, [], ['voss', 'pettibone']), {
+    kind: 'bigpicture',
+    reporter: 'bergstrom',
+  })
+  // After bigpicture Rink's column is skipped when he is benched.
+  assert.deepEqual(assignFeature('bigpicture', NOW, [], ['rink']), {
+    kind: 'trend',
+    reporter: 'quill',
+  })
+  // All four feature writers benched: nothing to assign.
+  assert.throws(
+    () => assignFeature(null, NOW, [], ['quill', 'voss', 'pettibone', 'bergstrom', 'rink']),
+    /no feature writer/,
+  )
+})

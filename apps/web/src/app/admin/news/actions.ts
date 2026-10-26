@@ -5,11 +5,13 @@ import {
   getNewsEnabled,
   setNewsEnabled,
   setPressLevel,
+  setReporterEnabled,
   skipNewsBacklog,
   softDeleteNewsItem,
 } from '@eanhl/db/queries'
 import { PRESS_LEVELS, type PressLevel } from '@eanhl/db/schema'
 import { requireAdmin } from '@/lib/auth'
+import { parseReporterId } from '@/lib/news/admin-display'
 import { switchNewsDesk } from '@/lib/news/switch'
 import { pressLevelSetBy } from '@/lib/profile-edit'
 
@@ -51,5 +53,14 @@ export async function setPressLevelAction(formData: FormData): Promise<void> {
   if (!Number.isInteger(playerId) || playerId < 1) return
   if (typeof level !== 'string' || !(PRESS_LEVELS as readonly string[]).includes(level)) return
   await setPressLevel(playerId, level as PressLevel, pressLevelSetBy(admin, playerId))
+  refresh()
+}
+
+/** Switch one reporter on or off (C3b.3). Off: assignment skips him; his old items stay. */
+export async function setReporterEnabledAction(reporter: string, enabled: boolean): Promise<void> {
+  await requireAdmin()
+  const id = parseReporterId(reporter)
+  if (id === null) return
+  await setReporterEnabled(id, enabled === true)
   refresh()
 }

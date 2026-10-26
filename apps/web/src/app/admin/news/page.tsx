@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { REPORTERS } from '@eanhl/db/news'
+import { REPORTERS, REPORTER_IDS } from '@eanhl/db/news'
 import {
   getNewsEnabled,
   listAdminNewsItems,
+  listDisabledReporters,
   listMemberPressLevels,
   monthNewsSpendUsd,
 } from '@eanhl/db/queries'
@@ -25,7 +26,12 @@ import {
   pressLevelSetByLabel,
 } from '@/lib/news/admin-display'
 import { PRESS_LEVEL_OPTIONS } from '@/lib/profile-edit'
-import { deleteNewsItemAction, setNewsEnabledAction, setPressLevelAction } from './actions'
+import {
+  deleteNewsItemAction,
+  setNewsEnabledAction,
+  setPressLevelAction,
+  setReporterEnabledAction,
+} from './actions'
 
 export const metadata: Metadata = { title: 'News desk' }
 export const dynamic = 'force-dynamic'
@@ -37,11 +43,12 @@ const BADGE =
 export default async function AdminNewsPage() {
   await requireAdmin()
   const now = new Date()
-  const [enabled, spent, items, levels] = await Promise.all([
+  const [enabled, spent, items, levels, disabledReporters] = await Promise.all([
     getNewsEnabled(),
     monthNewsSpendUsd(now),
     listAdminNewsItems(50),
     listMemberPressLevels(),
+    listDisabledReporters(),
   ])
   const limit = monthlyLimitUsd(process.env['NEWS_MONTHLY_LIMIT_USD'])
   const testWaiting = items.filter((i) => i.isTest && i.deletedAt === null).length
@@ -71,6 +78,37 @@ export default async function AdminNewsPage() {
             </button>
           </form>
         </div>
+      </AdminSection>
+
+      <AdminSection
+        title="Reporters"
+        description="Switch one reporter off and the desk stops giving him new work: no recap, reply, article or feature. His old items stay. With all of them off the desk writes nothing."
+      >
+        <ul className="flex flex-col gap-2">
+          {REPORTER_IDS.map((id) => {
+            const on = !disabledReporters.includes(id)
+            return (
+              <li key={id} className="flex flex-wrap items-center gap-3 text-sm text-fg-2">
+                <span className="min-w-[200px] text-fg-1">
+                  {REPORTERS[id].name}
+                  <span className="text-fg-4"> · {REPORTERS[id].outlet}</span>
+                </span>
+                <strong className={on ? 'text-fg-1' : 'text-accent-readable'}>
+                  {on ? 'ON' : 'OFF'}
+                </strong>
+                <form action={setReporterEnabledAction.bind(null, id, !on)}>
+                  <button
+                    type="submit"
+                    className={ADMIN_SMALL_BUTTON}
+                    aria-label={`Switch ${REPORTERS[id].name} ${on ? 'off' : 'on'}`}
+                  >
+                    {on ? 'Switch off' : 'Switch on'}
+                  </button>
+                </form>
+              </li>
+            )
+          })}
+        </ul>
       </AdminSection>
 
       <AdminSection title="This month">

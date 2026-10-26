@@ -1,3 +1,4 @@
+import { REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
 import type { NewsItemRow, PressLevelSetBy } from '@eanhl/db/schema'
 
 /** The news service's monthly limit in USD: a positive number, else 20 (same rule as the service). */
@@ -37,4 +38,11 @@ export function adminItemHref(id: number): string {
 /** The rules version on the admin item page; older items were written before versions existed. */
 export function rulesVersionLabel(version: string | null): string {
   return version !== null && version.trim() !== '' ? version : 'before versions'
+}
+
+/** A reporter id from a form or an action argument, or null when it is none of the nine. */
+export function parseReporterId(value: unknown): ReporterId | null {
+  return typeof value === 'string' && (REPORTER_IDS as readonly string[]).includes(value)
+    ? (value as ReporterId)
+    : null
 }

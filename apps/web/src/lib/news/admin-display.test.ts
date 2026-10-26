@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   adminItemHref,
   parseAdminItemId,
+  parseReporterId,
   itemPreview,
   monthlyLimitUsd,
   rulesVersionLabel,
@@ -46,4 +47,13 @@ void test('the rules version shows as stored; older items say so', () => {
   assert.equal(rulesVersionLabel('2026-10-25.1'), '2026-10-25.1')
   assert.equal(rulesVersionLabel(null), 'before versions')
   assert.equal(rulesVersionLabel('  '), 'before versions')
+})
+
+void test('a reporter id must be one of the nine', () => {
+  assert.equal(parseReporterId('barlow'), 'barlow')
+  assert.equal(parseReporterId('bergstrom'), 'bergstrom')
+  assert.equal(parseReporterId('nobody'), null)
+  assert.equal(parseReporterId(''), null)
+  assert.equal(parseReporterId(3), null)
+  assert.equal(parseReporterId(null), null)
 })

@@ -7,7 +7,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { PgDialect, getTableConfig } from 'drizzle-orm/pg-core'
 import { FEATURE_KINDS, REPORTER_IDS } from '../../news/index.js'
-import { NEWS_REPORTER_IDS, newsItems } from '../../schema/index.js'
+import { NEWS_REPORTER_IDS, newsItems, newsReporterSwitch } from '../../schema/index.js'
 
 process.env.DATABASE_URL = 'postgresql://news-test:unused@127.0.0.1:1/unused'
 
@@ -49,6 +49,7 @@ const {
   listGameArticleRetriesSql,
   activeTakesForPlayersQuery,
   takesUsedSinceSql,
+  disabledReportersQuery,
   rowsToNightZeroCalled,
   nightPostsForPromptSql,
   rowToNightPost,
@@ -1193,4 +1194,42 @@ void test('migration 0071: the job kind check gains game_article by drop and re-
       `DO $$ BEGIN ALTER TABLE "news_jobs" DROP CONSTRAINT IF EXISTS "news_jobs_kind_check"; ALTER TABLE "news_jobs" ADD CONSTRAINT "news_jobs_kind_check" CHECK ("kind" IN ('game', 'night', 'week', 'game_article')); END $$;`,
     ),
   )
+})
+
+void test('C3b.3: the per-reporter switch: query, table and idempotent migration', async () => {
+  const q = disabledReportersQuery().toSQL()
+  assert.match(
+    flat(q.sql),
+    /select "reporter" from "news_reporter_switch" where "news_reporter_switch"\."enabled" = \$1 order by "news_reporter_switch"\."reporter" asc/,
+  )
+  assert.deepEqual(q.params, [false])
+  const cols = new Map(getTableConfig(newsReporterSwitch).columns.map((c) => [c.name, c]))
+  assert.equal(cols.get('reporter')?.primary, true)
+  assert.equal(cols.get('enabled')?.default, true)
+  const { readFile } = await import('node:fs/promises')
+  const raw = await readFile(
+    new URL('../../../migrations/0071_news_desk.sql', import.meta.url),
+    'utf8',
+  )
+  const text = flat(
+    raw
+      .split('\n')
+      .filter((l) => !l.trimStart().startsWith('--'))
+      .join('\n'),
+  )
+  assert.ok(text.includes('CREATE TABLE IF NOT EXISTS "news_reporter_switch" ('))
+  assert.ok(text.includes('"enabled" boolean DEFAULT true NOT NULL'))
+  assert.ok(
+    text.includes(
+      'ALTER TABLE "news_reporter_switch" DROP CONSTRAINT IF EXISTS "news_reporter_switch_reporter_check";',
+    ),
+  )
+  assert.ok(raw.includes('DROP TABLE IF EXISTS "news_reporter_switch";'))
+  // The check holds exactly the nine reporter ids.
+  const check = /news_reporter_switch_reporter_check"\s+CHECK \("reporter" IN \(([^)]*)\)\)/.exec(
+    raw,
+  )
+  assert.ok(check)
+  const ids = [...check[1]!.matchAll(/'(\w+)'/g)].map((m) => m[1])
+  assert.deepEqual([...ids].sort(), [...NEWS_REPORTER_IDS].sort())
 })

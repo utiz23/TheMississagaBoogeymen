@@ -271,6 +271,26 @@ export const newsSettings = pgTable(
   (table) => [check('news_settings_single_row_check', sql`${table.id} = 1`)],
 )
 
+/**
+ * The per-reporter on/off switch (Part C3b, spec §12.18-6). A reporter without
+ * a row is on. A switched-off reporter writes nothing new; items already
+ * written stay. Migration 0071.
+ */
+export const newsReporterSwitch = pgTable(
+  'news_reporter_switch',
+  {
+    reporter: text('reporter').$type<NewsReporterId>().primaryKey(),
+    enabled: boolean('enabled').notNull().default(true),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'news_reporter_switch_reporter_check',
+      sql`${table.reporter} IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom')`,
+    ),
+  ],
+)
+
 export type NewsItemRow = typeof newsItems.$inferSelect
 export type NewNewsStance = typeof newsStances.$inferInsert
 export type NewNewsItem = typeof newsItems.$inferInsert

@@ -140,9 +140,11 @@ export function assignRecap(
   night: string,
   activity: Activity,
   historic = false,
+  disabled: readonly ReporterId[] = [],
 ): ReporterId {
   const list = GAME_PREFERENCE[s].filter((r) => historic || r !== 'rink')
-  return pickFromQueue(list, 'recap', now, night, activity, historic ? [] : ['rink'], historic)
+  const exclude = historic ? disabled : [...disabled, 'rink' as const]
+  return pickFromQueue(list, 'recap', now, night, activity, exclude, historic)
 }
 
 /**
@@ -270,7 +272,7 @@ export function assignGamePosts(args: {
     return id
   }
 
-  const recap = assignRecap(situation, now, night, activity, historic)
+  const recap = assignRecap(situation, now, night, activity, historic, disabled)
   const posts: PostAssignment[] = [
     { reporter: recap, angle: 'recap', replyTo: null, factId: nextFact(), takeId: null },
   ]
@@ -381,7 +383,12 @@ export function assignGameArticles(args: {
  * trigger: a sweep or winless night of 4+ games is his when his 14-day limit
  * allows (he writes "now and then", so the queue would almost never reach him).
  */
-export function assignNightRecap(facts: NewsFacts, now: Date, activity: Activity): ReporterId {
+export function assignNightRecap(
+  facts: NewsFacts,
+  now: Date,
+  activity: Activity,
+  disabled: readonly ReporterId[] = [],
+): ReporterId {
   const situation = classifyNight(facts)
   const list = NIGHT_PREFERENCE[situation]
   let previous: { reporter: ReporterId; at: number } | null = null
@@ -391,17 +398,28 @@ export function assignNightRecap(facts: NewsFacts, now: Date, activity: Activity
     if (previous === null || at >= previous.at) previous = { reporter: a.reporter, at }
   }
   const rinkNight = (situation === 'sweep' || situation === 'winless') && facts.games.length >= 4
-  if (rinkNight && previous?.reporter !== 'rink' && isAllowed('rink', now, facts.key, activity)) {
+  if (
+    rinkNight &&
+    !disabled.includes('rink') &&
+    previous?.reporter !== 'rink' &&
+    isAllowed('rink', now, facts.key, activity)
+  ) {
     return 'rink'
   }
-  return pickFromQueue(
-    list,
-    'night',
-    now,
-    facts.key,
-    activity,
-    previous === null ? [] : [previous.reporter],
-  )
+  try {
+    return pickFromQueue(
+      list,
+      'night',
+      now,
+      facts.key,
+      activity,
+      previous === null ? disabled : [...disabled, previous.reporter],
+    )
+  } catch (err: unknown) {
+    // Only the previous writer is left (the others are benched): he writes again.
+    if (previous === null) throw err
+    return pickFromQueue(list, 'night', now, facts.key, activity, disabled)
+  }
 }
 
 /**
@@ -420,9 +438,18 @@ export function assignFeature(
   lastKind: FeatureKind | null,
   now: Date,
   activity: Activity,
+  disabled: readonly ReporterId[] = [],
 ): { kind: FeatureKind; reporter: ReporterId } {
-  const kind = nextFeatureKind(lastKind, isAllowed('rink', now, null, activity))
-  return { kind, reporter: FEATURE_REPORTER[kind] }
+  const rinkAllowed = isAllowed('rink', now, null, activity) && !disabled.includes('rink')
+  // A benched writer's kind is skipped: the rotation moves on to the next kind.
+  let from = lastKind
+  for (let i = 0; i < 6; i++) {
+    const kind = nextFeatureKind(from, rinkAllowed)
+    if (!disabled.includes(FEATURE_REPORTER[kind]))
+      return { kind, reporter: FEATURE_REPORTER[kind] }
+    from = kind
+  }
+  throw new Error('news assign: no feature writer is switched on')
 }
 
 /**

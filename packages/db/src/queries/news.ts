@@ -6,6 +6,7 @@ import {
   newsJobs,
   newsSettings,
   newsStances,
+  newsReporterSwitch,
   newsReporterTakes,
   playerProfiles,
   players,
@@ -312,6 +313,34 @@ export async function takesUsedSince(
     takesUsedSinceSql(since, includeTest),
   )
   return rows.map((r) => ({ takeId: Number(r.take_id), lastUsed: toDate(r.last_used) }))
+}
+
+// ── Per-reporter switch (Part C3b, spec §12.18-6) ───────────────────────────
+
+/** The reporters switched off, in id order. A reporter without a row is on. */
+export function disabledReportersQuery() {
+  return db
+    .select({ reporter: newsReporterSwitch.reporter })
+    .from(newsReporterSwitch)
+    .where(eq(newsReporterSwitch.enabled, false))
+    .orderBy(asc(newsReporterSwitch.reporter))
+}
+
+export async function listDisabledReporters(): Promise<NewsReporterId[]> {
+  return (await disabledReportersQuery()).map((r) => r.reporter)
+}
+
+export async function setReporterEnabled(
+  reporter: NewsReporterId,
+  enabled: boolean,
+): Promise<void> {
+  await db
+    .insert(newsReporterSwitch)
+    .values({ reporter, enabled })
+    .onConflictDoUpdate({
+      target: newsReporterSwitch.reporter,
+      set: { enabled, updatedAt: sql`now()` },
+    })
 }
 
 // ── Backfill lookups (apps/discord/src/news/backfill.ts) ────────────────────

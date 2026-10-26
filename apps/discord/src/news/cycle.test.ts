@@ -1,7 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { NewNewsItem, NewNewsStance, NewNewsUsage, NewsItemRow } from '@eanhl/db/queries'
-import { planBuzz, type NewsFactsResponse, type NewsGameFacts } from '@eanhl/db/news'
+import {
+  REPORTER_IDS,
+  planBuzz,
+  type NewsFactsResponse,
+  type NewsGameFacts,
+  type ReporterId,
+} from '@eanhl/db/news'
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
   createNewsCycleState,
@@ -166,6 +172,7 @@ function harness(
     nights: [] as { night: string; lastEnd: Date }[],
     nightGames: {} as Record<string, number>,
     deletions: [] as { id: number; messageId: string }[],
+    disabled: [] as ReporterId[],
   }
   let nextJob = 1
   let nextItem = 1
@@ -333,6 +340,7 @@ function harness(
       ]
       return { tonight: names(night), previous: previous === undefined ? [] : names(previous) }
     },
+    listDisabledReporters: async () => state.disabled,
     insertStance: async (st) => {
       stances.push(st)
       return stances.length
@@ -1537,4 +1545,58 @@ void test('C3b.2: every item carries the rules version: posts, night article and
   w.state.nightGames['2026-10-22'] = 3
   await runNewsCycle(w.deps, w.opts)
   assert.equal(w.items.get(1)!.rulesVersion, NEWS_RULES_VERSION)
+})
+
+void test('C3b.3: a benched reporter writes nothing: game posts, the night article, the weekly feature', async () => {
+  // Without a bench Mercer writes this game's recap and Quill the trend column.
+  const base = harness({ candidates: [REPLY_GAME] })
+  await runNewsCycle(base.deps, base.opts)
+  assert.equal(base.items.get(1)!.reporter, 'mercer')
+
+  const h = harness({ candidates: [REPLY_GAME] })
+  h.state.disabled = ['mercer', 'quill', 'vale']
+  h.state.nights = [{ night: '2026-10-12', lastEnd: new Date(NOW.getTime() - 91 * MIN) }]
+  h.state.nightGames['2026-10-12'] = 2
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(h.items.size >= 3)
+  for (const item of h.items.values()) {
+    assert.ok(!['mercer', 'quill', 'vale'].includes(item.reporter), item.reporter)
+  }
+
+  const w = harness({ deps: { now: () => MONDAY_1201 } })
+  w.state.disabled = ['quill']
+  w.state.nightGames['2026-10-22'] = 3
+  await runNewsCycle(w.deps, w.opts)
+  assert.equal(w.items.get(1)!.reporter, 'voss')
+  assert.equal(w.items.get(1)!.featureKind, 'spotlight')
+})
+
+void test('C3b.3: every reporter off ⇒ nothing is written, one log line across passes; one back on ⇒ writes', async () => {
+  const h = harness({ candidates: [REPLY_GAME] })
+  h.state.disabled = [...REPORTER_IDS]
+  await runNewsCycle(h.deps, h.opts)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.items.size, 0)
+  assert.equal(h.writerCalls.length, 0)
+  assert.equal(h.jobs.size, 0)
+  assert.equal(logs(h.events).filter((l) => l.includes('every reporter is switched off')).length, 1)
+  h.state.disabled = REPORTER_IDS.filter((r) => r !== 'barlow')
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(h.items.size > 0)
+  assert.ok([...h.items.values()].every((i) => i.reporter === 'barlow'))
+})
+
+void test('C3b.3: the switch cannot be read ⇒ nothing is written this pass', async () => {
+  const h = harness({
+    candidates: [REPLY_GAME],
+    store: {
+      listDisabledReporters: async () => {
+        throw new Error('db down')
+      },
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.items.size, 0)
+  assert.equal(h.writerCalls.length, 0)
+  assert.ok(logs(h.events).some((l) => l.includes('switches could not be read')))
 })

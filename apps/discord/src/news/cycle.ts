@@ -5,6 +5,7 @@ import {
   dueTakes,
   nightsOfWeek,
   planBuzz,
+  REPORTER_IDS,
   takeCritics,
   type BuzzPlan,
   type GameArticleKind,
@@ -153,6 +154,8 @@ export interface NewsStore {
   ): Promise<{ tonight: string[]; previous: string[] }>
   /** Stores a stance on a thread (C3a.4); the item that took it. */
   insertStance(stance: NewNewsStance): Promise<number>
+  /** The reporters switched off on /admin/news (C3b.3); a reporter without a row is on. */
+  listDisabledReporters(): Promise<ReporterId[]>
 }
 
 export interface NewsDeps {
@@ -183,6 +186,8 @@ export interface NewsCycleState {
   weekFetchPausedUntil: Map<string, number>
   /** The last feature written in test mode: lastFeature reads real items only. */
   testLastFeature: LastFeature | null
+  /** True after "every reporter is switched off" was logged; reset when one is switched on. */
+  allOffLogged: boolean
 }
 
 export interface LastFeature {
@@ -199,6 +204,7 @@ export function createNewsCycleState(): NewsCycleState {
     settledWeeks: new Set(),
     weekFetchPausedUntil: new Map(),
     testLastFeature: null,
+    allOffLogged: false,
   }
 }
 
@@ -291,6 +297,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
   }
   let discordUsed = false
   let sendingStopped = false
+  /** The reporters switched off (C3b.3); read once per pass, before any writing. */
+  let disabled: ReporterId[] = []
 
   /** Keep NEWS_GAP_MS between any two Discord calls of this pass. */
   async function gap(): Promise<void> {
@@ -496,6 +504,23 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
 
   if (deps.now().getTime() < state.pausedUntil) return summary
 
+  // The per-reporter switch (C3b.3). A read error stops the writing: a benched reporter
+  // must never write because the switch could not be read.
+  try {
+    disabled = await store.listDisabledReporters()
+  } catch (err: unknown) {
+    log(`the reporter switches could not be read — nothing written this pass (${message(err)})`)
+    return summary
+  }
+  if (REPORTER_IDS.every((r) => disabled.includes(r))) {
+    if (!state.allOffLogged) {
+      state.allOffLogged = true
+      log('every reporter is switched off — writing nothing new')
+    }
+    return summary
+  }
+  state.allOffLogged = false
+
   if ((await gamePass()) === 'end') return summary
   if ((await nightPass()) === 'end') return summary
   await weekPass()
@@ -618,6 +643,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         night,
         activity: await loadActivity(now),
         takes,
+        disabled,
       })
       const zero = await store.nightZeroCalled(night, opts.dryRun)
       ctx = {
@@ -731,6 +757,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         now,
         night,
         activity: await loadActivity(now),
+        disabled,
       })
     } catch (err: unknown) {
       log(`game ${String(game.matchId)}: articles not assigned (${message(err)})`)
@@ -930,7 +957,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       let tonight: string[] = []
       let nightPosts: NightPost[] | undefined
       if (kind === 'night') {
-        reporterId = assignNightRecap(facts, now, activity)
+        reporterId = assignNightRecap(facts, now, activity, disabled)
         tonight = await store.nightCriticized(key, opts.dryRun)
         zero = await store.nightZeroCalled(key, opts.dryRun)
         nightPosts = await store.nightPostsForPrompt(key, opts.dryRun)
@@ -939,7 +966,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           opts.dryRun && state.testLastFeature !== null
             ? state.testLastFeature
             : await store.lastFeature()
-        const next = assignFeature(last?.kind ?? null, now, activity)
+        const next = assignFeature(last?.kind ?? null, now, activity, disabled)
         reporterId = next.reporter
         feature = { kind: next.kind, previousPrediction: predictionToJudge(key, last) }
       }

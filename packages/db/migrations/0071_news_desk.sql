@@ -20,7 +20,8 @@
 -- news_reporter_takes (GM-only lore, spec §12.19: a reporter's running take on
 -- a player; read by the news service and the admin only, never public).
 -- Part C3b (2026-10-25, edited in place): news_items.rules_version (the version
--- of the writing rules that wrote the item, spec §12.18-6).
+-- of the writing rules that wrote the item, spec §12.18-6) and
+-- news_reporter_switch (one row per reporter switched on or off, §12.18-6).
 -- Back-fills a skipped job for every existing game, night and week (Monday
 -- start, from the night key) so launch never covers history.
 --
@@ -35,6 +36,7 @@
 -- no job yet as 'skipped' (the back-fill covers every match without a row).
 -- Re-run only right before the first launch.
 -- ROLLBACK:
+--   DROP TABLE IF EXISTS "news_reporter_switch";
 --   DROP TABLE IF EXISTS "news_reporter_takes";
 --   DROP TABLE IF EXISTS "news_stances";
 --   DROP TABLE IF EXISTS "news_ai_usage";
@@ -285,6 +287,19 @@ CREATE TABLE IF NOT EXISTS "news_settings" (
 
 INSERT INTO "news_settings" ("id", "enabled") VALUES (1, false)
 ON CONFLICT ("id") DO NOTHING;
+
+-- ── news_reporter_switch (Part C3b): a reporter without a row is on ─────────
+CREATE TABLE IF NOT EXISTS "news_reporter_switch" (
+  "reporter" text PRIMARY KEY NOT NULL,
+  "enabled" boolean DEFAULT true NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+DO $$ BEGIN
+  ALTER TABLE "news_reporter_switch" DROP CONSTRAINT IF EXISTS "news_reporter_switch_reporter_check";
+  ALTER TABLE "news_reporter_switch" ADD CONSTRAINT "news_reporter_switch_reporter_check"
+    CHECK ("reporter" IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom'));
+END $$;
 
 -- ── player_profiles: press level ────────────────────────────────────────────
 ALTER TABLE "player_profiles" ADD COLUMN IF NOT EXISTS "press_level" text DEFAULT 'full' NOT NULL;
