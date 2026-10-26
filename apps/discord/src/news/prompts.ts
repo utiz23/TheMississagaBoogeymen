@@ -111,7 +111,7 @@ export const SYSTEM_RULES: readonly string[] = [
   '25. Open threads ("threads") are stories that run over several nights; "stances" are the reporters\' earlier opinions on them. A reporter may take a stance on a thread of the request in one short sentence (put it in "stances" with the thread\'s key), and may say "I told you so" or "I was wrong" about their own earlier stance. Only their own stances; an empty list when none.',
   '26. Language: mild swearing (hell, damn, crap) only for Dex Mercer, Gord Pettibone and Rico Vale, mostly in posts, at most once a piece. Everyone else writes clean. Never a slur, never a stronger word, never swearing aimed at a person.',
   'CRAFT',
-  '27. At most 3 numbers in a sentence. No list of more than 3 values. At most 2 clock times in an article.',
+  '27. At most 3 numbers in a sentence: digits, number words ("two") and clock times all count; the mode names 3s and 6s do not. Split a sentence rather than pack a fourth number in. No list of more than 3 values. At most 2 clock times in an article.',
   '28. An article never opens with the date and the record.',
   '29. A headline names the night\'s one story, in sentence case (capitals only for the first word and for names). Never a headline like "X wins, Y loss". The record goes in the dek or the body, once. The dek never repeats the headline.',
   '30. Each milestone gets its own sentence, never a roll call.',

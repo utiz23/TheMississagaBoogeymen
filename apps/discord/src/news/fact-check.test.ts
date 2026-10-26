@@ -834,6 +834,15 @@ void test('C3a.5 pronouns, numbers per sentence, clock times per article', () =>
   assert.equal(numberTokens('A 2-6 loss with 14 shots and 29 against.'), 3)
   assert.equal(numberTokens('Record 9-11-1, 83.1% at 3:58.'), 3)
   assert.equal(numberTokens('Two goals, three shots and six hits, plus 14.'), 4)
+  // Mode names are not stats (a high must name its mode): "3s" and "6s" never count.
+  assert.equal(
+    numberTokens(
+      'Erb has points in 12 straight games, and his 4 points beat his 6s average of 2.8.',
+    ),
+    3,
+  )
+  assert.equal(numberTokens('A career high in 3s, with 7 goals.'), 1)
+  assert.equal(numberTokens('He took 36 shots.'), 1)
   assert.ok(
     has(
       checkFacts('A 2-6 loss, 14 shots, 29 against and 10 hits.', facts, FORBIDDEN, none),

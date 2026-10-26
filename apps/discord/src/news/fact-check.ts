@@ -392,7 +392,11 @@ const sentences = (text: string): string[] =>
  * The numbers of one sentence: a hyphen-joined run ("4-2", "40-11-5") and a
  * percentage count once, a clock once, every number word once.
  */
-export function numberTokens(sentence: string): number {
+/** The game modes "3s" and "6s" are names, not stats: a high must name its mode, so they never count as numbers. */
+const MODE_NAME = /(?<![\p{L}\p{N}_.])[36]s(?![\p{L}\p{N}_])/gu
+
+export function numberTokens(input: string): number {
+  const sentence = input.replace(MODE_NAME, ' mode ')
   const digits =
     sentence.match(/\d{1,2}:\d{2}|\d+(?:[.,]\d+)?(?:\s*[-–]\s*\d+(?:[.,]\d+)?)*%?/g) ?? []
   const words =
