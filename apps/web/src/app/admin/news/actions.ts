@@ -3,19 +3,24 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import {
+  deleteAlias,
   getNewsEnabled,
   getTakeHolder,
+  listAliases,
+  listPressRoster,
   setNewsEnabled,
   setPressLevel,
   setReporterEnabled,
   skipNewsBacklog,
   softDeleteNewsItem,
   updateAdminTake,
+  upsertAlias,
   softDeleteNewsItemWithCorrection,
 } from '@eanhl/db/queries'
 import { PRESS_LEVELS, type PressLevel } from '@eanhl/db/schema'
 import { requireAdmin } from '@/lib/auth'
 import { parseReporterId } from '@/lib/news/admin-display'
+import { ALIAS_MAX_CHARS, saveAlias, type AliasState } from '@/lib/news/alias-save'
 import { saveTake } from '@/lib/news/takes-save'
 import { switchNewsDesk } from '@/lib/news/switch'
 import { pressLevelSetBy } from '@/lib/profile-edit'
@@ -94,4 +99,27 @@ export async function saveTakeAction(formData: FormData): Promise<void> {
   revalidatePath('/admin/news')
   // Only a flag in the URL: the reason is shown from fixed text, never from the request.
   if (!result.ok) redirect('/admin/news?takeError=1')
+}
+
+/**
+ * Add a nickname for a player (GM lore, admin only). `prev` is the form's last
+ * state (useActionState). A nickname that belongs to another player is refused.
+ */
+export async function addAliasAction(_prev: AliasState, formData: FormData): Promise<AliasState> {
+  await requireAdmin()
+  const result = await saveAlias(formData, {
+    roster: listPressRoster,
+    aliases: listAliases,
+    upsert: upsertAlias,
+    log: (m) => console.error(m),
+  })
+  if (result.status === 'ok') revalidatePath('/admin/news')
+  return result
+}
+
+export async function deleteAliasAction(alias: string): Promise<void> {
+  await requireAdmin()
+  if (typeof alias !== 'string' || alias.length < 1 || alias.length > ALIAS_MAX_CHARS) return
+  await deleteAlias(alias)
+  revalidatePath('/admin/news')
 }

@@ -664,6 +664,12 @@ export const sections: LegalPageSection[] = [
           notes written by the site's admin for the fictional coverage.
         </P>
         <P>
+          {/* DRAFT: awaits operator approval before the press bots go live. */}
+          <Strong>Answers to reporters in Discord.</Strong> If you answer a reporter's questions in
+          Discord, we store your answers and send them to Claude AI (Anthropic) to write the
+          questions and the stories. Answering is optional.
+        </P>
+        <P>
           <Strong>Where it appears.</Strong> The finished posts and articles appear on the News
           pages of this site. Our team's Discord channel gets the posts, and links to the articles.
         </P>

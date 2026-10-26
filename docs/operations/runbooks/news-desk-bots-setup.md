@@ -6,7 +6,7 @@ Each news desk reporter becomes a Discord bot. This runbook shows how to create
 the bot accounts, invite them to the server, and give the program their tokens.
 Spec: `docs/superpowers/specs/2026-10-25-news-desk-bots-design.md`, section 8.
 
-You do this one time, before the first trial night. It takes about one hour.
+You do this one time, before the first trial night. It takes about 30 minutes.
 
 ## Cost
 
@@ -25,7 +25,7 @@ One call (6,000 input tokens, 300 output tokens, with the fact sheet):
 | One GM note parse                                           | 1         | $0.03 |
 | One reaction follow-up (one game post job: write + review)  | 2         | $0.06 |
 
-Monthly (8 game nights, 4 games each):
+Monthly (8 game nights):
 
 - Scrums: 1 per night x 8 nights x $0.24 = **$1.92**
 - GM notes: 2 per night x 8 nights x $0.03 = **$0.48**
@@ -98,9 +98,8 @@ on the Wade Barlow application. The other eight applications have no commands.
    Step 4. Discord shows it one time only. If you lose it, click Reset Token
    again.
 
-Reactions need the `GuildMessageReactions` intent. It is **not** privileged.
-There is no switch for it in the portal. The program turns it on in code, on
-Wade Barlow's bot only. You do nothing for it.
+Reactions need reaction events. There is no switch for them in the portal. The
+program turns on reaction events for Wade Barlow's bot itself. You do nothing.
 
 ## Step 3: Invite each bot to the server
 
@@ -189,14 +188,80 @@ a trial night goes well. You change it to `live` yourself.
 - The bot test channel lets all nine bots view it and send messages. Check the
   channel permissions if a bot cannot see it.
 
-The program that uses these settings comes in later tasks of the plan. Do not
-redeploy until those tasks are done.
+Do not start the bots yet. Follow the release checklist below.
 
 ## Problems
 
 - **Invite link says "Integration requires code grant"**: on the **Bot** tab,
-  make sure no extra option is on. On the **OAuth2** tab, do not tick any
-  "Requires OAuth2 Code Grant".
+  turn **Requires OAuth2 Code Grant** off.
 - **A bot cannot post in a channel**: open the channel settings. Give the bot's
   role View Channel, Send Messages, and Create Public Threads.
 - **Token lost or leaked**: Bot tab, Reset Token, update the `.env`.
+
+## Release checklist
+
+Do these steps in order. Run all commands on Hotel-Echo (`ssh hotel-echo`, then
+`cd ~/eanhl-team-website`). Docker is not on the main PC. Do the steps above
+(nine bots, tokens, IDs) first.
+
+Before you start:
+
+- Read the privacy text. The new sentence about scrum answers is in
+  `apps/web/src/content/legal/privacy.tsx` and `data-collection.tsx` (section
+  "News posts written by an AI service"). It is a **draft**. You must approve
+  it, or change it, **before** the bots go live. It goes to the site with the
+  `web` image (step 2).
+- Run `git pull` for the commit to deploy.
+- Run `docker compose config --profiles`. The list must include `press`. If it
+  does not, stop: the compose file is not the new one.
+
+1. **Apply migration 0072 on the live database.** Do this before the new code
+   runs. The command is in the header of the file. It is safe to run twice.
+
+   ```
+   docker exec -i -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=30s" \
+     eanhl-team-website-db-1 psql -U eanhl -d eanhl -v ON_ERROR_STOP=1 -f - \
+     < packages/db/migrations/0072_news_press.sql
+   ```
+
+2. **Rebuild the images.** Tag a rollback image first. Rebuild `web` as well:
+   it holds the new nickname list and the privacy text. `docker compose up -d`
+   alone reuses the old image, so always build.
+
+   ```
+   docker tag eanhl-team-website-web:latest eanhl-team-website-web:rollback-he-<date>-pre-press
+   docker tag eanhl-team-website-news:latest eanhl-team-website-news:rollback-he-<date>-pre-press
+   docker compose --profile news --profile press build web news press
+   docker compose --profile news --profile press up -d --no-deps web news press
+   ```
+
+   Replace `<date>` with today's date (`YYYY-MM-DD`). The `press` image has
+   no old version to tag. Check the logs: `docker logs eanhl-team-website-news-1
+--tail 20` and `docker logs eanhl-team-website-press-1 --tail 20`.
+
+3. **Trial night.** Leave `PRESS_MODE` unset (or `trial`) in `.env`. Play one
+   game night. The bots post in the bot test channel only. Only you (the GM)
+   are pinged.
+4. **Read the trial.** Read the trial posts in the test channel and on
+   `/admin/news`. Check the scrum questions, the answers, the nicknames and the
+   spending. Delete anything wrong.
+5. **Go live.** Approve the privacy text first. Then set `PRESS_MODE=live` in
+   `.env` and restart the two services:
+
+   ```
+   docker compose --profile news --profile press up -d --no-deps news press
+   ```
+
+   The bots now post in `#chel`.
+
+6. **Rollback.** If something goes wrong:
+
+   ```
+   docker compose stop press
+   ```
+
+   Then remove `PRESS_MODE` from `.env` (or set it to `trial`) and restart
+   `news`: `docker compose --profile news up -d --no-deps news`. The news desk
+   posts through the webhook again. The migration stays; it does no harm. To
+   return to the old images, retag the `:rollback-he-<date>-pre-press` images
+   as `:latest` and run `up -d --no-deps` again.
