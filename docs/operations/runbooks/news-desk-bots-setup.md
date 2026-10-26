@@ -197,6 +197,9 @@ Do not start the bots yet. Follow the release checklist below.
 - **A bot cannot post in a channel**: open the channel settings. Give the bot's
   role View Channel, Send Messages, and Create Public Threads.
 - **Token lost or leaked**: Bot tab, Reset Token, update the `.env`.
+- **`/gm` is missing in Discord**: the command is for administrators by
+  default. Open **Server Settings**, then **Integrations**, then **Wade
+  Barlow**. Find `/gm` and allow yourself.
 
 ## Release checklist
 
@@ -209,11 +212,11 @@ deploy from the feature branch. Run `git pull` on `main` first.
 
 Replace `<date>` in the commands with today's date (`YYYY-MM-DD`).
 
-0. **Approve the privacy text.** The new sentence about scrum answers is in
-   `apps/web/src/content/legal/privacy.tsx` and `data-collection.tsx` (section
-   "News posts written by an AI service"). It is a **draft**. Read it. Approve
-   it, or change the words. Do this **before** you build the `web` image in
-   step 3: the text goes to the site with that image. If you change the words
+0. **Approve the privacy text.** The new text about scrum answers and Discord
+   reactions is in `apps/web/src/content/legal/privacy.tsx` and
+   `data-collection.tsx` (section "News posts written by an AI service"). It is
+   a **draft**. Read it. Approve it, or change the words. Do this **before** you
+   build the `web` image in step 4: the text goes to the site with that image. If you change the words
    later, rebuild and restart `web` again:
 
    ```
@@ -236,8 +239,10 @@ Replace `<date>` in the commands with today's date (`YYYY-MM-DD`).
    docker exec eanhl-team-website-db-1 pg_dump -U eanhl -d eanhl -Fc > ~/eanhl-pre-press-<date>.dump
    ```
 
-   Check that the file is not empty: `ls -l ~/eanhl-pre-press-<date>.dump`. The
-   normal backup procedure is in `docs/operations/backup-producer.md`.
+   Check that the file is not empty: `ls -l ~/eanhl-pre-press-<date>.dump`. If
+   the size is 0 bytes, **stop**. Do not continue. The backup failed: find out
+   why first. The normal backup procedure is in
+   `docs/operations/backup-producer.md`.
 
 3. **Apply migration 0072 on the live database.** Do this before the new code
    runs. The command is in the header of the file. It is safe to run twice.
@@ -274,8 +279,10 @@ Replace `<date>` in the commands with today's date (`YYYY-MM-DD`).
    `/admin/news`. Check the scrum questions, the answers, the nicknames and the
    spending. Delete anything wrong.
 7. **Go live.** Check that the approved privacy text is on the site (the
-   `web` image from step 4, or a later rebuild). Then set `PRESS_MODE=live` in
-   `.env` and restart the two services:
+   `web` image from step 4, or a later rebuild). Check that `.env` has
+   `NEWS_DRY_RUN=0`. The bots post only what the news desk writes for real:
+   while the desk is in dry run, live press mode posts nothing in `#chel`.
+   Then set `PRESS_MODE=live` in `.env` and restart the two services:
 
    ```
    docker compose --profile news --profile press up -d --no-deps news press
@@ -302,6 +309,9 @@ If something goes wrong:
    docker tag eanhl-team-website-news:rollback-he-<date>-pre-press eanhl-team-website-news:latest
    docker compose --profile news up -d --no-deps web news
    ```
+
+Bot posts that are already in the channel stay. Their buttons no longer work.
+Delete them by hand if you want to.
 
 The migration stays. It does no harm. To undo it, use the rollback SQL in the
 header of `packages/db/migrations/0072_news_press.sql`.
