@@ -41,7 +41,7 @@ interface LatestResultProps {
   /** Current season division placement (from EA clubs/seasonRank). */
   divisionName: string | null
   /** Reviewed OCR shot totals, so DtW matches the game sheet. */
-  ocrShots?: { for: number; against: number } | undefined
+  ocrShots?: { for: number | null; against: number | null } | undefined
 }
 
 export function LatestResult({

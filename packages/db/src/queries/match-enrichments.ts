@@ -912,18 +912,24 @@ export type MatchPeriodSummaryRow = Awaited<ReturnType<typeof getMatchPeriodSumm
  * Reviewed OCR shot totals per match, for lists (game cards, latest result)
  * whose Deserve-to-Win must agree with the game sheet's. Same gate as
  * getMatchPeriodSummaries' shots family: OCR rows whose `shots_review_status`
- * is 'reviewed', real periods only. A match without any is absent.
+ * is 'reviewed', real periods only. A side is null when any of those periods
+ * lacks its value (a partial sum is not a total; `aggregateOcrShots` does the
+ * same). A match without any usable side is absent.
  */
 export async function getOcrShotTotalsForMatches(
   matchIds: readonly number[],
-): Promise<Map<number, { for: number; against: number }>> {
-  const out = new Map<number, { for: number; against: number }>()
+): Promise<Map<number, { for: number | null; against: number | null }>> {
+  const out = new Map<number, { for: number | null; against: number | null }>()
   if (matchIds.length === 0) return out
   const rows = await db
     .select({
       matchId: matchPeriodSummaries.matchId,
-      shotsFor: sql<number | null>`sum(${matchPeriodSummaries.shotsFor})`.mapWith(Number),
-      shotsAgainst: sql<number | null>`sum(${matchPeriodSummaries.shotsAgainst})`.mapWith(Number),
+      shotsFor: sql<
+        string | null
+      >`case when count(*) = count(${matchPeriodSummaries.shotsFor}) then sum(${matchPeriodSummaries.shotsFor}) end`,
+      shotsAgainst: sql<
+        string | null
+      >`case when count(*) = count(${matchPeriodSummaries.shotsAgainst}) then sum(${matchPeriodSummaries.shotsAgainst}) end`,
     })
     .from(matchPeriodSummaries)
     .where(
@@ -935,10 +941,15 @@ export async function getOcrShotTotalsForMatches(
       ),
     )
     .groupBy(matchPeriodSummaries.matchId)
+  const side = (v: string | number | null): number | null => {
+    if (v === null) return null
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
   for (const r of rows) {
-    if (r.shotsFor === null || r.shotsAgainst === null) continue
-    if (!Number.isFinite(r.shotsFor) || !Number.isFinite(r.shotsAgainst)) continue
-    out.set(r.matchId, { for: r.shotsFor, against: r.shotsAgainst })
+    const shots = { for: side(r.shotsFor), against: side(r.shotsAgainst) }
+    if (shots.for === null && shots.against === null) continue
+    out.set(r.matchId, shots)
   }
   return out
 }

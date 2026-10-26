@@ -68,7 +68,7 @@ interface ScoreCardProps {
    */
   ocrCoverage?: OcrCoverageStreams | undefined
   /** Reviewed OCR shot totals (getOcrShotTotalsForMatches), so DtW matches the game sheet. */
-  ocrShots?: { for: number; against: number } | undefined
+  ocrShots?: { for: number | null; against: number | null } | undefined
 }
 
 /** Stat labels read at fg-5 (~4.6:1), the site's floor for small text. */

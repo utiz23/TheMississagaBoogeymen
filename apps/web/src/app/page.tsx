@@ -139,7 +139,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
   let lastMatchOpponent = null
   let lastMatchFaceoffs: Awaited<ReturnType<typeof getMatchFaceoffTotals>> | null = null
-  let lastMatchOcrShots: { for: number; against: number } | undefined
+  let lastMatchOcrShots: { for: number | null; against: number | null } | undefined
   if (lastMatch !== null) {
     try {
       lastMatchOpponent = await getOpponentClub(lastMatch.opponentClubId)

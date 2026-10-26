@@ -981,8 +981,9 @@ export function buildBoxScore(
 
 /**
  * Sum BGM and opponent shot totals across reviewed OCR period summaries.
- * Returns null on either side when no usable data is found, so the caller
- * can fall back to EA's headline value.
+ * Returns null on either side when no usable data is found, or when any
+ * reviewed period lacks that side's value (a partial sum is not a total), so
+ * the caller can fall back to EA's headline value.
  */
 export function aggregateOcrShots(rows: MatchPeriodSummaryRow[]): {
   for: number | null
@@ -990,16 +991,20 @@ export function aggregateOcrShots(rows: MatchPeriodSummaryRow[]): {
 } {
   let totalFor: number | null = null
   let totalAgainst: number | null = null
+  let missingFor = false
+  let missingAgainst = false
   for (const r of rows) {
     if (r.source !== 'ocr') continue
     // Gate on the shots family, not the legacy row-level status: a row can
     // carry reviewed shots while review_status is still pending.
     if (r.shotsReviewStatus !== 'reviewed') continue
     if (r.periodNumber === -1) continue // ignore aggregate "TOT" sentinels if any
-    if (r.shotsFor !== null) totalFor = (totalFor ?? 0) + r.shotsFor
-    if (r.shotsAgainst !== null) totalAgainst = (totalAgainst ?? 0) + r.shotsAgainst
+    if (r.shotsFor === null) missingFor = true
+    else totalFor = (totalFor ?? 0) + r.shotsFor
+    if (r.shotsAgainst === null) missingAgainst = true
+    else totalAgainst = (totalAgainst ?? 0) + r.shotsAgainst
   }
-  return { for: totalFor, against: totalAgainst }
+  return { for: missingFor ? null : totalFor, against: missingAgainst ? null : totalAgainst }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

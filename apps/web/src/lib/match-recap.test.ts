@@ -4,6 +4,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  aggregateOcrShots,
   buildClassName,
   buildClassToArchetype,
   buildPossessionEdge,
@@ -96,4 +97,27 @@ void test('lineupsForMatch: no OCR rows ⇒ box-score lineup', () => {
   })
   assert.equal(r.variant, 'boxScore')
   assert.deepEqual(r.bgm, [])
+})
+
+void test('OCR shots: a side with a period missing its value falls back to EA (match 979: 8 + ? + 2 is not 10)', () => {
+  const row = (periodNumber: number, shotsFor: number | null, shotsAgainst: number | null) =>
+    ({
+      source: 'ocr',
+      periodNumber,
+      shotsReviewStatus: 'reviewed',
+      shotsFor,
+      shotsAgainst,
+    }) as unknown as Parameters<typeof aggregateOcrShots>[0][number]
+  // Match 979 on live: shots for missing in the 2nd, shots against complete.
+  assert.deepEqual(aggregateOcrShots([row(1, 8, 8), row(2, null, 9), row(3, 2, 0), row(4, 0, 0)]), {
+    for: null,
+    against: 17,
+  })
+  // Match 1042: shots against missing in the 2nd and 3rd.
+  assert.deepEqual(aggregateOcrShots([row(1, 5, 0), row(2, 2, null), row(3, 4, null)]), {
+    for: 11,
+    against: null,
+  })
+  assert.deepEqual(aggregateOcrShots([row(1, 5, 4), row(2, 6, 3)]), { for: 11, against: 7 })
+  assert.deepEqual(aggregateOcrShots([]), { for: null, against: null })
 })
