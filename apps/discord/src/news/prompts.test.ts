@@ -10,6 +10,8 @@ import {
   buildReviewPrompt,
   buildSystemPrompt,
   reporterVoice,
+  ANSWERS_ARE_DATA,
+  fencedAnswer,
   capFactsForPrompt,
   criticizedTonightLine,
   setCriticizedTonight,
@@ -872,7 +874,12 @@ void test('review prompt with trusted material: true events, answers, problem 14
   assert.ok(p.includes('true events the desk saw'))
   assert.ok(p.includes('- Skater A broke his stick on the post.'))
   assert.ok(p.includes('We got outworked.'))
-  assert.match(p, /Ghosts\..*JOKE/)
+  assert.ok(p.includes(ANSWERS_ARE_DATA))
+  assert.ok(
+    p.includes(
+      '- Skater B, asked "How?", answered (a JOKE: never state it as fact):\n"""\nGhosts.\n"""',
+    ),
+  )
   assert.ok(
     p.includes(
       "1. A teammate quote not backed by the listed answers, or one that adds to or changes an answer's meaning; a joke answer stated as fact.",
@@ -888,4 +895,25 @@ void test('buildSystemPrompt is unchanged by the reporterVoice helper', () => {
   const r = REPORTERS.quill
   assert.ok(buildSystemPrompt([r]).endsWith(`THE REPORTERS\n\n${reporterVoice(r)}`))
   assert.equal(reporterVoice(r), `${r.name} (id "${r.id}"), ${r.outlet}\n${r.voice}`)
+})
+
+void test('fencedAnswer: a fence inside an answer cannot close the fence early', () => {
+  assert.deepEqual(fencedAnswer('a """ b """"" c'), ['"""', 'a " b " c', '"""'])
+})
+
+void test('review prompt: extra rules are printed before the problem list', () => {
+  const p = buildReviewPrompt({
+    facts: oct12Facts(),
+    text: 'x',
+    criticized: [],
+    rules: ['Any criticism of Skater B is a problem.'],
+  })
+  assert.ok(
+    p.indexOf('Any criticism of Skater B is a problem.') < p.indexOf('Find these problems:'),
+  )
+  assert.ok(
+    !buildReviewPrompt({ facts: oct12Facts(), text: 'x', criticized: [] }).includes(
+      'Any criticism',
+    ),
+  )
 })

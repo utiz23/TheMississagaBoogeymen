@@ -142,6 +142,8 @@ export async function writeChecked<T>(args: {
    * function gets the output, when what is trusted depends on it.
    */
   trusted?: TrustedMaterial | ((out: T) => TrustedMaterial)
+  /** Extra rules for the review of this text (shown before its problem list). */
+  reviewRules?: readonly string[]
   /** Writes in all (the first write plus rewrites); `MAX_WRITES` when absent. */
   maxWrites?: number
   facts: NewsFacts
@@ -194,6 +196,7 @@ export async function writeChecked<T>(args: {
           : {
               trusted: typeof args.trusted === 'function' ? args.trusted(out) : args.trusted,
             }),
+        ...(args.reviewRules === undefined ? {} : { rules: args.reviewRules }),
       }),
       schema: REVIEW_SCHEMA,
       effort: 'low',
