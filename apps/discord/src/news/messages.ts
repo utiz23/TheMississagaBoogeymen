@@ -1,4 +1,5 @@
-import type { Reporter } from '@eanhl/db/news'
+import { REPORTERS, type Reporter } from '@eanhl/db/news'
+import type { NewsItemRow } from '@eanhl/db/queries'
 import { talkButton, type BotMessage } from '../bot-rest.ts'
 import { escapeMarkdown } from '../message.ts'
 
@@ -39,6 +40,29 @@ export function buildArticlePayload(args: {
 }): NewsWebhookPayload {
   const content = `**${escapeMarkdown(args.headline)}**\n${escapeMarkdown(args.dek)}\n${args.url}`
   return base(args.reporter, args.siteUrl, content)
+}
+
+/**
+ * The payload of a stored item: an article notice, or a post (a reply starts
+ * with `↪ to <replyToName>: `; null sends it without the prefix). The news
+ * cycle and the press trial mirror share it.
+ */
+export function payloadForItem(
+  item: NewsItemRow,
+  siteUrl: string,
+  replyToName: string | null,
+): NewsWebhookPayload {
+  const reporter = REPORTERS[item.reporter]
+  if (item.kind === 'article') {
+    return buildArticlePayload({
+      reporter,
+      headline: item.headline ?? '',
+      dek: item.dek ?? '',
+      url: `${siteUrl}/news/${item.slug ?? ''}`,
+      siteUrl,
+    })
+  }
+  return buildNewsPostPayload({ reporter, text: item.body, replyToName, siteUrl })
 }
 
 /**

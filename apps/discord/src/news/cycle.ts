@@ -47,6 +47,7 @@ import {
   articleSlug,
   buildArticlePayload,
   buildNewsPostPayload,
+  payloadForItem,
   type NewsWebhookPayload,
 } from './messages.ts'
 import {
@@ -612,24 +613,14 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
   }
 
   async function payloadForStored(item: NewsItemRow): Promise<NewsWebhookPayload> {
-    const reporter = REPORTERS[item.reporter]
-    if (item.kind === 'article') {
-      return buildArticlePayload({
-        reporter,
-        headline: item.headline ?? '',
-        dek: item.dek ?? '',
-        url: `${opts.siteUrl}/news/${item.slug ?? ''}`,
-        siteUrl: opts.siteUrl,
-      })
-    }
     let replyToName: string | null = null
-    if (item.replyTo !== null) {
+    if (item.kind !== 'article' && item.replyTo !== null) {
       const to = await store.newsItemReporter(item.replyTo)
       if (to === null)
         log(`news item ${String(item.id)}: reply target not found, sent without prefix`)
       else replyToName = REPORTERS[to].name
     }
-    return buildNewsPostPayload({ reporter, text: item.body, replyToName, siteUrl: opts.siteUrl })
+    return payloadForItem(item, opts.siteUrl, replyToName)
   }
 
   // ── 5. Game posts ─────────────────────────────────────────────────────────

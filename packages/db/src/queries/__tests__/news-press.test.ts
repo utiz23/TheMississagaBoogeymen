@@ -42,6 +42,13 @@ const {
   insertReactionTriggerQuery,
   PRESS_ACCEPT_WINDOW_MS,
   PRESS_ANSWER_WINDOW_MS,
+  setScrumThreadQuery,
+  lastScrumReporterQuery,
+  gmAskForMatchQuery,
+  scrumPersonDetailQuery,
+  listScrumAnswersQuery,
+  expireScrumPersonQuery,
+  claimScrumQuestionQuery,
 } = await import('../news-press.js')
 const { nightCriticizedSql } = await import('../news.js')
 const dialect = new PgDialect()
@@ -305,4 +312,108 @@ void test('migration 0072: idempotent tables and columns, kind check gains react
     /DROP CONSTRAINT IF EXISTS "news_jobs_kind_check";\s+ALTER TABLE "news_jobs" ADD CONSTRAINT "news_jobs_kind_check"\s+CHECK \("kind" IN \('game', 'night', 'week', 'game_article', 'reaction'\)\)/,
   )
   assert.match(sqlText, /ON CONFLICT \("id"\) DO NOTHING/)
+})
+
+void test('set scrum thread: only while the scrum has no thread', () => {
+  const q = setScrumThreadQuery(4, 't1').toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /^update "news_scrums" set "thread_id" = \$1/)
+  assert.match(s, /"news_scrums"."id" = \$2 and "news_scrums"."thread_id" is null/)
+  assert.match(s, /returning/)
+  assert.deepEqual(q.params, ['t1', 4])
+})
+
+void test('last scrum reporter: the newest scrum', () => {
+  const s = flat(lastScrumReporterQuery().toSQL().sql)
+  assert.match(s, /select "reporter" from "news_scrums"/)
+  assert.match(s, /order by "news_scrums"."id" desc limit \$1/)
+})
+
+void test('GM ask for a match: newest active note that asks a player, same test rule', () => {
+  const q = gmAskForMatchQuery(90001, false).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /from "news_gm_notes"/)
+  assert.match(s, /"news_gm_notes"."match_id" = \$1/)
+  assert.match(s, /"news_gm_notes"."status" = \$2/)
+  assert.match(s, /"news_gm_notes"."asks_player" = \$3/)
+  assert.match(s, /"news_gm_notes"."player_id" is not null/)
+  assert.match(s, /\("news_gm_notes"."is_test" = false or \$4\)/)
+  assert.match(s, /order by "news_gm_notes"."id" desc/)
+  assert.deepEqual(q.params.slice(0, 4), [90001, 'active', true, false])
+})
+
+void test('scrum person detail: person, scrum and display name; by id or the people to ping', () => {
+  const byId = scrumPersonDetailQuery({ id: 9 }).toSQL()
+  const s = flat(byId.sql)
+  assert.match(
+    s,
+    /from "news_scrum_people" inner join "news_scrums" on "news_scrums"."id" = "news_scrum_people"."scrum_id"/,
+  )
+  assert.match(s, /inner join "players" on "players"."id" = "news_scrum_people"."player_id"/)
+  assert.match(
+    s,
+    /left join "player_profiles" on "player_profiles"."player_id" = "news_scrum_people"."player_id"/,
+  )
+  assert.match(
+    s,
+    /coalesce\(nullif\(btrim\("player_profiles"."player_name"\), ''\), "players"."gamertag"\)/,
+  )
+  assert.match(s, /where "news_scrum_people"."id" = \$1/)
+  assert.ok(byId.params.includes(9))
+  const toPing = flat(scrumPersonDetailQuery({ toPing: true }).toSQL().sql)
+  assert.match(
+    toPing,
+    /"news_scrum_people"."status" = \$1 and "news_scrum_people"."pinged_at" is null/,
+  )
+  assert.match(toPing, /order by "news_scrum_people"."id" asc/)
+})
+
+void test("scrum answers: one person's answers, oldest first", () => {
+  const q = listScrumAnswersQuery(5).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /select "question", "answer", "usability" from "news_scrum_answers"/)
+  assert.match(s, /where "news_scrum_answers"."person_id" = \$1/)
+  assert.match(s, /order by "news_scrum_answers"."id" asc/)
+})
+
+void test('expire scrum person: pinged -> expired, asking -> done, only past the cutoff', () => {
+  const cutoff = new Date('2026-10-25T20:05:00Z')
+  const ping = expireScrumPersonQuery(3, 'pinged', cutoff).toSQL()
+  const p = flat(ping.sql)
+  assert.match(p, /set "status" = \$1/)
+  assert.match(
+    p,
+    /"news_scrum_people"."status" = \$\d+ and "news_scrum_people"."pinged_at" < \$\d+/,
+  )
+  assert.ok(ping.params.includes('expired'))
+  assert.ok(ping.params.includes('pinged'))
+  const ask = expireScrumPersonQuery(3, 'asking', cutoff).toSQL()
+  const a = flat(ask.sql)
+  assert.match(a, /set "status" = \$1, "current_question" = \$2/)
+  assert.equal(ask.params[1], null)
+  assert.match(
+    a,
+    /"news_scrum_people"."status" = \$\d+ and "news_scrum_people"."last_asked_at" < \$\d+/,
+  )
+  assert.ok(ask.params.includes('done'))
+  assert.ok(ask.params.includes('asking'))
+  assert.match(a, /returning/)
+})
+
+void test('claim scrum question: only from the expected count, while pinged or asking', () => {
+  const q = claimScrumQuestionQuery({
+    personId: 3,
+    questionsAsked: 1,
+    question: 'Why?',
+    at: new Date('2026-10-25T20:00:00Z'),
+  }).toSQL()
+  const s = flat(q.sql)
+  assert.match(
+    s,
+    /set "status" = \$1, "questions_asked" = "news_scrum_people"."questions_asked" \+ 1, "current_question" = \$2, "last_asked_at" = \$3/,
+  )
+  assert.match(s, /"news_scrum_people"."questions_asked" = \$\d+/)
+  assert.match(s, /"news_scrum_people"."status" in \(\$\d+, \$\d+\)/)
+  assert.match(s, /returning/)
+  assert.ok(q.params.includes('Why?'))
 })

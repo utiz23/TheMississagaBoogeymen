@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNull, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   newsGmNotes,
@@ -11,6 +11,8 @@ import {
   newsScrumAnswers,
   newsScrumPeople,
   newsScrums,
+  playerProfiles,
+  players,
   type NewNewsGmNote,
   type NewNewsScrum,
   type NewNewsScrumAnswer,
@@ -18,6 +20,7 @@ import {
   type NewsItemRow,
   type NewsPressSettingsRow,
   type NewsReporterId,
+  type NewsScrumPersonRow,
   type NewsScrumRow,
   type PressHeat,
   type PressHeatScope,
@@ -62,6 +65,56 @@ export async function insertScrum(values: NewNewsScrum): Promise<number | null> 
 export async function scrumByRecapItem(itemId: number): Promise<NewsScrumRow | null> {
   const rows = await db.select().from(newsScrums).where(eq(newsScrums.recapItemId, itemId)).limit(1)
   return rows[0] ?? null
+}
+
+/** Set the scrum's thread once (only while it has none). */
+export function setScrumThreadQuery(scrumId: number, threadId: string) {
+  return db
+    .update(newsScrums)
+    .set({ threadId })
+    .where(and(eq(newsScrums.id, scrumId), isNull(newsScrums.threadId)))
+    .returning({ id: newsScrums.id })
+}
+
+/** True when this call set the thread. */
+export async function setScrumThread(scrumId: number, threadId: string): Promise<boolean> {
+  return (await setScrumThreadQuery(scrumId, threadId)).length > 0
+}
+
+export function lastScrumReporterQuery() {
+  return db
+    .select({ reporter: newsScrums.reporter })
+    .from(newsScrums)
+    .orderBy(desc(newsScrums.id))
+    .limit(1)
+}
+
+/** The reporter of the newest scrum; null before the first scrum. */
+export async function lastScrumReporter(): Promise<NewsReporterId | null> {
+  return (await lastScrumReporterQuery())[0]?.reporter ?? null
+}
+
+/** The newest active GM note on the match that asks a player to talk. Test notes only when `includeTest`. */
+export function gmAskForMatchQuery(matchId: number, includeTest: boolean) {
+  return db
+    .select({ playerId: newsGmNotes.playerId })
+    .from(newsGmNotes)
+    .where(
+      and(
+        eq(newsGmNotes.matchId, matchId),
+        eq(newsGmNotes.status, 'active'),
+        eq(newsGmNotes.asksPlayer, true),
+        isNotNull(newsGmNotes.playerId),
+        sql`(${newsGmNotes.isTest} = false or ${includeTest})`,
+      ),
+    )
+    .orderBy(desc(newsGmNotes.id))
+    .limit(1)
+}
+
+/** The player the GM asked for on this match; null when no note asks. */
+export async function gmAskForMatch(matchId: number, includeTest: boolean): Promise<number | null> {
+  return (await gmAskForMatchQuery(matchId, includeTest))[0]?.playerId ?? null
 }
 
 export type PressMode = 'trial' | 'live'
@@ -258,6 +311,126 @@ export async function insertScrumAnswer(values: NewNewsScrumAnswer): Promise<num
   const row = rows[0]
   if (!row) throw new Error('insertScrumAnswer: no row returned')
   return row.id
+}
+
+/** A scrum person with their display name and their scrum. */
+export type ScrumPersonDetail = NewsScrumPersonRow & { name: string; scrum: NewsScrumRow }
+
+/** One person by id, or every person still to ping (`pinged`, `pinged_at` null), oldest first. */
+export function scrumPersonDetailQuery(by: { id: number } | { toPing: true }) {
+  return db
+    .select({
+      person: newsScrumPeople,
+      scrum: newsScrums,
+      name: sql<string>`coalesce(nullif(btrim(${playerProfiles.playerName}), ''), ${players.gamertag})`,
+    })
+    .from(newsScrumPeople)
+    .innerJoin(newsScrums, eq(newsScrums.id, newsScrumPeople.scrumId))
+    .innerJoin(players, eq(players.id, newsScrumPeople.playerId))
+    .leftJoin(playerProfiles, eq(playerProfiles.playerId, newsScrumPeople.playerId))
+    .where(
+      'id' in by
+        ? eq(newsScrumPeople.id, by.id)
+        : and(eq(newsScrumPeople.status, 'pinged'), isNull(newsScrumPeople.pingedAt)),
+    )
+    .orderBy(asc(newsScrumPeople.id))
+    .limit('id' in by ? 1 : 20)
+}
+
+export async function getScrumPerson(id: number): Promise<ScrumPersonDetail | null> {
+  const row = (await scrumPersonDetailQuery({ id }))[0]
+  return row === undefined ? null : { ...row.person, name: row.name, scrum: row.scrum }
+}
+
+export async function listPeopleToPing(): Promise<ScrumPersonDetail[]> {
+  const rows = await scrumPersonDetailQuery({ toPing: true })
+  return rows.map((r) => ({ ...r.person, name: r.name, scrum: r.scrum }))
+}
+
+export function listScrumAnswersQuery(personId: number) {
+  return db
+    .select({
+      question: newsScrumAnswers.question,
+      answer: newsScrumAnswers.answer,
+      usability: newsScrumAnswers.usability,
+    })
+    .from(newsScrumAnswers)
+    .where(eq(newsScrumAnswers.personId, personId))
+    .orderBy(asc(newsScrumAnswers.id))
+}
+
+/** One person's earlier questions and answers, oldest first. */
+export async function listScrumAnswers(
+  personId: number,
+): Promise<{ question: string; answer: string; usability: 'usable' | 'joke' | 'unusable' }[]> {
+  return listScrumAnswersQuery(personId)
+}
+
+/**
+ * End a person's round when its window passed: `pinged` → `expired` (no
+ * accept), `asking` → `done` (no answer). Only while the row is still in that
+ * state and older than `cutoff`, so an accept or an answer that came in first wins.
+ */
+export function expireScrumPersonQuery(id: number, from: 'pinged' | 'asking', cutoff: Date) {
+  const pinged = from === 'pinged'
+  return db
+    .update(newsScrumPeople)
+    .set(pinged ? { status: 'expired' } : { status: 'done', currentQuestion: null })
+    .where(
+      and(
+        eq(newsScrumPeople.id, id),
+        eq(newsScrumPeople.status, from),
+        pinged ? lt(newsScrumPeople.pingedAt, cutoff) : lt(newsScrumPeople.lastAskedAt, cutoff),
+      ),
+    )
+    .returning({ id: newsScrumPeople.id })
+}
+
+/** True when this call ended the round. */
+export async function expireScrumPerson(
+  id: number,
+  from: 'pinged' | 'asking',
+  cutoff: Date,
+): Promise<boolean> {
+  return (await expireScrumPersonQuery(id, from, cutoff)).length > 0
+}
+
+/**
+ * Take the next question: only from the expected question count and while the
+ * person is pinged or asking, so two callers never post the same question.
+ */
+export function claimScrumQuestionQuery(args: {
+  personId: number
+  questionsAsked: number
+  question: string
+  at: Date
+}) {
+  return db
+    .update(newsScrumPeople)
+    .set({
+      status: 'asking',
+      questionsAsked: sql`${newsScrumPeople.questionsAsked} + 1`,
+      currentQuestion: args.question,
+      lastAskedAt: args.at,
+    })
+    .where(
+      and(
+        eq(newsScrumPeople.id, args.personId),
+        eq(newsScrumPeople.questionsAsked, args.questionsAsked),
+        inArray(newsScrumPeople.status, ['pinged', 'asking']),
+      ),
+    )
+    .returning({ id: newsScrumPeople.id })
+}
+
+/** True when this call took the question. */
+export async function claimScrumQuestion(args: {
+  personId: number
+  questionsAsked: number
+  question: string
+  at: Date
+}): Promise<boolean> {
+  return (await claimScrumQuestionQuery(args)).length > 0
 }
 
 /** Automatic pings this player got tonight (every scrum of the night, test or real). */
