@@ -172,7 +172,10 @@ mode (3s or 6s)**.
 - **Debuts and returns [planned]:** first game for the club or in a title; back
   after 30+ days.
 - **Club records [planned]:** single-season records across all titles; a new
-  record makes a game Historic.
+  record makes a game Historic. Boogeymen games only (operator decision
+  2026-10-25): a title with stored games (NHL 26 and later) counts those games;
+  NHL 22–25 count the club archive that the Stats page shows. Player-card
+  totals from other clubs and EA's member totals are not used.
 - **Line chemistry [planned]:** records of pairs who played together ("Silky and
   Erb together: 12-3").
 
