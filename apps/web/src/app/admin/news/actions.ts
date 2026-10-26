@@ -8,6 +8,7 @@ import {
   setReporterEnabled,
   skipNewsBacklog,
   softDeleteNewsItem,
+  softDeleteNewsItemWithCorrection,
 } from '@eanhl/db/queries'
 import { PRESS_LEVELS, type PressLevel } from '@eanhl/db/schema'
 import { requireAdmin } from '@/lib/auth'
@@ -42,6 +43,15 @@ export async function deleteNewsItemAction(id: number): Promise<void> {
   await requireAdmin()
   if (!Number.isInteger(id) || id < 1) return
   await softDeleteNewsItem(id)
+  refresh()
+  revalidatePath(`/admin/news/${String(id)}`)
+}
+
+/** "Delete with a correction" (C3b.5): the same reporter posts a one-line correction. */
+export async function deleteNewsItemWithCorrectionAction(id: number): Promise<void> {
+  await requireAdmin()
+  if (!Number.isInteger(id) || id < 1) return
+  await softDeleteNewsItemWithCorrection(id)
   refresh()
   revalidatePath(`/admin/news/${String(id)}`)
 }

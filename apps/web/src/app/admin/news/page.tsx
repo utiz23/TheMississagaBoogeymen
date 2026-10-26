@@ -28,6 +28,7 @@ import {
 import { PRESS_LEVEL_OPTIONS } from '@/lib/profile-edit'
 import {
   deleteNewsItemAction,
+  deleteNewsItemWithCorrectionAction,
   setNewsEnabledAction,
   setPressLevelAction,
   setReporterEnabledAction,
@@ -196,6 +197,20 @@ export default async function AdminNewsPage() {
                                 Yes, hide it
                               </button>
                             </form>
+                            {!item.isTest && (
+                              <form
+                                action={deleteNewsItemWithCorrectionAction.bind(null, item.id)}
+                                className="mt-2 flex flex-col items-end gap-2"
+                              >
+                                <span className="text-xs text-fg-3">
+                                  Or hide it and let {REPORTERS[item.reporter].name} post a one-line
+                                  correction on the Wire and in Discord (wrong fact).
+                                </span>
+                                <button type="submit" className={ADMIN_SMALL_BUTTON}>
+                                  Delete with a correction
+                                </button>
+                              </form>
+                            )}
                           </details>
                         )}
                       </td>

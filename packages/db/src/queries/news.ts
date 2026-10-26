@@ -34,6 +34,7 @@ import {
   type PressLevel,
   type PressLevelSetBy,
 } from '../schema/index.js'
+import { correctionItem } from '../news/correction.js'
 import type { FeatureKind } from '../news/features.js'
 import { MEMBER_CONDITION } from './club-members.js'
 import { DISCORD_MAX_ATTEMPTS } from './discord-posts.js'
@@ -1226,6 +1227,31 @@ export function softDeleteNewsItemQuery(id: number) {
  */
 export async function softDeleteNewsItem(id: number): Promise<void> {
   await softDeleteNewsItemQuery(id)
+}
+
+/**
+ * Delete an item and post the reporter's one-line correction (C3b.5), in one
+ * transaction. The correction is a pending post with `send_after` = now, so the
+ * news service sends it to Discord on its next pass. Returns the correction's id,
+ * or null when none was made (the item is missing, already deleted, or a test item).
+ */
+export async function softDeleteNewsItemWithCorrection(
+  id: number,
+  now: Date = new Date(),
+): Promise<number | null> {
+  return db.transaction(async (tx) => {
+    const found = await tx.select().from(newsItems).where(eq(newsItems.id, id)).limit(1)
+    const original = found[0]
+    await tx
+      .update(newsItems)
+      .set({ deletedAt: sql`now()` })
+      .where(and(or(eq(newsItems.id, id), eq(newsItems.replyTo, id)), isNull(newsItems.deletedAt)))
+    if (original === undefined || original.deletedAt !== null) return null
+    const correction = correctionItem(original, now)
+    if (correction === null) return null
+    const rows = await tx.insert(newsItems).values(correction).returning({ id: newsItems.id })
+    return rows[0]?.id ?? null
+  })
 }
 
 // ── Press levels ────────────────────────────────────────────────────────────
