@@ -2,27 +2,55 @@
 
 Stats and analytics website for EASHL club **The Boogeymen** (#19224, platform: common-gen5).
 
-Ingests match data from two sources — EA's undocumented Pro Clubs API **and** OCR of recorded gameplay video — archives it to PostgreSQL, and serves a dark-themed stats frontend. Cross-game career stats (NHL 25/26/27) are the core feature. Self-hosted on a home PC via Docker Compose.
+Ingests match data from two sources — EA's undocumented Pro Clubs API **and** OCR of recorded gameplay video — archives it to PostgreSQL, and serves a dark-themed stats frontend. Cross-game career stats (NHL 25/26/27) are the core feature. Self-hosted on a home server (Hotel-Echo) via Docker Compose.
 
 ---
 
-## What's Inside
+## Repository Map
 
-| App / Package / Tool      | Description                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------ |
-| `apps/web`                | Next.js 15 (App Router) frontend + API routes, auth                                  |
-| `apps/worker`             | Ingestion worker — polls EA API every 5 min, transforms, aggregates                  |
-| `packages/db`             | Drizzle ORM schema, migrations, shared query functions                               |
-| `packages/ea-client`      | EA Pro Clubs API client (retry, backoff, throttle, typed)                            |
-| `tools/game_ocr`          | Python CLI — OCR of fixed-layout NHL screens (lobby, loadout, post-game box score)   |
-| `tools/video_ingest`      | Python batch pipeline — ingest recorded matches from video via OCR (GPU-accelerated) |
-| `tools/historical_import` | Manifest-driven backfill of older-title (NHL 22–25) recordings                       |
+Code (all tracked):
 
-**Public pages:** Home · `/games` · `/games/[id]` · `/roster` · `/roster/[id]` · `/stats`
-**Auth pages:** none. Authentication is deliberately disabled before launch and
-deferred to a post-launch review — `/login`, `/account`, `/me`, `/admin/*` and
-`/api/auth/*` all return 404. The implementation is parked in
-`apps/web/src/deferred/auth/` (see its README).
+| Path                      | What it is                                                               |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `apps/web`                | Next.js 15 (App Router) frontend + API routes, member logins             |
+| `apps/worker`             | Ingestion worker — polls EA API every 5 min, transforms, aggregates      |
+| `apps/discord`            | Discord game-result poster (opt-in Compose profile `discord`)            |
+| `packages/db`             | Drizzle ORM schema, migrations, shared query functions                   |
+| `packages/ea-client`      | EA Pro Clubs API client (retry, backoff, throttle, typed)                |
+| `tools/game_ocr`          | Python OCR CLI for fixed-layout NHL screens — **frozen, reference only** |
+| `tools/video_ingest`      | Python video-to-match OCR pipeline — **frozen, reference only**          |
+| `tools/historical_import` | Manifest-driven backfill of older-title (NHL 22–25) recordings           |
+| `ops/`                    | Backup and verification services for Hotel-Echo (see `ops/README.md`)    |
+| `scripts/`                | Repo scripts (`verify-ocr.sh`, X-Factor icon scraper)                    |
+
+OCR and video-stats work moved to the sister repo `eanhl-live-engine` on
+2026-10-21. The OCR code here stays as it is, for reference.
+
+Documents:
+
+| Path                               | What it is                                                         |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `HANDOFF.md`                       | Current state and next actions — start here                        |
+| `CLAUDE.md`, `AGENTS.md`           | Rules for AI agents (commands, conventions, commit protocol)       |
+| `DEPLOY.md`                        | Cold-start deployment checklist                                    |
+| `docs/`                            | All other documents — index in [`docs/README.md`](docs/README.md)  |
+| `research/`                        | Raw research captures (EA API, ChelHead, old NHL stats, OCR shots) |
+| `Game sheet prototype layout (1)/` | Game-sheet design of record (code comments cite it by path)        |
+
+Local only (git-ignored, on this machine only — **not backed up by git**):
+
+| Path                 | What it is                                                                              |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `_local/`            | Used design hand-offs, old backup zips, retired labeling tools — see its README         |
+| `*.zip` at root      | New Claude Design hand-offs land here; move them to `_local/design-handoffs/` after use |
+| `discord-preview/`   | Output of `pnpm --filter @eanhl/discord preview` (regenerable)                          |
+| `.claude/worktrees/` | Git worktrees of active feature branches                                                |
+| `.venv/`, `.venv-1/` | Python environments (`.venv-1` runs the OCR pytest suites)                              |
+| `.env`               | Application secrets — never commit, never give to verification commands                 |
+
+**Live site:** https://boogeymen.app, hosted on Hotel-Echo.
+**Public pages:** Home · `/games` · `/games/[id]` · `/roster` · `/roster/[id]` · `/stats` · `/legal/*`
+**Member pages (Discord login, invite-only):** `/login` · `/account` · `/admin/*`
 
 ---
 
@@ -106,7 +134,7 @@ Docker Compose runs three services: `web` (Next.js), `worker` (ingestion), `db` 
 
 **Backfill source — video OCR.** Matches the API missed (or that predate it) are recovered from screen recordings. `tools/video_ingest` decodes gameplay video, classifies and segments frames into per-match reels, OCRs the post-game box score, associates each reel to a match, and promotes confirmed results into the database. `tools/game_ocr` is the underlying screen-level OCR CLI.
 
-Aggregates are precomputed per game title (never on read). See `docs/ARCHITECTURE.md` for full design details, `docs/ocr/` for the OCR/video subsystem, and `docs/planning/product-roadmap.md` for near-term plans. `docs/operations/smoke-checks.md` covers the default local verification loop.
+Aggregates are precomputed per game title (never on read). See `docs/ARCHITECTURE.md` for full design details, `docs/ocr/` for the OCR/video subsystem, and `docs/planning/product-roadmap.md` for near-term plans.
 
 ---
 

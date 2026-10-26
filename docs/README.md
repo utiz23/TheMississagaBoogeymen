@@ -11,14 +11,17 @@ into the narrowest matching directory instead of the repository root.
 - [`specs/`](specs/) — feature and UI specifications.
 - [`POLISH_BACKLOG.md`](POLISH_BACKLOG.md) — consolidated UI and UX cleanup backlog.
 
-## OCR and calibration
+## OCR and calibration (historical)
+
+OCR and video-stats work moved to the sister repo `eanhl-live-engine` on
+2026-10-21. These folders are kept for reference only.
 
 - [`ocr/`](ocr/) — OCR designs, investigations, inventories, and implementation
   reports.
 - [`calibration/`](calibration/) — benchmark baselines, evidence, phase reports,
   and calibration data.
-- [`phase-b-labeling-worksheet.md`](phase-b-labeling-worksheet.md) — active labeling
-  worksheet.
+- [`phase-b-labeling-worksheet.md`](phase-b-labeling-worksheet.md) — labeling
+  worksheet (no longer active).
 
 ## Operations
 
@@ -48,3 +51,6 @@ into the narrowest matching directory instead of the repository root.
 Root-level protocol and operator entry points (`README.md`, `AGENTS.md`,
 `CLAUDE.md`, `HANDOFF.md`, and `DEPLOY.md`) intentionally remain at repository
 root.
+
+For a map of the whole repository (code, tools, and local-only folders such as
+`_local/`), see the [root `README.md`](../README.md#repository-map).

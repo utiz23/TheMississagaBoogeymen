@@ -14,7 +14,7 @@ implementation work.
 ## Local prototype exports
 
 The operator supplied self-contained Claude Design exports on 2026-09-08. The
-ZIP archives are preserved at the repository root; they have not been unpacked
+ZIP archives are preserved in `_local/design-handoffs/` (repository root until 2026-10-26); they have not been unpacked
 into the tracked application or treated as implementation-ready source. The
 repository's `*.zip` ignore rule makes these archives local-only artifacts, not
 a version-controlled or remote backup; the tracked names and checksums below
@@ -61,7 +61,7 @@ the completed July/August 12-phase game-sheet revamp, and `HANDOFF.md`'s "E1K
 FINAL OPERATOR DECISIONS RECORDED" Active State entry (2026-09-08) closed the
 external-game-sheet-frontend decision on that basis. It is catalogued here
 only because it was missing from this file's inventory of local, ignored
-ZIP archives at the repository root, alongside the four above. Recording it
+ZIP archives (now in `_local/design-handoffs/`), alongside the four above. Recording it
 here does not reopen that decision and creates no new E2 implementation
 work — E2 covers the privacy policy, data-collection policy, EA/NHL
 attribution notice, and Terms of Use drafts only, none of which this archive
