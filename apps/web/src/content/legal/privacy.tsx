@@ -317,11 +317,6 @@ export const sections: LegalPageSection[] = [
           about. We also send short notes written by the site's admin for the fictional coverage.
         </P>
         <P>
-          {/* DRAFT: awaits operator approval before the press bots go live. */}
-          If you answer a reporter's questions in Discord, we store your answers and send them to
-          Claude AI (Anthropic) to write the questions and the stories. Answering is optional.
-        </P>
-        <P>
           Each member can set this on EDIT PROFILE, under "Press coverage". The choices are "Full
           press", "Go easy", and "Leave me out". Every member starts at "Full press". The site's
           admin can also set the level for any member.
@@ -330,6 +325,11 @@ export const sections: LegalPageSection[] = [
           The admin can delete any news item. A deleted item is removed from this site and from
           Discord. A deleted item stays in our database but is no longer shown. For more detail, see
           our <DocLink to="data-collection">Data Collection Policy</DocLink>.
+        </P>
+        <P>
+          {/* DRAFT: awaits operator approval before the press bots go live. */}
+          If you answer a reporter's questions in Discord, we store your answers and send them to
+          Claude AI (Anthropic) to write the questions and the stories. Answering is optional.
         </P>
       </>
     ),

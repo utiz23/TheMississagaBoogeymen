@@ -204,18 +204,42 @@ Do these steps in order. Run all commands on Hotel-Echo (`ssh hotel-echo`, then
 `cd ~/eanhl-team-website`). Docker is not on the main PC. Do the steps above
 (nine bots, tokens, IDs) first.
 
-Before you start:
+Deploy from `main`, after the `feat/news-desk-bots` branch is merged. Do not
+deploy from the feature branch. Run `git pull` on `main` first.
 
-- Read the privacy text. The new sentence about scrum answers is in
-  `apps/web/src/content/legal/privacy.tsx` and `data-collection.tsx` (section
-  "News posts written by an AI service"). It is a **draft**. You must approve
-  it, or change it, **before** the bots go live. It goes to the site with the
-  `web` image (step 2).
-- Run `git pull` for the commit to deploy.
-- Run `docker compose config --profiles`. The list must include `press`. If it
-  does not, stop: the compose file is not the new one.
+Replace `<date>` in the commands with today's date (`YYYY-MM-DD`).
 
-1. **Apply migration 0072 on the live database.** Do this before the new code
+0. **Approve the privacy text.** The new sentence about scrum answers is in
+   `apps/web/src/content/legal/privacy.tsx` and `data-collection.tsx` (section
+   "News posts written by an AI service"). It is a **draft**. Read it. Approve
+   it, or change the words. Do this **before** you build the `web` image in
+   step 3: the text goes to the site with that image. If you change the words
+   later, rebuild and restart `web` again:
+
+   ```
+   docker compose build web
+   docker compose up -d --no-deps web
+   ```
+
+1. **Check the compose file.** Run:
+
+   ```
+   docker compose --profile press config --services
+   ```
+
+   The list must include `press`. If it does not, stop: the compose file is not
+   the new one.
+
+2. **Take a fresh database backup.** Do this before the migration.
+
+   ```
+   docker exec eanhl-team-website-db-1 pg_dump -U eanhl -d eanhl -Fc > ~/eanhl-pre-press-<date>.dump
+   ```
+
+   Check that the file is not empty: `ls -l ~/eanhl-pre-press-<date>.dump`. The
+   normal backup procedure is in `docs/operations/backup-producer.md`.
+
+3. **Apply migration 0072 on the live database.** Do this before the new code
    runs. The command is in the header of the file. It is safe to run twice.
 
    ```
@@ -224,8 +248,8 @@ Before you start:
      < packages/db/migrations/0072_news_press.sql
    ```
 
-2. **Rebuild the images.** Tag a rollback image first. Rebuild `web` as well:
-   it holds the new nickname list and the privacy text. `docker compose up -d`
+4. **Rebuild the images.** Tag a rollback image first. Rebuild `web` as well:
+   it holds the nickname list and the privacy text. `docker compose up -d`
    alone reuses the old image, so always build.
 
    ```
@@ -235,17 +259,22 @@ Before you start:
    docker compose --profile news --profile press up -d --no-deps web news press
    ```
 
-   Replace `<date>` with today's date (`YYYY-MM-DD`). The `press` image has
-   no old version to tag. Check the logs: `docker logs eanhl-team-website-news-1
---tail 20` and `docker logs eanhl-team-website-press-1 --tail 20`.
+   The `press` image is new, so it has no old version to tag. Check the logs:
 
-3. **Trial night.** Leave `PRESS_MODE` unset (or `trial`) in `.env`. Play one
+   ```
+   docker logs eanhl-team-website-web-1 --tail 20
+   docker logs eanhl-team-website-news-1 --tail 20
+   docker logs eanhl-team-website-press-1 --tail 20
+   ```
+
+5. **Trial night.** Leave `PRESS_MODE` unset (or `trial`) in `.env`. Play one
    game night. The bots post in the bot test channel only. Only you (the GM)
    are pinged.
-4. **Read the trial.** Read the trial posts in the test channel and on
+6. **Read the trial.** Read the trial posts in the test channel and on
    `/admin/news`. Check the scrum questions, the answers, the nicknames and the
    spending. Delete anything wrong.
-5. **Go live.** Approve the privacy text first. Then set `PRESS_MODE=live` in
+7. **Go live.** Check that the approved privacy text is on the site (the
+   `web` image from step 4, or a later rebuild). Then set `PRESS_MODE=live` in
    `.env` and restart the two services:
 
    ```
@@ -254,14 +283,25 @@ Before you start:
 
    The bots now post in `#chel`.
 
-6. **Rollback.** If something goes wrong:
+## Rollback
+
+If something goes wrong:
+
+1. Stop the press bots:
 
    ```
    docker compose stop press
    ```
 
-   Then remove `PRESS_MODE` from `.env` (or set it to `trial`) and restart
-   `news`: `docker compose --profile news up -d --no-deps news`. The news desk
-   posts through the webhook again. The migration stays; it does no harm. To
-   return to the old images, retag the `:rollback-he-<date>-pre-press` images
-   as `:latest` and run `up -d --no-deps` again.
+2. Remove `PRESS_MODE` from `.env` (or set it to `trial`).
+3. Put the old images back and restart `web` and `news`. The news desk posts
+   through the webhook again:
+
+   ```
+   docker tag eanhl-team-website-web:rollback-he-<date>-pre-press eanhl-team-website-web:latest
+   docker tag eanhl-team-website-news:rollback-he-<date>-pre-press eanhl-team-website-news:latest
+   docker compose --profile news up -d --no-deps web news
+   ```
+
+The migration stays. It does no harm. To undo it, use the rollback SQL in the
+header of `packages/db/migrations/0072_news_press.sql`.
