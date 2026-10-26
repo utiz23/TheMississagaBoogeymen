@@ -1,8 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import {
   getNewsEnabled,
+  getTakeHolder,
   setNewsEnabled,
   setPressLevel,
   setReporterEnabled,
@@ -14,7 +16,7 @@ import {
 import { PRESS_LEVELS, type PressLevel } from '@eanhl/db/schema'
 import { requireAdmin } from '@/lib/auth'
 import { parseReporterId } from '@/lib/news/admin-display'
-import { parseTakeEdit } from '@/lib/news/takes-edit'
+import { saveTake } from '@/lib/news/takes-save'
 import { switchNewsDesk } from '@/lib/news/switch'
 import { pressLevelSetBy } from '@/lib/profile-edit'
 
@@ -77,11 +79,19 @@ export async function setReporterEnabledAction(reporter: string, enabled: boolea
   refresh()
 }
 
-/** Save the GM takes editor's form for one take (C3b.7). Admin only; every field is re-checked. */
+/**
+ * Save the GM takes editor's form for one take (C3b.7). Admin only; every field is
+ * re-checked. A problem sends the admin back with a message; the log never holds a
+ * take text (a database error is reduced to its code).
+ */
 export async function saveTakeAction(formData: FormData): Promise<void> {
   await requireAdmin()
-  const parsed = parseTakeEdit(formData)
-  if (!parsed.ok) return
-  await updateAdminTake(parsed.id, parsed.edit)
+  const result = await saveTake(formData, {
+    holderOf: getTakeHolder,
+    update: updateAdminTake,
+    log: (m) => console.error(m),
+  })
   revalidatePath('/admin/news')
+  // Only a flag in the URL: the reason is shown from fixed text, never from the request.
+  if (!result.ok) redirect('/admin/news?takeError=1')
 }

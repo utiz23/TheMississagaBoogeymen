@@ -82,9 +82,11 @@ void test('parse: every problem is listed by position and field, never with the 
     entry({ intensity: 3 }),
     entry({ player: '' }),
     'not an object',
+    entry({ reporter: 'quill', defender: 'quill' }),
   ])
   assert.ok(!r.ok)
-  assert.equal(r.problems.length, 8)
+  assert.equal(r.problems.length, 9)
+  assert.match(r.problems[8]!, /defender is the reporter who holds the take/)
   assert.ok(r.problems[0]!.startsWith('take 1: reporter'))
   assert.ok(r.problems[7]!.startsWith('take 8:'))
   for (const p of r.problems) {

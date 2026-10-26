@@ -101,6 +101,8 @@ export function parseSeedFile(
     if (defenderRaw !== null) {
       if (!isReporter(defenderRaw)) bad.push('defender is not one of the nine')
       else if (critics.includes(defenderRaw)) bad.push('defender is also a critic')
+      else if (defenderRaw === e['reporter'])
+        bad.push('defender is the reporter who holds the take')
       else defender = defenderRaw
     }
     const angleRaw = e['dataAngle'] ?? null

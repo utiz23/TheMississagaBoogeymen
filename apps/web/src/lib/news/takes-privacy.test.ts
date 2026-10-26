@@ -19,6 +19,7 @@ void test('reporter takes are read only by the admin area and the internal fact 
     `app${sep}admin${sep}news${sep}`,
     `lib${sep}news${sep}load-facts.ts`,
     `lib${sep}news${sep}takes-edit.ts`,
+    `lib${sep}news${sep}takes-save.ts`,
     `lib${sep}news${sep}quality.ts`,
   ]
   const needles = ['listAdminTakes', 'activeTakesForPlayers', 'updateAdminTake', 'TakesSection']
@@ -38,5 +39,5 @@ void test('the admin news page asks for an admin before it reads any take', () =
   assert.ok(page.indexOf('await requireAdmin()') < page.indexOf('listAdminTakes()'))
   const actions = readFileSync(join(SRC, 'app/admin/news/actions.ts'), 'utf8')
   const save = actions.slice(actions.indexOf('export async function saveTakeAction'))
-  assert.ok(save.indexOf('await requireAdmin()') < save.indexOf('updateAdminTake('))
+  assert.ok(save.indexOf('await requireAdmin()') < save.indexOf('await saveTake('))
 })

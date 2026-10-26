@@ -457,6 +457,16 @@ export async function updateAdminTake(id: number, edit: AdminTakeEdit): Promise<
   return (await updateAdminTakeQuery(id, edit)).length > 0
 }
 
+/** The reporter who holds take `id`, or null when there is no such take. */
+export async function getTakeHolder(id: number): Promise<NewsReporterId | null> {
+  const rows = await db
+    .select({ reporter: newsReporterTakes.reporter })
+    .from(newsReporterTakes)
+    .where(eq(newsReporterTakes.id, id))
+    .limit(1)
+  return rows[0]?.reporter ?? null
+}
+
 /** What the quality dashboard reads about one real item. */
 export interface NewsQualityItem {
   reporter: NewsReporterId

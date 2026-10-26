@@ -13,12 +13,19 @@ import { saveTakeAction } from './actions'
  * Admin only (the page calls requireAdmin first): the GM's reporter takes on
  * players (spec §12.19). Rendered nowhere else; the texts never leave /admin.
  */
-export function TakesSection({ takes }: { takes: AdminTake[] }) {
+export function TakesSection({ takes, saveFailed }: { takes: AdminTake[]; saveFailed: boolean }) {
   return (
     <AdminSection
       title="Reporter takes (GM only)"
       description="Private notes: a reporter's running take on a player. Players and visitors never see them; only the coverage shows them. Intensity softens (-1, -2) or hardens (+1, +2) a take. Switch a take off with Active. Add new takes with the seeding script."
     >
+      {saveFailed && (
+        <p role="alert" className="text-sm text-accent-readable">
+          The last take was not saved. Check the fields (text, intensity from -2 to 2, a defender
+          who is not the holder and not a critic) and try again. If it keeps failing, the database
+          may be down.
+        </p>
+      )}
       {takes.length === 0 ? (
         <p className="text-sm text-fg-4">No takes yet.</p>
       ) : (

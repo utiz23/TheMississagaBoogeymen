@@ -46,8 +46,13 @@ const BADGE =
   'ml-2 border px-1.5 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-[0.14em]'
 
 /** Admin: switch the news desk, see spending, read and delete items, set press levels. */
-export default async function AdminNewsPage() {
+export default async function AdminNewsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ takeError?: string }>
+}) {
   await requireAdmin()
+  const takeError = (await searchParams).takeError === '1'
   const now = new Date()
   const [enabled, spent, items, levels, disabledReporters, qualityItems, takes] = await Promise.all(
     [
@@ -235,7 +240,7 @@ export default async function AdminNewsPage() {
 
       <QualitySection report={quality} />
 
-      <TakesSection takes={takes} />
+      <TakesSection takes={takes} saveFailed={takeError} />
 
       <AdminSection
         title="Press levels"
