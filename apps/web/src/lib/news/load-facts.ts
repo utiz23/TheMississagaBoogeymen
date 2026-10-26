@@ -22,7 +22,7 @@ import {
   listNewsPlayerGames,
   listNewsPlayersWithOtherSeasons,
   listNewsTitleSeasonTotals,
-  getClubSeasonLines,
+  listNewsClubRecordLines,
   listNewsProfiles,
   listPlayerTitleTotals,
   listRecentNightSummaries,
@@ -94,11 +94,12 @@ const RECENT_NIGHTS = 3
 const GAME_LOAD_CONCURRENCY = 6
 const MATCH_LOAD_CONCURRENCY = 8
 /**
- * The club season lines of every title (records, C2.4) change only when an
- * archive import or the member-season poll lands: cached 10 minutes per
- * server process (C2 fix A). The current title's part is always read fresh.
+ * The club-record season lines of every title (records, C2.4; Boogeymen
+ * games only) change only when a game or an archive import lands: cached 10
+ * minutes per server process (C2 fix A). The current title's part is always
+ * read fresh.
  */
-const clubSeasonLines = memoize(() => getClubSeasonLines(), 10 * 60 * 1000)
+const clubSeasonLines = memoize(() => listNewsClubRecordLines(), 10 * 60 * 1000)
 
 type Match = NonNullable<Awaited<ReturnType<typeof getMatchById>>>
 type BgmStat = Awaited<ReturnType<typeof getPlayerMatchStats>>[number]

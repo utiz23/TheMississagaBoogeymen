@@ -2188,6 +2188,79 @@ export async function listNewsTitleSeasonTotals(args: {
   }))
 }
 
+/** One player's goals/assists/points in one title, Boogeymen games only (C2.4 records). */
+export interface NewsClubRecordLine {
+  playerId: number
+  gameTitleId: number
+  gameTitleName: string
+  /** Chronology key (22 for NHL 22 …); null sorts last. */
+  releaseOrder: number | null
+  goals: number
+  assists: number
+  points: number
+}
+
+/**
+ * The club-record season lines (operator decision 2026-10-25: "our games
+ * only"): a title with stored games counts those games (every row, like
+ * `listNewsTitleSeasonTotalsSql`); a title without stored games counts the
+ * reviewed club-member archive the Stats page shows (skater rows, modes
+ * summed). Never the player-card totals of other clubs or EA's member totals.
+ * AI goalies left out (they cannot hold a club record).
+ */
+export function listNewsClubRecordLinesSql(): SQL {
+  return sql`
+    with stored as (
+      select pms.player_id, m.game_title_id,
+        coalesce(sum(pms.goals), 0) as goals,
+        coalesce(sum(pms.assists), 0) as assists,
+        coalesce(sum(pms.goals), 0) + coalesce(sum(pms.assists), 0) as points
+      from player_match_stats pms
+      join players p on p.id = pms.player_id
+      join matches m on m.id = pms.match_id
+      where p.ai_goalie_side is null
+      group by pms.player_id, m.game_title_id
+    ),
+    archive as (
+      select h.player_id, h.game_title_id,
+        coalesce(sum(h.goals), 0) as goals,
+        coalesce(sum(h.assists), 0) as assists,
+        coalesce(sum(coalesce(h.points, coalesce(h.goals, 0) + coalesce(h.assists, 0))), 0) as points
+      from historical_club_member_season_stats h
+      join players p on p.id = h.player_id
+      where h.review_status = 'reviewed'
+        and h.role_group = 'skater'
+        and p.ai_goalie_side is null
+        and not exists (select 1 from matches sm where sm.game_title_id = h.game_title_id)
+      group by h.player_id, h.game_title_id
+    )
+    select x.player_id, x.game_title_id, gt.name as game_title_name, gt.release_order,
+      x.goals, x.assists, x.points
+    from (select * from stored union all select * from archive) x
+    join game_titles gt on gt.id = x.game_title_id`
+}
+
+export async function listNewsClubRecordLines(): Promise<NewsClubRecordLine[]> {
+  const rows = await db.execute<{
+    player_id: Numeric
+    game_title_id: Numeric
+    game_title_name: string
+    release_order: Numeric | null
+    goals: Numeric
+    assists: Numeric
+    points: Numeric
+  }>(listNewsClubRecordLinesSql())
+  return rows.map((r) => ({
+    playerId: Number(r.player_id),
+    gameTitleId: Number(r.game_title_id),
+    gameTitleName: r.game_title_name,
+    releaseOrder: r.release_order === null ? null : Number(r.release_order),
+    goals: Number(r.goals),
+    assists: Number(r.assists),
+    points: Number(r.points),
+  }))
+}
+
 /**
  * Counted card events (same rule as the unlock poster) of the given players in
  * a title, from the first game's end to `afterMinutes` after the last game's

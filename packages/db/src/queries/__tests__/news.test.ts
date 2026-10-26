@@ -37,6 +37,7 @@ const {
   rowToPlayerGame,
   listNewsPlayersWithOtherSeasonsSql,
   listNewsTitleSeasonTotalsSql,
+  listNewsClubRecordLinesSql,
   stancesForThreadsSql,
   predictionScorecardsSql,
   recentReporterSummariesSql,
@@ -940,6 +941,26 @@ void test("title season totals: every human player's rows of the title before th
   assert.doesNotMatch(s, /DNF/)
   assert.match(s, /group by pms\.player_id, p\.gamertag$/)
   assert.deepEqual(q.params, [900, 7])
+})
+
+void test('club record lines: stored games per title, else the reviewed club archive; Boogeymen only (C2.4, 2026-10-25)', () => {
+  const q = dialect.sqlToQuery(listNewsClubRecordLinesSql())
+  const s = flat(q.sql)
+  // Stored games: every row of the title, AI goalies left out.
+  assert.match(
+    s,
+    /from player_match_stats pms join players p on p\.id = pms\.player_id join matches m on m\.id = pms\.match_id where p\.ai_goalie_side is null group by pms\.player_id, m\.game_title_id/,
+  )
+  // The Stats page's club archive, only for a title without stored games.
+  assert.match(s, /from historical_club_member_season_stats h/)
+  assert.match(s, /h\.review_status = 'reviewed' and h\.role_group = 'skater'/)
+  assert.match(
+    s,
+    /not exists \(select 1 from matches sm where sm\.game_title_id = h\.game_title_id\)/,
+  )
+  // Never the player-card totals of other clubs or EA's member totals.
+  assert.doesNotMatch(s, /historical_player_season_stats|ea_member_season_stats/)
+  assert.deepEqual(q.params, [])
 })
 
 void test('stances for threads: the given keys, oldest first; stances of deleted or test items left out (C2.8)', () => {

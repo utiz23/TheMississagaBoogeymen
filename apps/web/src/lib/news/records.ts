@@ -1,8 +1,9 @@
 // Club single-season records for the news desk fact sheets (Part C2.4, spec
 // §12.14): the best goals / assists / points season of any club player, and
 // the games at which a named player passes one. Pure; the loader passes the
-// site's club season lines of the earlier titles (`getClubSeasonLines`, the
-// profile Awards source) and the current title's totals before the sheet.
+// Boogeymen-only season lines of the earlier titles (`listNewsClubRecordLines`:
+// stored games, else the Stats page's club archive) and the current title's
+// totals before the sheet.
 import {
   RECORD_STATS,
   type NewsClubRecord,
