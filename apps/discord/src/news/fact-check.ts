@@ -319,6 +319,13 @@ export const REPLY_JABS =
 
 /** Reporters are outside media (spec §12.12-11). */
 export const OUR_PRONOUNS = /\b(we|us|our|ours)\b/i
+/**
+ * The desk's own tools in the text ("the sheet calls it a steal", "the label
+ * says"): readers never see a fact sheet or its labels. "Scoresheet" and
+ * "score sheet" stay allowed (hockey usage).
+ */
+export const DESK_INTERNALS =
+  /\b(fact sheets?|stat sheets?|(?<!score )sheets? (calls?|says?|shows?|lists?|labels?|marks?|gives?|has|rates?)|the sheet\b(?! of ice)|labels?|labell?ed|labell?ing)\b/i
 
 /** Plus-minus and game score are not on the sheet (spec §12.12-4). */
 const PLUS_MINUS = /\bplus[- ]?minus\b|\+\/-|\bgame[- ]scores?\b/i
@@ -648,6 +655,12 @@ function styleProblems(
   // "Hell" or "Our") are not numbers, pronouns or swearing (C3a fix M3).
   const unnamed = withoutSheetNames(text, facts)
   const unnamedFlat = collapse(unnamed)
+  const internal = DESK_INTERNALS.exec(unnamedFlat)
+  if (internal) {
+    problems.push(
+      `Readers never see the fact sheet or its labels: drop "${internal[0]}" and state the fact itself.`,
+    )
+  }
   const pronoun = OUR_PRONOUNS.exec(unnamedFlat)
   if (pronoun) {
     problems.push(

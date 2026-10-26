@@ -1027,6 +1027,18 @@ void test('C3a.5 profanity: strong words always blocked; mild only Mercer/Pettib
   assert.deepEqual(t('Hello there, shell game.', 'barlow'), { ok: true })
 })
 
+void test('desk internals: the fact sheet and its labels never reach the text (backfill 2026-10-26)', () => {
+  const t = (text: string) => checkFacts(text, facts, FORBIDDEN, none)
+  assert.ok(
+    has(t('Lehmann made 14 saves, and the sheet calls it a steal.'), /never see the fact sheet/),
+  )
+  assert.ok(has(t('The label says big for him.'), /never see the fact sheet/))
+  assert.ok(has(t('His night is labelled unusual.'), /never see the fact sheet/))
+  assert.ok(has(t('Nothing on the fact sheet says so.'), /never see the fact sheet/))
+  assert.ok(!has(t('He filled the scoresheet.'), /never see the fact sheet/))
+  assert.ok(!has(t('He was all over the score sheet.'), /never see the fact sheet/))
+})
+
 void test('C3a.5 profanity and pronouns: a sheet name is never read as swearing or "our" (backfill 2026-10-26)', () => {
   const named = {
     ...facts,
