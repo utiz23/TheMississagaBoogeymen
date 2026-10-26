@@ -122,6 +122,8 @@ function playerFacts(g: NewsGameFacts, p: NewsPlayerLine, push: Push, titleName:
     for (const k of ['goals', 'assists', 'points', 'shots', 'hits'] as const) {
       const v = lineValue(p, k)
       if (v === null) continue
+      // A hat trick / 5-point game has its own fact below (one fact per story).
+      if ((k === 'goals' && p.goals >= 3) || (k === 'points' && p.points >= 5)) continue
       const label = norm.labels[k]
       const avg = norm.perGame[k]
       if (label === 'big for him') {
@@ -150,11 +152,12 @@ function playerFacts(g: NewsGameFacts, p: NewsPlayerLine, push: Push, titleName:
         )
       }
     }
-  } else {
-    if (p.goals >= 3)
-      push(id('hat-trick'), `${who}: hat trick (${statText('goals', p.goals)})${vs}`, 45, who)
-    if (p.points >= 5) push(id('points'), `${who}: ${statText('points', p.points)}${vs}`, 45, who)
   }
+  // A hat trick or a 5-point game is a story even when it is typical for a
+  // high scorer (backfill 2026-10-26: Orlov's 6s hat trick had no fact).
+  if (p.goals >= 3)
+    push(id('hat-trick'), `${who}: hat trick (${statText('goals', p.goals)})${vs}`, 45, who)
+  if (p.points >= 5) push(id('points'), `${who}: ${statText('points', p.points)}${vs}`, 45, who)
   for (const b of p.bests) {
     const k = b.split(' ').pop() as PlayerNormStat
     const v = lineValue(p, k)

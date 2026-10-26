@@ -409,3 +409,15 @@ void test('rankFacts: negative facts about a Go easy member weigh half; positive
   assert.equal(easy['form'], 6)
   assert.equal(easy['first assist of the season'], full['first assist of the season'])
 })
+
+void test('rankFacts: a hat trick or 5 points is a fact even when typical for a high scorer (backfill 2026-10-26)', () => {
+  const g = game({
+    players: [
+      line({ playerId: 3, name: 'Orlov', goals: 3, norm: normFor(1.6, { goals: 'typical' }) }),
+      line({ playerId: 4, name: 'Silky', goals: 1, assists: 4, norm: normFor(2, {}) }),
+    ],
+  })
+  const top = rankFacts(sheet([g]))
+  assert.ok(top.some((f) => f.text.startsWith('Orlov: hat trick (3 goals)') && f.weight === 45))
+  assert.ok(top.some((f) => f.text.startsWith('Silky: 5 points') && f.weight === 45))
+})
