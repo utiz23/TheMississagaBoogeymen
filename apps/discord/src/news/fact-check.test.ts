@@ -1204,3 +1204,42 @@ void test('C3a fix M3: digits inside sheet names are not numbers (per sentence, 
     { ok: true },
   )
 })
+
+void test('C3a fix M4: "shows up on the scoresheet" is no jab; "no one" is not a number', () => {
+  const reply = (t: string) =>
+    checkGamePosts(
+      [
+        { reporter: 'mercer', text: 'Fine night, 2-6.', ...none, criticized: [] },
+        { reporter: 'barlow', text: t, ...none, criticized: [] },
+      ],
+      facts,
+      FORBIDDEN,
+      [],
+      { replies: [false, true] },
+    )
+  assert.deepEqual(reply('Skater A shows up on the scoresheet: 2 points.'), { ok: true })
+  assert.ok(
+    problems(reply('Mercer only shows up after a loss, 14 shots or not.')).some((p) =>
+      p.includes('shows up'),
+    ),
+  )
+  assert.ok(problems(reply('No one saw that coming.')).some((p) => /name one/.test(p)))
+  // A prediction with "no one" has no number in it.
+  const f = checkFeatureFacts(
+    {
+      headline: 'H',
+      dek: 'D',
+      paragraphs: [Array.from({ length: 700 }, () => 'word').join(' ')],
+      summary: 'S',
+      mentions: [],
+      clubs: [],
+      criticized: [],
+      prediction: 'No one stops this club next week.',
+      receipt: '',
+    },
+    oct12Facts('week'),
+    FORBIDDEN,
+    { kind: 'trend', previousPrediction: null },
+  )
+  assert.deepEqual(f, { ok: true })
+})

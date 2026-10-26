@@ -313,7 +313,9 @@ export const ARTICLE_MAX_SIGNATURE_WORDS = 3
 export const FORMAT_LABELS = /\b(the tactical point( is)?|less comfortable|the detail:)/i
 
 /** Jabs a reply must not use (spec §12.12-6: argue with a number, not with motives). */
-export const REPLY_JABS = /\b(clicks|outrage|jealous|clipboard|shows up|timing)\b/i
+// "shows up" is a jab only about the reporter, not "shows up on the scoresheet" (C3a fix M4).
+export const REPLY_JABS =
+  /\b(clicks|outrage|jealous|clipboard|timing)\b|\bshows up\b(?!\s+(?:on|in)\s+(?:the\s+)?(?:score\s?sheet|box\s?score|stat\s?sheet|sheet|numbers|stats|standings))/i
 
 /** Reporters are outside media (spec §12.12-11). */
 export const OUR_PRONOUNS = /\b(we|us|our|ours)\b/i
@@ -1031,7 +1033,9 @@ const normalizedText = (t: string): string =>
 const OTHER_NUMBER_WORDS = /\b(dozens?|twice|thrice|thousands?|millions?)\b/i
 
 /** The first digit run or number word in `text`, or null. */
-function firstNumber(text: string): string | null {
+function firstNumber(raw: string): string | null {
+  // "no one" is not a number (C3a fix M4); spaces keep the other indexes.
+  const text = raw.replace(/\bno one\b/gi, (m) => ' '.repeat(m.length))
   const found = [
     text.match(new RegExp(DIGIT_RUN.source)),
     text.match(new RegExp(COMPOUND_WORD.source, 'i')),
