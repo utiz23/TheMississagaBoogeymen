@@ -17,6 +17,14 @@ void test('21 families with unique ids, in BADGE_FAMILY_IDS order', () => {
   )
 })
 
+void test('only dekes, fights and breakaways come from EA', () => {
+  const ea = BADGE_FAMILIES.filter((f) => f.source === 'ea')
+    .map((f) => f.id)
+    .sort()
+  assert.deepEqual(ea, ['pbrk', 'pdekes', 'pfight'])
+  assert.ok(BADGE_FAMILIES.every((f) => f.source === 'club' || f.source === 'ea'))
+})
+
 void test('every ladder has 30 strictly increasing positive thresholds', () => {
   for (const id of BADGE_FAMILY_IDS) {
     const ladder = BADGE_LADDERS[id]

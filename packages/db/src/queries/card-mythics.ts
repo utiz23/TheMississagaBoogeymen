@@ -15,7 +15,8 @@ import {
   emptyBadgeValues,
   laddersFor,
   mergeSeasonTotals,
-  type EaTitleTotals,
+  type ClubTitleTotals,
+  type EaOnlyTotals,
   type MythicThemeKey,
   type RecordedModeGames,
   type RecordedSixesWithGoalie,
@@ -40,27 +41,52 @@ export async function loadCardTitles(): Promise<CardTitle[]> {
     ORDER BY release_order, id`)
 }
 
-/** Season totals for the given titles: title id → player id → badge values. */
+/**
+ * Season totals for the given titles: title id → player id → badge values.
+ * Club games only (spec 2026-10-26-club-only-badges-design.md): every badge
+ * except dekes, fights and breakaways sums the per-game club records of all
+ * three match types. Rows count like player_game_title_stats (DNF games count,
+ * no removed_reason filter); a goalie DNF is not a completed game or shutout.
+ * Those three stats come from EA's member totals, which include drop-ins.
+ */
 export async function loadSeasonTotals(titleIds: readonly number[]): Promise<SeasonTotals> {
   if (titleIds.length === 0) return new Map()
   const ids = sql.join(
     titleIds.map((id) => sql`${id}`),
     sql`, `,
   )
-  const [ea, recordedModes, recordedSixesWithGoalie] = await Promise.all([
-    rows<EaTitleTotals>(sql`
+  const [club, eaOnly, recordedModes, recordedSixesWithGoalie] = await Promise.all([
+    rows<ClubTitleTotals>(sql`
+      SELECT p.player_id AS "playerId", m.game_title_id AS "gameTitleId",
+        (COUNT(DISTINCT m.id) FILTER (WHERE m.result = 'WIN'))::int AS "wins",
+        COALESCE(SUM(COALESCE(p.goals, 0)), 0)::int AS "goals",
+        COALESCE(SUM(COALESCE(p.assists, 0)), 0)::int AS "assists",
+        COALESCE(SUM(COALESCE(p.shots, 0)), 0)::int AS "shots",
+        (COUNT(*) FILTER (WHERE p.goals >= 3))::int AS "hatTricks",
+        COALESCE(SUM(COALESCE(p.hits, 0)), 0)::int AS "hits",
+        COALESCE(SUM(COALESCE(p.faceoff_wins, 0)), 0)::int AS "faceoffWins",
+        COALESCE(SUM(COALESCE(p.takeaways, 0)), 0)::int AS "takeaways",
+        COALESCE(SUM(COALESCE(p.blocked_shots, 0)), 0)::int AS "blockedShots",
+        (COUNT(DISTINCT m.id) FILTER (
+          WHERE p.is_goalie AND NOT COALESCE(p.player_dnf, false)))::int AS "goalieGamesCompleted",
+        (COUNT(DISTINCT m.id) FILTER (
+          WHERE p.is_goalie AND m.result = 'WIN'))::int AS "goalieWins",
+        COALESCE(SUM(COALESCE(p.saves, 0)) FILTER (WHERE p.is_goalie), 0)::int AS "goalieSaves",
+        COALESCE(SUM(COALESCE(p.desp_saves, 0)) FILTER (WHERE p.is_goalie), 0)::int
+          AS "goalieDesperationSaves",
+        COALESCE(SUM(COALESCE(p.pokechecks, 0)) FILTER (WHERE p.is_goalie), 0)::int
+          AS "goaliePokeChecks",
+        (COUNT(DISTINCT m.id) FILTER (
+          WHERE p.is_goalie AND NOT COALESCE(p.player_dnf, false)
+            AND p.goals_against = 0))::int AS "goalieShutouts"
+      FROM player_match_stats p
+      JOIN matches m ON m.id = p.match_id
+      WHERE m.game_title_id IN (${ids})
+      GROUP BY p.player_id, m.game_title_id`),
+    rows<EaOnlyTotals>(sql`
       SELECT player_id AS "playerId", game_title_id AS "gameTitleId",
-        COALESCE(skater_wins, 0) AS "skaterWins", COALESCE(goalie_wins, 0) AS "goalieWins",
-        COALESCE(goals, 0) AS "goals", COALESCE(assists, 0) AS "assists", COALESCE(shots, 0) AS "shots",
-        COALESCE(dekes_made, 0) AS "dekesMade", COALESCE(hat_tricks, 0) AS "hatTricks",
-        COALESCE(breakaways, 0) AS "breakaways", COALESCE(hits, 0) AS "hits",
-        COALESCE(faceoff_wins, 0) AS "faceoffWins", COALESCE(takeaways, 0) AS "takeaways",
-        COALESCE(blocked_shots, 0) AS "blockedShots", COALESCE(fights_won, 0) AS "fightsWon",
-        COALESCE(goalie_games_completed, 0) AS "goalieGamesCompleted",
-        COALESCE(goalie_saves, 0) AS "goalieSaves",
-        COALESCE(goalie_desperation_saves, 0) AS "goalieDesperationSaves",
-        COALESCE(goalie_poke_checks, 0) AS "goaliePokeChecks",
-        COALESCE(goalie_shutouts, 0) AS "goalieShutouts"
+        COALESCE(dekes_made, 0) AS "dekesMade", COALESCE(fights_won, 0) AS "fightsWon",
+        COALESCE(breakaways, 0) AS "breakaways"
       FROM ea_member_season_stats
       WHERE game_title_id IN (${ids})`),
     rows<RecordedModeGames>(sql`
@@ -79,7 +105,7 @@ export async function loadSeasonTotals(titleIds: readonly number[]): Promise<Sea
           WHERE g.match_id = p.match_id AND g.is_goalie AND gp.ai_goalie_side IS NULL)
       GROUP BY p.player_id, m.game_title_id`),
   ])
-  return mergeSeasonTotals({ ea, recordedModes, recordedSixesWithGoalie })
+  return mergeSeasonTotals({ club, eaOnly, recordedModes, recordedSixesWithGoalie })
 }
 
 export interface MythicCard {

@@ -1,29 +1,26 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mergeSeasonTotals, type EaTitleTotals } from './season-totals.js'
+import { mergeSeasonTotals, type ClubTitleTotals, type EaOnlyTotals } from './season-totals.js'
 import { emptyBadgeValues } from './progression.js'
 
-const ea = (
+const club = (
   playerId: number,
   gameTitleId: number,
-  partial: Partial<EaTitleTotals> = {},
-): EaTitleTotals => ({
+  partial: Partial<ClubTitleTotals> = {},
+): ClubTitleTotals => ({
   playerId,
   gameTitleId,
-  skaterWins: 0,
-  goalieWins: 0,
+  wins: 0,
   goals: 0,
   assists: 0,
   shots: 0,
-  dekesMade: 0,
   hatTricks: 0,
-  breakaways: 0,
   hits: 0,
   faceoffWins: 0,
   takeaways: 0,
   blockedShots: 0,
-  fightsWon: 0,
   goalieGamesCompleted: 0,
+  goalieWins: 0,
   goalieSaves: 0,
   goalieDesperationSaves: 0,
   goaliePokeChecks: 0,
@@ -31,61 +28,85 @@ const ea = (
   ...partial,
 })
 
-const none = { ea: [], recordedModes: [], recordedSixesWithGoalie: [] }
+const eaOnly = (
+  playerId: number,
+  gameTitleId: number,
+  partial: Partial<EaOnlyTotals> = {},
+): EaOnlyTotals => ({
+  playerId,
+  gameTitleId,
+  dekesMade: 0,
+  fightsWon: 0,
+  breakaways: 0,
+  ...partial,
+})
 
-void test('EA columns map to their families; wins count skater + goalie wins', () => {
+const none = { club: [], eaOnly: [], recordedModes: [], recordedSixesWithGoalie: [] }
+
+void test('club totals map to families; EA-only fills dekes, fights, breakaways', () => {
   const m = mergeSeasonTotals({
     ...none,
-    ea: [
-      ea(1, 26, {
-        skaterWins: 10,
-        goalieWins: 2,
-        goals: 3,
-        assists: 4,
-        shots: 5,
-        dekesMade: 6,
-        hatTricks: 7,
-        breakaways: 8,
-        hits: 9,
-        faceoffWins: 11,
-        takeaways: 12,
-        blockedShots: 13,
-        fightsWon: 14,
-        goalieGamesCompleted: 15,
-        goalieSaves: 16,
-        goalieDesperationSaves: 17,
-        goaliePokeChecks: 18,
-        goalieShutouts: 19,
+    club: [
+      club(1, 7, {
+        wins: 1,
+        goals: 2,
+        assists: 3,
+        shots: 4,
+        hatTricks: 5,
+        hits: 6,
+        faceoffWins: 7,
+        takeaways: 8,
+        blockedShots: 9,
+        goalieGamesCompleted: 10,
+        goalieWins: 11,
+        goalieSaves: 12,
+        goalieDesperationSaves: 13,
+        goaliePokeChecks: 14,
+        goalieShutouts: 15,
       }),
     ],
+    eaOnly: [eaOnly(1, 7, { dekesMade: 21, fightsWon: 22, breakaways: 23 })],
   })
-  assert.deepEqual(m.get(26)?.get(1), {
+  assert.deepEqual(m.get(7)?.get(1), {
     ...emptyBadgeValues(),
-    pwins: 12,
-    pgoals: 3,
-    pasts: 4,
-    pshots: 5,
-    pdekes: 6,
-    pht: 7,
-    pbrk: 8,
-    phits: 9,
-    pfo: 11,
-    ptka: 12,
-    pblk: 13,
-    pfight: 14,
-    gg: 15,
-    gw: 2,
-    gsv: 16,
-    gdsv: 17,
-    gpoke: 18,
-    gso: 19,
+    pwins: 1,
+    pgoals: 2,
+    pasts: 3,
+    pshots: 4,
+    pht: 5,
+    phits: 6,
+    pfo: 7,
+    ptka: 8,
+    pblk: 9,
+    gg: 10,
+    gw: 11,
+    gsv: 12,
+    gdsv: 13,
+    gpoke: 14,
+    gso: 15,
+    pdekes: 21,
+    pfight: 22,
+    pbrk: 23,
+  })
+})
+
+void test('a player with only an EA-only row gets a card with zero club values', () => {
+  const m = mergeSeasonTotals({
+    ...none,
+    eaOnly: [eaOnly(3, 7, { dekesMade: 4, fightsWon: 1, breakaways: 2 })],
+  })
+  assert.deepEqual(m.get(7)?.get(3), {
+    ...emptyBadgeValues(),
+    pdekes: 4,
+    pfight: 1,
+    pbrk: 2,
   })
 })
 
 void test('each title is its own season: nothing adds up across titles', () => {
   const m = mergeSeasonTotals({
     ...none,
-    ea: [ea(1, 27, { goals: 10 }), ea(1, 28, { goals: 5 }), ea(2, 27, { goals: 3 })],
+    club: [club(1, 27, { goals: 10 }), club(1, 28, { goals: 5 }), club(2, 27, { goals: 3 })],
     recordedModes: [
       { playerId: 1, gameTitleId: 27, gameMode: '6s', gamesPlayed: 30 },
       { playerId: 1, gameTitleId: 28, gameMode: '6s', gamesPlayed: 4 },

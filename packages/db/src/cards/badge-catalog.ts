@@ -44,6 +44,13 @@ export interface BadgeFamily {
   glyph: string
   group: BadgeGroupId
   unit: string
+  /**
+   * Where the season total comes from: 'club' = the worker's per-game club
+   * records; 'ea' = EA's member totals, which include drop-in games. Only stats
+   * missing from the per-game records use EA
+   * (docs/superpowers/specs/2026-10-26-club-only-badges-design.md).
+   */
+  source: 'club' | 'ea'
 }
 
 export interface BadgeGroup {
@@ -65,6 +72,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'users',
     group: 'games',
     unit: '3v3 games',
+    source: 'club',
   },
   {
     id: 'p6v6',
@@ -73,6 +81,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'hexagon',
     group: 'games',
     unit: '6v6 games',
+    source: 'club',
   },
   {
     id: 'p6g',
@@ -81,9 +90,26 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'shield-check',
     group: 'games',
     unit: 'games with goalie',
+    source: 'club',
   },
-  { id: 'pwins', name: 'Wins', short: 'WINS', glyph: 'trophy', group: 'games', unit: 'wins' },
-  { id: 'pgoals', name: 'Goals', short: 'GOALS', glyph: 'siren', group: 'scoring', unit: 'goals' },
+  {
+    id: 'pwins',
+    name: 'Wins',
+    short: 'WINS',
+    glyph: 'trophy',
+    group: 'games',
+    unit: 'wins',
+    source: 'club',
+  },
+  {
+    id: 'pgoals',
+    name: 'Goals',
+    short: 'GOALS',
+    glyph: 'siren',
+    group: 'scoring',
+    unit: 'goals',
+    source: 'club',
+  },
   {
     id: 'pasts',
     name: 'Assists',
@@ -91,6 +117,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'apple',
     group: 'scoring',
     unit: 'assists',
+    source: 'club',
   },
   {
     id: 'pshots',
@@ -99,6 +126,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'crosshair',
     group: 'scoring',
     unit: 'shots',
+    source: 'club',
   },
   {
     id: 'pdekes',
@@ -107,6 +135,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'traffic-cone',
     group: 'scoring',
     unit: 'dekes',
+    source: 'ea',
   },
   {
     id: 'pht',
@@ -115,6 +144,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'sparkles',
     group: 'scoring',
     unit: 'hat tricks',
+    source: 'club',
   },
   {
     id: 'pbrk',
@@ -123,8 +153,17 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'unlink',
     group: 'scoring',
     unit: 'breakaways',
+    source: 'ea',
   },
-  { id: 'phits', name: 'Hits', short: 'HITS', glyph: 'hammer', group: 'physical', unit: 'hits' },
+  {
+    id: 'phits',
+    name: 'Hits',
+    short: 'HITS',
+    glyph: 'hammer',
+    group: 'physical',
+    unit: 'hits',
+    source: 'club',
+  },
   {
     id: 'pfo',
     name: 'Faceoffs Won',
@@ -132,6 +171,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'circle-dot',
     group: 'defense',
     unit: 'faceoffs won',
+    source: 'club',
   },
   {
     id: 'ptka',
@@ -140,6 +180,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'magnet',
     group: 'defense',
     unit: 'takeaways',
+    source: 'club',
   },
   {
     id: 'pblk',
@@ -148,6 +189,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'shield',
     group: 'defense',
     unit: 'blocked shots',
+    source: 'club',
   },
   {
     id: 'pfight',
@@ -156,6 +198,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'swords',
     group: 'physical',
     unit: 'fights won',
+    source: 'ea',
   },
   {
     id: 'gg',
@@ -164,6 +207,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'scan-face',
     group: 'goalie',
     unit: 'goalie games',
+    source: 'club',
   },
   {
     id: 'gw',
@@ -172,8 +216,17 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'award',
     group: 'goalie',
     unit: 'goalie wins',
+    source: 'club',
   },
-  { id: 'gsv', name: 'Saves', short: 'SAVES', glyph: 'hand', group: 'goalie', unit: 'saves' },
+  {
+    id: 'gsv',
+    name: 'Saves',
+    short: 'SAVES',
+    glyph: 'hand',
+    group: 'goalie',
+    unit: 'saves',
+    source: 'club',
+  },
   {
     id: 'gdsv',
     name: 'Desperation Saves',
@@ -181,6 +234,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'heart-pulse',
     group: 'goalie',
     unit: 'desperation saves',
+    source: 'club',
   },
   {
     id: 'gpoke',
@@ -189,6 +243,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'sword',
     group: 'goalie',
     unit: 'poke-checks',
+    source: 'club',
   },
   {
     id: 'gso',
@@ -197,6 +252,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'brick-wall',
     group: 'goalie',
     unit: 'shutouts',
+    source: 'club',
   },
 ]
 
