@@ -461,6 +461,12 @@ void test('raw feed row: criticized, prediction and feature kind (rev 2)', () =>
   } as never)
   assert.deepEqual(c3.zeroCalled, ['Hero Name'])
   assert.deepEqual(c3.takesUsed, [4, 9])
+  // Part C3b: rules_version; absent = null.
+  assert.equal(old.rulesVersion, null)
+  assert.equal(
+    rawToNewsItem({ ...base, rules_version: '2026-10-25.1' } as never).rulesVersion,
+    '2026-10-25.1',
+  )
 })
 
 void test('schema: reporter ids match the cast; rev 2 columns and checks (pins)', () => {
@@ -1072,6 +1078,17 @@ void test('migration 0071: zero_called and takes_used arrays (C3a), idempotent c
   }
   const cols = getTableConfig(newsItems).columns.map((c) => c.name)
   assert.ok(cols.includes('zero_called') && cols.includes('takes_used'))
+})
+
+void test('migration 0071: news_items.rules_version (C3b.2), idempotent add', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const raw = await readFile(
+    new URL('../../../migrations/0071_news_desk.sql', import.meta.url),
+    'utf8',
+  )
+  assert.ok(raw.includes('ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "rules_version" text;'))
+  const cols = getTableConfig(newsItems).columns.map((c) => c.name)
+  assert.ok(cols.includes('rules_version'))
 })
 
 void test('reporter takes (C3a.6): active takes on the players; last use per take from items', () => {

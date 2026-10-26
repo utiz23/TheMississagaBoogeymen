@@ -16,6 +16,7 @@ import { classifyGame } from './situation.ts'
 import type { NewsWebhookPayload } from './messages.ts'
 import { ARTICLE_SCHEMA, FEATURE_SCHEMA, GAME_POSTS_SCHEMA, REVIEW_SCHEMA } from './outputs.ts'
 import { oct12Response } from './test-fixtures.ts'
+import { NEWS_RULES_VERSION } from './rules-version.ts'
 import { NewsJobError, NewsRetryableError, NewsStopError, type ModelCall } from './writer.ts'
 
 const NOW = new Date('2026-10-24T12:00:00Z') // a Saturday
@@ -243,6 +244,7 @@ function harness(
         receiptVerdict: item.receiptVerdict ?? null,
         zeroCalled: item.zeroCalled ?? [],
         takesUsed: item.takesUsed ?? [],
+        rulesVersion: item.rulesVersion ?? null,
         isTest: item.isTest ?? false,
         discordStatus: item.discordStatus ?? 'pending',
         discordAttempts: 0,
@@ -1522,4 +1524,17 @@ void test("C3a.3: the night article sees the night posts and each prompt the rep
     ),
   )
   assert.ok(night.includes('- Dex Mercer: The Boogeymen took 14 shots, says mercer.'))
+})
+
+void test('C3b.2: every item carries the rules version: posts, night article and weekly feature', async () => {
+  const h = harness({ candidates: [REPLY_GAME] })
+  h.state.nights = [{ night: '2026-10-12', lastEnd: new Date(NOW.getTime() - 91 * MIN) }]
+  h.state.nightGames['2026-10-12'] = 2
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(h.items.size >= 3)
+  for (const item of h.items.values()) assert.equal(item.rulesVersion, NEWS_RULES_VERSION)
+  const w = harness({ deps: { now: () => MONDAY_1201 } })
+  w.state.nightGames['2026-10-22'] = 3
+  await runNewsCycle(w.deps, w.opts)
+  assert.equal(w.items.get(1)!.rulesVersion, NEWS_RULES_VERSION)
 })

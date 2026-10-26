@@ -5,6 +5,7 @@ import {
   parseAdminItemId,
   itemPreview,
   monthlyLimitUsd,
+  rulesVersionLabel,
   pressLevelSetByLabel,
 } from './admin-display.ts'
 
@@ -39,4 +40,10 @@ void test('parseAdminItemId: digits only, positive, safe integer', () => {
     assert.equal(parseAdminItemId(bad), null, bad)
   }
   assert.equal(adminItemHref(7), '/admin/news/7')
+})
+
+void test('the rules version shows as stored; older items say so', () => {
+  assert.equal(rulesVersionLabel('2026-10-25.1'), '2026-10-25.1')
+  assert.equal(rulesVersionLabel(null), 'before versions')
+  assert.equal(rulesVersionLabel('  '), 'before versions')
 })

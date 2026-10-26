@@ -19,6 +19,8 @@
 -- the reporter takes it voiced, spec §12.19), both JSON arrays; and
 -- news_reporter_takes (GM-only lore, spec §12.19: a reporter's running take on
 -- a player; read by the news service and the admin only, never public).
+-- Part C3b (2026-10-25, edited in place): news_items.rules_version (the version
+-- of the writing rules that wrote the item, spec §12.18-6).
 -- Back-fills a skipped job for every existing game, night and week (Monday
 -- start, from the night key) so launch never covers history.
 --
@@ -166,6 +168,9 @@ DO $$ BEGIN
   ALTER TABLE "news_items" ADD CONSTRAINT "news_items_takes_used_array_check"
     CHECK (jsonb_typeof("takes_used") = 'array');
 END $$;
+
+-- Part C3b: the rules version that wrote the item (null on rows from before).
+ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "rules_version" text;
 
 DO $$ BEGIN
   ALTER TABLE "news_items" ADD CONSTRAINT "news_items_discord_status_check"

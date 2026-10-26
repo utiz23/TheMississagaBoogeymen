@@ -34,6 +34,7 @@ import {
   type Activity,
   type ActivityKind,
 } from './assign.ts'
+import { NEWS_RULES_VERSION } from './rules-version.ts'
 import { costUsd } from './cost.ts'
 import {
   checkArticleFacts,
@@ -668,6 +669,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           criticized: criticizedAsOnSheet(p.criticized, facts),
           zeroCalled: zeroCalledAsOnSheet(p.zeroCalled, facts),
           takesUsed: p.takesUsed,
+          rulesVersion: NEWS_RULES_VERSION,
           facts,
           isTest: opts.dryRun,
         })
@@ -803,6 +805,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           criticized: criticizedAsOnSheet(a.criticized, facts),
           zeroCalled: zeroCalledAsOnSheet(a.zeroCalled, facts),
           takesUsed: a.takesUsed,
+          rulesVersion: NEWS_RULES_VERSION,
           featureKind: GAME_ARTICLE_FEATURE_KIND[w.kind],
           facts,
           isTest: opts.dryRun,
@@ -1036,6 +1039,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         criticized: criticizedAsOnSheet(a.criticized, facts),
         zeroCalled: zeroCalledAsOnSheet(a.zeroCalled, facts),
         takesUsed: a.takesUsed,
+        rulesVersion: NEWS_RULES_VERSION,
         featureKind: feature?.kind ?? null,
         prediction: closing?.prediction ?? null,
         receiptVerdict: closing?.receiptVerdict ?? null,

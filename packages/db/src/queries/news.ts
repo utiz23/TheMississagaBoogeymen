@@ -989,6 +989,8 @@ type RawNewsItem = {
   /** Part C3a columns; absent on an older row shape. */
   zero_called?: string[] | string
   takes_used?: number[] | string
+  /** Part C3b column; absent on an older row shape. */
+  rules_version?: string | null
   is_test: boolean
   discord_status: NewsItemRow['discordStatus']
   discord_attempts: number
@@ -1039,6 +1041,7 @@ export function rawToNewsItem(r: RawNewsItem): NewsItemRow {
     receiptVerdict: r.receipt_verdict ?? null,
     zeroCalled: jsonArray<string>(r.zero_called),
     takesUsed: jsonArray<number>(r.takes_used),
+    rulesVersion: r.rules_version ?? null,
     isTest: r.is_test,
     discordStatus: r.discord_status,
     discordAttempts: r.discord_attempts,

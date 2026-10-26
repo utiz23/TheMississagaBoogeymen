@@ -1,3 +1,4 @@
+import { NEWS_RULES_VERSION } from './rules-version.ts'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
@@ -562,6 +563,7 @@ void test('import: chronological, created_at from the games, replies linked, nev
     assert.equal(row.discordStatus, 'skipped')
     assert.equal(row.jobId, null)
     assert.equal(row.night, '2026-05-08')
+    assert.equal(row.rulesVersion, NEWS_RULES_VERSION) // C3b.2
   }
   const post = rows[0]!
   assert.equal(post.kind, 'post')

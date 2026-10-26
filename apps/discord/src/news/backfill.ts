@@ -122,6 +122,7 @@ import {
   type NightPost,
   type OwnPiece,
 } from './prompts.ts'
+import { NEWS_RULES_VERSION } from './rules-version.ts'
 import { classifyGame } from './situation.ts'
 import { fetchNewsFacts } from './web-client.ts'
 
@@ -1041,6 +1042,7 @@ export async function importAccepted(
       reporter: job.reporters[0]!,
       night: job.night,
       facts,
+      rulesVersion: NEWS_RULES_VERSION,
       isTest: false,
       discordStatus: 'skipped' as const,
       lastError: SITE_ONLY,

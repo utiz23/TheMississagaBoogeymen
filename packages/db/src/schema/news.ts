@@ -127,6 +127,8 @@ export const newsItems = pgTable(
     zeroCalled: jsonb('zero_called').$type<string[]>().notNull().default([]),
     /** Part C3a: ids of the reporter takes the item voiced (spec §12.19). */
     takesUsed: jsonb('takes_used').$type<number[]>().notNull().default([]),
+    /** Part C3b: the version of the writing rules that wrote the item; null on older rows. */
+    rulesVersion: text('rules_version'),
     isTest: boolean('is_test').notNull().default(false),
     discordStatus: text('discord_status').$type<DiscordPostStatus>().notNull().default('pending'),
     discordAttempts: integer('discord_attempts').notNull().default(0),

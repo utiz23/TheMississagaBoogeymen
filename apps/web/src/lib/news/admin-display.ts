@@ -33,3 +33,8 @@ export function parseAdminItemId(raw: string): number | null {
 export function adminItemHref(id: number): string {
   return `/admin/news/${String(id)}`
 }
+
+/** The rules version on the admin item page; older items were written before versions existed. */
+export function rulesVersionLabel(version: string | null): string {
+  return version !== null && version.trim() !== '' ? version : 'before versions'
+}

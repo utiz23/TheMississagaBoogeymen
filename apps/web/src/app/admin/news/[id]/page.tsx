@@ -7,7 +7,7 @@ import { AdminSection } from '@/components/admin/admin-section'
 import { ScoreChips } from '@/components/news/score-chips'
 import { requireAdmin } from '@/lib/auth'
 import { formatClubDateTime } from '@/lib/format'
-import { parseAdminItemId } from '@/lib/news/admin-display'
+import { parseAdminItemId, rulesVersionLabel } from '@/lib/news/admin-display'
 import { dayKeyLabelWithWeekday, scoreChips, splitParagraphs } from '@/lib/news/display'
 
 export const metadata: Metadata = { title: 'News item' }
@@ -42,6 +42,7 @@ export default async function AdminNewsItemPage({ params }: { params: Promise<{ 
     ['Night', item.night !== null ? dayKeyLabelWithWeekday(item.night) : '—'],
     ['Week from', item.weekStart !== null ? dayKeyLabelWithWeekday(item.weekStart) : '—'],
     ['Written', formatClubDateTime(item.createdAt) ?? '—'],
+    ['Rules version', rulesVersionLabel(item.rulesVersion)],
     ['State', states.join(' · ')],
     [
       'Discord',
