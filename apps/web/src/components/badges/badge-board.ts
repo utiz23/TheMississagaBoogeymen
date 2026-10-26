@@ -25,13 +25,11 @@ export type BadgeFrame = 'single' | 'double' | 'heavy'
 type Step = 1 | 2 | 3
 
 const FRAME_BY_STEP = { 1: 'single', 2: 'double', 3: 'heavy' } as const
-const ROMAN_BY_STEP = { 1: 'I', 2: 'II', 3: 'III' } as const
 
 export interface BadgeVisual {
   theme: CardThemeKey
   step: Step
   frame: BadgeFrame
-  roman: (typeof ROMAN_BY_STEP)[Step]
 }
 
 /**
@@ -43,13 +41,18 @@ export function badgeVisual(level: number): BadgeVisual {
   const l = Math.min(BADGE_MAX_LEVEL, Math.max(1, Math.floor(level)))
   const theme = CARD_THEME_ORDER[Math.ceil(l / 3) - 1] ?? 'away'
   const step = (((l - 1) % 3) + 1) as Step
-  return { theme, step, frame: FRAME_BY_STEP[step], roman: ROMAN_BY_STEP[step] }
+  return { theme, step, frame: FRAME_BY_STEP[step] }
 }
 
 export function themeLabel(level: number): string {
   if (level <= 0) return 'Locked'
   const v = badgeVisual(level)
-  return `${CARD_THEME_NAMES[v.theme]} ${v.roman}`
+  return `${CARD_THEME_NAMES[v.theme]} ${String(v.step)}`
+}
+
+/** A badge's caption on the card: short name and the level as a number (no Roman numerals). */
+export function badgeCaption(short: string, level: number): string {
+  return `${short} ${String(level)}`
 }
 
 /** Fixed locale so server and browser render identical text (no hydration mismatch). */

@@ -1,31 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { describeUnlock, romanNumeral } from './unlocks.js'
+import { describeUnlock } from './unlocks.js'
 
 const none = { mythicTheme: null }
-
-void test('romanNumeral: the badge level, I to XXX', () => {
-  assert.deepEqual([1, 2, 4, 5, 9, 10, 14, 19, 21, 29, 30].map(romanNumeral), [
-    'I',
-    'II',
-    'IV',
-    'V',
-    'IX',
-    'X',
-    'XIV',
-    'XIX',
-    'XXI',
-    'XXIX',
-    'XXX',
-  ])
-})
 
 void test('badge: every level up counts; a jump posts the level reached; equal or down never', () => {
   assert.deepEqual(
     describeUnlock({ kind: 'badge_level_up', familyId: 'pshots', fromValue: 9, toValue: 10 }, none),
     {
       kind: 'badge',
-      subject: 'Shots X',
+      subject: 'Shots 10',
       graphic: 'badge',
       badge: { familyId: 'pshots', level: 10 },
     },
@@ -33,12 +17,12 @@ void test('badge: every level up counts; a jump posts the level reached; equal o
   assert.equal(
     describeUnlock({ kind: 'badge_level_up', familyId: 'pgoals', fromValue: 3, toValue: 5 }, none)
       ?.subject,
-    'Goals V',
+    'Goals 5',
   )
   assert.equal(
     describeUnlock({ kind: 'badge_level_up', familyId: 'pgoals', fromValue: 0, toValue: 1 }, none)
       ?.subject,
-    'Goals I',
+    'Goals 1',
   )
   assert.equal(
     describeUnlock({ kind: 'badge_level_up', familyId: 'pgoals', fromValue: 5, toValue: 5 }, none),

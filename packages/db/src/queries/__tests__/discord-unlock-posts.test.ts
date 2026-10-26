@@ -27,7 +27,9 @@ void test('candidates: counted kinds (every badge level), members only, settled,
   assert.match(s, /p\.ai_goalie_side is null/)
   assert.match(s, /p\.pinned_to_roster/)
   assert.match(s, /ev\.kind = 'badge_level_up' and ev\.to_value > ev\.from_value/)
-  assert.match(s, /ev\.kind in \('level_up', 'tier_up', 'mythic_awarded'\)/)
+  // Card level-ups are not posted, only new cards (operator, 2026-10-26).
+  assert.match(s, /ev\.kind in \('tier_up', 'mythic_awarded'\)/)
+  assert.doesNotMatch(s, /'level_up', 'tier_up'/)
   assert.doesNotMatch(s, /mythic_cleared/)
   assert.match(s, /unnest\(array\['gameType5', 'gameType10', 'club_private'\]::text\[\]\)/)
   assert.match(

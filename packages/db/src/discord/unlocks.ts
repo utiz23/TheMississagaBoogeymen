@@ -1,7 +1,8 @@
 /**
  * What one Discord unlock message says and shows (spec §4). Pure. A badge is
- * named by its level as a Roman numeral, I–XXX (operator, 2026-10-24) — the
- * graphic still shows the badge board's look for that level.
+ * named by its level as a plain number, 1–30 (operator, 2026-10-26; Roman
+ * numerals confused readers) — the graphic still shows the badge board's look
+ * for that level.
  */
 import {
   BADGE_FAMILIES,
@@ -15,27 +16,6 @@ import {
   type StatsTier,
 } from '../cards/badge-catalog.js'
 import type { CardEventKind } from '../cards/progression.js'
-
-const ROMAN: readonly [number, string][] = [
-  [10, 'X'],
-  [9, 'IX'],
-  [5, 'V'],
-  [4, 'IV'],
-  [1, 'I'],
-]
-
-/** A badge level as a Roman numeral (badge levels run 1–30, so I–XXX). */
-export function romanNumeral(level: number): string {
-  let n = Math.max(1, Math.floor(level))
-  let out = ''
-  for (const [value, glyph] of ROMAN) {
-    while (n >= value) {
-      out += glyph
-      n -= value
-    }
-  }
-  return out
-}
 
 export interface UnlockDescription {
   kind: 'badge' | 'card_level' | 'tier' | 'mythic'
@@ -56,7 +36,7 @@ export function describeUnlock(
       const name = BADGE_FAMILIES.find((f) => f.id === e.familyId)?.name ?? e.familyId
       return {
         kind: 'badge',
-        subject: `${name} ${romanNumeral(e.toValue)}`,
+        subject: `${name} ${String(e.toValue)}`,
         graphic: 'badge',
         badge: { familyId: e.familyId, level: e.toValue },
       }

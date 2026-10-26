@@ -13,7 +13,8 @@ const TYPES = sql.raw(`array[${MATCH_TYPE.map((t) => `'${t}'`).join(', ')}]`)
  * Card events the discord service may post, one message each (spec §5.2):
  * active title, inside the window, no row or failed under the cap (pending
  * never re-picked), settled on every match type, a counted kind (every badge
- * level up, card level, tier, mythic award), a member who is not an AI goalie.
+ * level up, new card tier, mythic award; card level-ups are not posted since
+ * 2026-10-26), a member who is not an AI goalie.
  * Ordered so a batch reads player by player, badge → level → tier → mythic.
  */
 export function discordUnlockCandidatesSql(args: { since: Date; limit: number }): SQL {
@@ -28,7 +29,7 @@ export function discordUnlockCandidatesSql(args: { since: Date; limit: number })
       and p.ai_goalie_side is null
       and ${MEMBER_CONDITION}
       and ((ev.kind = 'badge_level_up' and ev.to_value > ev.from_value)
-           or ev.kind in ('level_up', 'tier_up', 'mythic_awarded'))
+           or ev.kind in ('tier_up', 'mythic_awarded'))
       and not exists (
         select 1 from unnest(${TYPES}::text[]) t(mt)
         where not exists (

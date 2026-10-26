@@ -66,7 +66,7 @@ void test('skater pool: requirement counts families at the next bar', () => {
     title: 'NEXT · T5 FRANCHISE',
     count: '1 / 4 BADGES',
     pct: 25,
-    note: '4 skater badges at Tier V (LVL 29+).',
+    note: '4 skater badges at Tier 5 (LVL 29+).',
   })
 })
 
@@ -104,7 +104,7 @@ void test('goalie pool: requirement and rows use the 6 goalie families only', ()
     title: 'NEXT · T3 STUD',
     count: '3 / 4 BADGES',
     pct: 75,
-    note: '4 goalie badges at Tier III (LVL 12+).',
+    note: '4 goalie badges at Tier 3 (LVL 12+).',
   })
   assert.deepEqual(
     v.rows.map((r) => [r.short, r.value]),
@@ -172,7 +172,7 @@ void test('no standing yet: T1, nothing earned, no history', () => {
     trackedSince: null,
   })
   assert.equal(v.requirement.count, '0 / 4 BADGES')
-  assert.equal(v.requirement.note, '4 skater badges at Tier II (LVL 5+).')
+  assert.equal(v.requirement.note, '4 skater badges at Tier 2 (LVL 5+).')
   assert.equal(v.rows.length, 6)
   assert.ok(v.rows.every((r) => r.locked && r.value === 'LVL 0/5'))
   assert.deepEqual(v.history, [])
