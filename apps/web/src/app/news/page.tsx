@@ -1,9 +1,11 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { listNewsFeed } from '@eanhl/db/queries'
 import { LeadStory } from '@/components/news/lead-story'
 import { MoreStories } from '@/components/news/more-stories'
 import { TheWire } from '@/components/news/the-wire'
 import { MemberLinks } from '@/components/ui/member-links'
+import { GUIDE_PATH } from '@/lib/news/guide'
 import { loadFeedPage } from '@/lib/news/feed'
 import { ARTICLE_PAGE_SIZE, POST_PAGE_SIZE, pageOf } from '@/lib/news/feed-shape'
 
@@ -56,7 +58,10 @@ export default async function NewsPage() {
         )}
 
         <p className="border-t border-border-subtle pt-3 text-xs text-fg-5">
-          The reporters are made up. The scores and stats come from the real games.
+          The reporters are made up. The scores and stats come from the real games.{' '}
+          <Link prefetch href={GUIDE_PATH} className="text-fg-3 underline hover:text-fg-1">
+            How to read the Press Room
+          </Link>
         </p>
       </div>
     </MemberLinks>

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { listReporterArticles } from '@eanhl/db/queries'
 import { reporterBySlug } from '@eanhl/db/news'
+import { PressGuideNote } from '@/components/news/press-guide-note'
 import { ReporterAvatar } from '@/components/news/reporter-avatar'
 import { StoryRow } from '@/components/news/story-row'
 import { toFeedItem } from '@/lib/news/feed-shape'
@@ -63,6 +64,7 @@ export default async function ReporterPage({ params }: { params: Promise<{ repor
           </div>
         )}
       </section>
+      <PressGuideNote />
       <p className="border-t border-border-subtle pt-3 text-xs text-fg-5">
         {reporter.name} is made up. The scores and stats come from the real games.
       </p>
