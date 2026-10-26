@@ -7,6 +7,7 @@ import {
   checkFacts,
   checkFeatureFacts,
   checkGamePosts,
+  contrastCount,
   labelClaims,
   numberTokens,
   shotPairs,
@@ -1133,5 +1134,23 @@ void test('C3a.9 feature: the prediction and the receipt never repeat inside the
       paragraphs: [`It did. ${words(340)}`, words(340)],
     }),
     [],
+  )
+})
+
+void test('C3a fix S2: the two-sentence contrast "It wasn\'t luck. It was structure." counts once', () => {
+  assert.equal(contrastCount("It wasn't luck. It was structure."), 1)
+  assert.equal(contrastCount('It was not luck, but shots.'), 1)
+  assert.equal(contrastCount("It wasn't luck. It was structure. It was not skill, but volume."), 2)
+  assert.equal(contrastCount('Shots were 14. It was a loss.'), 0)
+  assert.ok(
+    has(
+      checkFacts(
+        "It wasn't luck. It was 14 shots. It was not skill, but volume.",
+        facts,
+        FORBIDDEN,
+        none,
+      ),
+      /2 "not X \.\.\. Y" contrasts/,
+    ),
   )
 })

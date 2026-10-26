@@ -333,6 +333,26 @@ const CONTRAST = [
   /\b(?:is|was|were|are|it's|that's|isn't|wasn't|weren't|aren't)\s*(?:not\b|n't\b)?[^.!?]{0,60}?(?:not|n't)\b[^.!?]{1,60}?[.;:,—–]\s*(?:it|this|that|they|he|she)\s+(?:was|is|were|are)\b/gi,
 ]
 
+/**
+ * The "not X ... Y" contrasts of a text, one per sentence that starts one. A
+ * sentence is read together with the next, so the two-sentence form "It
+ * wasn't luck. It was structure." counts once (C3a fix S2); the patterns
+ * overlap, so sentences are counted, not matches.
+ */
+export function contrastCount(text: string): number {
+  const list = sentences(collapse(text))
+  let n = 0
+  list.forEach((x, i) => {
+    const pair = `${x} ${list[i + 1] ?? ''}`
+    const hit = CONTRAST.some((re) => {
+      const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`)
+      return [...pair.matchAll(g)].some((m) => (m.index ?? 0) < x.length)
+    })
+    if (hit) n++
+  })
+  return n
+}
+
 /** At most 3 numbers per sentence; at most 2 clock times per article (spec §12.12-7). */
 export const MAX_NUMBERS_PER_SENTENCE = 3
 export const MAX_ARTICLE_CLOCKS = 2
@@ -533,10 +553,7 @@ function styleProblems(
       `Drop the format label "${FORMAT_LABELS.exec(flat)![0]}": write the point, not its label.`,
     )
   }
-  // Sentences with a contrast (the two patterns overlap, so count sentences, not matches).
-  const contrasts = sentences(flat).filter((x) =>
-    CONTRAST.some((re) => countMatches(x, re) > 0),
-  ).length
+  const contrasts = contrastCount(flat)
   if (contrasts > MAX_CONTRAST) {
     problems.push(
       `The text has ${String(contrasts)} "not X ... Y" contrasts. Use at most ${String(MAX_CONTRAST)}.`,
