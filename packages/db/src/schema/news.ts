@@ -20,12 +20,19 @@ import { players } from './players.js'
 import type { DiscordPostStatus } from './discord-posts.js'
 import type { FeatureKind } from '../news/features.js'
 
-/** C3a.8: `game_article` = a big game's article, job_key `<matchId>:<game|spotlight|column>`. */
-export const NEWS_JOB_KINDS = ['game', 'night', 'week', 'game_article'] as const
+/**
+ * C3a.8: `game_article` = a big game's article, job_key `<matchId>:<game|spotlight|column>`.
+ * 0072: `reaction` = a fan follow-up to one item, job_key = the original item id.
+ */
+export const NEWS_JOB_KINDS = ['game', 'night', 'week', 'game_article', 'reaction'] as const
 export type NewsJobKind = (typeof NEWS_JOB_KINDS)[number]
 
 export const NEWS_JOB_STATUSES = ['pending', 'done', 'failed', 'skipped'] as const
 export type NewsJobStatus = (typeof NEWS_JOB_STATUSES)[number]
+
+/** How an item reaches Discord: through the old webhook, or as a reporter's bot (0072). */
+export const NEWS_DISCORD_VIA = ['webhook', 'bot'] as const
+export type NewsDiscordVia = (typeof NEWS_DISCORD_VIA)[number]
 
 export const NEWS_ITEM_KINDS = ['post', 'article'] as const
 export type NewsItemKind = (typeof NEWS_ITEM_KINDS)[number]
@@ -78,7 +85,10 @@ export const newsJobs = pgTable(
   },
   (table) => [
     unique('news_jobs_kind_job_key_uniq').on(table.kind, table.jobKey),
-    check('news_jobs_kind_check', sql`${table.kind} IN ('game', 'night', 'week', 'game_article')`),
+    check(
+      'news_jobs_kind_check',
+      sql`${table.kind} IN ('game', 'night', 'week', 'game_article', 'reaction')`,
+    ),
     check(
       'news_jobs_status_check',
       sql`${table.status} IN ('pending', 'done', 'failed', 'skipped')`,
@@ -139,10 +149,16 @@ export const newsItems = pgTable(
      * reporters' activity, queues, own-piece lists or the quality numbers.
      */
     isCorrection: boolean('is_correction').notNull().default(false),
+    /** 0072: the game recap post, the one a scrum hangs on. */
+    isGameRecap: boolean('is_game_recap').notNull().default(false),
     isTest: boolean('is_test').notNull().default(false),
     discordStatus: text('discord_status').$type<DiscordPostStatus>().notNull().default('pending'),
     discordAttempts: integer('discord_attempts').notNull().default(0),
     discordMessageId: text('discord_message_id'),
+    /** 0072: sent by the old webhook or by a reporter's bot. */
+    discordVia: text('discord_via').$type<NewsDiscordVia>().notNull().default('webhook'),
+    /** 0072: the channel the message is in; null on webhook items. */
+    discordChannelId: text('discord_channel_id'),
     lastError: text('last_error'),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
     discordDeletedAt: timestamp('discord_deleted_at', { withTimezone: true }),
@@ -173,6 +189,7 @@ export const newsItems = pgTable(
       'news_items_receipt_verdict_check',
       sql`${table.receiptVerdict} IS NULL OR (${table.receiptVerdict} IN ('hit', 'miss') AND ${table.featureKind} IS NOT NULL)`,
     ),
+    check('news_items_discord_via_check', sql`${table.discordVia} IN ('webhook', 'bot')`),
     check(
       'news_items_discord_status_check',
       sql`${table.discordStatus} IN ('pending', 'posted', 'failed', 'skipped')`,

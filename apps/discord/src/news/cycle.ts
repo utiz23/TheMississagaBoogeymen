@@ -137,7 +137,12 @@ export interface NewsStore {
     error: string | null,
   ): Promise<void>
   insertNewsItem(item: NewNewsItem): Promise<number>
-  markNewsItemPosted(id: number, messageId: string | null): Promise<void>
+  markNewsItemPosted(
+    id: number,
+    messageId: string | null,
+    via: 'webhook' | 'bot',
+    channelId: string | null,
+  ): Promise<void>
   markNewsItemFailed(id: number, error: string): Promise<void>
   markNewsItemSkipped(id: number, reason: string): Promise<void>
   /** Real items since `since`, each with what it was (recap, reaction, night, feature). */
@@ -421,7 +426,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     }
     summary.posted++
     try {
-      await store.markNewsItemPosted(id, messageId)
+      await store.markNewsItemPosted(id, messageId, 'webhook', null)
     } catch (err: unknown) {
       log(`${tag}: posted but not recorded — left pending, not retried (${message(err)})`)
     }

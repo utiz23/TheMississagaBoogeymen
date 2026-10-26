@@ -256,10 +256,13 @@ function harness(
         rulesVersion: item.rulesVersion ?? null,
         sendAfter: item.sendAfter ?? null,
         isCorrection: item.isCorrection ?? false,
+        isGameRecap: item.isGameRecap ?? false,
         isTest: item.isTest ?? false,
         discordStatus: item.discordStatus ?? 'pending',
         discordAttempts: 0,
         discordMessageId: null,
+        discordVia: 'webhook',
+        discordChannelId: null,
         lastError: null,
         deletedAt: null,
         discordDeletedAt: null,
@@ -643,7 +646,7 @@ void test('undelivered: a failed send is retried; a reply keeps its "↪ to" pre
     body: 'First.',
     night: '2026-10-12',
   })
-  await store.markNewsItemPosted(a, 'm1')
+  await store.markNewsItemPosted(a, 'm1', 'webhook', null)
   const b = await store.insertNewsItem({
     kind: 'post',
     reporter: 'mercer',

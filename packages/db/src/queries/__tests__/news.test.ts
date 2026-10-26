@@ -247,15 +247,20 @@ void test('last feature: the newest real, not deleted item with a feature kind (
   assert.deepEqual(q.params, [])
 })
 
-void test("night criticized: the night's not-deleted items; test items only when asked (rev 2, B4)", () => {
+void test("night criticized: the night's not-deleted items plus critical GM notes; test rows only when asked (rev 2, B4)", () => {
   const real = dialect.sqlToQuery(nightCriticizedSql('2026-10-12', false))
   const s = flat(real.sql)
   assert.match(
     s,
-    /select n\.criticized from news_items n where n\.night = \$1::date and n\.deleted_at is null and \(n\.is_test = false or \$2\) order by n\.id asc/,
+    /select n\.id as sort_id, 0 as src, n\.criticized from news_items n where n\.night = \$1::date and n\.deleted_at is null and \(n\.is_test = false or \$2\)/,
   )
-  assert.deepEqual(real.params, ['2026-10-12', false])
+  assert.match(s, /from news_gm_notes g/)
+  assert.match(s, /g\.status = 'active' and g\.critical/)
+  assert.match(s, /order by src, sort_id/)
+  assert.deepEqual(real.params, ['2026-10-12', false, '2026-10-12', false])
   assert.deepEqual(dialect.sqlToQuery(nightCriticizedSql('2026-10-12', true)).params, [
+    '2026-10-12',
+    true,
     '2026-10-12',
     true,
   ])
@@ -364,6 +369,10 @@ void test('discord deletions: deleted, has a message id, not yet deleted on Disc
   assert.match(s, /"deleted_at" is not null/)
   assert.match(s, /"discord_message_id" is not null/)
   assert.match(s, /"discord_deleted_at" is null/)
+  // Task 1 (0072): the bot path needs how and where the message was sent, and who wrote it.
+  assert.match(s, /"discord_via"/)
+  assert.match(s, /"discord_channel_id"/)
+  assert.match(s, /"reporter"/)
 })
 
 void test('delete test items: only items, never jobs', () => {

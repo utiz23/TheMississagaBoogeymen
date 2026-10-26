@@ -30,6 +30,7 @@ import {
   type NewsItemKind,
   type NewsItemRow,
   type NewsJobKind,
+  type NewsDiscordVia,
   type NewsReporterId,
   type PressLevel,
   type PressLevelSetBy,
@@ -61,7 +62,7 @@ const MAX = sql.raw(String(NEWS_MAX_ATTEMPTS))
  * so a game that ends after midnight stays with the evening it started.
  * `alias` is the matches alias in the surrounding query.
  */
-function nightKeySql(alias: string): SQL {
+export function nightKeySql(alias: string): SQL {
   return sql.raw(
     `((${alias}.played_at at time zone 'America/Edmonton') - interval '6 hours')::date`,
   )
@@ -647,10 +648,22 @@ export async function findNewsArticleId(slug: string): Promise<number | null> {
   return (await findNewsArticleQuery(slug))[0]?.id ?? null
 }
 
-export async function markNewsItemPosted(id: number, messageId: string | null): Promise<void> {
+/** `via` + `channelId` record how and where it was sent (webhook items have no channel id). */
+export async function markNewsItemPosted(
+  id: number,
+  messageId: string | null,
+  via: NewsDiscordVia,
+  channelId: string | null,
+): Promise<void> {
   await db
     .update(newsItems)
-    .set({ discordStatus: 'posted', discordMessageId: messageId, lastError: null })
+    .set({
+      discordStatus: 'posted',
+      discordMessageId: messageId,
+      discordVia: via,
+      discordChannelId: channelId,
+      lastError: null,
+    })
     .where(eq(newsItems.id, id))
 }
 
@@ -761,7 +774,13 @@ export async function claimDueNewsItem(id: number): Promise<boolean> {
 /** Deleted items whose Discord message still exists. */
 export function discordDeletionsQuery(limit: number) {
   return db
-    .select({ id: newsItems.id, messageId: newsItems.discordMessageId })
+    .select({
+      id: newsItems.id,
+      messageId: newsItems.discordMessageId,
+      via: newsItems.discordVia,
+      channelId: newsItems.discordChannelId,
+      reporter: newsItems.reporter,
+    })
     .from(newsItems)
     .where(
       and(
@@ -774,11 +793,30 @@ export function discordDeletionsQuery(limit: number) {
     .limit(limit)
 }
 
-export async function listDiscordDeletions(
-  limit: number,
-): Promise<{ id: number; messageId: string }[]> {
+export interface DiscordDeletion {
+  id: number
+  messageId: string
+  via: NewsDiscordVia
+  /** Null on webhook items. */
+  channelId: string | null
+  reporter: NewsReporterId
+}
+
+export async function listDiscordDeletions(limit: number): Promise<DiscordDeletion[]> {
   const rows = await discordDeletionsQuery(limit)
-  return rows.flatMap((r) => (r.messageId === null ? [] : [{ id: r.id, messageId: r.messageId }]))
+  return rows.flatMap((r) =>
+    r.messageId === null
+      ? []
+      : [
+          {
+            id: r.id,
+            messageId: r.messageId,
+            via: r.via,
+            channelId: r.channelId,
+            reporter: r.reporter,
+          },
+        ],
+  )
 }
 
 export async function markDiscordDeleted(id: number): Promise<void> {
@@ -998,19 +1036,35 @@ export async function predictionScorecards(
 
 /**
  * The `criticized` lists of a night's items, oldest first (rev 2, B4 pile-on
- * limit). Deleted items do not count; test items only when `includeTest`.
+ * limit), then one name per active critical GM note (0072). Deleted items do
+ * not count; test items and notes only when `includeTest`.
  */
 export function nightCriticizedSql(night: string, includeTest: boolean): SQL {
+  // Item lists first (oldest first), then players with an active critical GM note (0072).
   return sql`
-    select n.criticized
-    from news_items n
-    where n.night = ${night}::date
-      and n.deleted_at is null
-      and (n.is_test = false or ${includeTest})
-    order by n.id asc`
+    select criticized from (
+      select n.id as sort_id, 0 as src, n.criticized
+      from news_items n
+      where n.night = ${night}::date
+        and n.deleted_at is null
+        and (n.is_test = false or ${includeTest})
+      union all
+      select g.id as sort_id, 1 as src,
+        jsonb_build_array(coalesce(nullif(btrim(pp.player_name), ''), p.gamertag)) as criticized
+      from news_gm_notes g
+      join players p on p.id = g.player_id
+      left join player_profiles pp on pp.player_id = p.id
+      where g.night = ${night}::date
+        and g.status = 'active' and g.critical
+        and (g.is_test = false or ${includeTest})
+    ) c
+    order by src, sort_id`
 }
 
-/** Every name criticised harshly in the night's items so far, each once, in first-seen order. */
+/**
+ * Every name criticised harshly tonight so far, each once, in first-seen order:
+ * the names in the night's items, then players with an active critical GM note.
+ */
 export async function nightCriticized(night: string, includeTest: boolean): Promise<string[]> {
   const rows = await db.execute<{ criticized: string[] | string | null }>(
     nightCriticizedSql(night, includeTest),
@@ -1365,6 +1419,10 @@ type RawNewsItem = {
   rules_version?: string | null
   send_after?: string | Date | null
   is_correction?: boolean
+  /** 0072 columns; absent on an older row shape. */
+  is_game_recap?: boolean
+  discord_via?: NewsDiscordVia
+  discord_channel_id?: string | null
   is_test: boolean
   discord_status: NewsItemRow['discordStatus']
   discord_attempts: number
@@ -1418,10 +1476,13 @@ export function rawToNewsItem(r: RawNewsItem): NewsItemRow {
     rulesVersion: r.rules_version ?? null,
     sendAfter: r.send_after == null ? null : toDate(r.send_after),
     isCorrection: r.is_correction ?? false,
+    isGameRecap: r.is_game_recap ?? false,
     isTest: r.is_test,
     discordStatus: r.discord_status,
     discordAttempts: r.discord_attempts,
     discordMessageId: r.discord_message_id,
+    discordVia: r.discord_via ?? 'webhook',
+    discordChannelId: r.discord_channel_id ?? null,
     lastError: r.last_error,
     deletedAt: toDateOrNull(r.deleted_at),
     discordDeletedAt: toDateOrNull(r.discord_deleted_at),
