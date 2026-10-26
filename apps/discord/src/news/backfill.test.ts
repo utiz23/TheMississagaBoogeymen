@@ -1169,3 +1169,25 @@ void test('C3a fix I1: take texts never reach a status file or the check output'
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+void test('buzz fix 5: an ended-early game gets one neutral recap and no article jobs, however big its labels', async () => {
+  const early = {
+    ...hugeGame(801, '2026-05-08', at('2026-05-09', '02:00')),
+    endedEarly: true,
+    team: null,
+  }
+  const plan = await planBackfill({ nights: ['2026-05-08'], ...fakeWeb({ '2026-05-08': [early] }) })
+  assert.deepEqual(
+    plan.jobs.map((j) => j.id),
+    ['2026-05-08-a01-g801', '2026-05-08-z-night'],
+  )
+  assert.deepEqual(
+    plan.jobs[0]!.posts!.map((p) => p.angle),
+    ['recap'],
+  )
+  assert.ok(
+    plan.jobs[0]!.user.includes(
+      'one neutral line with the result and the score, and no other number',
+    ),
+  )
+})
