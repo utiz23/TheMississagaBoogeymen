@@ -110,14 +110,16 @@ void test('buzz: a routine win is quiet; labels raise it; 6s weighs more than 3s
 
 void test('buzz: an 11-2 blowout with a hat trick and 5 points is big; a record is historic; ended early is quiet', () => {
   const big = game({
+    gameMode: '6s',
     scoreFor: 11,
     scoreAgainst: 2,
     context: { ...game().context!, margin: 'blowout' },
     players: [line({ goals: 3, assists: 2, points: 5 })],
   })
   const s = buzzScore(big, sheet)
-  // blowout 3 + many goals 1 + player (hat trick 3 + 5 points 3, capped at 4)
-  assert.equal(s.score, 8)
+  // blowout 3 + many goals 1 (a routine opponent: capped at 3) + player (hat trick 3 +
+  // 5 points 3, capped at 4) = 7, x1.25 for 6s
+  assert.equal(s.score, 8.75)
   assert.ok(s.score >= BUZZ_CUTOFFS.big && s.score < BUZZ_CUTOFFS.huge)
   assert.equal(planBuzz(big, sheet).level, 'big')
   assert.deepEqual(planBuzz(big, sheet).articles, ['game'])
@@ -301,4 +303,42 @@ void test('buzz fix 2: a lead blown, a late equalizer and the win after it (the 
   })
   assert.equal(lost.leadBlown, true)
   assert.equal(lost.winAfterBlown, false)
+})
+
+void test('buzz fix 3: a shutout or blowout of a routine opponent never reaches huge on its own', () => {
+  // The 2026-05-08 4-0: blowout + shutout, a big-for-him line, no other drama.
+  const routine = game({
+    gameMode: '6s',
+    scoreFor: 4,
+    scoreAgainst: 0,
+    context: { ...game().context!, margin: 'blowout', surprise: 'expected' },
+    players: [
+      line({
+        goals: 2,
+        points: 3,
+        norm: {
+          games: 20,
+          perGame: { goals: 0.5, assists: 0.5, points: 1, shots: 3, hits: 1 },
+          last10: { goals: 0.5, assists: 0.5, points: 1 },
+          labels: {
+            goals: 'big for him',
+            assists: 'typical',
+            points: 'big for him',
+            shots: 'typical',
+            hits: 'typical',
+          },
+        },
+      }),
+    ],
+  })
+  const s = buzzScore(routine, sheet)
+  assert.ok(s.reasons.includes('routine result capped'), s.reasons.join())
+  assert.ok(['quiet', 'normal'].includes(planBuzz(routine, sheet).level), String(s.score))
+  // An 11-0 rout of a routine opponent is still not huge.
+  const rout = { ...routine, scoreFor: 11, players: [line()] }
+  assert.notEqual(planBuzz(rout, sheet).level, 'huge')
+  // Against an upset the cap does not apply.
+  const upset = { ...routine, context: { ...routine.context!, surprise: 'upset' as const } }
+  assert.ok(!buzzScore(upset, sheet).reasons.includes('routine result capped'))
+  assert.ok(buzzScore(upset, sheet).score > s.score)
 })

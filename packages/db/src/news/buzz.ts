@@ -68,6 +68,8 @@ export const BUZZ_WEIGHTS = {
   aiMeltdown: 2,
   aiSteal: 2,
   shutout: 2,
+  /** Blowout + shutout + many goals against an expected opponent add at most this (buzz fix 3). */
+  routineResultMax: 3,
   threadClosed: 1,
   threadMax: 2,
   revenge: 1,
@@ -204,6 +206,8 @@ export function buzzScore(
   const W = BUZZ_WEIGHTS
   if (g.endedEarly) return { score: 0, reasons: ['ended early'] }
   let raw = 0
+  /** Blowout, shutout and many goals together (capped for a routine opponent). */
+  let result = 0
   const reasons: string[] = []
   const add = (w: number, why: string) => {
     if (w === 0) return
@@ -213,12 +217,12 @@ export function buzzScore(
   if (g.overtime) add(W.overtime, 'overtime')
   const c = g.context
   if (c !== null) {
-    if (c.margin === 'blowout') add(W.blowout, 'blowout')
+    if (c.margin === 'blowout') result += W.blowout
     if (c.margin === 'close') add(W.close, 'close')
     add(W.result[c.result], `result ${c.result}`)
     add(W.surprise[c.surprise], c.surprise)
   }
-  if (g.scoreFor + g.scoreAgainst >= W.manyGoalsTotal) add(W.manyGoals, 'many goals')
+  if (g.scoreFor + g.scoreAgainst >= W.manyGoalsTotal) result += W.manyGoals
   const hooks = timelineHooks(g)
   if (hooks.comeback) add(W.comeback, 'comeback')
   if (hooks.lateWinner) add(W.lateWinner, 'late winner')
@@ -267,7 +271,16 @@ export function buzzScore(
   }
   if (g.aiGoalie?.label === 'meltdown') add(W.aiMeltdown, 'AI goalie meltdown')
   if (g.aiGoalie?.label === 'steal') add(W.aiSteal, 'AI goalie steal')
-  if (g.result === 'WIN' && g.scoreAgainst === 0) add(W.shutout, 'shutout')
+  if (g.result === 'WIN' && g.scoreAgainst === 0) result += W.shutout
+  // Buzz fix 3: a blowout, a shutout or many goals against an opponent the
+  // club was expected to beat is a routine result: together they add at
+  // most `routineResultMax`, so they never make a game huge on their own.
+  const routine = c === null || c.surprise === 'expected'
+  if (routine && result > W.routineResultMax) {
+    add(W.routineResultMax, 'routine result capped')
+  } else {
+    add(result, 'result: blowout / shutout / many goals')
+  }
   const closed = facts.threads.filter((t) => t.status === 'closed-tonight').length
   add(Math.min(W.threadMax, closed * W.threadClosed), 'threads closed')
   if (g.result === 'WIN' && g.headToHead !== null && g.headToHead.lastMeeting.result !== 'WIN') {
