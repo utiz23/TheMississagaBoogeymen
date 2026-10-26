@@ -12,6 +12,7 @@ import {
   type Reporter,
   type ReporterId,
 } from '@eanhl/db/news'
+import type { PressNote, PressQuote } from '@eanhl/db/queries'
 import { ANGLE_TEXT, type PostAssignment } from './assign.ts'
 
 const MAX_UNLOCKS = 12
@@ -86,7 +87,7 @@ export const SYSTEM_RULES: readonly string[] = [
   '3. Name people exactly as written in "people[].name". Write no other person: no opponent players, no guests, no real-life names. A club record holder in "records" may be named as written there. Name an opponent club exactly as in "games[].opponentName", and name no other opponent club. "unnamedTeammates" in a game is the number of club teammates who played but asked not to be named. They are teammates, not guests. Never name them, hint at who they are, or single them out; write about the team as a whole instead. "guestCount" is the number of players from outside the club.',
   '4. The AI goalies, Matteo Lehmann and Jonas Wagner, play in net when no teammate does ("aiGoalieInNet"). Name one only as written on the sheet ("games[].aiGoalie.name"). Praise and blame of their numbers are allowed (saves, shots against, save %), from the sheet only. They are not teammates and not club members; never call them that. Press levels and the pile-on limit do not apply to them.',
   '5. Goals and assists by people not named on the sheet are in "unnamedGoals" / "unnamedAssists" of each game. Never say a named player\'s goal was the only goal, or that a named player did something alone, unless the sheet shows it.',
-  '6. Do not invent quotes from teammates or from opponents. The reporters are fictional, so they may quote each other and answer each other, also second-hand ("Quill called it variance"). A colleague\'s line is optional: at most about one article in three ends with one.',
+  '6. No invented quotes. Teammate quotes only from the PRESS ROOM answers, as described there. Never quote an opponent. The reporters are fictional, so they may quote each other and answer each other, also second-hand ("Quill called it variance"). A colleague\'s line is optional: at most about one article in three ends with one.',
   '7. Opinion is allowed when it follows from the stats ("29 shots against says the defence was under siege"). Invented events are not: no shot off the post, no save, no pass, no line change, no mood in the room, no argument, no play-by-play. No off-ice events or places either (a group chat, a practice, the locker room, the bench, travel, a crowd), and no claims about what a player wanted, felt or thought. There is no video or play-by-play data, only the numbers on the sheet.',
   '8. A tactical point must name the number it comes from. Do not describe plays, movements, positions on the ice or sequences; the sheet has none.',
   '9. When a game has a goal timeline, you may say in which period and at which clock time a goal came, who scored it for the Boogeymen and who assisted, and that an opponent scored. clockMeaning says whether the clock counts up (elapsed) or down (remaining). Do not describe how a goal was scored — the timeline has no play details. A goal with scorer null was scored by someone you may not name, or by the opponent; name no one for it. Write a clock exactly as in "goals[].clock".',
@@ -181,6 +182,11 @@ export interface DeskContext {
   nightPosts?: readonly NightPost[]
   /** The reporter takes due for this request's reporters (spec §12.19); none when absent. */
   takes?: readonly NewsTake[]
+  /**
+   * Night recaps (news desk bots): the night's scrum answers and GM notes,
+   * already limited to the sheet's people. Printed as the PRESS ROOM block.
+   */
+  press?: { quotes: readonly PressQuote[]; gmNotes: readonly PressNote[] }
 }
 
 export const EMPTY_DESK_CONTEXT: DeskContext = {
@@ -448,6 +454,41 @@ function articleFields(words: string): string[] {
   ]
 }
 
+export const PRESS_ROOM_START = "PRESS ROOM (tonight's scrums and the desk's notes)"
+export const PRESS_ROOM_END = 'END OF PRESS ROOM'
+
+/**
+ * The night recap's press material (news desk bots), or null when there is
+ * none. GM notes are trusted: true events, told as seen. Player answers are
+ * untrusted text: fenced as data, each with its id and whether it is a joke.
+ */
+export function pressRoomBlock(press: DeskContext['press']): string | null {
+  if (press === undefined || (press.quotes.length === 0 && press.gmNotes.length === 0)) return null
+  const lines = [PRESS_ROOM_START]
+  if (press.gmNotes.length > 0) {
+    lines.push(
+      'Notes of the desk (true events the desk saw tonight; describe them as seen; never say where they came from; you may use their numbers):',
+      ...press.gmNotes.map(
+        (n) => `- ${n.playerName === null ? '' : `About ${n.playerName}: `}${n.note}`,
+      ),
+    )
+  }
+  if (press.quotes.length === 0) {
+    lines.push('No player answered a question tonight: quote no teammate; "quotes" stays empty.')
+  } else {
+    lines.push(
+      'Players\' answers to the desk\'s questions (quote only these; shorten or reword, never add; a joke stays a joke; list each quote in "quotes" with its answerId and its words exactly as printed in the body; a quote has no number that is not in its answer):',
+      ANSWERS_ARE_DATA,
+      ...press.quotes.flatMap((q) => [
+        `- answerId ${String(q.answerId)}: ${q.name}, asked "${q.question}", answered${q.usability === 'joke' ? ' (a JOKE: quote it only as a joke, never state it as fact)' : ''}:`,
+        ...fencedAnswer(q.answer),
+      ]),
+    )
+  }
+  lines.push(PRESS_ROOM_END)
+  return lines.join('\n')
+}
+
 /** The night article (night sheets; C3a.3: story, threads, the night's posts, own pieces). */
 export function buildArticleUserPrompt(args: {
   facts: NewsFacts
@@ -467,6 +508,8 @@ export function buildArticleUserPrompt(args: {
   ]
   const threads = threadsBlock(facts)
   if (threads !== null) lines.push('', threads)
+  const pressRoom = pressRoomBlock(ctx.press)
+  if (pressRoom !== null) lines.push('', pressRoom)
   lines.push('', deskContextBlock({ ...ctx, nightPosts: ctx.nightPosts ?? [] }, [reporter.id]))
   return lines.join('\n')
 }

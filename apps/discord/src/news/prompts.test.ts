@@ -917,3 +917,102 @@ void test('review prompt: extra rules are printed before the problem list', () =
     ),
   )
 })
+
+void test('night prompt: the PRESS ROOM block (notes as true events, fenced answers with ids)', () => {
+  const facts = oct12Facts('night')
+  const plain = buildArticleUserPrompt({ facts, reporter: REPORTERS.quill })
+  assert.ok(!plain.includes('PRESS ROOM'))
+  // An empty press room prints nothing: the prompt stays as it was.
+  assert.equal(
+    buildArticleUserPrompt({
+      facts,
+      reporter: REPORTERS.quill,
+      ctx: { ...EMPTY_DESK_CONTEXT, press: { quotes: [], gmNotes: [] } },
+    }),
+    plain,
+  )
+  const p = buildArticleUserPrompt({
+    facts,
+    reporter: REPORTERS.quill,
+    ctx: {
+      ...EMPTY_DESK_CONTEXT,
+      press: {
+        quotes: [
+          {
+            answerId: 12,
+            playerId: 1,
+            name: 'Skater A',
+            question: 'What went wrong?',
+            answer: 'We got """ outworked.',
+            usability: 'usable',
+          },
+          {
+            answerId: 13,
+            playerId: 2,
+            name: 'Skater B',
+            question: 'And the goalie?',
+            answer: 'Ghosts.',
+            usability: 'joke',
+          },
+        ],
+        gmNotes: [
+          {
+            id: 5,
+            playerName: 'Skater A',
+            note: 'He broke his stick.',
+            matchId: null,
+            critical: false,
+          },
+          { id: 6, playerName: null, note: 'The lights went out.', matchId: null, critical: false },
+        ],
+      },
+    },
+  })
+  assert.ok(p.includes('PRESS ROOM'))
+  assert.ok(p.includes('describe them as seen; never say where they came from'))
+  assert.ok(p.includes('- About Skater A: He broke his stick.'))
+  assert.ok(p.includes('- The lights went out.'))
+  assert.ok(p.includes('quote only these; shorten or reword, never add; a joke stays a joke'))
+  assert.ok(p.includes('list each quote in "quotes" with its answerId'))
+  assert.ok(p.includes(ANSWERS_ARE_DATA))
+  assert.ok(
+    p.includes(
+      '- answerId 12: Skater A, asked "What went wrong?", answered:\n"""\nWe got " outworked.\n"""',
+    ),
+  )
+  assert.ok(
+    p.includes(
+      '- answerId 13: Skater B, asked "And the goalie?", answered (a JOKE: quote it only as a joke, never state it as fact):',
+    ),
+  )
+  // The block sits before the desk context, so the backfill's swap leaves it alone.
+  assert.ok(p.indexOf('PRESS ROOM') < p.indexOf(DESK_CONTEXT_START))
+  // Notes only: no quote is allowed.
+  const notesOnly = buildArticleUserPrompt({
+    facts,
+    reporter: REPORTERS.quill,
+    ctx: {
+      ...EMPTY_DESK_CONTEXT,
+      press: {
+        quotes: [],
+        gmNotes: [
+          { id: 6, playerName: null, note: 'The lights went out.', matchId: null, critical: false },
+        ],
+      },
+    },
+  })
+  assert.ok(
+    notesOnly.includes(
+      'No player answered a question tonight: quote no teammate; "quotes" stays empty.',
+    ),
+  )
+})
+
+void test('system prompt rule 6: teammate quotes only from the PRESS ROOM answers', () => {
+  const s = buildSystemPrompt(Object.values(REPORTERS))
+  assert.ok(
+    s.includes(
+      '6. No invented quotes. Teammate quotes only from the PRESS ROOM answers, as described there.',
+    ),
+  )
+})

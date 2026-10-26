@@ -23,7 +23,11 @@ import type {
   NewsItemRow,
   NewsJobKind,
   NewsMention,
+  PressNote,
+  PressQuote,
 } from '@eanhl/db/queries'
+// rules.ts imports only '@eanhl/db/news' (no discord.js), so the news container may use it.
+import { PRESS_NIGHT_WAIT_MS } from '../press/rules.ts'
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
   assignFeature,
@@ -74,6 +78,7 @@ import {
   type DeskContext,
   type NightPost,
   type OwnPiece,
+  type TrustedMaterial,
 } from './prompts.ts'
 import { classifyGame } from './situation.ts'
 import {
@@ -178,6 +183,13 @@ export interface NewsStore {
   claimDueNewsItem(id: number): Promise<boolean>
   /** The reporters switched off on /admin/news (C3b.3); a reporter without a row is on. */
   listDisabledReporters(): Promise<ReporterId[]>
+  /** A scrum of the night is live (someone is being asked, or was just pinged): the recap waits. */
+  nightHasActiveScrum(night: string, includeTest: boolean): Promise<boolean>
+  /** The night's usable and joke scrum answers and its active GM notes, oldest first. */
+  nightPressMaterial(
+    night: string,
+    includeTest: boolean,
+  ): Promise<{ quotes: PressQuote[]; gmNotes: PressNote[] }>
 }
 
 /** One stored item on its way to Discord. */
@@ -242,6 +254,11 @@ export interface NewsCycleState {
   testLastFeature: LastFeature | null
   /** True after "every reporter is switched off" was logged; reset when one is switched on. */
   allOffLogged: boolean
+  /**
+   * Night -> epoch ms when its recap first waited for an open scrum. In memory
+   * only: a restart starts the 30-minute wait again.
+   */
+  nightWaitSince: Map<string, number>
 }
 
 export interface LastFeature {
@@ -259,6 +276,7 @@ export function createNewsCycleState(): NewsCycleState {
     weekFetchPausedUntil: new Map(),
     testLastFeature: null,
     allOffLogged: false,
+    nightWaitSince: new Map(),
   }
 }
 
@@ -284,6 +302,47 @@ const message = (err: unknown) => (err instanceof Error ? err.message : String(e
 const rateLimited = (err: unknown) => /HTTP 429\b/.test(message(err))
 
 const SYSTEM_PROMPT = buildSystemPrompt(Object.values(REPORTERS))
+
+const nameKey = (s: string): string => s.replace(/\s+/g, ' ').trim().toLowerCase()
+
+/**
+ * The night's press material as the recap may use it (news desk bots): answers
+ * only from players on the sheet's people (never `out`, never a guest); GM notes
+ * only about such a player or about no player, and a critical note never about
+ * an "easy" player.
+ */
+export function pressForSheet(
+  material: { quotes: readonly PressQuote[]; gmNotes: readonly PressNote[] },
+  facts: NewsFacts,
+): { quotes: PressQuote[]; gmNotes: PressNote[] } {
+  const ids = new Set(facts.people.map((p) => p.playerId))
+  return {
+    quotes: material.quotes.filter((q) => ids.has(q.playerId)),
+    gmNotes: material.gmNotes.filter((n) => {
+      if (n.playerName === null) return true
+      const person = facts.people.find((p) => nameKey(p.name) === nameKey(n.playerName!))
+      return person !== undefined && !(n.critical && person.pressLevel === 'easy')
+    }),
+  }
+}
+
+/** The review's view of the press material: the notes as lines, the answers by player. */
+function trustedOf(press: {
+  quotes: readonly PressQuote[]
+  gmNotes: readonly PressNote[]
+}): TrustedMaterial {
+  return {
+    gmNotes: press.gmNotes.map((n) =>
+      n.playerName === null ? n.note : `About ${n.playerName}: ${n.note}`,
+    ),
+    answers: press.quotes.map((q) => ({
+      player: q.name,
+      question: q.question,
+      answer: q.answer,
+      usability: q.usability,
+    })),
+  }
+}
 
 /** The people an item names, as stored: sheet names only, one entry per player. */
 function mentionsOf(names: string[], facts: NewsFacts): NewsMention[] {
@@ -477,6 +536,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       criticizedForReview: (out: T) => string[]
       /** The takes the piece was offered (shown to the review, C3a.10). */
       takesForReview?: readonly NewsTake[]
+      /** The night recap's GM notes and scrum answers (shown to the review). */
+      trusted?: TrustedMaterial
       facts: NewsFacts
     },
   ): Promise<{ out: T } | 'failed' | 'end'> {
@@ -1007,9 +1068,35 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         continue
       }
       if (!(await moneyLeft())) return 'end'
+      if (await waitsForScrum(night, tag)) continue
       if ((await articleJob('night', night, tag)) === 'end') return 'end'
     }
+    for (const night of state.nightWaitSince.keys()) {
+      if (!nights.includes(night)) state.nightWaitSince.delete(night)
+    }
     return 'go'
+  }
+
+  /**
+   * News desk bots: while a scrum of the night is open, its recap waits, so the
+   * answers can be quoted. It waits at most `PRESS_NIGHT_WAIT_MS` (30 minutes)
+   * from the first pass that saw the scrum, then it is written anyway.
+   */
+  async function waitsForScrum(night: string, tag: string): Promise<boolean> {
+    if (!(await store.nightHasActiveScrum(night, opts.dryRun))) {
+      state.nightWaitSince.delete(night)
+      return false
+    }
+    const now = deps.now().getTime()
+    const since = state.nightWaitSince.get(night)
+    if (since === undefined) {
+      state.nightWaitSince.set(night, now)
+      log(`${tag}: a scrum is open — the recap waits (at most 30 minutes)`)
+      return true
+    }
+    if (now - since < PRESS_NIGHT_WAIT_MS) return true
+    log(`${tag}: the scrum is still open after 30 minutes — the recap is written now`)
+    return false
   }
 
   // ── 7. Week piece: Mondays from 12:00 America/Edmonton, for the week before ─
@@ -1061,6 +1148,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     let mine: NewsTake[]
     /** Week jobs: the feature kind and the prediction to judge (rev 2, B3/B5). */
     let feature: { kind: FeatureKind; previousPrediction: string | null } | null = null
+    /** Night recaps: the press material for the sheet's people (news desk bots). */
+    let press: { quotes: PressQuote[]; gmNotes: PressNote[] } | undefined
     try {
       const activity = await loadActivity(now)
       let zero = { tonight: [] as string[], previous: [] as string[] }
@@ -1071,6 +1160,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         tonight = await store.nightCriticized(key, opts.dryRun)
         zero = await store.nightZeroCalled(key, opts.dryRun)
         nightPosts = await store.nightPostsForPrompt(key, opts.dryRun)
+        const material = pressForSheet(await store.nightPressMaterial(key, opts.dryRun), facts)
+        if (material.quotes.length > 0 || material.gmNotes.length > 0) press = material
       } else {
         const last =
           opts.dryRun && state.testLastFeature !== null
@@ -1086,6 +1177,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         zeroCalledPrevious: zero.previous,
         ownRecent: await ownRecentOf([reporterId]),
         ...(nightPosts === undefined ? {} : { nightPosts }),
+        ...(press === undefined ? {} : { press }),
       }
       const who = reporterId
       mine = (await takesDue(res, now)).filter((t) => takeCritics(t).includes(who))
@@ -1112,11 +1204,15 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
             zeroCalledTonight: ctx.zeroCalledTonight,
             zeroCalledPrevious: ctx.zeroCalledPrevious,
             offeredTakes: mine.map((t) => t.id),
+            ...(press === undefined
+              ? {}
+              : { press: { quotes: press.quotes, gmNotes: press.gmNotes.map((n) => n.note) } }),
           }),
         textForReview: (x) =>
           [`By ${REPORTERS[reporterId].name}`, x.headline, x.dek, ...x.paragraphs].join('\n\n'),
         criticizedForReview: (x) => x.criticized,
         takesForReview: mine,
+        ...(press === undefined ? {} : { trusted: trustedOf(press) }),
         facts,
       })
       if (written === 'end') return 'end'

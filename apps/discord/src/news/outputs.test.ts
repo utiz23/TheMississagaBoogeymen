@@ -73,7 +73,7 @@ const article = {
 }
 
 void test('parseArticle', () => {
-  assert.deepEqual(parseArticle(article), article)
+  assert.deepEqual(parseArticle(article), { ...article, quotes: [] })
   assert.throws(() => parseArticle({ ...article, extra: 1 }))
   assert.throws(() => parseArticle({ ...article, paragraphs: [] }))
   assert.throws(() => parseArticle({ ...article, paragraphs: ['ok', ''] }))
@@ -162,7 +162,7 @@ void test('feature schema: the article fields plus prediction and receipt (rev 2
   assert.ok((FEATURE_SCHEMA.required as readonly string[]).includes('receipt'))
   assert.equal(FEATURE_SCHEMA.additionalProperties, false)
   const f = { ...article, prediction: 'They win the week.', receipt: '', receiptVerdict: 'none' }
-  assert.deepEqual(parseFeature(f), { ...f, receiptVerdict: null })
+  assert.deepEqual(parseFeature(f), { ...f, quotes: [], receiptVerdict: null })
   assert.equal(parseFeature({ ...f, receipt: 'It came true.' }).receipt, 'It came true.')
   assert.throws(() => parseFeature({ ...f, prediction: ' ' }), /prediction/)
   const { prediction: _p, ...noPrediction } = f
@@ -228,4 +228,31 @@ void test('piece fields (C3a.4): zeroCalled, stances and takesUsed on posts and 
   assert.deepEqual(parseArticle(a).takesUsed, [7])
   const { stances: _s, ...noStances } = a
   assert.throws(() => parseArticle(noStances), /stances/)
+})
+
+void test('quotes (news desk bots): required in the schema; a missing field parses as []', () => {
+  assert.ok((ARTICLE_SCHEMA.required as readonly string[]).includes('quotes'))
+  assert.ok((FEATURE_SCHEMA.required as readonly string[]).includes('quotes'))
+  assert.deepEqual(ARTICLE_SCHEMA.properties.quotes, {
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: { answerId: { type: 'integer' }, text: { type: 'string' } },
+      required: ['answerId', 'text'],
+      additionalProperties: false,
+    },
+  })
+  assert.deepEqual(parseArticle(article).quotes, [])
+  const q = [{ answerId: 12, text: 'We got outworked' }]
+  assert.deepEqual(parseArticle({ ...article, quotes: q }).quotes, q)
+  assert.throws(() => parseArticle({ ...article, quotes: [{ answerId: 0, text: 'x' }] }), /quotes/)
+  assert.throws(() => parseArticle({ ...article, quotes: [{ answerId: 3, text: ' ' }] }), /quotes/)
+  assert.throws(
+    () => parseArticle({ ...article, quotes: [{ answerId: 3, text: 'x', extra: 1 }] }),
+    /quotes/,
+  )
+  assert.throws(() => parseArticle({ ...article, quotes: 'none' }), /quotes/)
+  const f = { ...article, prediction: 'They win.', receipt: '', receiptVerdict: 'none' }
+  assert.deepEqual(parseFeature(f).quotes, [])
+  assert.deepEqual(parseFeature({ ...f, quotes: q }).quotes, q)
 })

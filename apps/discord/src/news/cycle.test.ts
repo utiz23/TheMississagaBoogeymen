@@ -403,6 +403,8 @@ function harness(
       return stances.length
     },
     recordNewsUsage: async (row) => void usage.push(row),
+    nightHasActiveScrum: async () => false,
+    nightPressMaterial: async () => ({ quotes: [], gmNotes: [] }),
     ...over.store,
   }
 
@@ -2066,4 +2068,191 @@ void test("fix: a game's later posts never overtake its recap while the recap is
   await runNewsCycle(h.deps, h.opts)
   assert.equal(posts[1]!.discordStatus, 'posted')
   assert.equal(names[0], REPORTERS[posts[0]!.reporter].name)
+})
+
+// ── Scrum quotes and GM notes in the night recap (news desk bots) ───────────
+
+const PRESS_NIGHT = '2026-10-12'
+
+function pressNight(h: ReturnType<typeof harness>): void {
+  h.state.nights = [{ night: PRESS_NIGHT, lastEnd: new Date(NOW.getTime() - 91 * MIN) }]
+  h.state.nightGames[PRESS_NIGHT] = 2
+}
+
+void test('press: an open scrum holds the night; 30 minutes later it is written even if still open', async () => {
+  let clock = NOW
+  const asked: [string, boolean][] = []
+  const h = harness({
+    store: {
+      nightHasActiveScrum: async (night, includeTest) => {
+        asked.push([night, includeTest])
+        return true
+      },
+    },
+    deps: { now: () => clock },
+  })
+  pressNight(h)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.items.size, 0)
+  assert.equal(h.writerCalls.length, 0)
+  assert.ok(!h.events.includes(`claim:night:${PRESS_NIGHT}`))
+  assert.deepEqual(asked[0], [PRESS_NIGHT, false])
+  assert.ok(
+    logs(h.events).includes(
+      `log:night ${PRESS_NIGHT}: a scrum is open — the recap waits (at most 30 minutes)`,
+    ),
+  )
+  clock = new Date(NOW.getTime() + 29 * MIN)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.items.size, 0)
+  clock = new Date(NOW.getTime() + 30 * MIN)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.items.size, 1)
+  assert.equal(h.jobs.get(`night:${PRESS_NIGHT}`)?.status, 'done')
+})
+
+void test('press: when the scrum ends before 30 minutes, the night is written on the next pass', async () => {
+  let clock = NOW
+  let open = true
+  const h = harness({
+    store: { nightHasActiveScrum: async () => open },
+    deps: { now: () => clock },
+  })
+  pressNight(h)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.items.size, 0)
+  open = false
+  clock = new Date(NOW.getTime() + 10 * MIN)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.items.size, 1)
+  assert.equal(h.opts.state.nightWaitSince.size, 0)
+})
+
+const QUOTE_12 = {
+  answerId: 12,
+  playerId: 1,
+  name: 'Skater A',
+  question: 'What went wrong?',
+  answer: 'We got outworked, plain and simple.',
+  usability: 'usable' as const,
+}
+/** A drop-in who is not on the sheet's people: never offered. */
+const QUOTE_13 = {
+  answerId: 13,
+  playerId: 77,
+  name: 'Drop In',
+  question: 'Your first game?',
+  answer: 'Loved every minute.',
+  usability: 'usable' as const,
+}
+const pressMaterial = async () => ({
+  quotes: [QUOTE_12, QUOTE_13],
+  gmNotes: [
+    {
+      id: 5,
+      playerName: 'Skater A',
+      note: 'Skater A broke his stick.',
+      matchId: null,
+      critical: false,
+    },
+    // Skater B is at press level "easy": a critical note about them is dropped.
+    {
+      id: 6,
+      playerName: 'Skater B',
+      note: 'Skater B took a lazy penalty.',
+      matchId: null,
+      critical: true,
+    },
+    // Not on the sheet: dropped.
+    { id: 7, playerName: 'Drop In', note: 'Drop In was loud.', matchId: null, critical: false },
+    {
+      id: 8,
+      playerName: null,
+      note: 'The lights went out in the second.',
+      matchId: null,
+      critical: false,
+    },
+  ],
+})
+
+function quotingWriter(
+  answerId: number,
+  quote: string,
+  calls: { purpose: string; user: string }[],
+): ModelCall {
+  return async (req) => {
+    calls.push({ purpose: req.purpose, user: req.user })
+    const r = await goodWriter(req)
+    if (req.schema !== ARTICLE_SCHEMA) return r
+    return {
+      ...r,
+      json: {
+        ...(r.json as object),
+        paragraphs: [`"${quote}," Skater A said. ${FILLER}`],
+        mentions: ['Skater A'],
+        quotes: [{ answerId, text: quote }],
+      },
+    }
+  }
+}
+
+void test('press: the night prompt has the PRESS ROOM with the offered answers; the review sees the notes as true events', async () => {
+  const calls: { purpose: string; user: string }[] = []
+  const h = harness({
+    store: { nightPressMaterial: pressMaterial },
+    deps: { writer: quotingWriter(12, 'We got outworked', calls) },
+  })
+  pressNight(h)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get(`night:${PRESS_NIGHT}`)?.status, 'done')
+  const write = calls.find((c) => c.purpose === 'write')!.user
+  assert.ok(write.includes('PRESS ROOM'))
+  assert.ok(write.includes('answerId 12'))
+  assert.ok(write.includes('We got outworked, plain and simple.'))
+  // A player who is not on the sheet's people is not offered at all.
+  assert.ok(!write.includes('answerId 13'))
+  assert.ok(!write.includes('Loved every minute.'))
+  assert.ok(write.includes('Skater A broke his stick.'))
+  assert.ok(write.includes('The lights went out in the second.'))
+  assert.ok(!write.includes('lazy penalty'))
+  assert.ok(!write.includes('Drop In was loud.'))
+  const review = calls.find((c) => c.purpose === 'review')!.user
+  assert.ok(review.includes('true events'))
+  assert.ok(review.includes('Skater A broke his stick.'))
+  assert.ok(review.includes('We got outworked, plain and simple.'))
+  assert.ok(!review.includes('Loved every minute.'))
+  assert.ok(h.items.get(1)!.body.startsWith('"We got outworked," Skater A said.'))
+})
+
+void test('press: a quote of an answer that was not offered fails the check', async () => {
+  const calls: { purpose: string; user: string }[] = []
+  const h = harness({
+    store: { nightPressMaterial: pressMaterial },
+    deps: { writer: quotingWriter(13, 'Loved every minute', calls) },
+  })
+  pressNight(h)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.items.size, 0)
+  const job = h.jobs.get(`night:${PRESS_NIGHT}`)!
+  assert.equal(job.status, 'failed')
+  assert.match(job.error ?? '', /Quote 13 is not one of the offered answers/)
+  assert.ok(calls.every((c) => c.purpose === 'write'))
+})
+
+void test('press: a night without press material keeps its prompt and its review unchanged', async () => {
+  const calls: { purpose: string; user: string }[] = []
+  const h = harness({
+    deps: {
+      writer: async (req) => {
+        calls.push({ purpose: req.purpose, user: req.user })
+        return goodWriter(req)
+      },
+    },
+  })
+  pressNight(h)
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(!calls.find((c) => c.purpose === 'write')!.user.includes('PRESS ROOM'))
+  const review = calls.find((c) => c.purpose === 'review')!.user
+  assert.ok(!review.includes('true events'))
+  assert.ok(review.includes('1. An invented quote from a teammate or an opponent.'))
 })

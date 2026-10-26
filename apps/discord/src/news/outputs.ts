@@ -41,6 +41,21 @@ const PIECE_FIELDS = {
 } as const
 const PIECE_KEYS = ['zeroCalled', 'stances', 'takesUsed'] as const
 
+/**
+ * The teammate quotes of an article (news desk bots): each scrum answer it
+ * quotes, by `answerId`, with the words as printed. Only the night recap is
+ * offered answers; every other piece must return an empty list.
+ */
+const QUOTES = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: { answerId: { type: 'integer' }, text: { type: 'string' } },
+    required: ['answerId', 'text'],
+    additionalProperties: false,
+  },
+} as const
+
 export const GAME_POSTS_SCHEMA = {
   type: 'object',
   properties: {
@@ -76,6 +91,7 @@ export const ARTICLE_SCHEMA = {
     clubs: STRING_ARRAY,
     criticized: STRING_ARRAY,
     ...PIECE_FIELDS,
+    quotes: QUOTES,
   },
   required: [
     'headline',
@@ -86,6 +102,7 @@ export const ARTICLE_SCHEMA = {
     'clubs',
     'criticized',
     ...PIECE_KEYS,
+    'quotes',
   ],
   additionalProperties: false,
 } as const
@@ -125,11 +142,17 @@ function fail(path: string, why: string): never {
   throw new Error(`news output: ${path} ${why}`)
 }
 
-function closedObject(v: unknown, path: string, keys: readonly string[]): Record<string, unknown> {
+/** `optional`: allowed keys that may be missing (fields newer than stored rows). */
+function closedObject(
+  v: unknown,
+  path: string,
+  keys: readonly string[],
+  optional: readonly string[] = [],
+): Record<string, unknown> {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) fail(path, 'is not an object')
   const o = v as Record<string, unknown>
   for (const k of Object.keys(o)) {
-    if (!keys.includes(k)) fail(path, `has an unexpected field "${k}"`)
+    if (!keys.includes(k) && !optional.includes(k)) fail(path, `has an unexpected field "${k}"`)
   }
   for (const k of keys) {
     if (!(k in o)) fail(path, `is missing "${k}"`)
@@ -249,6 +272,12 @@ function limited(v: string, path: string, max: number): string {
   return v
 }
 
+/** One teammate quote of an article: the scrum answer's id and the words as printed. */
+export interface ArticleQuote {
+  answerId: number
+  text: string
+}
+
 export interface Article extends PieceExtras {
   headline: string
   dek: string
@@ -258,6 +287,8 @@ export interface Article extends PieceExtras {
   clubs: string[]
   /** People the article criticises harshly (the pile-on limit, rev 2 B4). */
   criticized: string[]
+  /** Teammate quotes (news desk bots); [] when parsed without the field. Absent on backfill rows. */
+  quotes?: ArticleQuote[]
 }
 
 const ARTICLE_KEYS = [
@@ -271,6 +302,23 @@ const ARTICLE_KEYS = [
   ...PIECE_KEYS,
 ] as const
 
+/** Newer than the stored rows and the backfill: a missing field parses as []. */
+const ARTICLE_OPTIONAL_KEYS = ['quotes'] as const
+
+function quotes(v: unknown): ArticleQuote[] {
+  if (v === undefined) return []
+  if (!Array.isArray(v)) fail('quotes', 'is not an array')
+  return v.map((x: unknown, i): ArticleQuote => {
+    const p = `quotes[${String(i)}]`
+    const o = closedObject(x, p, ['answerId', 'text'])
+    const id = o['answerId']
+    if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0) {
+      fail(`${p}.answerId`, 'is not an answer id')
+    }
+    return { answerId: id, text: text(o['text'], `${p}.text`) }
+  })
+}
+
 function articleFields(o: Record<string, unknown>): Article {
   const raw = o['paragraphs']
   if (!Array.isArray(raw) || raw.length === 0) fail('paragraphs', 'is not a non-empty array')
@@ -283,11 +331,12 @@ function articleFields(o: Record<string, unknown>): Article {
     clubs: strings(o['clubs'], 'clubs'),
     criticized: strings(o['criticized'], 'criticized'),
     ...pieceExtras(o, ''),
+    quotes: quotes(o['quotes']),
   }
 }
 
 export function parseArticle(v: unknown): Article {
-  return articleFields(closedObject(v, 'root', ARTICLE_KEYS))
+  return articleFields(closedObject(v, 'root', ARTICLE_KEYS, ARTICLE_OPTIONAL_KEYS))
 }
 
 export interface Feature extends Article {
@@ -299,7 +348,12 @@ export interface Feature extends Article {
 }
 
 export function parseFeature(v: unknown): Feature {
-  const o = closedObject(v, 'root', [...ARTICLE_KEYS, 'prediction', 'receipt', 'receiptVerdict'])
+  const o = closedObject(
+    v,
+    'root',
+    [...ARTICLE_KEYS, 'prediction', 'receipt', 'receiptVerdict'],
+    ARTICLE_OPTIONAL_KEYS,
+  )
   const receipt = o['receipt']
   if (typeof receipt !== 'string') fail('receipt', 'is not a string')
   const verdict = o['receiptVerdict']

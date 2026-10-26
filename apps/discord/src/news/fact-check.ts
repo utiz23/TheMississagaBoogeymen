@@ -8,6 +8,7 @@ import {
   type NewsFacts,
   type ReporterId,
 } from '@eanhl/db/news'
+import type { PressQuote } from '@eanhl/db/queries'
 
 export type CheckResult = { ok: true } | { ok: false; problems: string[] }
 
@@ -829,6 +830,15 @@ function headlineProblems(article: {
   return problems
 }
 
+/**
+ * `numbers`: allowed beyond the sheet (a GM note's numbers). `wordsOf`: the
+ * text whose words the length rule counts, when `text` has quotes removed.
+ */
+interface CheckExtra {
+  numbers?: ReadonlySet<number>
+  wordsOf?: string
+}
+
 function check(
   text: string,
   facts: NewsFacts,
@@ -837,9 +847,12 @@ function check(
   length: LengthRule,
   tonight: readonly string[] = [],
   ctx: PieceContext = {},
+  extra: CheckExtra = {},
 ): string[] {
   const clocks = clockProblems(text, facts)
-  const problems = [...clocks.problems, ...numberProblems(clocks.rest, allowedNumbers(facts))]
+  const allowed = allowedNumbers(facts)
+  for (const n of extra.numbers ?? []) allowed.add(n)
+  const problems = [...clocks.problems, ...numberProblems(clocks.rest, allowed)]
 
   // The problem text never repeats the name: it goes back to the model in the
   // rewrite prompt, into news_jobs.last_error and into the logs.
@@ -891,7 +904,8 @@ function check(
     const range = WORD_RANGE[length]
     if (range !== undefined) {
       const [min, max] = range
-      const words = flat === '' ? 0 : flat.split(' ').length
+      const counted = extra.wordsOf === undefined ? flat : collapse(extra.wordsOf)
+      const words = counted === '' ? 0 : counted.split(' ').length
       if (words < min || words > max) {
         problems.push(
           `The article body has ${String(words)} words. It must have ${String(min)} to ${String(max)}.`,
@@ -946,6 +960,110 @@ export interface ArticleContext extends PieceContext {
    * one-game night 120-200).
    */
   length?: 'game-story' | 'game-feature'
+  /**
+   * The night recap's press material (news desk bots): the scrum answers it
+   * may quote and the GM notes' texts. Absent: nothing was offered, so the
+   * piece quotes no teammate.
+   */
+  press?: PressForCheck
+}
+
+/** A night recap's press material as the check sees it. */
+export interface PressForCheck {
+  quotes: readonly PressQuote[]
+  /** The GM notes' texts: their numbers may be used outside the quotes. */
+  gmNotes: readonly string[]
+}
+
+/** One teammate quote as the writer lists it. */
+interface ListedQuote {
+  answerId: number
+  text: string
+}
+
+const QUOTE_EDGES = /^[\s"'\u201C\u201D\u2018\u2019]+|[\s"'\u201C\u201D\u2018\u2019]+$/g
+
+/** The quoted words as a pattern: spacing-free, whole words, case ignored; null when empty. */
+function quotePattern(text: string): RegExp | null {
+  const words = collapse(text.replace(QUOTE_EDGES, ''))
+  if (words === '') return null
+  return new RegExp(
+    `(?<![\\p{L}\\p{N}_])${words.split(' ').map(escapeRegExp).join('\\s+')}(?![\\p{L}\\p{N}_])`,
+    'giu',
+  )
+}
+
+/**
+ * The quote rules (news desk bots): every quote is an offered answer of a
+ * player on the sheet, its words are in the body, it names no forbidden
+ * person and adds no number the answer lacks. `rest` is the body without
+ * the quoted words: a player's "we" or nickname is theirs, not the reporter's,
+ * so the other rules read only the rest.
+ */
+function quoteProblems(
+  body: string,
+  quotes: readonly ListedQuote[],
+  facts: NewsFacts,
+  forbiddenNames: string[],
+  press: PressForCheck | undefined,
+): { problems: string[]; rest: string } {
+  const problems: string[] = []
+  const offered = press?.quotes ?? []
+  if (quotes.length === 0) return { problems, rest: body }
+  if (offered.length === 0) {
+    problems.push(
+      'No teammate answers were offered to this piece: "quotes" must be an empty list, and the text quotes no teammate.',
+    )
+    return { problems, rest: body }
+  }
+  let rest = body
+  for (const q of quotes) {
+    const id = String(q.answerId)
+    const answer = offered.find((a) => a.answerId === q.answerId)
+    if (answer === undefined) {
+      problems.push(
+        `Quote ${id} is not one of the offered answers: quote only the PRESS ROOM answers, by their answerId.`,
+      )
+      continue
+    }
+    if (!facts.people.some((p) => p.playerId === answer.playerId)) {
+      problems.push(`Quote ${id} is from a player who is not on the fact sheet.`)
+      continue
+    }
+    if (forbiddenNames.some((name) => containsName(collapse(q.text), name))) {
+      problems.push(FORBIDDEN_NAME_PROBLEM)
+    }
+    // A player's mild word may stand in their quote; a strong word never prints.
+    if (STRONG_WORDS.test(collapse(withoutSheetNames(q.text, facts)))) {
+      problems.push(`Quote ${id} has a word the desk never prints. Leave that part out.`)
+    }
+    const said = numbersIn(withoutSheetNames(answer.answer, facts))
+    for (const n of numbersIn(withoutSheetNames(q.text, facts))) {
+      if (!said.has(n)) {
+        problems.push(
+          `Quote ${id} has the number ${String(n)}, which is not in that answer. A quote never adds to the answer.`,
+        )
+      }
+    }
+    const pattern = quotePattern(q.text)
+    if (pattern === null || body.search(pattern) < 0) {
+      problems.push(
+        `The words of quote ${id} are not in the article body: list them in "quotes" exactly as printed.`,
+      )
+      continue
+    }
+    rest = rest.replace(pattern, ' ')
+  }
+  return { problems, rest }
+}
+
+/** The numbers of the GM notes (sheet names masked first, so a gamertag's digits never count). */
+function noteNumbers(press: PressForCheck | undefined, facts: NewsFacts): Set<number> {
+  const out = new Set<number>()
+  for (const note of press?.gmNotes ?? []) {
+    for (const n of numbersIn(withoutSheetNames(note, facts))) out.add(n)
+  }
+  return out
 }
 
 /** The C3a fields of an output, as `ListedOutput` takes them. */
@@ -984,21 +1102,27 @@ export function checkArticleFacts(
     zeroCalled?: string[]
     stances?: { threadKey: string; stance: string }[]
     takesUsed?: number[]
+    quotes?: ListedQuote[]
   },
   facts: NewsFacts,
   forbiddenNames: string[],
   criticizedTonight: readonly string[] = [],
   ctx: ArticleContext = {},
 ): CheckResult {
+  const body = article.paragraphs.join('\n\n')
+  const quoted = quoteProblems(body, article.quotes ?? [], facts, forbiddenNames, ctx.press)
+  const numbers = noteNumbers(ctx.press, facts)
   const problems = [
+    ...quoted.problems,
     ...check(
-      article.paragraphs.join('\n\n'),
+      quoted.rest,
       facts,
       forbiddenNames,
       listed(article),
       ctx.length ?? articleLength(facts),
       criticizedTonight,
       ctx,
+      { numbers, wordsOf: body },
     ),
     ...check(
       sideText([
@@ -1013,10 +1137,11 @@ export function checkArticleFacts(
       'none',
       [],
       ctx.reporter === undefined ? {} : { reporter: ctx.reporter },
+      { numbers },
     ),
     ...headlineProblems(article),
     ...mildTotalProblems(
-      [article.headline, article.dek, article.summary, ...article.paragraphs],
+      [article.headline, article.dek, article.summary, quoted.rest],
       ctx.reporter,
       facts,
     ),
@@ -1135,6 +1260,8 @@ export function checkFeatureFacts(
     zeroCalled?: string[]
     stances?: { threadKey: string; stance: string }[]
     takesUsed?: number[]
+    /** Never offered to a feature: must be empty when given. */
+    quotes?: ListedQuote[]
     prediction: string
     receipt: string
     /** C3a.4: checked when given (null = "none"). */
@@ -1147,6 +1274,7 @@ export function checkFeatureFacts(
   ctx: PieceContext = {},
 ): CheckResult {
   const problems = [
+    ...quoteProblems('', feature.quotes ?? [], facts, forbiddenNames, undefined).problems,
     ...check(
       feature.paragraphs.join('\n\n'),
       facts,

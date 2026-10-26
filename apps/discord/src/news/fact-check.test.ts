@@ -1289,3 +1289,179 @@ void test('C3a fix M5: at most one mild swear word across headline, dek, summary
     ),
   )
 })
+
+// ── Scrum quotes and GM notes (news desk bots, night recap) ─────────────────
+
+const ANSWER_12 = {
+  answerId: 12,
+  playerId: 1,
+  name: 'Skater A',
+  question: 'What went wrong?',
+  answer: 'We scored two goals and got outworked. Next week we fix it.',
+  usability: 'usable' as const,
+}
+
+const quoted = (over: object = {}) => ({
+  headline: 'Shake N Bake run the table',
+  dek: 'The Boogeymen fall again.',
+  paragraphs: [
+    `Skater A did not hide from it. "We scored two goals and got outworked," Skater A said. ${pad(260)}`,
+  ],
+  summary: 'S.',
+  mentions: ['Skater A'],
+  clubs: [],
+  criticized: [],
+  quotes: [{ answerId: 12, text: 'We scored two goals and got outworked' }],
+  ...over,
+})
+
+const press = (over: object = {}) => ({ quotes: [ANSWER_12], gmNotes: [] as string[], ...over })
+
+void test('quotes: an offered answer, quoted as given, passes ("we" inside a quote is fine)', () => {
+  assert.deepEqual(
+    problems(checkArticleFacts(quoted(), night, FORBIDDEN, [], { press: press() })),
+    [],
+  )
+})
+
+void test('quotes: an answer id that was not offered fails', () => {
+  const r = problems(
+    checkArticleFacts(
+      quoted({ quotes: [{ answerId: 99, text: 'We scored two goals and got outworked' }] }),
+      night,
+      FORBIDDEN,
+      [],
+      { press: press() },
+    ),
+  )
+  assert.ok(
+    r.some((p) => /Quote 99 is not one of the offered answers/.test(p)),
+    r.join('\n'),
+  )
+})
+
+void test('quotes: a quote that adds a number not in the answer fails ("3 goals" for "two goals")', () => {
+  const r = problems(
+    checkArticleFacts(
+      quoted({
+        paragraphs: [`"We scored 3 goals and got outworked," Skater A said. ${pad(260)}`],
+        quotes: [{ answerId: 12, text: 'We scored 3 goals and got outworked' }],
+      }),
+      night,
+      FORBIDDEN,
+      [],
+      { press: press() },
+    ),
+  )
+  assert.ok(
+    r.some((p) => /Quote 12 has the number 3, which is not in that answer/.test(p)),
+    r.join('\n'),
+  )
+})
+
+void test('quotes: the quote text must be in the body', () => {
+  const r = problems(
+    checkArticleFacts(
+      quoted({ quotes: [{ answerId: 12, text: 'Next week we fix it' }] }),
+      night,
+      FORBIDDEN,
+      [],
+      { press: press() },
+    ),
+  )
+  assert.ok(
+    r.some((p) => /The words of quote 12 are not in the article body/.test(p)),
+    r.join('\n'),
+  )
+})
+
+void test('quotes: none offered (game articles, features) ⇒ "quotes" must be empty', () => {
+  const r = problems(checkArticleFacts(quoted(), night, FORBIDDEN, []))
+  assert.ok(
+    r.some((p) => /No teammate answers were offered/.test(p)),
+    r.join('\n'),
+  )
+  const f = checkFeatureFacts(
+    {
+      headline: 'H',
+      dek: 'D',
+      paragraphs: [pad(700)],
+      summary: 'S',
+      mentions: [],
+      clubs: [],
+      criticized: [],
+      quotes: [{ answerId: 12, text: 'hockey hockey' }],
+      prediction: 'No one stops this club next week.',
+      receipt: '',
+    },
+    oct12Facts('week'),
+    FORBIDDEN,
+    { kind: 'trend', previousPrediction: null },
+  )
+  assert.ok(problems(f).some((p) => /No teammate answers were offered/.test(p)))
+})
+
+void test('quotes: the quoted player must be on the sheet; a forbidden name in a quote fails', () => {
+  const ghost = { ...ANSWER_12, playerId: 99, name: 'Ghost Player' }
+  const r = problems(
+    checkArticleFacts(quoted(), night, FORBIDDEN, [], { press: press({ quotes: [ghost] }) }),
+  )
+  assert.ok(
+    r.some((p) => /Quote 12 is from a player who is not on the fact sheet/.test(p)),
+    r.join('\n'),
+  )
+  const hank = { ...ANSWER_12, answer: 'Hidden Hank carried us.' }
+  const h = problems(
+    checkArticleFacts(
+      quoted({
+        paragraphs: [`"Hidden Hank carried us," Skater A said. ${pad(260)}`],
+        quotes: [{ answerId: 12, text: 'Hidden Hank carried us' }],
+      }),
+      night,
+      FORBIDDEN,
+      [],
+      { press: press({ quotes: [hank] }) },
+    ),
+  )
+  assert.ok(h.includes(FORBIDDEN_NAME_PROBLEM), h.join('\n'))
+})
+
+void test('GM notes: their numbers may be used in the rest of the text', () => {
+  const art = quoted({
+    paragraphs: [`Skater A broke 4 sticks on the night. ${pad(260)}`],
+    quotes: [],
+  })
+  assert.ok(
+    problems(checkArticleFacts(art, night, FORBIDDEN, [], { press: press() })).some((p) =>
+      /The number 4 is not on the fact sheet/.test(p),
+    ),
+  )
+  assert.deepEqual(
+    problems(
+      checkArticleFacts(art, night, FORBIDDEN, [], {
+        press: press({ gmNotes: ['Skater A broke 4 sticks on the night.'] }),
+      }),
+    ),
+    [],
+  )
+})
+
+void test('quotes: a strong word in a quote fails, even when the player said it', () => {
+  const rough = { ...ANSWER_12, answer: 'That was shitty hockey.' }
+  const r = problems(
+    checkArticleFacts(
+      quoted({
+        paragraphs: [`"That was shitty hockey," Skater A said. ${pad(260)}`],
+        quotes: [{ answerId: 12, text: 'That was shitty hockey' }],
+      }),
+      night,
+      FORBIDDEN,
+      [],
+      { press: press({ quotes: [rough] }) },
+    ),
+  )
+  assert.ok(
+    r.some((p) => /Quote 12 has a word the desk never prints/.test(p)),
+    r.join('\n'),
+  )
+})
