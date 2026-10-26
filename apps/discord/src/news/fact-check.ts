@@ -644,14 +644,16 @@ function styleProblems(
       problems.push('A reply argues with a number from the sheet: name one.')
     }
   }
-  const pronoun = OUR_PRONOUNS.exec(flat)
+  // Names on the sheet ("NHL 27", a gamertag or club with digits or a word like
+  // "Hell" or "Our") are not numbers, pronouns or swearing (C3a fix M3).
+  const unnamed = withoutSheetNames(text, facts)
+  const unnamedFlat = collapse(unnamed)
+  const pronoun = OUR_PRONOUNS.exec(unnamedFlat)
   if (pronoun) {
     problems.push(
       `The reporters are outside media: never "${pronoun[0]}". Write "the Boogeymen" or "the club".`,
     )
   }
-  // Names on the sheet ("NHL 27", a gamertag or club with digits) are not numbers (C3a fix M3).
-  const unnamed = withoutSheetNames(text, facts)
   for (const [i, sentence] of sentences(text).entries()) {
     const n = numberTokens(sentences(unnamed)[i] ?? sentence)
     if (n > MAX_NUMBERS_PER_SENTENCE) {
@@ -695,10 +697,10 @@ function styleProblems(
       problems.push(`Penalty minutes only from ${String(PIM_MIN)}: drop "${m[0]}".`)
     }
   }
-  if (STRONG_WORDS.test(flat)) {
+  if (STRONG_WORDS.test(unnamedFlat)) {
     problems.push('The text uses a word the desk never prints. Keep the language clean.')
   }
-  const mild = countMatches(flat, MILD_WORDS)
+  const mild = countMatches(unnamedFlat, MILD_WORDS)
   if (mild > 0) {
     const allowed = ctx.reporter !== undefined && REPORTERS[ctx.reporter].language === 'mild'
     if (!allowed) {
@@ -745,9 +747,13 @@ function styleProblems(
  * headline, dek, summary and body together (C3a fix M5). Only for a reporter
  * allowed to swear; anyone else already fails on the first mild word.
  */
-function mildTotalProblems(parts: readonly string[], reporter: ReporterId | undefined): string[] {
+function mildTotalProblems(
+  parts: readonly string[],
+  reporter: ReporterId | undefined,
+  facts: NewsFacts,
+): string[] {
   if (reporter === undefined || REPORTERS[reporter].language !== 'mild') return []
-  const n = parts.reduce((sum, p) => sum + countMatches(p, MILD_WORDS), 0)
+  const n = parts.reduce((sum, p) => sum + countMatches(withoutSheetNames(p, facts), MILD_WORDS), 0)
   return n > MAX_MILD_SWEARS
     ? [
         `The article has ${String(n)} mild swear words across headline, dek, summary and body. Use at most ${String(MAX_MILD_SWEARS)}.`,
@@ -975,6 +981,7 @@ export function checkArticleFacts(
     ...mildTotalProblems(
       [article.headline, article.dek, article.summary, ...article.paragraphs],
       ctx.reporter,
+      facts,
     ),
   ]
   const unique = [...new Set(problems)]
@@ -1139,6 +1146,7 @@ export function checkFeatureFacts(
         ...feature.paragraphs,
       ],
       ctx.reporter,
+      facts,
     ),
   ]
   if (rules.kind === 'notes') {

@@ -1027,6 +1027,19 @@ void test('C3a.5 profanity: strong words always blocked; mild only Mercer/Pettib
   assert.deepEqual(t('Hello there, shell game.', 'barlow'), { ok: true })
 })
 
+void test('C3a.5 profanity and pronouns: a sheet name is never read as swearing or "our" (backfill 2026-10-26)', () => {
+  const named = {
+    ...facts,
+    games: facts.games.map((g) => ({ ...g, opponentName: 'Hell Ya Our Crew' })),
+  }
+  const clubs = { mentions: [], clubs: ['Hell Ya Our Crew'] }
+  const t = (text: string) => checkFacts(text, named, FORBIDDEN, clubs, [], { reporter: 'barlow' })
+  assert.deepEqual(t('The Boogeymen beat Hell Ya Our Crew.'), { ok: true })
+  // The word outside the name still counts.
+  assert.ok(has(t('Hell Ya Our Crew had a hell of a night.'), /Only Dex Mercer/))
+  assert.ok(has(t('Hell Ya Our Crew beat our club.'), /never "our"/))
+})
+
 void test('C3a.5 penalty minutes only from 10; label claims wired in; stances and takes', () => {
   assert.ok(
     has(checkFacts('Skater A took 2 penalty minutes.', facts, FORBIDDEN, none), /only from 10/),
