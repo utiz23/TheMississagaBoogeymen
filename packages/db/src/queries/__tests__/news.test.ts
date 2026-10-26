@@ -725,6 +725,11 @@ void test('week history games: one title, not DNF, night key in [from, to), olde
 void test("norm games: the title's counted games before the sheet's first game, page shots, pass sums (C1.2)", () => {
   const q = dialect.sqlToQuery(listNewsNormGamesSql({ gameTitleId: 7, beforeMatchId: 900 }))
   const s = flat(q.sql)
+  // A side with a reviewed period missing its value is not a total: EA's count (match 979).
+  assert.match(
+    s,
+    /case when count\(\*\) = count\(s\.shots_for\) then sum\(s\.shots_for\) end as shots_for, case when count\(\*\) = count\(s\.shots_against\) then sum\(s\.shots_against\) end as shots_against/,
+  )
   assert.match(s, /from matches m join matches l on l\.id = \$\d+/)
   assert.match(s, /m\.game_title_id = \$\d+/)
   assert.match(s, /m\.result <> 'DNF'/)
@@ -835,6 +840,11 @@ void test("night posts for the prompt: the night's not-deleted posts, oldest fir
 void test("player games: the named players' rows in every title up to the sheet's last game, with the ended-early inputs (C2.3)", () => {
   const q = dialect.sqlToQuery(listNewsPlayerGamesSql({ playerIds: [2, 5], lastMatchId: 900 }))
   const s = flat(q.sql)
+  // A side with a reviewed period missing its value is not a total: EA's count (match 979).
+  assert.match(
+    s,
+    /case when count\(\*\) = count\(s\.shots_for\) then sum\(s\.shots_for\) end as shots_for, case when count\(\*\) = count\(s\.shots_against\) then sum\(s\.shots_against\) end as shots_against/,
+  )
   // The matches of those players, once each, bounded by the last game (ties on played_at by id).
   assert.match(
     s,

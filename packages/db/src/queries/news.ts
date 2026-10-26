@@ -1862,7 +1862,7 @@ export interface NewsNormGame {
  * The title's counted (non-DNF) games strictly before `beforeMatchId` (the
  * sheet's first game; played_at, then id), oldest first. Shots: the sum of
  * reviewed OCR period rows (not the -1 total row) over EA's count, exactly
- * as `aggregateOcrShots`. Raw SQL with aliases: the lateral subqueries must
+ * as `aggregateOcrShots` (a side with a period missing its value uses EA's). Raw SQL with aliases: the lateral subqueries must
  * not bind to the inner tables. No active-title condition (the caller passes
  * the title of a sheet it already allowed).
  */
@@ -1879,7 +1879,8 @@ export function listNewsNormGamesSql(args: { gameTitleId: number; beforeMatchId:
     from matches m
     join matches l on l.id = ${args.beforeMatchId}
     left join lateral (
-      select sum(s.shots_for) as shots_for, sum(s.shots_against) as shots_against
+      select case when count(*) = count(s.shots_for) then sum(s.shots_for) end as shots_for,
+        case when count(*) = count(s.shots_against) then sum(s.shots_against) end as shots_against
       from match_period_summaries s
       where s.match_id = m.id
         and s.source = 'ocr'
@@ -2021,7 +2022,8 @@ export function listNewsPlayerGamesSql(args: {
       join matches m on m.id = g.match_id
       join matches l on l.id = ${args.lastMatchId}
       left join lateral (
-        select sum(s.shots_for) as shots_for, sum(s.shots_against) as shots_against
+        select case when count(*) = count(s.shots_for) then sum(s.shots_for) end as shots_for,
+          case when count(*) = count(s.shots_against) then sum(s.shots_against) end as shots_against
         from match_period_summaries s
         where s.match_id = m.id
           and s.source = 'ocr'
