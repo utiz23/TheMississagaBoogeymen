@@ -81,7 +81,7 @@ export interface PressStore {
   updateScrumPerson(id: number, patch: ScrumPersonUpdate): Promise<void>
   listExpiredPings(now: Date): Promise<ScrumPersonWithScrum[]>
   listExpiredQuestions(now: Date): Promise<ScrumPersonWithScrum[]>
-  expireScrumPerson(id: number, from: 'pinged' | 'asking', cutoff: Date): Promise<boolean>
+  expireScrumPerson(id: number, from: 'pinged' | 'asking', cutoff: Date | null): Promise<boolean>
   listScrumAnswers(
     personId: number,
   ): Promise<{ question: string; answer: string; usability: 'usable' | 'joke' | 'unusable' }[]>
@@ -145,6 +145,23 @@ const reporterName = (id: ReporterId): string => REPORTERS[id].name
 
 /** The month each deps last logged the spent extras budget (`YYYY-MM`): once a month. */
 const budgetNoticeMonth = new WeakMap<PressDeps, string>()
+/** Recap items whose scrum failed, per deps (one process): each is logged once. */
+const failedScrumItems = new WeakMap<PressDeps, Set<number>>()
+
+/** Who a scrum line mentions: the person, or the GM in the trial (or on a trial scrum). */
+export function scrumMention(config: PressConfig, isTest: boolean, discordUserId: string): string {
+  return config.mode === 'trial' || isTest ? config.gmUserId : discordUserId
+}
+
+/** A line in a scrum thread: it starts with the mention, and only that user is pinged. */
+export function threadLine(userId: string, text: string, components?: unknown[]): BotMessage {
+  const msg: BotMessage = {
+    content: `<@${userId}> ${text}`,
+    allowed_mentions: { parse: [], users: [userId] },
+  }
+  if (components !== undefined) msg.components = components
+  return msg
+}
 
 export async function runPressPass(
   deps: PressDeps,
@@ -212,16 +229,26 @@ export async function runPressPass(
   })
 
   // ── 3. New scrums: one per game recap ─────────────────────────────────────
-  async function heatFor(night: string): Promise<Heat> {
+  /** The heat for a new scrum. A `next` heat is only read here; it is used up after the insert. */
+  async function heatFor(night: string): Promise<{ heat: Heat; next: boolean }> {
     const settings = await store.getPressSettings()
-    if (settings.heatScope === 'next') return (await store.consumeNextHeat()) ?? 'normal'
-    return settings.heatNight === night ? settings.heat : 'normal'
+    if (settings.heatScope === 'next') return { heat: settings.heat, next: true }
+    return { heat: settings.heatNight === night ? settings.heat : 'normal', next: false }
+  }
+
+  /** A failing recap item is retried every pass but logged once per process. */
+  function logItemOnce(itemId: number, text: string): void {
+    let seen = failedScrumItems.get(deps)
+    if (seen === undefined) failedScrumItems.set(deps, (seen = new Set()))
+    if (seen.has(itemId)) return
+    seen.add(itemId)
+    log(`[press] scrums: item ${String(itemId)}: ${text}`)
   }
 
   async function createScrum(item: RecapItemWithoutScrum): Promise<void> {
     const tag = `item ${String(item.itemId)}`
     if (item.matchId === null) {
-      log(`[press] scrums: ${tag}: no match, no scrum`)
+      logItemOnce(item.itemId, 'no match, no scrum')
       return
     }
     const matchId = item.matchId
@@ -242,7 +269,8 @@ export async function runPressPass(
       gmAsk,
     )
     const night = item.night ?? game.night
-    const { heat, lowered } = effectiveHeat(await heatFor(night), pick?.pressLevel ?? 'full')
+    const setHeat = await heatFor(night)
+    const { heat, lowered } = effectiveHeat(setHeat.heat, pick?.pressLevel ?? 'full')
     const reporter = chooseScrumReporter({
       heat,
       seed: item.itemId,
@@ -270,6 +298,7 @@ export async function runPressPass(
     })
     if (scrumId === null) return
     summary.scrums++
+    if (setHeat.next) await store.consumeNextHeat()
 
     if (pick === null || pick.discordUserId === null) return
     const gmAsked = gmAsk !== null && pick.playerId === gmAsk
@@ -310,7 +339,7 @@ export async function runPressPass(
       try {
         await createScrum(item)
       } catch (err: unknown) {
-        log(`[press] scrums: item ${String(item.itemId)}: ${reason(err)}`)
+        logItemOnce(item.itemId, reason(err))
       }
     }
   })
@@ -322,8 +351,8 @@ export async function runPressPass(
       try {
         const scrum = p.scrum
         // Trial (or a scrum left over from the trial): the ping goes to the GM.
+        const target = scrumMention(config, scrum.isTest, p.discordUserId)
         const toGm = trial || scrum.isTest
-        const target = toGm ? config.gmUserId : p.discordUserId
         const text = `<@${target}> — ${reporterName(scrum.reporter)} has a question for you about tonight's game.`
         const messageId = await discord.send(scrum.reporter, scrum.channelId, {
           content: toGm ? `test — would ping ${escapeMarkdown(p.name)}: ${text}` : text,
@@ -365,10 +394,11 @@ export async function runPressPass(
       summary.closedQuestions++
       if (p.threadId === null) continue
       try {
-        await discord.send(p.reporter, p.threadId, {
-          content: FALLBACK_CLOSING,
-          allowed_mentions: { parse: [] },
-        })
+        await discord.send(
+          p.reporter,
+          p.threadId,
+          threadLine(scrumMention(config, p.isTest, p.discordUserId), FALLBACK_CLOSING),
+        )
       } catch (err: unknown) {
         // Closed: the line is never sent again.
         log(`[press] expired answers: person ${String(p.id)}: ${reason(err)}`)
@@ -379,14 +409,19 @@ export async function runPressPass(
   return summary
 }
 
+/** Discord: a thread started from a message already exists (HTTP 400, code 160004). */
+const THREAD_EXISTS = /\bHTTP 400\b/
+
 /**
  * Ask the person's next question. Loads the game sheet, the person's name and
- * press level (`facts.people`), the match's active GM notes, the takes and
- * the person's earlier answers; writes the question (or the fallback when
- * the extras budget is spent, the person is not on the sheet, or anything
- * fails); creates the thread on the scrum message when it has none
- * (`<Reporter> — <player>`); claims the question; posts it with the Answer
- * button. Does nothing for a person who is done or expired.
+ * press level (`facts.people`), the match's active GM notes (no critical note
+ * for a "Go easy" player), the takes and the person's earlier answers; writes
+ * the question (the fallback when the extras budget is spent or anything
+ * fails); opens the thread on the scrum message when it has none (`<Reporter>
+ * — <player>`; a thread's id is its message's id); claims the question;
+ * posts it with the Answer button, mentioning the person (the GM in the
+ * trial). A person who is done, expired or no longer on the sheet gets
+ * nothing; one no longer on the sheet is ended.
  */
 export async function startScrumQuestion(
   deps: PressDeps,
@@ -399,26 +434,19 @@ export async function startScrumQuestion(
     log(`[press] question: person ${String(personId)} not found`)
     return
   }
-  if (person.status !== 'pinged' && person.status !== 'asking') return
+  const status = person.status
+  if (status !== 'pinged' && status !== 'asking') return
   const scrum = person.scrum
   const reporter = scrum.reporter
   const now = deps.now()
   let name = person.name
   let question: string | null = null
 
-  try {
-    question = await writeQuestion()
-  } catch (err: unknown) {
-    log(`[press] question: person ${String(personId)}: ${reason(err)}`)
-  }
-
-  async function writeQuestion(): Promise<string | null> {
-    if (scrum.matchId === null) return null
-    const matchId = scrum.matchId
+  async function writeQuestion(matchId: number): Promise<string | null | 'off-sheet'> {
     const res = await deps.fetchFacts('game', String(matchId))
     const onSheet = res.facts.people.find((p) => p.playerId === person!.playerId)
-    // Never on the sheet (a guest, or "Leave me out"): nothing about them goes to the model.
-    if (onSheet === undefined) return null
+    // A guest, or "Leave me out" since the ping: nothing about them goes anywhere.
+    if (onSheet === undefined) return 'off-sheet'
     name = onSheet.name
     if (!extrasBudgetLeft(await store.monthNewsSpendUsd(now), config.monthlyLimitUsd)) {
       const month = now.toISOString().slice(0, 7)
@@ -428,6 +456,7 @@ export async function startScrumQuestion(
       }
       return null
     }
+    const easy = onSheet.pressLevel === 'easy'
     const material = await store.nightPressMaterial(scrum.night, scrum.isTest)
     const history: ScrumHistoryEntry[] = (await store.listScrumAnswers(personId)).map((a) =>
       a.usability === 'unusable'
@@ -442,7 +471,10 @@ export async function startScrumQuestion(
         reporter,
         heat: effectiveHeat(scrum.heat, onSheet.pressLevel).heat,
         player: { name: onSheet.name, pressLevel: onSheet.pressLevel },
-        gmNotes: material.gmNotes.filter((n) => n.matchId === matchId).map((n) => n.note),
+        // "Go easy" means no criticism: a critical note is never used for them.
+        gmNotes: material.gmNotes
+          .filter((n) => n.matchId === matchId && !(easy && n.critical))
+          .map((n) => n.note),
         takes: res.takes,
         history,
         questionNumber: person!.questionsAsked + 1,
@@ -461,18 +493,36 @@ export async function startScrumQuestion(
     )
   }
 
+  if (scrum.matchId !== null) {
+    try {
+      const out = await writeQuestion(scrum.matchId)
+      if (out === 'off-sheet') {
+        await store.expireScrumPerson(personId, status, null)
+        log(`[press] question: person ${String(personId)} is not on the sheet, ended`)
+        return
+      }
+      question = out
+    } catch (err: unknown) {
+      log(`[press] question: person ${String(personId)}: ${reason(err)}`)
+    }
+  }
+
   const text = question ?? FALLBACK_QUESTION(name)
   let threadId = scrum.threadId
   if (threadId === null) {
-    const created = await discord.thread(
-      reporter,
-      scrum.channelId,
-      scrum.messageId,
-      `${reporterName(reporter)} — ${name}`,
-    )
-    threadId = (await store.setScrumThread(scrum.id, created))
-      ? created
-      : ((await store.getScrumPerson(personId))?.scrum.threadId ?? created)
+    try {
+      threadId = await discord.thread(
+        reporter,
+        scrum.channelId,
+        scrum.messageId,
+        `${reporterName(reporter)} — ${name}`,
+      )
+    } catch (err: unknown) {
+      // Started before (a restart, or another caller): its id is the message id.
+      if (!THREAD_EXISTS.test(reason(err))) throw err
+      threadId = scrum.messageId
+    }
+    await store.setScrumThread(scrum.id, threadId)
   }
   const claimed = await store.claimScrumQuestion({
     personId,
@@ -481,9 +531,11 @@ export async function startScrumQuestion(
     at: now,
   })
   if (!claimed) return
-  await discord.send(reporter, threadId, {
-    content: escapeMarkdown(text),
-    allowed_mentions: { parse: [] },
-    components: [{ type: 1, components: [answerButton(personId)] }],
-  })
+  await discord.send(
+    reporter,
+    threadId,
+    threadLine(scrumMention(config, scrum.isTest, person.discordUserId), escapeMarkdown(text), [
+      { type: 1, components: [answerButton(personId)] },
+    ]),
+  )
 }

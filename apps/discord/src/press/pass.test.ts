@@ -120,7 +120,13 @@ class FakeStore implements PressStore {
     [1, USER_A],
     [2, USER_B],
   ])
-  gmNotes: { id: number; playerName: string | null; note: string; matchId: number | null }[] = []
+  gmNotes: {
+    id: number
+    playerName: string | null
+    note: string
+    matchId: number | null
+    critical: boolean
+  }[] = []
   usage: NewNewsUsage[] = []
   spend = 0
   disabled: ReporterId[] = []
@@ -187,7 +193,9 @@ class FakeStore implements PressStore {
   scrumByRecapItem = (itemId: number) =>
     Promise.resolve(this.scrums.find((s) => s.recapItemId === itemId) ?? null)
   gmAskForMatch = (matchId: number) => Promise.resolve(this.gmAsks.get(matchId) ?? null)
+  consumeCalls = 0
   consumeNextHeat = () => {
+    this.consumeCalls++
     if (this.settings.heatScope !== 'next') return Promise.resolve(null)
     const heat = this.settings.heat
     this.settings = { ...this.settings, heat: 'normal', heatScope: 'night', heatNight: null }
@@ -295,6 +303,7 @@ class FakeStore implements PressStore {
       threadId: s.threadId,
       scrumMessageId: s.messageId,
       reporter: s.reporter,
+      isTest: s.isTest,
     }
   }
   listExpiredPings = (now: Date) =>
@@ -319,10 +328,11 @@ class FakeStore implements PressStore {
         )
         .map(this.withScrum),
     )
-  expireScrumPerson = (id: number, from: 'pinged' | 'asking', cutoff: Date) => {
+  expireScrumPerson = (id: number, from: 'pinged' | 'asking', cutoff: Date | null) => {
     const p = this.people.find((x) => x.id === id)
     const at = from === 'pinged' ? p?.pingedAt : p?.lastAskedAt
-    if (!p || p.status !== from || !at || at >= cutoff) return Promise.resolve(false)
+    if (!p || p.status !== from) return Promise.resolve(false)
+    if (cutoff !== null && (!at || at >= cutoff)) return Promise.resolve(false)
     if (from === 'pinged') p.status = 'expired'
     else {
       p.status = 'done'
@@ -387,6 +397,7 @@ function setup(opts: { response?: NewsFactsResponse; model?: ModelCall } = {}) {
   const logs: string[] = []
   const modelCalls: unknown[] = []
   let failSend: ((s: Sent) => boolean) | null = null
+  let threadError: Error | null = null
   let n = 0
   const deps: PressDeps = {
     store,
@@ -407,7 +418,8 @@ function setup(opts: { response?: NewsFactsResponse; model?: ModelCall } = {}) {
       },
       thread: (_r, channelId, messageId, name) => {
         threads.push({ channelId, messageId, name })
-        return Promise.resolve(`thread-${String(threads.length)}`)
+        if (threadError !== null) return Promise.reject(threadError)
+        return Promise.resolve(messageId)
       },
       dm: (userId, content) => {
         dms.push({ userId, content })
@@ -436,6 +448,9 @@ function setup(opts: { response?: NewsFactsResponse; model?: ModelCall } = {}) {
     modelCalls,
     failSendWhen: (f: (s: Sent) => boolean) => {
       failSend = f
+    },
+    threadFails: (err: Error) => {
+      threadError = err
     },
   }
 }
@@ -651,8 +666,9 @@ void test('an unanswered question older than 15 minutes gets the closing line an
   assert.equal(p.currentQuestion, null)
   assert.equal(t.sent.length, 1)
   assert.equal(t.sent[0]!.channelId, 'thread-9')
-  assert.equal(t.sent[0]!.msg.content, FALLBACK_CLOSING)
-  assert.equal(t.sent[0]!.msg.content, 'Fair enough — next game.')
+  assert.equal(t.sent[0]!.msg.content, `<@${USER_A}> ${FALLBACK_CLOSING}`)
+  assert.equal(t.sent[0]!.msg.content, `<@${USER_A}> Fair enough — next game.`)
+  assert.deepEqual(t.sent[0]!.msg.allowed_mentions, { parse: [], users: [USER_A] })
   // A second pass does not close it again.
   await runPressPass(t.deps, config('live'))
   assert.equal(t.sent.length, 1)
@@ -733,13 +749,50 @@ void test('a failing mirror send does not stop the scrum step', async () => {
   assert.deepEqual(summary.failedSteps, ['mirror'])
 })
 
-void test('facts that fail to load skip the item this pass and log it', async () => {
+void test('facts that fail to load skip the item (retried every pass) and log it once', async () => {
   const t = setup()
   liveRecap(t.store)
-  t.deps.fetchFacts = () => Promise.reject(new Error('news game facts HTTP 503'))
+  let fetches = 0
+  t.deps.fetchFacts = () => {
+    fetches++
+    return Promise.reject(new Error('news game facts HTTP 503'))
+  }
   await runPressPass(t.deps, config('live'))
+  await runPressPass(t.deps, config('live'))
+  assert.equal(fetches, 2)
   assert.equal(t.store.scrums.length, 0)
-  assert.ok(t.logs.some((l) => l.startsWith('[press] scrums: item 10: news game facts HTTP 503')))
+  assert.deepEqual(
+    t.logs.filter((l) => l.startsWith('[press] scrums: item 10')),
+    ['[press] scrums: item 10: news game facts HTTP 503'],
+  )
+})
+
+void test('a recap item without a match is logged once', async () => {
+  const t = setup()
+  t.store.items.push(itemRow({ id: 10, isGameRecap: true, matchId: null }))
+  await runPressPass(t.deps, config('live'))
+  await runPressPass(t.deps, config('live'))
+  assert.equal(t.logs.filter((l) => l.startsWith('[press] scrums: item 10')).length, 1)
+})
+
+void test('a "next" heat is not used up when the scrum insert conflicts', async () => {
+  const t = setup()
+  liveRecap(t.store)
+  t.store.settings = { ...t.store.settings, heat: 'hot', heatScope: 'next' }
+  t.store.insertScrum = () => Promise.resolve(null)
+  await runPressPass(t.deps, config('live'))
+  assert.equal(t.store.consumeCalls, 0)
+  assert.equal(t.store.settings.heatScope, 'next')
+})
+
+void test('a "next" heat is used up once the scrum is inserted, and the scrum runs at that heat', async () => {
+  const t = setup()
+  liveRecap(t.store)
+  t.store.settings = { ...t.store.settings, heat: 'cool', heatScope: 'next' }
+  await runPressPass(t.deps, config('live'))
+  assert.equal(t.store.consumeCalls, 1)
+  assert.equal(t.store.scrums[0]!.heat, 'cool')
+  assert.equal(t.store.settings.heatScope, 'night')
 })
 
 // ── startScrumQuestion ──────────────────────────────────────────────────────
@@ -777,8 +830,14 @@ void test('startScrumQuestion: thread "<Reporter> — <player>", question with t
   const t = setup({ model })
   const personId = await scrumWithPerson(t)
   t.store.gmNotes = [
-    { id: 1, playerName: 'Skater A', note: 'Skater A broke a stick on the post.', matchId: 90001 },
-    { id: 2, playerName: null, note: 'Other game note.', matchId: 90002 },
+    {
+      id: 1,
+      playerName: 'Skater A',
+      note: 'Skater A broke a stick on the post.',
+      matchId: 90001,
+      critical: true,
+    },
+    { id: 2, playerName: null, note: 'Other game note.', matchId: 90002, critical: false },
   ]
   t.store.answers.push({ personId: 99, question: 'Not theirs', answer: 'x', usability: 'usable' })
   await startScrumQuestion(t.deps, config('live'), personId)
@@ -787,12 +846,12 @@ void test('startScrumQuestion: thread "<Reporter> — <player>", question with t
   assert.deepEqual(t.threads, [
     { channelId: 'chel', messageId: 'msg-10', name: `${reporterName} — Skater A` },
   ])
-  assert.equal(scrum.threadId, 'thread-1')
+  assert.equal(scrum.threadId, 'msg-10')
   const q = t.sent.at(-1)!
-  assert.equal(q.channelId, 'thread-1')
+  assert.equal(q.channelId, 'msg-10')
   assert.equal(q.reporter, scrum.reporter)
-  assert.equal(q.msg.content, 'Skater A, what changed after the first period?')
-  assert.deepEqual(q.msg.allowed_mentions, { parse: [] })
+  assert.equal(q.msg.content, `<@${USER_A}> Skater A, what changed after the first period?`)
+  assert.deepEqual(q.msg.allowed_mentions, { parse: [], users: [USER_A] })
   assert.match(JSON.stringify(q.msg.components), new RegExp(`press:answer:${String(personId)}`))
   const p = t.store.people.find((x) => x.id === personId)!
   assert.equal(p.status, 'asking')
@@ -830,7 +889,7 @@ void test('startScrumQuestion: earlier answers go in as history (unusable ones a
   assert.doesNotMatch(write.user, /my job is awful/)
   assert.match(write.user, /question 3 of the scrum/)
   // The model failed: the fallback question is posted, and the person moves on.
-  assert.equal(t.sent.at(-1)!.msg.content, 'Walk me through that one, Skater A.')
+  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Walk me through that one, Skater A.`)
   assert.equal(t.store.people.find((x) => x.id === personId)!.questionsAsked, 3)
 })
 
@@ -840,7 +899,7 @@ void test('startScrumQuestion: budget spent → fallback question, no model call
   t.store.spend = 16
   await startScrumQuestion(t.deps, config('live'), personId)
   assert.equal(t.modelCalls.length, 0)
-  assert.equal(t.sent.at(-1)!.msg.content, 'Walk me through that one, Skater A.')
+  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Walk me through that one, Skater A.`)
   t.store.people.find((x) => x.id === personId)!.status = 'asking'
   await startScrumQuestion(t.deps, config('live'), personId)
   assert.equal(t.modelCalls.length, 0)
@@ -903,4 +962,108 @@ void test('a failing closing line does not stop the other closings', async () =>
   )
   assert.equal(t.sent.length, 1)
   assert.ok(t.logs.some((l) => l === '[press] expired answers: person 1: Discord bot HTTP 500'))
+})
+
+void test('startScrumQuestion: a thread that already exists (Discord 400) is the scrum message', async () => {
+  const t = setup()
+  const personId = await scrumWithPerson(t)
+  t.store.spend = 100
+  t.threadFails(new Error('Discord bot HTTP 400'))
+  await startScrumQuestion(t.deps, config('live'), personId)
+  assert.equal(t.threads.length, 1)
+  assert.equal(t.store.scrums[0]!.threadId, 'msg-10')
+  assert.equal(t.sent.at(-1)!.channelId, 'msg-10')
+  assert.equal(t.store.people.find((x) => x.id === personId)!.status, 'asking')
+})
+
+void test('startScrumQuestion: another thread error posts nothing and claims nothing', async () => {
+  const t = setup()
+  const personId = await scrumWithPerson(t)
+  t.store.spend = 100
+  const before = t.sent.length
+  t.threadFails(new Error('Discord bot HTTP 500'))
+  await assert.rejects(startScrumQuestion(t.deps, config('live'), personId), /HTTP 500/)
+  assert.equal(t.sent.length, before)
+  assert.equal(t.store.scrums[0]!.threadId, null)
+  assert.equal(t.store.people.find((x) => x.id === personId)!.questionsAsked, 0)
+})
+
+void test('trial: the question and the closing line mention the GM, never the player', async () => {
+  const t = setup()
+  t.store.settings.mirrorFromItemId = 9
+  t.store.items.push(itemRow({ id: 10, isGameRecap: true }))
+  await runPressPass(t.deps, config('trial'))
+  const id = (await t.store.insertScrumPerson({
+    scrumId: 1,
+    playerId: 1,
+    discordUserId: USER_A,
+    role: 'picked',
+    requestedBy: 'auto',
+    pingedAt: NOW,
+  }))!
+  t.store.spend = 100
+  await startScrumQuestion(t.deps, config('trial'), id)
+  const q = t.sent.at(-1)!
+  assert.equal(q.msg.content, `<@${GM}> Walk me through that one, Skater A.`)
+  assert.deepEqual(q.msg.allowed_mentions, { parse: [], users: [GM] })
+  t.store.people[0]!.lastAskedAt = new Date(NOW.getTime() - 901_000)
+  await runPressPass(t.deps, config('trial'))
+  const closing = t.sent.at(-1)!
+  assert.equal(closing.msg.content, `<@${GM}> Fair enough — next game.`)
+  assert.deepEqual(closing.msg.allowed_mentions, { parse: [], users: [GM] })
+})
+
+void test('startScrumQuestion: a Go easy player gets no critical GM note; other notes stay', async () => {
+  const reqs: Parameters<ModelCall>[0][] = []
+  const model: ModelCall = (req) => {
+    reqs.push(req)
+    return Promise.reject(new Error('stop after the prompt'))
+  }
+  const t = setup({ model })
+  const personId = await scrumWithPerson(t, 2)
+  t.store.gmNotes = [
+    {
+      id: 1,
+      playerName: 'Skater B',
+      note: 'Skater B lost the puck twice.',
+      matchId: 90001,
+      critical: true,
+    },
+    {
+      id: 2,
+      playerName: 'Skater B',
+      note: 'Skater B blocked a big shot.',
+      matchId: 90001,
+      critical: false,
+    },
+  ]
+  await startScrumQuestion(t.deps, config('live'), personId)
+  const write = reqs.find((r) => r.purpose === 'write')!
+  assert.doesNotMatch(write.user, /lost the puck/)
+  assert.match(write.user, /blocked a big shot/)
+})
+
+void test('startScrumQuestion: a person no longer on the sheet gets no thread and no question, and ends', async () => {
+  const res = oct12Response('game')
+  res.facts.people = res.facts.people.filter((p) => p.playerId !== 1)
+  const t = setup({ response: res })
+  const pinged = await scrumWithPerson(t)
+  const asking = (await t.store.insertScrumPerson({
+    scrumId: 1,
+    playerId: 3,
+    discordUserId: USER_B,
+    role: 'volunteer',
+    requestedBy: 'self',
+    status: 'asking',
+  }))!
+  // Player 3 is on the sheet in the fixture; take them off too.
+  res.facts.people = res.facts.people.filter((p) => p.playerId !== 3)
+  const before = t.sent.length
+  await startScrumQuestion(t.deps, config('live'), pinged)
+  await startScrumQuestion(t.deps, config('live'), asking)
+  assert.equal(t.threads.length, 0)
+  assert.equal(t.sent.length, before)
+  assert.equal(t.modelCalls.length, 0)
+  assert.equal(t.store.people.find((x) => x.id === pinged)!.status, 'expired')
+  assert.equal(t.store.people.find((x) => x.id === asking)!.status, 'done')
 })

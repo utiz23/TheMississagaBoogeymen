@@ -152,6 +152,7 @@ void test('expired pings: pinged, pinged_at older than the accept window (5 min)
   assert.match(s, /p\.status = 'pinged'/)
   assert.match(s, /p\.pinged_at is not null/)
   assert.match(s, /p\.pinged_at < \$1::timestamptz/)
+  assert.match(s, /s\.message_id as scrum_message_id, s\.reporter, s\.is_test/)
   assert.deepEqual(q.params, ['2026-10-25T20:05:00.000Z'])
 })
 
@@ -191,6 +192,7 @@ void test('night press notes: active notes of the night, same test rule', () => 
   const q = dialect.sqlToQuery(nightPressNotesSql('2026-10-25', true))
   const s = flat(q.sql)
   assert.match(s, /from news_gm_notes g/)
+  assert.match(s, /g\.note, g\.match_id, g\.critical/)
   assert.match(s, /g\.status = 'active'/)
   assert.match(s, /g\.night = \$1::date/)
   assert.match(s, /\(g\.is_test = false or \$2\)/)
@@ -416,4 +418,15 @@ void test('claim scrum question: only from the expected count, while pinged or a
   assert.match(s, /"news_scrum_people"."status" in \(\$\d+, \$\d+\)/)
   assert.match(s, /returning/)
   assert.ok(q.params.includes('Why?'))
+})
+
+void test('expire scrum person without a cutoff: state check only (a person taken off the sheet)', () => {
+  const q = expireScrumPersonQuery(3, 'asking', null).toSQL()
+  const s = flat(q.sql)
+  assert.match(
+    s,
+    /where \("news_scrum_people"."id" = \$\d+ and "news_scrum_people"."status" = \$\d+\)/,
+  )
+  assert.doesNotMatch(s, /last_asked_at/)
+  assert.ok(q.params.includes('done'))
 })

@@ -231,6 +231,8 @@ export interface ScrumPersonWithScrum {
   threadId: string | null
   scrumMessageId: string
   reporter: NewsReporterId
+  /** A trial scrum: its thread lines mention the GM. */
+  isTest: boolean
 }
 
 type RawPersonWithScrum = {
@@ -244,11 +246,12 @@ type RawPersonWithScrum = {
   thread_id: string | null
   scrum_message_id: string
   reporter: NewsReporterId
+  is_test: boolean
 }
 
 const PERSON_WITH_SCRUM_COLUMNS = sql`
   p.id, p.scrum_id, p.player_id, p.discord_user_id, p.ping_message_id, p.current_question,
-  s.channel_id, s.thread_id, s.message_id as scrum_message_id, s.reporter`
+  s.channel_id, s.thread_id, s.message_id as scrum_message_id, s.reporter, s.is_test`
 
 function rowToPersonWithScrum(r: RawPersonWithScrum): ScrumPersonWithScrum {
   return {
@@ -262,6 +265,7 @@ function rowToPersonWithScrum(r: RawPersonWithScrum): ScrumPersonWithScrum {
     threadId: r.thread_id,
     scrumMessageId: r.scrum_message_id,
     reporter: r.reporter,
+    isTest: r.is_test,
   }
 }
 
@@ -367,11 +371,12 @@ export async function listScrumAnswers(
 }
 
 /**
- * End a person's round when its window passed: `pinged` → `expired` (no
- * accept), `asking` → `done` (no answer). Only while the row is still in that
- * state and older than `cutoff`, so an accept or an answer that came in first wins.
+ * End a person's round: `pinged` → `expired` (no accept), `asking` → `done`
+ * (no answer). Only while the row is still in that state and, with a
+ * `cutoff`, older than it, so an accept or an answer that came in first wins.
+ * A null cutoff ends the round now (the person left the fact sheet).
  */
-export function expireScrumPersonQuery(id: number, from: 'pinged' | 'asking', cutoff: Date) {
+export function expireScrumPersonQuery(id: number, from: 'pinged' | 'asking', cutoff: Date | null) {
   const pinged = from === 'pinged'
   return db
     .update(newsScrumPeople)
@@ -380,7 +385,11 @@ export function expireScrumPersonQuery(id: number, from: 'pinged' | 'asking', cu
       and(
         eq(newsScrumPeople.id, id),
         eq(newsScrumPeople.status, from),
-        pinged ? lt(newsScrumPeople.pingedAt, cutoff) : lt(newsScrumPeople.lastAskedAt, cutoff),
+        cutoff === null
+          ? undefined
+          : pinged
+            ? lt(newsScrumPeople.pingedAt, cutoff)
+            : lt(newsScrumPeople.lastAskedAt, cutoff),
       ),
     )
     .returning({ id: newsScrumPeople.id })
@@ -390,7 +399,7 @@ export function expireScrumPersonQuery(id: number, from: 'pinged' | 'asking', cu
 export async function expireScrumPerson(
   id: number,
   from: 'pinged' | 'asking',
-  cutoff: Date,
+  cutoff: Date | null,
 ): Promise<boolean> {
   return (await expireScrumPersonQuery(id, from, cutoff)).length > 0
 }
@@ -500,6 +509,8 @@ export interface PressNote {
   playerName: string | null
   note: string
   matchId: number | null
+  /** A critical note is never used for a "Go easy" player. */
+  critical: boolean
 }
 
 /** Usable or joke answers of the night, oldest first, never from players whose press level is `out`. */
@@ -519,7 +530,7 @@ export function nightPressMaterialSql(night: string, includeTest: boolean): SQL 
 /** The night's active GM notes, oldest first. */
 export function nightPressNotesSql(night: string, includeTest: boolean): SQL {
   return sql`
-    select g.id, ${DISPLAY_NAME} as player_name, g.note, g.match_id
+    select g.id, ${DISPLAY_NAME} as player_name, g.note, g.match_id, g.critical
     from news_gm_notes g
     left join players p on p.id = g.player_id
     left join player_profiles pp on pp.player_id = g.player_id
@@ -546,6 +557,7 @@ export async function nightPressMaterial(
     player_name: string | null
     note: string
     match_id: string | number | null
+    critical: boolean
   }>(nightPressNotesSql(night, includeTest))
   return {
     quotes: quotes.map((r) => ({
@@ -561,6 +573,7 @@ export async function nightPressMaterial(
       playerName: r.player_name,
       note: r.note,
       matchId: r.match_id === null ? null : num(r.match_id),
+      critical: r.critical === true,
     })),
   }
 }
