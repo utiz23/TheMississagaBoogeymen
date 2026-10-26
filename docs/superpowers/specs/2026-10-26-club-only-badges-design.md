@@ -99,6 +99,67 @@ The design document for the build must include a simulated-pace table (week each
 
 Note: NHL 27 club play dropped in October (16, 2 and 1 games in the last three weeks). The 300-game target already accounts for this. Re-check the pace at mid-season.
 
+## Proposed ladders and pace (Task 3, data of 2026-10-26)
+
+Status: waiting for operator approval.
+
+Method: `apps/worker/src/__scripts__/card-ladder-sizing-2026-10.ts`, run read-only on live data. The club has played 92 NHL 27 club games. Each value is projected to a 300-game season (factor 3.26). The ceiling (level 30) is the best regular's projected value; regulars played at least half of the club's games. The goalie badges use the best human, because no regular plays goalie. Every ceiling is at least 30, because 30 levels need 30 different whole numbers. Ceilings from 51 to 99 round to 50 or 100 (the nice-number rules leave too few steps there). The tier bars stay as they are.
+
+| Badge                  | Old L30 | New L30 | Levels 1–10                      | Level 20 |
+| ---------------------- | ------: | ------: | -------------------------------- | -------: |
+| 3v3 Games Completed    |     100 |      30 | 1 2 3 4 5 6 7 8 9 10             |       20 |
+| 6v6 Games Completed    |     500 |     250 | 1 2 3 4 7 10 15 20 25 30         |      110 |
+| 6's with Goalie        |     100 |      50 | 1 2 3 4 5 6 7 8 9 10             |       22 |
+| Wins                   |     320 |     140 | 1 2 3 4 5 6 8 10 12 15           |       65 |
+| Goals                  |     800 |     240 | 1 2 3 4 7 10 12 15 20 25         |      110 |
+| Assists                |     800 |     280 | 1 2 3 5 8 11 15 20 25 30         |      120 |
+| Shots                  |    2500 |    1350 | 5 10 15 25 35 55 75 95 120 150   |      600 |
+| Dekes                  |     800 |     620 | 5 10 15 20 25 30 35 45 55 70     |      280 |
+| Hat-Tricks             |     100 |      36 | 1 2 3 4 5 6 7 8 9 10             |       20 |
+| Breakaways             |     200 |      50 | 1 2 3 4 5 6 7 8 9 10             |       22 |
+| Hits                   |    2000 |     820 | 5 10 15 20 25 35 45 60 75 90     |      360 |
+| Faceoffs Won           |    4000 |    1850 | 5 10 20 35 50 75 100 130 170 210 |      820 |
+| Takeaways              |    1500 |     720 | 5 10 15 20 25 30 40 50 65 80     |      320 |
+| Blocked Shots          |     400 |     250 | 1 2 3 4 7 10 15 20 25 30         |      110 |
+| Fights Won             |     100 |      30 | 1 2 3 4 5 6 7 8 9 10             |       20 |
+| Goalie Games Completed |     100 |      30 | 1 2 3 4 5 6 7 8 9 10             |       20 |
+| Goalie Wins            |      50 |      30 | 1 2 3 4 5 6 7 8 9 10             |       20 |
+| Saves                  |     650 |     300 | 1 2 3 5 8 12 15 20 25 35         |      130 |
+| Desperation Saves      |     100 |      30 | 1 2 3 4 5 6 7 8 9 10             |       20 |
+| Goalie Poke-Checks     |      50 |      30 | 1 2 3 4 5 6 7 8 9 10             |       20 |
+| Shutouts               |      30 |      30 | 1 2 3 4 5 6 7 8 9 10             |       20 |
+
+AI goalies (Matteo Lehmann, Jonas Wagner):
+
+| Badge | Old L30 | New L30 | Levels 1–10                     | Level 20 |
+| ----- | ------: | ------: | ------------------------------- | -------: |
+| gg    |     300 |     130 | 1 2 3 4 5 6 7 9 12 15           |       65 |
+| gw    |     150 |      50 | 1 2 3 4 5 6 7 8 9 10            |       22 |
+| gsv   |    3500 |    1600 | 5 10 15 30 45 65 85 110 140 180 |      710 |
+| gso   |      30 |      30 | 1 2 3 4 5 6 7 8 9 10            |       20 |
+
+Simulated pace (values grow evenly over 48 weeks; the week each tier is reached):
+
+| Player              | Club games so far | Projected games |  T2 |  T3 |  T4 |  T5 |
+| ------------------- | ----------------: | --------------: | --: | --: | --: | --: |
+| Stick Menace        |                85 |             277 |   2 |   8 |  21 |  45 |
+| silkyjoker85        |                80 |             261 |   2 |   9 |  22 |  45 |
+| HenryTheBobJr       |                64 |             209 |   2 |  11 |  29 |   – |
+| camrazz             |                64 |             209 |   2 |  11 |  22 |  44 |
+| JoeyFlopfish        |                52 |             170 |   3 |  14 |  36 |   – |
+| Jonas Wagner (AI)   |                39 |             127 |  19 |  45 |   – |   – |
+| MrHomiecide         |                37 |             121 |   5 |  22 |   – |   – |
+| Matteo Lehmann (AI) |                36 |             117 |  19 |  45 |   – |   – |
+| Ordinary_Samich     |                33 |             108 |   5 |  29 |   – |   – |
+
+Results:
+
+- The three busiest regulars (Stick Menace, silkyjoker85, camrazz) reach Franchise in weeks 44–45.
+- HenryTheBobJr and JoeyFlopfish finish at Elite. MrHomiecide and Ordinary_Samich finish at Stud. The 10-08 projection had the same pattern.
+- A lower ceiling (scale 0.8) brings HenryTheBobJr to Franchise in week 48. The top three then reach it in weeks 36–38, which is too early for the pace goal.
+- The AI goalies stop at Stud. Shutouts cap them: their projected season is about 13 shutouts, and the shutout ladder cannot have a ceiling below 30. The 10-08 ladders let them reach Franchise.
+- Switch-over: nobody loses a tier. HenryTheBobJr, silkyjoker85 and JoeyFlopfish go from Rookie to Stud. The switch-over writes no events, so Discord posts nothing about it.
+
 ## Switch-over
 
 - One recompute runs with the new sources and ladders. It writes the new values and levels to `player_badge_levels` and `player_card_progress`.
