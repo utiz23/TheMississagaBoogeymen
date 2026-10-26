@@ -97,6 +97,8 @@ export const newsScrumPeople = pgTable(
     pingedAt: timestamp('pinged_at', { withTimezone: true }),
     questionsAsked: integer('questions_asked').notNull().default(0),
     followupsAsked: integer('followups_asked').notNull().default(0),
+    /** The open item is a follow-up (true) or a question (false): one follow-up per question. */
+    askingFollowup: boolean('asking_followup').notNull().default(false),
     currentQuestion: text('current_question'),
     lastAskedAt: timestamp('last_asked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

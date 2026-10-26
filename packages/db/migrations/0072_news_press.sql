@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS "news_scrum_people" (
   "pinged_at" timestamp with time zone,
   "questions_asked" integer DEFAULT 0 NOT NULL,
   "followups_asked" integer DEFAULT 0 NOT NULL,
+  "asking_followup" boolean DEFAULT false NOT NULL,
   "current_question" text,
   "last_asked_at" timestamp with time zone,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -131,6 +132,9 @@ DO $$ BEGIN
   ALTER TABLE "news_scrum_people" ADD CONSTRAINT "news_scrum_people_status_check"
     CHECK ("status" IN ('pinged', 'asking', 'done', 'expired'));
 END $$;
+
+-- The open item is a follow-up (true) or a question (false): one follow-up per question.
+ALTER TABLE "news_scrum_people" ADD COLUMN IF NOT EXISTS "asking_followup" boolean DEFAULT false NOT NULL;
 
 CREATE INDEX IF NOT EXISTS "news_scrum_people_status_idx" ON "news_scrum_people" ("status");
 

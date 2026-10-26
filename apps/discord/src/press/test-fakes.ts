@@ -252,6 +252,7 @@ export class FakeStore implements PressStore {
       pingedAt: v.pingedAt ?? null,
       questionsAsked: v.questionsAsked ?? 0,
       followupsAsked: v.followupsAsked ?? 0,
+      askingFollowup: v.askingFollowup ?? false,
       currentQuestion: v.currentQuestion ?? null,
       lastAskedAt: v.lastAskedAt ?? null,
       createdAt: NOW,
@@ -389,6 +390,7 @@ export class FakeStore implements PressStore {
     }
     p.status = 'asking'
     p.questionsAsked += 1
+    p.askingFollowup = false
     p.currentQuestion = args.question
     p.lastAskedAt = args.at
     return Promise.resolve(true)

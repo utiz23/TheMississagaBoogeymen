@@ -75,6 +75,10 @@ void test('scrums: one scrum per recap item (unique recap_item_id)', () => {
 
 void test('scrum people: unique (scrum_id, player_id); status, role, requested_by checks', () => {
   const cfg = getTableConfig(newsScrumPeople)
+  const flag = cfg.columns.find((c) => c.name === 'asking_followup')
+  assert.ok(flag, 'asking_followup column')
+  assert.equal(flag.notNull, true)
+  assert.equal(flag.default, false)
   const unique = cfg.uniqueConstraints.find((u) => u.columns.length === 2)
   assert.ok(unique, 'composite unique')
   assert.deepEqual(unique.columns.map((c) => c.name).sort(), ['player_id', 'scrum_id'])
@@ -309,7 +313,7 @@ void test('migration 0072: idempotent tables and columns, kind check gains react
     assert.match(sqlText, new RegExp(`CREATE TABLE IF NOT EXISTS "${t}"`), t)
     assert.match(sqlText, new RegExp(`--   DROP TABLE IF EXISTS "${t}";`), `rollback ${t}`)
   }
-  for (const c of ['is_game_recap', 'discord_via', 'discord_channel_id']) {
+  for (const c of ['is_game_recap', 'discord_via', 'discord_channel_id', 'asking_followup']) {
     assert.match(sqlText, new RegExp(`ADD COLUMN IF NOT EXISTS "${c}"`), c)
   }
   assert.match(
@@ -317,6 +321,7 @@ void test('migration 0072: idempotent tables and columns, kind check gains react
     /DROP CONSTRAINT IF EXISTS "news_jobs_kind_check";\s+ALTER TABLE "news_jobs" ADD CONSTRAINT "news_jobs_kind_check"\s+CHECK \("kind" IN \('game', 'night', 'week', 'game_article', 'reaction'\)\)/,
   )
   assert.match(sqlText, /ON CONFLICT \("id"\) DO NOTHING/)
+  assert.match(sqlText, /"asking_followup" boolean DEFAULT false NOT NULL/)
 })
 
 void test('set scrum thread: only while the scrum has no thread', () => {
@@ -415,12 +420,14 @@ void test('claim scrum question: only from the expected count, while pinged or a
   const s = flat(q.sql)
   assert.match(
     s,
-    /set "status" = \$1, "questions_asked" = "news_scrum_people"."questions_asked" \+ 1, "current_question" = \$2, "last_asked_at" = \$3/,
+    /set "status" = \$1, "questions_asked" = "news_scrum_people"."questions_asked" \+ 1, "asking_followup" = \$2, "current_question" = \$3, "last_asked_at" = \$4/,
   )
   assert.match(s, /"news_scrum_people"."questions_asked" = \$\d+/)
   assert.match(s, /"news_scrum_people"."status" in \(\$\d+, \$\d+\)/)
   assert.match(s, /returning/)
   assert.ok(q.params.includes('Why?'))
+  // A question (not a follow-up) is now open.
+  assert.equal(q.params[1], false)
 })
 
 void test('expire scrum person without a cutoff: state check only (a person taken off the sheet)', () => {

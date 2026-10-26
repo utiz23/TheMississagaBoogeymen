@@ -432,6 +432,7 @@ export function claimScrumQuestionQuery(args: {
     .set({
       status: 'asking',
       questionsAsked: sql`${newsScrumPeople.questionsAsked} + 1`,
+      askingFollowup: false,
       currentQuestion: args.question,
       lastAskedAt: args.at,
     })

@@ -108,21 +108,22 @@ const THREAD_EXISTS = /\bHTTP 400\b/
  * — <player>`; a thread's id is its message's id); claims the question;
  * posts it with the Answer button, mentioning the person (the GM in the
  * trial). A person who is done, expired or no longer on the sheet gets
- * nothing; one no longer on the sheet is ended.
+ * nothing; one no longer on the sheet is ended. True when the question was
+ * posted.
  */
 export async function startScrumQuestion(
   deps: PressDeps,
   config: PressConfig,
   personId: number,
-): Promise<void> {
+): Promise<boolean> {
   const { store, discord, log } = deps
   const person = await store.getScrumPerson(personId)
   if (person === null) {
     log(`[press] question: person ${String(personId)} not found`)
-    return
+    return false
   }
   const status = person.status
-  if (status !== 'pinged' && status !== 'asking') return
+  if (status !== 'pinged' && status !== 'asking') return false
   const scrum = person.scrum
   const reporter = scrum.reporter
   const now = deps.now()
@@ -157,7 +158,7 @@ export async function startScrumQuestion(
       if (out === 'off-sheet') {
         await store.expireScrumPerson(personId, status, null)
         log(`[press] question: person ${String(personId)} is not on the sheet, ended`)
-        return
+        return false
       }
       question = out
     } catch (err: unknown) {
@@ -188,7 +189,7 @@ export async function startScrumQuestion(
     question: text,
     at: now,
   })
-  if (!claimed) return
+  if (!claimed) return false
   await discord.send(
     reporter,
     threadId,
@@ -196,4 +197,5 @@ export async function startScrumQuestion(
       { type: 1, components: [answerButton(personId)] },
     ]),
   )
+  return true
 }

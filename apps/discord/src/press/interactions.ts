@@ -57,9 +57,11 @@ export const TEXT = {
   noAnswer: 'No answer saved.',
   answered: 'Already answered.',
   twice: "You've used that twice tonight.",
+  onItsWay: 'The question is on its way.',
+  rightWithYou: 'The reporter will be right with you.',
   notYet: 'The press is not here yet. Try again in a minute.',
   noGame: 'No game with the press in the last 6 hours.',
-  inThread: 'Your question is in the scrum thread.',
+  inThread: "The reporter's question is in the scrum thread.",
   nobody: 'Nobody else can be asked about this game.',
 } as const
 
@@ -93,10 +95,11 @@ function actorRefusal(
     : say(`This one is for ${escapeMarkdown(person.name)}.`)
 }
 
-/** The refusal for an Answer while no question is open, or null. */
+/** The refusal for an Answer button while no question is open, or null. */
 function openQuestionRefusal(person: ScrumPersonDetail, now: Date): Reply | null {
   if (person.status !== 'asking') return say(TEXT.tooLate)
-  if (person.currentQuestion === null) return say(TEXT.answered)
+  // Accepted, or the last answer is being judged: the next line is not posted yet.
+  if (person.currentQuestion === null) return say(TEXT.onItsWay)
   if (
     person.lastAskedAt === null ||
     now.getTime() - person.lastAskedAt.getTime() >= PRESS_ANSWER_MS
@@ -125,14 +128,17 @@ async function gameCandidates(
   return { candidates: scrumCandidates(game, res.facts, ids), topFacts: res.facts.topFacts }
 }
 
-/** Ask the first question. The person is already `asking`: on a failure the expiry pass closes the round. */
+/**
+ * Ask the next question: `ack` once it is posted. The person is already
+ * `asking`: when it was not posted, the expiry pass closes the round.
+ */
 async function askNow(deps: PressDeps, config: PressConfig, personId: number): Promise<Reply> {
   try {
-    await startScrumQuestion(deps, config, personId)
+    if (await startScrumQuestion(deps, config, personId)) return ACK
   } catch (err: unknown) {
     deps.log(`[press] question: person ${String(personId)}: ${reason(err)}`)
   }
-  return ACK
+  return say(TEXT.rightWithYou)
 }
 
 /** "Talk to the press" on a recap post: the user volunteers (1 question). */
@@ -222,11 +228,30 @@ export async function onAnswerButton(
   if (refusal !== null) return refusal
   return {
     kind: 'modal',
-    customId: `press:modal:${String(personId)}`,
+    // The pop-up names the item it answers: a stale one cannot answer the next.
+    customId: `press:modal:${String(personId)}:${String(person.questionsAsked)}:${String(person.followupsAsked)}`,
     title: cut(`${reporterName(person.scrum)} asks`, MODAL_TEXT_MAX),
     label: cut(person.currentQuestion!, MODAL_TEXT_MAX),
     maxLength: ANSWER_MAX_CHARS,
   }
+}
+
+/** The refusal for a pop-up submit, or null. */
+function submitRefusal(
+  person: ScrumPersonDetail,
+  seen: { questionsAsked: number; followupsAsked: number },
+  now: Date,
+): Reply | null {
+  if (person.status !== 'asking') return say(TEXT.tooLate)
+  // Opened for an earlier item, or this item's answer is already being judged.
+  if (
+    person.questionsAsked !== seen.questionsAsked ||
+    person.followupsAsked !== seen.followupsAsked ||
+    person.currentQuestion === null
+  ) {
+    return say(TEXT.answered)
+  }
+  return openQuestionRefusal(person, now)
 }
 
 interface Verdict {
@@ -271,10 +296,8 @@ async function judge(
       { question, answer: null },
     ]
     const ctx = await scrumAskContext(store, scrum, res, onSheet, history, person.questionsAsked)
-    // One follow-up per question. The counters cannot tell an open follow-up
-    // from an open question once a question went without one, so follow-ups
-    // run only while every earlier question had one.
-    const allowed = followUpAllowed(person) && person.followupsAsked === person.questionsAsked - 1
+    // One follow-up per question: never after a follow-up.
+    const allowed = !person.askingFollowup && followUpAllowed(person)
     const out = await judgeAnswer(
       deps.call,
       { ...ctx, answer, followUpAllowed: allowed },
@@ -288,8 +311,9 @@ async function judge(
 }
 
 /**
- * The pop-up submit. Claims the answer (a second submit gets "Already
- * answered."), echoes it in the thread as the reporter (escaped, no
+ * The pop-up submit. `seen` = the counters in the pop-up's custom id (the
+ * item it was opened for). Claims the answer on those counters (a second or
+ * stale submit gets "Already answered."), echoes it in the thread as the reporter (escaped, no
  * mentions), judges it, stores it, then asks the follow-up, the next
  * question, or closes the round.
  */
@@ -299,23 +323,19 @@ export async function onAnswerSubmit(
   personId: number,
   userId: string,
   text: string,
+  seen: { questionsAsked: number; followupsAsked: number },
 ): Promise<Reply> {
   const { store, discord, log } = deps
   if (config.mode === 'trial' && userId !== config.gmUserId) return say(TEXT.trial)
   const person = await store.getScrumPerson(personId)
   if (person === null) return say(TEXT.tooLate)
   const now = deps.now()
-  const refusal = actorRefusal(config, person, userId) ?? openQuestionRefusal(person, now)
+  const refusal = actorRefusal(config, person, userId) ?? submitRefusal(person, seen, now)
   if (refusal !== null) return refusal
   const answer = Array.from(text.trim()).slice(0, ANSWER_MAX_CHARS).join('').trimEnd()
   if (answer === '') return say(TEXT.noAnswer)
   const question = person.currentQuestion!
-  const claimed = await store.claimScrumAnswer({
-    personId,
-    questionsAsked: person.questionsAsked,
-    followupsAsked: person.followupsAsked,
-    at: now,
-  })
+  const claimed = await store.claimScrumAnswer({ personId, ...seen, at: now })
   if (!claimed) return say(TEXT.answered)
 
   const scrum = person.scrum
@@ -346,6 +366,7 @@ export async function onAnswerSubmit(
   if (verdict.followUp !== null) {
     await store.updateScrumPerson(personId, {
       followupsAsked: person.followupsAsked + 1,
+      askingFollowup: true,
       currentQuestion: verdict.followUp,
       lastAskedAt: now,
     })
@@ -402,9 +423,10 @@ export async function onScrumCommand(
   })
   if (itemId === null) return say(TEXT.noGame)
 
-  if (opts.player === null && !opts.random) {
+  // `/scrum @self` is `/scrum`: the user volunteers, no command use.
+  if ((opts.player === null && !opts.random) || opts.player === userId) {
     const reply = await onTalk(deps, config, itemId, userId)
-    // A command has no message to update: confirm in private instead.
+    // A command has no message to update: confirm in private once the question is posted.
     return reply.kind === 'ack' ? say(TEXT.inThread) : reply
   }
 
