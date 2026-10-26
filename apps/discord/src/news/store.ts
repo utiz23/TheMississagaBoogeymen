@@ -25,6 +25,8 @@ import {
   nightZeroCalled,
   insertStance,
   listDisabledReporters,
+  listDueNewsItems,
+  claimDueNewsItem,
 } from '@eanhl/db/queries'
 import { REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
 import type { NewsStore } from './cycle.ts'
@@ -80,4 +82,6 @@ export const newsDbStore: NewsStore = {
   nightZeroCalled,
   insertStance,
   listDisabledReporters,
+  listDueNewsItems,
+  claimDueNewsItem,
 }

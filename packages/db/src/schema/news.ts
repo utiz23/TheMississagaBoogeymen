@@ -129,6 +129,11 @@ export const newsItems = pgTable(
     takesUsed: jsonb('takes_used').$type<number[]>().notNull().default([]),
     /** Part C3b: the version of the writing rules that wrote the item; null on older rows. */
     rulesVersion: text('rules_version'),
+    /**
+     * Part C3b: do not send to Discord before this time (a big game's posts go out
+     * a few minutes apart). Null = send now. Cleared when the delivery pass claims it.
+     */
+    sendAfter: timestamp('send_after', { withTimezone: true }),
     isTest: boolean('is_test').notNull().default(false),
     discordStatus: text('discord_status').$type<DiscordPostStatus>().notNull().default('pending'),
     discordAttempts: integer('discord_attempts').notNull().default(0),
@@ -139,6 +144,9 @@ export const newsItems = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    index('news_items_send_after_idx')
+      .on(table.sendAfter)
+      .where(sql`${table.sendAfter} IS NOT NULL`),
     index('news_items_feed_idx').on(table.kind, table.isTest, table.deletedAt, table.id.desc()),
     check('news_items_kind_check', sql`${table.kind} IN ('post', 'article')`),
     check(

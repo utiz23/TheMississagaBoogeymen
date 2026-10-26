@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import type { NewNewsItem, NewNewsStance, NewNewsUsage, NewsItemRow } from '@eanhl/db/queries'
 import {
   REPORTER_IDS,
+  REPORTERS,
   planBuzz,
   type NewsFactsResponse,
   type NewsGameFacts,
@@ -12,6 +13,7 @@ import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
   createNewsCycleState,
   NEWS_GAME_WINDOW_MS,
+  NEWS_POST_SPACING_MS,
   runNewsCycle,
   type NewsCycleOptions,
   type NewsDeps,
@@ -252,6 +254,7 @@ function harness(
         zeroCalled: item.zeroCalled ?? [],
         takesUsed: item.takesUsed ?? [],
         rulesVersion: item.rulesVersion ?? null,
+        sendAfter: item.sendAfter ?? null,
         isTest: item.isTest ?? false,
         discordStatus: item.discordStatus ?? 'pending',
         discordAttempts: 0,
@@ -341,6 +344,24 @@ function harness(
       return { tonight: names(night), previous: previous === undefined ? [] : names(previous) }
     },
     listDisabledReporters: async () => state.disabled,
+    listDueNewsItems: async (now, limit) =>
+      [...items.values()]
+        .filter(
+          (i) =>
+            i.discordStatus === 'pending' &&
+            i.sendAfter !== null &&
+            i.sendAfter <= now &&
+            !i.isTest &&
+            i.deletedAt === null,
+        )
+        .sort((a, b) => a.sendAfter!.getTime() - b.sendAfter!.getTime() || a.id - b.id)
+        .slice(0, limit),
+    claimDueNewsItem: async (id) => {
+      const i = items.get(id)
+      if (i === undefined || i.sendAfter === null || i.discordStatus !== 'pending') return false
+      i.sendAfter = null
+      return true
+    },
     insertStance: async (st) => {
       stances.push(st)
       return stances.length
@@ -1599,4 +1620,127 @@ void test('C3b.3: the switch cannot be read ⇒ nothing is written this pass', a
   assert.equal(h.items.size, 0)
   assert.equal(h.writerCalls.length, 0)
   assert.ok(logs(h.events).some((l) => l.includes('switches could not be read')))
+})
+
+// ── C3b.4: big-game posts are sent a few minutes apart ──────────────────────
+
+const hugeHarness = (clock: { t: Date }, extra: Partial<NewsDeps> = {}) =>
+  harness({
+    candidates: [701],
+    deps: {
+      now: () => clock.t,
+      fetchFacts: async (kind, key) => {
+        const r = gameResponse(Number(key))
+        return { ...r, facts: { ...r.facts, games: [hugeGame(Number(key))] } }
+      },
+      writer: longWriter,
+      ...extra,
+    },
+  })
+
+void test('C3b.4: a huge game sends the recap now; the other posts wait 3 minutes apart', async () => {
+  assert.equal(NEWS_POST_SPACING_MS, 3 * 60_000)
+  const clock = { t: NOW }
+  const h = hugeHarness(clock)
+  await runNewsCycle(h.deps, h.opts)
+  const posts = [...h.items.values()].filter((i) => i.kind === 'post')
+  assert.ok(posts.length >= 6)
+  assert.equal(posts[0]!.sendAfter, null)
+  assert.equal(posts[0]!.discordStatus, 'posted')
+  posts.slice(1).forEach((p, i) => {
+    assert.equal(p.sendAfter?.getTime(), NOW.getTime() + (i + 1) * NEWS_POST_SPACING_MS)
+    assert.equal(p.discordStatus, 'pending')
+  })
+  // Only the recap and the two articles went out; the job is done (the writing is finished).
+  const postNames = h.sent.filter((p) => !p.content.includes('/news/')).map((p) => p.username)
+  assert.deepEqual(postNames, [REPORTERS[posts[0]!.reporter].name])
+  assert.equal(h.jobs.get('game:701')?.status, 'done')
+})
+
+void test('C3b.4: later passes send the posts whose time has come, in order, never twice', async () => {
+  const clock = { t: NOW }
+  const h = hugeHarness(clock)
+  await runNewsCycle(h.deps, h.opts)
+  const posts = [...h.items.values()].filter((i) => i.kind === 'post')
+  const before = h.sent.length
+  // 1 minute later: nothing is due.
+  clock.t = new Date(NOW.getTime() + 60_000)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.sent.length, before)
+  // 7 minutes later: posts 2 and 3 (due at +3 and +6 minutes) go out, oldest first.
+  clock.t = new Date(NOW.getTime() + 7 * 60_000)
+  await runNewsCycle(h.deps, h.opts)
+  assert.deepEqual(
+    h.sent.slice(before).map((p) => p.username),
+    [posts[1]!, posts[2]!].map((p) => REPORTERS[p.reporter].name),
+  )
+  assert.equal(posts[1]!.discordStatus, 'posted')
+  assert.equal(posts[2]!.discordStatus, 'posted')
+  assert.equal(posts[3]!.discordStatus, 'pending')
+  // The same pass again sends nothing twice.
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.sent.length, before + 2)
+  // All of them, once the last is due.
+  clock.t = new Date(NOW.getTime() + 60 * 60_000)
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(posts.every((p) => p.discordStatus === 'posted'))
+  assert.equal(h.sent.length, before + posts.length - 1)
+})
+
+void test('C3b.4: due posts still go out when the money limit is reached or a pass has nothing else to do', async () => {
+  const clock = { t: NOW }
+  const h = hugeHarness(clock)
+  await runNewsCycle(h.deps, h.opts)
+  const before = h.sent.length
+  h.state.spend = 9.8
+  h.state.candidates = []
+  clock.t = new Date(NOW.getTime() + 10 * 60_000)
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(h.sent.length > before)
+})
+
+void test('C3b.4: a deleted or switched-off desk sends no waiting posts; a deleted post is never sent', async () => {
+  const clock = { t: NOW }
+  const h = hugeHarness(clock)
+  await runNewsCycle(h.deps, h.opts)
+  const posts = [...h.items.values()].filter((i) => i.kind === 'post')
+  const before = h.sent.length
+  clock.t = new Date(NOW.getTime() + 60 * 60_000)
+  h.state.enabled = false
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.sent.length, before)
+  h.state.enabled = true
+  posts[1]!.deletedAt = NOW
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(posts[1]!.discordStatus, 'pending')
+  assert.equal(h.sent.length, before + posts.length - 2)
+})
+
+void test('C3b.4: an unknown send outcome is not sent again; a normal game and a dry run are not spaced', async () => {
+  const clock = { t: NOW }
+  let calls = 0
+  const h = hugeHarness(clock, {
+    send: async (payload) => {
+      calls++
+      // Calls 1-3: the recap and the two articles of the first pass. 4: the first waiting post.
+      if (calls === 4) throw new WebhookOutcomeUnknownError('timeout after the request left')
+      return `m${String(calls)}`
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  clock.t = new Date(NOW.getTime() + 60 * 60_000)
+  await runNewsCycle(h.deps, h.opts)
+  const afterFirst = calls
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(calls, afterFirst, 'the unknown one is claimed and never retried')
+
+  const normal = harness({ candidates: [REPLY_GAME] })
+  await runNewsCycle(normal.deps, normal.opts)
+  assert.ok([...normal.items.values()].every((i) => i.sendAfter === null))
+  assert.ok([...normal.items.values()].every((i) => i.discordStatus === 'posted'))
+
+  const dry = hugeHarness({ t: NOW })
+  dry.opts.dryRun = true
+  await runNewsCycle(dry.deps, dry.opts)
+  assert.ok([...dry.items.values()].every((i) => i.sendAfter === null))
 })

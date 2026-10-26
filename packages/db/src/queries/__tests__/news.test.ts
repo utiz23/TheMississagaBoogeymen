@@ -50,6 +50,8 @@ const {
   activeTakesForPlayersQuery,
   takesUsedSinceSql,
   disabledReportersQuery,
+  dueNewsItemsQuery,
+  claimDueNewsItemQuery,
   rowsToNightZeroCalled,
   nightPostsForPromptSql,
   rowToNightPost,
@@ -1232,4 +1234,32 @@ void test('C3b.3: the per-reporter switch: query, table and idempotent migration
   assert.ok(check)
   const ids = [...check[1]!.matchAll(/'(\w+)'/g)].map((m) => m[1])
   assert.deepEqual([...ids].sort(), [...NEWS_REPORTER_IDS].sort())
+})
+
+void test('C3b.4: waiting posts: due query, claim and the send_after column', async () => {
+  const d = dueNewsItemsQuery(new Date('2026-10-24T12:00:00Z'), 20).toSQL()
+  assert.match(
+    flat(d.sql),
+    /from "news_items" where \("news_items"\."discord_status" = \$1 and "news_items"\."send_after" is not null and "news_items"\."send_after" <= \$2 and "news_items"\."is_test" = \$3 and "news_items"\."deleted_at" is null\) order by "news_items"\."send_after" asc, "news_items"\."id" asc limit \$4/,
+  )
+  assert.deepEqual(d.params, ['pending', '2026-10-24T12:00:00.000Z', false, 20])
+  const c = claimDueNewsItemQuery(7).toSQL()
+  assert.match(
+    flat(c.sql),
+    /update "news_items" set "send_after" = \$1 where \("news_items"\."id" = \$2 and "news_items"\."discord_status" = \$3 and "news_items"\."send_after" is not null and "news_items"\."deleted_at" is null\) returning "id"/,
+  )
+  assert.deepEqual(c.params, [null, 7, 'pending'])
+  const { readFile } = await import('node:fs/promises')
+  const raw = await readFile(
+    new URL('../../../migrations/0071_news_desk.sql', import.meta.url),
+    'utf8',
+  )
+  assert.ok(
+    raw.includes(
+      'ALTER TABLE "news_items" ADD COLUMN IF NOT EXISTS "send_after" timestamp with time zone;',
+    ),
+  )
+  assert.ok(raw.includes('CREATE INDEX IF NOT EXISTS "news_items_send_after_idx"'))
+  const cols = getTableConfig(newsItems).columns.map((x) => x.name)
+  assert.ok(cols.includes('send_after'))
 })

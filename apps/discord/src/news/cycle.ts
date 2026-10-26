@@ -102,9 +102,18 @@ export const WEEK_FETCH_PAUSE_MS = 900_000
 
 const DELETE_LIMIT = 20
 const UNDELIVERED_LIMIT = 10
+const DUE_LIMIT = 20
+
+/**
+ * A big, huge or historic game's posts after the recap go to Discord this far
+ * apart (C3b.4, spec §12.18-6), so a busy night does not flood the channel.
+ */
+export const NEWS_POST_SPACING_MS = 3 * 60_000
 const ACTIVITY_MS = 14 * 86_400_000
 
 type Kind = NewsJobKind
+
+const SPACED_LEVELS: readonly BuzzPlan['level'][] = ['big', 'huge', 'historic']
 
 /** The news queries the cycle uses (packages/db/src/queries/news.ts), plus one lookup. */
 export interface NewsStore {
@@ -154,6 +163,10 @@ export interface NewsStore {
   ): Promise<{ tonight: string[]; previous: string[] }>
   /** Stores a stance on a thread (C3a.4); the item that took it. */
   insertStance(stance: NewNewsStance): Promise<number>
+  /** Items whose `send_after` has come, oldest first (C3b.4). */
+  listDueNewsItems(now: Date, limit: number): Promise<NewsItemRow[]>
+  /** Takes a waiting item for sending (clears `send_after`); false when another pass took it. */
+  claimDueNewsItem(id: number): Promise<boolean>
   /** The reporters switched off on /admin/news (C3b.3); a reporter without a row is on. */
   listDisabledReporters(): Promise<ReporterId[]>
 }
@@ -490,6 +503,19 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
 
   // ── 2. Switch, 3. money ───────────────────────────────────────────────────
   if (!(await store.getNewsEnabled())) return summary
+
+  // ── Posts whose send time has come (C3b.4). Written already, so the money limit
+  // does not hold them back; each is taken before it is sent and never sent twice. ──
+  if (!opts.dryRun) {
+    for (const item of await store.listDueNewsItems(deps.now(), DUE_LIMIT)) {
+      if (sendingStopped) break
+      const tag = `news item ${String(item.id)}`
+      if (!(await store.claimDueNewsItem(item.id))) continue
+      await deliver(item.id, await payloadForStored(item), tag)
+    }
+    if (sendingStopped) return summary
+  }
+
   if (!(await moneyLeft())) return summary
 
   // ── 4. Undelivered items (live only: nothing is ever sent in test mode) ────
@@ -679,10 +705,20 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     if (written === 'failed') return 'go'
 
     const out = written.out.posts
-    const stored: { id: number; reporter: ReporterId; text: string; replyTo: number | null }[] = []
+    const stored: {
+      id: number
+      reporter: ReporterId
+      text: string
+      replyTo: number | null
+      sendAfter: Date | null
+    }[] = []
+    // A big game's posts after the recap wait, 3 minutes apart (never in a dry run: nothing is sent).
+    const spaced = !opts.dryRun && SPACED_LEVELS.includes(plan.level)
     try {
       for (const [i, p] of out.entries()) {
         const target = posts[i]!.replyTo
+        const sendAfter =
+          spaced && i > 0 ? new Date(now.getTime() + i * NEWS_POST_SPACING_MS) : null
         const id = await store.insertNewsItem({
           jobId,
           kind: 'post',
@@ -696,10 +732,11 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           zeroCalled: zeroCalledAsOnSheet(p.zeroCalled, facts),
           takesUsed: p.takesUsed,
           rulesVersion: NEWS_RULES_VERSION,
+          sendAfter,
           facts,
           isTest: opts.dryRun,
         })
-        stored.push({ id, reporter: p.reporter, text: p.text, replyTo: target })
+        stored.push({ id, reporter: p.reporter, text: p.text, replyTo: target, sendAfter })
         await saveStances(stancesToStore(p.stances, facts, p.reporter, night, id), tag)
         noteWritten(
           p.reporter,
@@ -721,6 +758,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     if (stored.length === out.length) await markDone(jobId, tag)
 
     for (const s of stored) {
+      if (s.sendAfter !== null) continue // a later pass sends it
       const payload = buildNewsPostPayload({
         reporter: REPORTERS[s.reporter],
         text: s.text,

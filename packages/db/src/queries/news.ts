@@ -1,4 +1,17 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import { db } from '../client.js'
 import {
   newsAiUsage,
@@ -431,6 +444,55 @@ export function undeliveredNewsItemsQuery(limit: number) {
 
 export async function listUndeliveredNewsItems(limit: number): Promise<NewsItemRow[]> {
   return undeliveredNewsItemsQuery(limit)
+}
+
+/**
+ * Items waiting for their send time (C3b.4): pending, `send_after` reached,
+ * real, not deleted. Oldest send time first, so a game's posts go out in order.
+ */
+export function dueNewsItemsQuery(now: Date, limit: number) {
+  return db
+    .select()
+    .from(newsItems)
+    .where(
+      and(
+        eq(newsItems.discordStatus, 'pending'),
+        isNotNull(newsItems.sendAfter),
+        lte(newsItems.sendAfter, now),
+        eq(newsItems.isTest, false),
+        isNull(newsItems.deletedAt),
+      ),
+    )
+    .orderBy(asc(newsItems.sendAfter), asc(newsItems.id))
+    .limit(limit)
+}
+
+export async function listDueNewsItems(now: Date, limit: number): Promise<NewsItemRow[]> {
+  return dueNewsItemsQuery(now, limit)
+}
+
+/**
+ * Take a waiting item for sending: clears `send_after`, so no later pass picks
+ * it again (a send whose outcome is unknown must never be repeated). True when
+ * this call took it.
+ */
+export function claimDueNewsItemQuery(id: number) {
+  return db
+    .update(newsItems)
+    .set({ sendAfter: null })
+    .where(
+      and(
+        eq(newsItems.id, id),
+        eq(newsItems.discordStatus, 'pending'),
+        isNotNull(newsItems.sendAfter),
+        isNull(newsItems.deletedAt),
+      ),
+    )
+    .returning({ id: newsItems.id })
+}
+
+export async function claimDueNewsItem(id: number): Promise<boolean> {
+  return (await claimDueNewsItemQuery(id)).length > 0
 }
 
 /** Deleted items whose Discord message still exists. */
@@ -1020,6 +1082,7 @@ type RawNewsItem = {
   takes_used?: number[] | string
   /** Part C3b column; absent on an older row shape. */
   rules_version?: string | null
+  send_after?: string | Date | null
   is_test: boolean
   discord_status: NewsItemRow['discordStatus']
   discord_attempts: number
@@ -1071,6 +1134,7 @@ export function rawToNewsItem(r: RawNewsItem): NewsItemRow {
     zeroCalled: jsonArray<string>(r.zero_called),
     takesUsed: jsonArray<number>(r.takes_used),
     rulesVersion: r.rules_version ?? null,
+    sendAfter: r.send_after == null ? null : toDate(r.send_after),
     isTest: r.is_test,
     discordStatus: r.discord_status,
     discordAttempts: r.discord_attempts,
