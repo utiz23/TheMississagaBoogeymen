@@ -782,7 +782,11 @@ void test('C3a.10 review prompt: labels, takes fairness, language level, AI goal
   })
   assert.ok(
     withTake.includes(
-      '- Take 3 on Skater B, critics Dex Mercer, Gord Pettibone, defender Mara Quill, MILD (Go easy): Invented take.',
+      '- take 3: Invented take. (on Skater B; critics Dex Mercer, Gord Pettibone; defender Mara Quill; MILD (Go easy))',
     ),
+  )
+  // C3a fix I1: the reviewer cites a take by its id only.
+  assert.ok(
+    withTake.includes('refer to a take only as "take N" (its id); never repeat or quote its words'),
   )
 })

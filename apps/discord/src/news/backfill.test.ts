@@ -1098,3 +1098,74 @@ void test('C3a.11 import: a big game article keeps its match and kind; a feature
   assert.equal(rows[0]!.weekStart, null)
   assert.equal(rows[1]!.featureKind, extra.articleKind === 'spotlight' ? 'spotlight' : 'bigpicture')
 })
+
+void test('C3a fix I1: take texts never reach a status file or the check output', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'backfill-redact-'))
+  try {
+    const take = {
+      id: 7,
+      reporter: 'mercer' as const,
+      critics: [
+        'voss',
+        'barlow',
+        'halberd',
+        'vale',
+        'quill',
+        'rink',
+        'pettibone',
+        'bergstrom',
+      ] as ReporterId[],
+      defender: null,
+      playerId: 1,
+      player: 'Skater A',
+      take: 'He hides from the hard minutes in every close game.',
+      spread: 'some' as const,
+      dataAngle: null,
+      intensity: 0,
+      mild: false,
+    }
+    const games = { '2026-05-08': [replyGame(REPLY_ID, '2026-05-08', at('2026-05-09', '02:00'))] }
+    const web = fakeWeb(games)
+    const plan = await planBackfill({
+      nights: Object.keys(games),
+      fetchFacts: async (kind, key) => ({ ...(await web.fetchFacts(kind, key)), takes: [take] }),
+    })
+    writePlan(dir, plan)
+    const job = plan.jobs[0]!
+    assert.ok(job.user.includes('He hides from the hard minutes'), 'the job file keeps the take')
+    // A passing answer: the review prompt (with the take) goes into the status file.
+    writeFileSync(join(dir, 'answers', `${job.id}.json`), goodAnswer(job))
+    // A second answer that quotes the take: its problems go into the status file too.
+    const night = plan.jobs.find((j) => j.kind === 'night')!
+    writeFileSync(
+      join(dir, 'answers', `${night.id}.json`),
+      JSON.stringify({
+        headline: 'H',
+        dek: 'D',
+        paragraphs: ['He hides from the hard minutes in every close game, 7 times.'],
+        summary: 'S',
+        mentions: [],
+        clubs: [],
+        criticized: [],
+        zeroCalled: [],
+        stances: [],
+        takesUsed: [],
+      }),
+    )
+    const lines: string[] = []
+    runCheck(dir, (l) => lines.push(l))
+    for (const f of readdirSync(join(dir, 'status'))) {
+      const text = readFileSync(join(dir, 'status', f), 'utf8')
+      assert.ok(!/hides from the hard minutes/i.test(text), f)
+    }
+    assert.ok(!lines.some((l) => /hides from the hard minutes/i.test(l)))
+    const review = JSON.parse(readFileSync(join(dir, 'status', `${job.id}.json`), 'utf8')) as {
+      state: string
+      takesNote?: string
+    }
+    assert.equal(review.state, 'review')
+    assert.match(review.takesNote ?? '', /read them in the job file/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

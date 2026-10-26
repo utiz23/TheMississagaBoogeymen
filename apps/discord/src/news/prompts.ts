@@ -609,8 +609,9 @@ export function buildReviewPrompt(args: {
           'The writer was offered these reporter takes (private desk notes; only their critics may voice them):',
           ...takes.map(
             (t) =>
-              `- Take ${String(t.id)} on ${t.player}, critics ${[t.reporter, ...t.critics].map((c) => REPORTERS[c].name).join(', ')}${t.defender === null ? '' : `, defender ${REPORTERS[t.defender].name}`}${t.mild ? ', MILD (Go easy)' : ''}: ${t.take}`,
+              `- take ${String(t.id)}: ${t.take} (on ${t.player}; critics ${[t.reporter, ...t.critics].map((c) => REPORTERS[c].name).join(', ')}${t.defender === null ? '' : `; defender ${REPORTERS[t.defender].name}`}${t.mild ? '; MILD (Go easy)' : ''})`,
           ),
+          'In "problems", refer to a take only as "take N" (its id); never repeat or quote its words.',
         ]
   return [
     'You are the second check of a news desk. A fictional reporter wrote the text below from the fact sheet. A program already checked the digits and number words in the text, the names the reporter listed, the club names the reporter listed, swear words, pronouns and the labels it can match. It did not read the text for other names, for stats written in other ways, or for tone. Check what the program cannot check.',

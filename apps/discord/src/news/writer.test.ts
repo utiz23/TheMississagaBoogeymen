@@ -300,3 +300,42 @@ void test('anthropicModelCall maps SDK errors by class', async () => {
     (e: unknown) => e instanceof NewsJobError && e.message.includes('E400'),
   )
 })
+
+void test('C3a fix I1: an offered take text never reaches the failure reason', async () => {
+  const take = {
+    id: 3,
+    reporter: 'mercer' as const,
+    critics: [],
+    defender: null,
+    playerId: 1,
+    player: 'Skater A',
+    take: 'He pads his points against the weakest clubs in the league.',
+    spread: 'some' as const,
+    dataAngle: null,
+    intensity: 0,
+    mild: false,
+  }
+  const leak = {
+    json: {
+      ok: false,
+      problems: [
+        'The post repeats take 3 word for word: "He pads his points against the weakest clubs in the league."',
+        'It says he pads his points against the weakest clubs.',
+      ],
+    },
+  }
+  const { call } = fakeCall([
+    { json: { text: 'one' } },
+    leak,
+    { json: { text: 'two' } },
+    leak,
+    { json: { text: 'three' } },
+    leak,
+  ])
+  const r = await writeChecked({ ...args(call, harness()), takesForReview: [take] })
+  assert.equal(r.ok, false)
+  if (r.ok) return
+  assert.ok(!/pads his points/i.test(r.reason), r.reason)
+  assert.ok(!/weakest clubs/i.test(r.reason), r.reason)
+  assert.ok(r.reason.includes('take 3'))
+})

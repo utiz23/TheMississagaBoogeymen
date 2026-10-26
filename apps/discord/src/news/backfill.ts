@@ -124,6 +124,7 @@ import {
 } from './prompts.ts'
 import { NEWS_RULES_VERSION } from './rules-version.ts'
 import { classifyGame } from './situation.ts'
+import { redactTakes } from './redact.ts'
 import { fetchNewsFacts } from './web-client.ts'
 
 /** A night's article is dated 90 minutes after its last game (when the night ends). */
@@ -941,6 +942,32 @@ export interface CheckSummary {
   accepted: number
 }
 
+/** Where a status file sends the writer for the take texts it leaves out. */
+export const TAKES_NOTE =
+  'Take texts are left out of status files; read them in the job file (sheet.takes).'
+
+/** The evaluation with every offered take text replaced by "take N" (C3a fix I1). */
+function redactEvaluation(e: Evaluation, job: BackfillJob): Evaluation {
+  const takes = job.sheet.takes
+  if (takes.length === 0) return e
+  const r = (t: string) => redactTakes(t, takes)
+  const note = { takesNote: TAKES_NOTE }
+  if (e.state === 'waiting')
+    return e.prompt === undefined ? e : { ...e, prompt: r(e.prompt), ...note }
+  if (e.state === 'rewrite') {
+    return { ...e, problems: e.problems.map(r), rewritePrompt: r(e.rewritePrompt), ...note }
+  }
+  if (e.state === 'review') {
+    return {
+      ...e,
+      reviewPrompt: r(e.reviewPrompt),
+      ...(e.reviewError === undefined ? {} : { reviewError: r(e.reviewError) }),
+      ...note,
+    }
+  }
+  return e
+}
+
 /** Writes status/<id>.json for every answered job (removes it for the others) and prints a table. */
 export function runCheck(out: string, log: (line: string) => void): CheckSummary {
   const d = dirs(out)
@@ -948,7 +975,9 @@ export function runCheck(out: string, log: (line: string) => void): CheckSummary
   const summary: CheckSummary = { waiting: 0, rewrite: 0, review: 0, accepted: 0 }
   const width = 30
   log(`${'job'.padEnd(width)}  ${'state'.padEnd(9)}  reporters / detail`)
-  for (const { job, evaluation: e } of evaluateDir(out)) {
+  for (const { job, evaluation } of evaluateDir(out)) {
+    // C3a fix I1: take texts never reach a status file or the console (they stay in the job file).
+    const e = redactEvaluation(evaluation, job)
     summary[e.state]++
     const file = join(d.status, `${job.id}.json`)
     let detail = job.reporters.join('+')

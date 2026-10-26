@@ -3,6 +3,7 @@ import type { NewsFacts, NewsTake } from '@eanhl/db/news'
 import type { Usage } from './cost.ts'
 import { REVIEW_SYSTEM_PROMPT, buildReviewPrompt, buildRewritePrompt } from './prompts.ts'
 import { REVIEW_SCHEMA, parseReview } from './outputs.ts'
+import { redactTakes } from './redact.ts'
 
 /**
  * The Claude writer: one structured call to write, a program check, a second
@@ -199,5 +200,7 @@ export async function writeChecked<T>(args: {
     return { ok: true, out }
   }
 
-  return { ok: false, reason: `failed after ${String(MAX_WRITES)} writes: ${problems.join('; ')}` }
+  // C3a fix I1: a take's words never reach the job's error or a log line.
+  const reason = `failed after ${String(MAX_WRITES)} writes: ${problems.join('; ')}`
+  return { ok: false, reason: redactTakes(reason, args.takesForReview ?? []) }
 }
