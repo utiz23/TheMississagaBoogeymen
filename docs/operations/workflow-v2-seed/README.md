@@ -1,6 +1,6 @@
 # Workflow v2 seed (NOT in force)
 
-Status: **seed only**, planted 2026-11-04 on the operator's request ("copy this new workflow into the
+Status: **used 2026-11-09** for `docs/operations/workflow-v2.md` (now in force); kept for reference. Was **seed only**, planted 2026-11-04 on the operator's request ("copy this new workflow into the
 sister project, we will set it up later"). Until the operator starts the switch-over here, the rules in
 `CLAUDE.md` and `docs/operations/agent-manager-workflow.md` stay in force. Nothing in this folder changes
 how this repo works today.
@@ -13,6 +13,7 @@ may edit, a written go rule and stop conditions; one branch and worktree per pie
 a Verifier re-checks any claimed number; the operator sees one live decision page.
 
 Files here, copied unchanged from the engine at commit b9e2914:
+
 - `workflow-v2.md`: the guide (roles, states, lanes, git rules, checks, evidence rules, limits, switch-over).
 - `kickoff-prompts.md`: the prompts to paste (P0 wrap-up, P1 Lead, P2 task agent, P3 Verifier, P4 review).
 - `task-template.md`: the template for one piece of work (the engine calls it a "card").
