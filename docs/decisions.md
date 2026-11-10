@@ -7,9 +7,9 @@ Last update: **2026-11-09** (Lead). All tasks: `docs/board.md`.
 
 | ID  | Question                                                                                                                         | My advice                                               | Waiting costs                                |
 | --- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------- |
-| D1  | Badge announcements: stop the Discord badge posts and take badges out of the news fact sheet? Badges stay on the site and cards. | Yes, both. Leave the 105 old Discord messages in place. | ~5–10 badge posts per game night keep coming |
+| D1  | Deploy the badge change? Code is merged (`5f3dcdc7`). Order: `web`, then `discord`, with rollback tags.                          | Yes, now: badge posts stop as soon as `web` is live     | ~5–10 badge posts per game night keep coming |
 | D2  | Goalie game score: which fix (A volume-weighted SV%, B saves above expected, C minimum for a star), and may AI goalies be stars? | Decide after the side-by-side on recent games           | Wrong stars on game pages and in Discord     |
-| D3  | News live: when to switch the news desk to #chel and the site                                                                    | After the order fix and a read of the last test stories | Stories stay hidden in test mode             |
+| D3  | News live: when to switch to #chel and the site; wire posts and article teasers in one channel (today: yes, one webhook)?        | After the order fix and a read of the last test stories | Stories stay hidden in test mode             |
 
 ## 2. Can start now
 

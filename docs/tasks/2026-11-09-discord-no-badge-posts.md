@@ -1,6 +1,6 @@
 # Task: No more badge announcements
 
-- **State:** Verify (Lead did it itself: small task, operator "all approved" 2026-11-09)
+- **State:** Merged (`5f3dcdc7`, 2026-11-09); deploy waits for the operator's OK (D1)
 - **Lane:** Discord, with one Queries file and one Web file (named below)
 - **Risk:** low (stops a message type; no data change)
 - **Slug:** no-badge-posts (branch `work/no-badge-posts`, worktree `.claude/worktrees/no-badge-posts`)

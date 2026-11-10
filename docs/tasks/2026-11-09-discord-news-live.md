@@ -30,8 +30,10 @@ night, and the feed reads newest game first.
    `played_at`), then id. Same for paging (the cursor must follow the new order) and the reporter page.
 2. **Pre-live check:** list what posts where (site, #chel, test channel); read the last 10 test stories
    for anything private or wrong; check the cost cap (`NEWS_MONTHLY_LIMIT_USD`, workspace $10 limit).
-3. **Decide old test stories:** keep hidden, or publish the good ones.
-4. **Switch-over (high, operator steps):** the operator makes a #chel webhook; the Lead gives the exact
+3. **Channels (operator question 2026-11-09):** today ONE webhook carries both the wire posts
+   ("tweets") and the article teasers, so both go to #chel. Separate channels = a small code change.
+4. **Decide old test stories:** keep hidden, or publish the good ones.
+5. **Switch-over (high, operator steps):** the operator makes a #chel webhook; the Lead gives the exact
    `.env` lines; restart `news`; watch the first game night; rollback = `NEWS_DRY_RUN=1` + restart.
 
 ## Done when
