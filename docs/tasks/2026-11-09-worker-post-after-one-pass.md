@@ -1,6 +1,6 @@
 # Task: Game posts after one worker pass
 
-- **State:** Merged (Lead did it; operator request 2026-11-09 "change it to poster checks once")
+- **State:** Deployed 2026-11-09 (`worker`, then `discord`, at `ce88ac63`; rollback tags `:rollback-he-2026-11-09-pre-one-pass`)
 - **Lane:** Worker, with one Queries file
 - **Risk:** medium (ingestion bookkeeping + Discord timing)
 - **Slug:** post-after-one-pass
@@ -32,3 +32,4 @@ see the end of a pass, so it waited for the next one.
 - Checks: db + worker + discord typecheck; db discord-posts + news tests 60/60; the new candidate SQL
   run read-only on live (valid, 0 rows: all posted); prettier. Not run: worker integration tests
   (need the Docker test database; none on the main PC).
+- 2026-11-09 Lead: deployed. Live: the next pass stamped its 3 rows together at 02:49:11.529 (after the card update); worker health 200 ok on the new stamp; `discord` started live. First timing check: the next game night.

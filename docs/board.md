@@ -8,11 +8,12 @@ Limits: 2 task agents at once; 3 open operator decisions. Updated 2026-11-09 by 
 
 ## Open tasks
 
-| Task                                                                       | Lane            | Risk   | State          | Next                                      |
-| -------------------------------------------------------------------------- | --------------- | ------ | -------------- | ----------------------------------------- |
-| [No badge announcements](tasks/2026-11-09-discord-no-badge-posts.md)       | Discord         | low    | Deployed 11-09 | done                                      |
-| [Goalie game score for 3 stars](tasks/2026-11-09-web-three-stars-score.md) | Web             | medium | Deployed 11-09 | done                                      |
-| [News live, in time order](tasks/2026-11-09-discord-news-live.md)          | Queries/Web/Ops | high   | Deployed 11-09 | watch the first game night in the channel |
+| Task                                                                        | Lane            | Risk   | State          | Next                                      |
+| --------------------------------------------------------------------------- | --------------- | ------ | -------------- | ----------------------------------------- |
+| [No badge announcements](tasks/2026-11-09-discord-no-badge-posts.md)        | Discord         | low    | Deployed 11-09 | done                                      |
+| [Goalie game score for 3 stars](tasks/2026-11-09-web-three-stars-score.md)  | Web             | medium | Deployed 11-09 | done                                      |
+| [News live, in time order](tasks/2026-11-09-discord-news-live.md)           | Queries/Web/Ops | high   | Deployed 11-09 | watch the first game night in the channel |
+| [Game posts after one pass](tasks/2026-11-09-worker-post-after-one-pass.md) | Worker          | medium | Deployed 11-09 | check the timing on the next game night   |
 
 ## Branches and worktrees from before v2
 

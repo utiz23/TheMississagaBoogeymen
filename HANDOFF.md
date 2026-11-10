@@ -42,15 +42,13 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 **Member-only player pages are live** (2026-10-09, `fafeefb`; rollback `:rollback-he-2026-10-09-pre-members`): only team members, present and past (EA member list for any title, member archive, pinned, AI goalies — 18 of 92) have a `/roster/[id]` page; guests 404 and show as plain text elsewhere (`PlayerLink` + `MemberLinks`), and the home carousel shows members only.
 
-**Also live 2026-10-09** (`3d62b8a`; rollback `:rollback-he-2026-10-09-pre-locker-v3`): stats-table size tiers, Build Locker v3 (persona name from OCR), Action Map clocks, short-code build names.
-
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
 ## Latest Verified Checkpoint
 
 **Latest deploys 2026-11-09:** no badge posts (web, discord `761c5186`; rollback
 `:rollback-he-2026-11-09-pre-no-badges`); news desk live (`NEWS_DRY_RUN=0`, webhook set; rollback
-`NEWS_DRY_RUN=1` + `up -d --no-deps news`); web `820bf96a` goalie stars + feed order (`:…-pre-goalie-stars`).
+`NEWS_DRY_RUN=1` + `up -d --no-deps news`); web `820bf96a` goalie stars + feed order (`:…-pre-goalie-stars`); worker + discord `ce88ac63` game posts after one pass (`:…-pre-one-pass`).
 
 **2026-10-26: club-only badges** (web, worker, discord `06992a2`; rollback `:rollback-he-2026-10-26-pre-club-badges`; card dump `~/eanhl-backups/manual/cards-pre-rebase-2026-10-26-1600.dump`). Badges count club games only; NHL 27 card history reset once (`card-recompute --rebase`). [Spec](docs/superpowers/specs/2026-10-26-club-only-badges-design.md).
 
