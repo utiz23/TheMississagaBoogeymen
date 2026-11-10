@@ -4,6 +4,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildAllTeamScores,
   buildBoxScore,
   buildClassName,
   buildClassToArchetype,
@@ -148,4 +149,97 @@ void test('buildBoxScore: Save % is saves / shots against in hockey style, not c
   const goalie = buildBoxScore(match, bgm, opp).find((g) => g.title === 'Goalie')
   const savePct = goalie?.rows.find((r) => r.label === 'Save %')
   assert.deepEqual(savePct, { label: 'Save %', us: '.917', them: '.850' })
+})
+
+// ── Goalie score and star rule (operator, 2026-11-09: fix A + .900 minimum) ──
+
+type ScoreArgs = Parameters<typeof buildAllTeamScores>
+const zeroSkater = {
+  gamertag: 'x',
+  position: 'center',
+  isGoalie: false,
+  goals: 0,
+  assists: 0,
+  plusMinus: 0,
+  shots: 0,
+  hits: 0,
+  interceptions: 0,
+  blockedShots: 0,
+  takeaways: 0,
+  giveaways: 0,
+  faceoffWins: 0,
+  faceoffLosses: 0,
+  penaltiesDrawn: 0,
+  pim: 0,
+  saves: null,
+  goalsAgainst: null,
+  shotsAgainst: null,
+  despSaves: null,
+  breakawaySaves: null,
+  penSaves: null,
+  pokechecks: null,
+}
+const skaterRow = (id: number, tag: string, over: Partial<typeof zeroSkater>) => ({
+  ...zeroSkater,
+  playerId: id,
+  gamertag: tag,
+  ...over,
+})
+const goalieRow = (id: number, tag: string, saves: number, shotsAgainst: number) => ({
+  ...zeroSkater,
+  playerId: id,
+  gamertag: tag,
+  position: 'goalie',
+  isGoalie: true,
+  saves,
+  shotsAgainst,
+  goalsAgainst: shotsAgainst - saves,
+  despSaves: 0,
+  breakawaySaves: 0,
+  penSaves: 0,
+  pokechecks: 0,
+})
+const winMatch = { result: 'WIN', scoreFor: 2, scoreAgainst: 1 } as ScoreArgs[0]
+const scores = (bgm: unknown[]) =>
+  buildAllTeamScores(winMatch, bgm as ScoreArgs[1], [] as unknown as ScoreArgs[2])
+const svFactor = (bgm: unknown[], tag: string) =>
+  scores(bgm)
+    .find((e) => e.gamertag === tag)
+    ?.breakdown.find((f) => f.label === 'SV%')
+
+void test('goalie SV% weight grows with shots: × 15 from 15 shots, × 4 on 4 shots', () => {
+  assert.equal(svFactor([goalieRow(1, 'G', 2, 4)], 'G')?.weight, 4)
+  assert.equal(svFactor([goalieRow(1, 'G', 2, 4)], 'G')?.contribution, 2)
+  assert.equal(svFactor([goalieRow(1, 'G', 23, 25)], 'G')?.weight, 15)
+  assert.equal(svFactor([goalieRow(1, 'G', 15, 15)], 'G')?.weight, 15)
+  // Old score for 2 of 4: 0.4 + 7.5 − 1.6 + 1 win = 7.3; new: 0.4 + 2 − 1.6 + 1 = 1.8.
+  const g = scores([goalieRow(1, 'G', 2, 4)])[0]
+  assert.ok(g && Math.abs(g.score - 1.8) < 1e-9)
+})
+
+void test('a goalie under .900 is never a star; the stars lead, the rest follow by score', () => {
+  const bgm = [
+    goalieRow(1, 'LOWSV', 7, 8), // .875 on 8 shots: scores 1.4 + 7 − 0.8 + 1 = 8.6, not eligible
+    skaterRow(2, 'A', { goals: 1 }),
+    skaterRow(3, 'B', { assists: 1 }),
+    skaterRow(4, 'C', { shots: 2 }),
+  ]
+  const ranked = scores(bgm)
+  assert.deepEqual(
+    ranked.slice(0, 3).map((e) => e.gamertag),
+    ['A', 'B', 'C'],
+  )
+  assert.equal(ranked[3]?.gamertag, 'LOWSV')
+  // The goalie outscores C, so the rest is not simply "lowest score last" for stars.
+  assert.ok((ranked[3]?.score ?? 0) > (ranked[2]?.score ?? 0))
+})
+
+void test('a goalie at .900 or better with a real workload can be the first star', () => {
+  const ranked = scores([goalieRow(1, 'WALL', 28, 29), skaterRow(2, 'A', { goals: 1 })])
+  assert.equal(ranked[0]?.gamertag, 'WALL')
+})
+
+void test('a goalie with no shots against is never a star', () => {
+  const ranked = scores([goalieRow(1, 'IDLE', 0, 0), skaterRow(2, 'A', {})])
+  assert.notEqual(ranked[0]?.gamertag, 'IDLE')
 })
