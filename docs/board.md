@@ -8,11 +8,11 @@ Limits: 2 task agents at once; 3 open operator decisions. Updated 2026-11-09 by 
 
 ## Open tasks
 
-| Task                                                                       | Lane            | Risk   | State             | Next                                   |
-| -------------------------------------------------------------------------- | --------------- | ------ | ----------------- | -------------------------------------- |
-| [No badge announcements](tasks/2026-11-09-discord-no-badge-posts.md)       | Discord         | low    | Merged `5f3dcdc7` | deploy `web` then `discord` (D1)       |
-| [Goalie game score for 3 stars](tasks/2026-11-09-web-three-stars-score.md) | Web             | medium | Proposed          | side-by-side, then operator picks (D2) |
-| [News live, in time order](tasks/2026-11-09-discord-news-live.md)          | Queries/Web/Ops | high   | Proposed          | order fix first; switch-over is D3     |
+| Task                                                                       | Lane            | Risk   | State                                         | Next                                                        |
+| -------------------------------------------------------------------------- | --------------- | ------ | --------------------------------------------- | ----------------------------------------------------------- |
+| [No badge announcements](tasks/2026-11-09-discord-no-badge-posts.md)       | Discord         | low    | Deployed 11-09                                | done                                                        |
+| [Goalie game score for 3 stars](tasks/2026-11-09-web-three-stars-score.md) | Web             | medium | Verify (`work/three-stars-score`, `938c8fe2`) | operator OK on side-by-side (D1), then merge + deploy `web` |
+| [News live, in time order](tasks/2026-11-09-discord-news-live.md)          | Queries/Web/Ops | high   | Running: order fix merged `6f66f492`          | deploy with `web`; cost cap (D2); switch-over (D3)          |
 
 ## Branches and worktrees from before v2
 

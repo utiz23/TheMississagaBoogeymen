@@ -22,8 +22,8 @@ always the operator's OK. Guide [`workflow-v2.md`](docs/operations/workflow-v2.m
 [`docs/board.md`](docs/board.md); **operator's live page [`docs/decisions.md`](docs/decisions.md)**;
 commit/push rules in `CLAUDE.md`.
 
-**Operator requests 2026-11-09** (`docs/tasks/`): no badge posts (merged `5f3dcdc7`, deploy D1);
-goalie score for the 3 stars (D2); news live in #chel, in time order (D3).
+**Operator requests 2026-11-09** (`docs/tasks/`): no badge posts (LIVE 11-09); goalie score for
+the 3 stars (branch ready, D1); news live in #chel, in time order (order fix merged; D2 cost, D3).
 
 ## Current Objective / Status
 
@@ -48,7 +48,10 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 ## Latest Verified Checkpoint
 
-**Latest deploy 2026-10-26: club-only badges** (web, worker, discord `06992a2`; rollback `:rollback-he-2026-10-26-pre-club-badges`; card-table dump `~/eanhl-backups/manual/cards-pre-rebase-2026-10-26-1600.dump`). Badges count club games only (dekes, fights, breakaways still from EA); NHL 27 card history reset once with `card-recompute --rebase`; numbers not Roman numerals; Discord skips card level-ups. [Spec](docs/superpowers/specs/2026-10-26-club-only-badges-design.md), [journal](docs/journal/2026-10.md).
+**Latest deploy 2026-11-09: no badge announcements** (web, discord at `761c5186`; rollback
+`:rollback-he-2026-11-09-pre-no-badges`). Checked: badge event → `{ skip }`, tier event → data.
+
+**2026-10-26: club-only badges** (web, worker, discord `06992a2`; rollback `:rollback-he-2026-10-26-pre-club-badges`; card dump `~/eanhl-backups/manual/cards-pre-rebase-2026-10-26-1600.dump`). Badges count club games only; NHL 27 card history reset once (`card-recompute --rebase`). [Spec](docs/superpowers/specs/2026-10-26-club-only-badges-design.md).
 
 **2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean.
 

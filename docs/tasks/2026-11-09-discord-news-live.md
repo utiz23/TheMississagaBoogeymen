@@ -50,3 +50,10 @@ night, and the feed reads newest game first.
   (read-only): page 1 = 227 (week of 06-15), 220, 219 (06-21), 211 (06-20), 207; page 2 after 211 =
   207, 202, 196, 192, 190. Was: a 05-22 story first. db news tests 57/57, db + web typecheck pass.
   Not changed: the writer's own "recent pieces" queries (internal, still by id).
+- 2026-11-09 Lead: order fix merged (`6f66f492`), not deployed (goes with the next `web` deploy).
+- 2026-11-09 Lead, pre-live check: (a) where: one webhook for wire posts and article teasers (#chel when
+  set), the site shows every non-test item, the test channel gets copies only in test mode. (b) read
+  the 14 newest test items: club names only, nothing private seen. (c) **cost:** November $12.40 of
+  the $20 app cap in 9 days (Opus 5.5: write $10.70, review $1.71); last two nights $4.32 and $5.38.
+  At this pace the cap stops the desk within a few game nights: raise the cap (and the Anthropic
+  workspace limit) or use a cheaper model before going live.

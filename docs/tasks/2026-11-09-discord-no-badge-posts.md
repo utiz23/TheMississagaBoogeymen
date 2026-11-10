@@ -1,6 +1,6 @@
 # Task: No more badge announcements
 
-- **State:** Merged (`5f3dcdc7`, 2026-11-09); deploy waits for the operator's OK (D1)
+- **State:** Deployed 2026-11-09 (`web`, then `discord`, at `761c5186`; rollback tags `:rollback-he-2026-11-09-pre-no-badges`)
 - **Lane:** Discord, with one Queries file and one Web file (named below)
 - **Risk:** low (stops a message type; no data change)
 - **Slug:** no-badge-posts (branch `work/no-badge-posts`, worktree `.claude/worktrees/no-badge-posts`)
@@ -69,3 +69,4 @@ next (the operator's OK).
 - **Not done:** deploy (operator's OK). Old badge messages stay in the channel. The `card_level` kind
   is also dead for Discord since 2026-10-26 but still feeds the news sheet; left as it is.
 - **Git state:** see the commit on `work/no-badge-posts`.
+- 2026-11-09 Lead: deployed (operator D1 "yes"). Live check: badge event 365 → `{ skip }`; tier event 330 → its data; `discord` started (live).
