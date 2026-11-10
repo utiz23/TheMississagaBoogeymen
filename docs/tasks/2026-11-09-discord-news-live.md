@@ -1,10 +1,10 @@
 # Task: News desk live on the site and in #chel, in time order
 
-- **State:** Proposed (plan only)
+- **State:** Running (operator 2026-11-09: "your advice" = order fix first, then the pre-live check; switch-over after that)
 - **Lane:** Queries + Web (order), then Ops (switch-over)
 - **Risk:** high for the switch-over (posts to the team channel, AI text goes public); low for the order fix
 - **Slug:** news-live
-- **Operator approval:** pending
+- **Operator approval:** 2026-11-09 (order fix and pre-live check; switch-over still D3)
 - **Operator gate before merge:** yes
 - **Needs a deploy:** yes: `web`, then `news` env change (`NEWS_DRY_RUN=0`, `NEWS_WEBHOOK_URL`)
 
@@ -44,3 +44,9 @@ night, and the feed reads newest game first.
 ## Log
 
 - 2026-11-09 Lead: state found (above).
+- 2026-11-09 Lead: order fix on `work/news-order`. `created_at` holds the story time (the backfill
+  kept each game night), so the feed and the reporter page sort by `created_at desc, id desc`; the
+  "more" cursor stays an item id and continues below that item's `(created_at, id)`. Checked on live
+  (read-only): page 1 = 227 (week of 06-15), 220, 219 (06-21), 211 (06-20), 207; page 2 after 211 =
+  207, 202, 196, 192, 190. Was: a 05-22 story first. db news tests 57/57, db + web typecheck pass.
+  Not changed: the writer's own "recent pieces" queries (internal, still by id).
