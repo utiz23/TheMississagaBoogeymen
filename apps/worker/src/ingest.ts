@@ -53,6 +53,32 @@ export function selectIngestionEligibleTitles() {
 }
 
 export async function runIngestionCycle(): Promise<void> {
+  try {
+    await runIngestionCycleSteps()
+  } finally {
+    await markCycleFinished()
+  }
+}
+
+/**
+ * Stamp `finished_at` on this pass's ingestion_log rows, after every step
+ * (AI goalies, aggregates, members, cards). The discord poster posts a game
+ * once its row is stamped (operator, 2026-11-09: post after one pass, not
+ * the next). The loop never overlaps, so every unstamped row is this pass's
+ * (or one a crash left unstamped, which is then finished too).
+ */
+export async function markCycleFinished(): Promise<void> {
+  try {
+    await db
+      .update(ingestionLog)
+      .set({ finishedAt: new Date() })
+      .where(isNull(ingestionLog.finishedAt))
+  } catch (err) {
+    console.error('[ingest] Could not stamp the finished pass:', err)
+  }
+}
+
+async function runIngestionCycleSteps(): Promise<void> {
   const activeGameTitles = await selectIngestionEligibleTitles()
 
   if (activeGameTitles.length === 0) {
@@ -253,10 +279,10 @@ async function ingestMatchType(title: GameTitle, matchType: EaMatchType): Promis
     }
   }
 
+  // finished_at is stamped at the end of the whole pass (markCycleFinished).
   await db
     .update(ingestionLog)
     .set({
-      finishedAt: new Date(),
       matchesFound,
       matchesNew,
       transformsFailed,
