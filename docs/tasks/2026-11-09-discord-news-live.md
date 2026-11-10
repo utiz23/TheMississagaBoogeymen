@@ -1,6 +1,6 @@
 # Task: News desk live on the site and in #chel, in time order
 
-- **State:** Running (operator 2026-11-09: "your advice" = order fix first, then the pre-live check; switch-over after that)
+- **State:** Deployed 2026-11-09 (news desk live; watch the first game night)
 - **Lane:** Queries + Web (order), then Ops (switch-over)
 - **Risk:** high for the switch-over (posts to the team channel, AI text goes public); low for the order fix
 - **Slug:** news-live
@@ -57,3 +57,12 @@ night, and the feed reads newest game first.
   the $20 app cap in 9 days (Opus 5.5: write $10.70, review $1.71); last two nights $4.32 and $5.38.
   At this pace the cap stops the desk within a few game nights: raise the cap (and the Anthropic
   workspace limit) or use a cheaper model before going live.
+- 2026-11-09 Lead, switch-over (operator sent the webhook): Hotel-Echo `.env` backed up to
+  `.env.bak-2026-11-09-pre-news-live`; `NEWS_WEBHOOK_URL` set (same channel as the game poster,
+  main server; webhook name "News Desk"); `NEWS_DRY_RUN=0`; `news` restarted: "started (live)".
+  The start step deleted the 49 test items by design (jobs kept, ruling R8): the covered games are
+  never written again; the test stories stay in the bot test channel; older ones are in the 11-09
+  backup. Nothing old is resent: the 230 public items are `discord_status = skipped`.
+- 2026-11-09 Lead: `web` deployed at `48a03828` (rollback `:rollback-he-2026-11-09-pre-news-order`):
+  `/news` leads with the week of 06-15, then 06-21. First #chel posts come with the next game.
+- **Rollback:** `NEWS_DRY_RUN=1` in `.env`, `docker compose up -d --no-deps news`.

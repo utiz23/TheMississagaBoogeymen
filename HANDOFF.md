@@ -22,8 +22,8 @@ always the operator's OK. Guide [`workflow-v2.md`](docs/operations/workflow-v2.m
 [`docs/board.md`](docs/board.md); **operator's live page [`docs/decisions.md`](docs/decisions.md)**;
 commit/push rules in `CLAUDE.md`.
 
-**Operator requests 2026-11-09** (`docs/tasks/`): no badge posts (LIVE 11-09); goalie score for
-the 3 stars (branch ready, D1); news live in #chel, in time order (order fix merged; D2 cost, D3).
+**Operator requests 2026-11-09** (`docs/tasks/`): no badge posts (LIVE); goalie score for the 3
+stars (branch ready, D1); news desk LIVE in the game channel, feed in time order (cost cap: D2).
 
 ## Current Objective / Status
 
@@ -48,14 +48,15 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 ## Latest Verified Checkpoint
 
-**Latest deploy 2026-11-09: no badge announcements** (web, discord at `761c5186`; rollback
-`:rollback-he-2026-11-09-pre-no-badges`). Checked: badge event → `{ skip }`, tier event → data.
+**Latest deploys 2026-11-09:** no badge posts (web, discord `761c5186`; rollback
+`:rollback-he-2026-11-09-pre-no-badges`); news desk live (`NEWS_DRY_RUN=0`, webhook set; rollback
+`NEWS_DRY_RUN=1` + `up -d --no-deps news`); web `48a03828` feed time order (`:…-pre-news-order`).
 
 **2026-10-26: club-only badges** (web, worker, discord `06992a2`; rollback `:rollback-he-2026-10-26-pre-club-badges`; card dump `~/eanhl-backups/manual/cards-pre-rebase-2026-10-26-1600.dump`). Badges count club games only; NHL 27 card history reset once (`card-recompute --rebase`). [Spec](docs/superpowers/specs/2026-10-26-club-only-badges-design.md).
 
 **2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean.
 
-**2026-10-09 — responsive sizes deployed** (`fb40008`, web; rollback `:rollback-he-2026-10-09-pre-responsive`): Medium/Small/Micro tiers, `PlayerCardCompact`, side rail ≥1680px; Charts & Visuals and Recent Form removed (`4095e49`, `:…-pre-no-form`).
+**2026-10-09 — responsive sizes deployed** (`fb40008`, web; rollback `:rollback-he-2026-10-09-pre-responsive`): size tiers; Charts & Visuals and Recent Form removed (`4095e49`, `:…-pre-no-form`).
 
 **2026-10-08 — Awards + migration 0064** (`d038b36`; rollback `:rollback-he-2026-10-08-pre-awards`; 0064 rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`). [Journal](docs/journal/2026-10.md).
 
