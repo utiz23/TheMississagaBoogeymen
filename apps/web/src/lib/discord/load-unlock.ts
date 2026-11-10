@@ -7,18 +7,16 @@ import {
   getRosterCarryOvers,
   getUnlockEvent,
 } from '@eanhl/db/queries'
-import type { BadgeFamilyId } from '@eanhl/db/cards'
 import { cardFromRosterRow } from '@/components/cards/card-adapters'
 import type { CardViewModel } from '@/components/cards/card-model'
 
 /**
  * One unlock's message data and graphic. Null (⇒ 404, the poster skips it)
  * when the event doesn't count any more: not a member, an AI goalie, a cleared
- * mythic, a non-counting kind.
+ * mythic, a non-counting kind (a badge level-up never counts since 2026-11-09).
  */
 export async function loadDiscordUnlock(eventId: number): Promise<{
   data: DiscordUnlock
-  badge: { familyId: BadgeFamilyId; level: number } | null
   card: CardViewModel | null
 } | null> {
   const ev = await getUnlockEvent(eventId)
@@ -52,7 +50,7 @@ export async function loadDiscordUnlock(eventId: number): Promise<{
   // Only a new card pings (spec); other kinds never look the ID up.
   const discordUserId =
     d.kind === 'tier' || d.kind === 'mythic' ? await getPlayerDiscordUserId(ev.playerId) : null
-  const graphic = d.graphic === 'badge' ? 'badge' : card ? 'card' : 'none'
+  const graphic = card ? 'card' : 'none'
   return {
     data: {
       eventId,
@@ -63,7 +61,6 @@ export async function loadDiscordUnlock(eventId: number): Promise<{
       graphic,
       discordUserId,
     },
-    badge: d.badge ?? null,
     card: graphic === 'card' ? card : null,
   }
 }

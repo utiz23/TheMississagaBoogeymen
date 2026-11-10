@@ -18,7 +18,7 @@ export interface UnlockStore {
 export interface UnlockDeps {
   store: UnlockStore
   fetchUnlock(eventId: number): Promise<DiscordUnlock | DiscordUnlockSkip>
-  render(eventId: number, graphic: 'badge' | 'card'): Promise<Uint8Array>
+  render(eventId: number, graphic: 'card'): Promise<Uint8Array>
   send(payload: MessagePayload, image: Uint8Array | null): Promise<string | null>
   writeDryRun(key: string, payload: MessagePayload, image: Uint8Array | null): Promise<void>
   pause(ms: number): Promise<void>

@@ -14,7 +14,7 @@ const { discordUnlockCandidatesSql, claimDiscordUnlockSql } =
 const dialect = new PgDialect()
 const flat = (s: string) => s.replace(/\s+/g, ' ')
 
-void test('candidates: counted kinds (every badge level), members only, settled, ordered, limited', () => {
+void test('candidates: new cards and mythics only, members only, settled, ordered, limited', () => {
   const q = dialect.sqlToQuery(
     discordUnlockCandidatesSql({ since: new Date('2026-10-24T00:00:00Z'), limit: 20 }),
   )
@@ -26,15 +26,16 @@ void test('candidates: counted kinds (every badge level), members only, settled,
   assert.match(s, /d\.event_id is null or \( ?d\.status = 'failed' and d\.attempts < 3 ?\)/)
   assert.match(s, /p\.ai_goalie_side is null/)
   assert.match(s, /p\.pinned_to_roster/)
-  assert.match(s, /ev\.kind = 'badge_level_up' and ev\.to_value > ev\.from_value/)
+  // Badge level-ups are not announced (operator, 2026-11-09).
+  assert.doesNotMatch(s, /badge_level_up/)
   // Card level-ups are not posted, only new cards (operator, 2026-10-26).
-  assert.match(s, /ev\.kind in \('tier_up', 'mythic_awarded'\)/)
+  assert.match(s, /and ev\.kind in \('tier_up', 'mythic_awarded'\) and not exists/)
   assert.doesNotMatch(s, /'level_up', 'tier_up'/)
   assert.doesNotMatch(s, /mythic_cleared/)
   assert.match(s, /unnest\(array\['gameType5', 'gameType10', 'club_private'\]::text\[\]\)/)
   assert.match(
     s,
-    /order by ev\.occurred_at, \( ?select min\(x\.id\) from player_card_events x where x\.game_title_id = ev\.game_title_id and x\.occurred_at = ev\.occurred_at and x\.player_id = ev\.player_id ?\), case ev\.kind when 'badge_level_up' then 0 when 'level_up' then 1 when 'tier_up' then 2 else 3 end, ev\.id limit \$\d+/,
+    /order by ev\.occurred_at, \( ?select min\(x\.id\) from player_card_events x where x\.game_title_id = ev\.game_title_id and x\.occurred_at = ev\.occurred_at and x\.player_id = ev\.player_id ?\), case ev\.kind when 'tier_up' then 0 else 1 end, ev\.id limit \$\d+/,
   )
 })
 

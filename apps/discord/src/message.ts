@@ -111,11 +111,9 @@ export function buildUnlockPayload(
   const who = `**[${escapeMarkdown(u.name)}](<${opts.siteUrl}/roster/${String(u.playerId)}>)**${pingId === null ? '' : ` <@${pingId}>`}`
   const what = escapeMarkdown(u.subject)
   const content =
-    u.kind === 'badge'
-      ? `${who} has unlocked **${what}**!`
-      : u.kind === 'card_level'
-        ? `${who} has reached **card level ${what}**!`
-        : `${who} has unlocked the **${what}** card!`
+    u.kind === 'card_level'
+      ? `${who} has reached **card level ${what}**!`
+      : `${who} has unlocked the **${what}** card!`
   const payload: MessagePayload = {
     allowed_mentions: pingId === null ? { parse: [] } : { parse: [], users: [pingId] },
     content,

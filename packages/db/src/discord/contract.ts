@@ -107,7 +107,7 @@ export function parseDiscordGameResult(value: unknown): DiscordGameResult {
   }
 }
 
-export const UNLOCK_KINDS = ['badge', 'card_level', 'tier', 'mythic'] as const
+export const UNLOCK_KINDS = ['card_level', 'tier', 'mythic'] as const
 
 export interface DiscordUnlock {
   eventId: number
@@ -115,10 +115,10 @@ export interface DiscordUnlock {
   /** Card name, upper-cased. */
   name: string
   kind: (typeof UNLOCK_KINDS)[number]
-  /** Badge board name, tier/mythic name, or the card level. */
+  /** Tier/mythic name, or the card level. */
   subject: string
   /** 'none' ⇒ text-only (e.g. no card this title). */
-  graphic: 'badge' | 'card' | 'none'
+  graphic: 'card' | 'none'
   /** Pinged on tier and mythic unlocks only; null otherwise. */
   discordUserId: string | null
 }
@@ -128,7 +128,7 @@ export function parseDiscordUnlock(value: unknown): DiscordUnlock {
   const kind = o['kind']
   if (!UNLOCK_KINDS.includes(kind as DiscordUnlock['kind'])) fail('kind', 'is invalid')
   const graphic = o['graphic']
-  if (graphic !== 'badge' && graphic !== 'card' && graphic !== 'none') fail('graphic', 'is invalid')
+  if (graphic !== 'card' && graphic !== 'none') fail('graphic', 'is invalid')
   const rawId = o['discordUserId'] ?? null
   if (rawId !== null && (typeof rawId !== 'string' || !/^[0-9]{17,20}$/.test(rawId))) {
     fail('discordUserId', 'is not a Discord user ID')

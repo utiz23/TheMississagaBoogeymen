@@ -424,11 +424,7 @@ void test('buildRecordAndStreak: record from results; streak is the run at the n
   })
 })
 
-void test('unlockText: badge, card level, tier and mythic phrasing', () => {
-  assert.equal(
-    unlockText({ kind: 'badge', subject: 'Sniper V', graphic: 'badge' }),
-    'unlocked the Sniper V badge',
-  )
+void test('unlockText: card level, tier and mythic phrasing (no badges since 2026-11-09)', () => {
   assert.equal(
     unlockText({ kind: 'card_level', subject: '12', graphic: 'card' }),
     'reached card level 12',

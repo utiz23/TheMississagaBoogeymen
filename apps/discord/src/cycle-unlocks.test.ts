@@ -5,12 +5,12 @@ import { runUnlockCycle, type UnlockDeps } from './cycle-unlocks.ts'
 import type { MessagePayload } from './message.ts'
 import { WebhookOutcomeUnknownError } from './webhook.ts'
 
-const unlock = (id: number, graphic: DiscordUnlock['graphic'] = 'badge'): DiscordUnlock => ({
+const unlock = (id: number, graphic: DiscordUnlock['graphic'] = 'card'): DiscordUnlock => ({
   eventId: id,
   playerId: 2,
   name: 'SILKY',
-  kind: 'badge',
-  subject: 'Shots · Home II',
+  kind: 'tier',
+  subject: 'STUD',
   graphic,
   discordUserId: null,
 })

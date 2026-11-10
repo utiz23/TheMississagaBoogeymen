@@ -80,19 +80,22 @@ void test('rejects non-objects', () => {
   assert.throws(() => parseDiscordGameResult(null), /discord contract/)
 })
 
-void test('unlock: valid round-trip; bad kind/graphic rejected', () => {
+void test('unlock: valid round-trip; bad kind/graphic rejected; badges are gone', () => {
   const v = {
     eventId: 9,
     playerId: 2,
     name: 'SILKY',
-    kind: 'badge',
-    subject: 'Shots · Home II',
-    graphic: 'badge',
+    kind: 'tier',
+    subject: 'STUD',
+    graphic: 'card',
     discordUserId: null,
   }
   assert.deepEqual(parseDiscordUnlock(JSON.parse(JSON.stringify(v))), v)
   assert.throws(() => parseDiscordUnlock({ ...v, kind: 'x' }), /kind/)
   assert.throws(() => parseDiscordUnlock({ ...v, graphic: 'gif' }), /graphic/)
+  // Badge announcements were removed (operator, 2026-11-09).
+  assert.throws(() => parseDiscordUnlock({ ...v, kind: 'badge' }), /kind/)
+  assert.throws(() => parseDiscordUnlock({ ...v, graphic: 'badge' }), /graphic/)
 })
 
 void test('unlock discordUserId: 17–20 digits or null', () => {

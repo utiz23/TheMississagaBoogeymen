@@ -528,8 +528,6 @@ export function buildRecordAndStreak(results: readonly string[]): {
 /** The sheet's sentence for one counted unlock. */
 export function unlockText(d: Pick<UnlockDescription, 'kind' | 'subject' | 'graphic'>): string {
   switch (d.kind) {
-    case 'badge':
-      return `unlocked the ${d.subject} badge`
     case 'card_level':
       return `reached card level ${d.subject}`
     case 'tier':

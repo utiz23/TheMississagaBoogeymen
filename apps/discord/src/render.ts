@@ -79,12 +79,12 @@ export const renderLineup = (o: {
     selector: '#discord-lineup',
   })
 
-/** One unlock's graphic: the badge (scale 2) or the full card (scale 3), transparent. */
+/** One unlock's graphic: the full card (scale 3), transparent. */
 export const renderUnlock = (o: {
   webBaseUrl: string
   token: string
   eventId: number
-  graphic: 'badge' | 'card'
+  graphic: 'card'
   timeoutMs: number
 }): Promise<Uint8Array> =>
   renderElement({
@@ -92,5 +92,5 @@ export const renderUnlock = (o: {
     path: `/internal/discord/unlock/${String(o.eventId)}`,
     selector: '#discord-unlock',
     omitBackground: true,
-    scale: o.graphic === 'card' ? 3 : 2,
+    scale: 3,
   })

@@ -1,6 +1,6 @@
 # Task: No more badge announcements
 
-- **State:** Ready (operator OK 2026-11-09: "all approved", incl. the optional dead-code cleanup)
+- **State:** Verify (Lead did it itself: small task, operator "all approved" 2026-11-09)
 - **Lane:** Discord, with one Queries file and one Web file (named below)
 - **Risk:** low (stops a message type; no data change)
 - **Slug:** no-badge-posts (branch `work/no-badge-posts`, worktree `.claude/worktrees/no-badge-posts`)
@@ -48,3 +48,24 @@ next (the operator's OK).
 - 2026-11-09 Lead: scope found. Live: 105 badge posts sent so far, 3 card posts (2 tier, 1 mythic).
   Badge unlocks also feed the news fact sheet (`load-facts.ts` line ~428); 1 test article mentions a
   badge, no public one.
+- 2026-11-09 Lead: worktree `work/no-badge-posts`. `describeUnlock` returns null for
+  `badge_level_up`, so the Discord loader (web) answers `{ skip }` and the news sheet drops badges;
+  the candidate query no longer selects badge events; the badge graphic path is removed.
+- 2026-11-09 Lead: paths added to the cleanup beyond "May edit" (Lead OK, same cleanup):
+  `packages/db/src/discord/contract.ts` + test (no `badge` kind/graphic),
+  `apps/web/src/lib/discord/load-unlock.ts`, `apps/web/src/app/internal/discord/unlock/[eventId]/page.tsx`,
+  a comment in `apps/discord/src/news/prompts.ts`.
+
+## Report
+
+- **What changed (visible effect):** no more "X has unlocked **Shots 10**!" posts in Discord; the
+  news writer no longer gets badge unlocks. New-card and mythic posts (with ping), game posts and every
+  badge on the site stay. Effect starts with the `web` deploy (the old poster then gets `{ skip }` for
+  badge events); the `discord` deploy removes the query clause.
+- **How it was checked:** `@eanhl/db` build + typecheck; `web` and `@eanhl/discord` typecheck;
+  db tests `unlocks`, `contract`, `discord-unlock-posts` (12/12); `@eanhl/discord test` (307/307);
+  web `build-facts` + `lib/discord` tests (70/70); prettier on the changed files.
+- **Tried, no gain:** none.
+- **Not done:** deploy (operator's OK). Old badge messages stay in the channel. The `card_level` kind
+  is also dead for Discord since 2026-10-26 but still feeds the news sheet; left as it is.
+- **Git state:** see the commit on `work/no-badge-posts`.

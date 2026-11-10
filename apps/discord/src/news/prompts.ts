@@ -36,7 +36,7 @@ export function stableStringify(value: unknown): string {
 
 /**
  * The sheet as the model sees it: at most 12 unlocks (card unlocks first, then
- * badges) and 10 milestones (100s, then 50s, then the rest; points, goals,
+ * the rest) and 10 milestones (100s, then 50s, then the rest; points, goals,
  * assists, games; then the larger value). The fact CHECK still uses the full sheet.
  */
 export function capFactsForPrompt(facts: NewsFacts): NewsFacts {

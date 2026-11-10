@@ -126,7 +126,7 @@ void test('missing game mode is omitted, not printed as null', () => {
 })
 
 void test('unlock texts: bold linked capital name, no link preview, one line per kind, image under', () => {
-  const u = (kind: 'badge' | 'card_level' | 'tier' | 'mythic', subject: string) =>
+  const u = (kind: 'card_level' | 'tier' | 'mythic', subject: string) =>
     buildUnlockPayload(
       {
         eventId: 1,
@@ -134,19 +134,19 @@ void test('unlock texts: bold linked capital name, no link preview, one line per
         name: 'X_SNIPER_X',
         kind,
         subject,
-        graphic: 'badge',
+        graphic: 'card',
         discordUserId: null,
       },
       { siteUrl: 'https://boogeymen.app', hasImage: true },
     )
   assert.equal(
-    u('badge', 'Shots · Carbon-Fiber I').content,
-    '**[X\\_SNIPER\\_X](<https://boogeymen.app/roster/2>)** has unlocked **Shots · Carbon\\-Fiber I**!',
+    u('tier', 'ALL-STAR').content,
+    '**[X\\_SNIPER\\_X](<https://boogeymen.app/roster/2>)** has unlocked the **ALL\\-STAR** card!',
   )
   assert.match(u('tier', 'STUD').content, / has unlocked the \*\*STUD\*\* card!$/)
   assert.match(u('mythic', 'INFERNO').content, / has unlocked the \*\*INFERNO\*\* card!$/)
   assert.match(u('card_level', '5').content, / has reached \*\*card level 5\*\*!$/)
-  const p = u('badge', 'Goals · Away I')
+  const p = u('card_level', '5')
   assert.deepEqual(p.allowed_mentions, { parse: [] })
   assert.deepEqual(p.attachments, [{ id: 0, filename: 'unlock.png' }])
   assert.equal('embeds' in p, false)
@@ -189,14 +189,12 @@ void test('new-card unlocks ping exactly their player; nothing else pings', () =
     { siteUrl: 'https://boogeymen.app', hasImage: true },
   )
   assert.deepEqual(mythic.allowed_mentions, { parse: [], users: ['447213088828030998'] })
-  for (const kind of ['badge', 'card_level'] as const) {
-    const p = buildUnlockPayload(
-      { ...base, kind, subject: '5' },
-      { siteUrl: 'https://boogeymen.app', hasImage: true },
-    )
-    assert.deepEqual(p.allowed_mentions, { parse: [] })
-    assert.doesNotMatch(p.content, /<@/)
-  }
+  const level = buildUnlockPayload(
+    { ...base, kind: 'card_level', subject: '5' },
+    { siteUrl: 'https://boogeymen.app', hasImage: true },
+  )
+  assert.deepEqual(level.allowed_mentions, { parse: [] })
+  assert.doesNotMatch(level.content, /<@/)
   const none = buildUnlockPayload(
     { ...base, kind: 'tier', subject: 'STUD', discordUserId: null },
     { siteUrl: 'https://boogeymen.app', hasImage: true },

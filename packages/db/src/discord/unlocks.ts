@@ -1,15 +1,12 @@
 /**
- * What one Discord unlock message says and shows (spec §4). Pure. A badge is
- * named by its level as a plain number, 1–30 (operator, 2026-10-26; Roman
- * numerals confused readers) — the graphic still shows the badge board's look
- * for that level.
+ * What one Discord unlock message and one news-sheet unlock say and show
+ * (spec §4). Pure. Badge level-ups are never announced (operator,
+ * 2026-11-09): badges stay on the site and the cards only.
  */
 import {
-  BADGE_FAMILIES,
   CARD_THEME_NAMES,
   TIER_LABELS,
   TIER_THEME,
-  type BadgeFamilyId,
   type CardThemeKey,
   type CardTier,
   type MythicThemeKey,
@@ -18,29 +15,18 @@ import {
 import type { CardEventKind } from '../cards/progression.js'
 
 export interface UnlockDescription {
-  kind: 'badge' | 'card_level' | 'tier' | 'mythic'
+  kind: 'card_level' | 'tier' | 'mythic'
   subject: string
-  graphic: 'badge' | 'card'
-  badge?: { familyId: BadgeFamilyId; level: number }
+  graphic: 'card'
   cardTheme?: CardThemeKey
   cardTier?: CardTier
 }
 
 export function describeUnlock(
-  e: { kind: CardEventKind; familyId: BadgeFamilyId | null; fromValue: number; toValue: number },
+  e: { kind: CardEventKind; fromValue: number; toValue: number },
   ctx: { mythicTheme: MythicThemeKey | null },
 ): UnlockDescription | null {
   switch (e.kind) {
-    case 'badge_level_up': {
-      if (e.toValue <= e.fromValue || e.familyId === null) return null
-      const name = BADGE_FAMILIES.find((f) => f.id === e.familyId)?.name ?? e.familyId
-      return {
-        kind: 'badge',
-        subject: `${name} ${String(e.toValue)}`,
-        graphic: 'badge',
-        badge: { familyId: e.familyId, level: e.toValue },
-      }
-    }
     case 'level_up':
       return { kind: 'card_level', subject: String(e.toValue), graphic: 'card' }
     case 'tier_up': {

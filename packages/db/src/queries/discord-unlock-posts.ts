@@ -12,10 +12,10 @@ const TYPES = sql.raw(`array[${MATCH_TYPE.map((t) => `'${t}'`).join(', ')}]`)
 /**
  * Card events the discord service may post, one message each (spec §5.2):
  * active title, inside the window, no row or failed under the cap (pending
- * never re-picked), settled on every match type, a counted kind (every badge
- * level up, new card tier, mythic award; card level-ups are not posted since
- * 2026-10-26), a member who is not an AI goalie.
- * Ordered so a batch reads player by player, badge → level → tier → mythic.
+ * never re-picked), settled on every match type, a counted kind (new card
+ * tier, mythic award; card level-ups are not posted since 2026-10-26, badge
+ * level-ups not since 2026-11-09), a member who is not an AI goalie.
+ * Ordered so a batch reads player by player, tier → mythic.
  */
 export function discordUnlockCandidatesSql(args: { since: Date; limit: number }): SQL {
   return sql`
@@ -28,8 +28,7 @@ export function discordUnlockCandidatesSql(args: { since: Date; limit: number })
       and (d.event_id is null or (d.status = 'failed' and d.attempts < ${MAX}))
       and p.ai_goalie_side is null
       and ${MEMBER_CONDITION}
-      and ((ev.kind = 'badge_level_up' and ev.to_value > ev.from_value)
-           or ev.kind in ('tier_up', 'mythic_awarded'))
+      and ev.kind in ('tier_up', 'mythic_awarded')
       and not exists (
         select 1 from unnest(${TYPES}::text[]) t(mt)
         where not exists (
@@ -40,7 +39,7 @@ export function discordUnlockCandidatesSql(args: { since: Date; limit: number })
     order by ev.occurred_at,
       (select min(x.id) from player_card_events x
         where x.game_title_id = ev.game_title_id and x.occurred_at = ev.occurred_at and x.player_id = ev.player_id),
-      case ev.kind when 'badge_level_up' then 0 when 'level_up' then 1 when 'tier_up' then 2 else 3 end,
+      case ev.kind when 'tier_up' then 0 else 1 end,
       ev.id
     limit ${args.limit}`
 }
