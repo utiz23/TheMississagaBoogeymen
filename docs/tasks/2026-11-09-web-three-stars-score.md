@@ -1,11 +1,11 @@
 # Task: Fix the goalie game score for the 3 stars
 
-- **State:** Verify (operator picked A + a .900 minimum, 2026-11-09; waits for the operator's OK on the side-by-side)
+- **State:** Deployed 2026-11-09 (`web` at `820bf96a`; rollback `:rollback-he-2026-11-09-pre-goalie-stars`)
 - **Lane:** Web (`apps/web/src/lib/match-recap.ts` holds the score for the match page, the Discord
   post and the news sheet)
 - **Risk:** medium (a number teammates see on every game)
 - **Slug:** three-stars-score
-- **Operator approval:** 2026-11-09 (formula); merge waits for the side-by-side OK
+- **Operator approval:** 2026-11-09 (formula, then the side-by-side: "D1. yes")
 - **Operator gate before merge:** yes (the operator picks from a side-by-side)
 - **Needs a deploy:** yes: `web` (the Discord poster and news read the score from `web`)
 
@@ -43,7 +43,7 @@ average delta, the Discord star line and the news sheet.
 
 ## Done when
 
-- **Done when:** in the side-by-side, no goalie with < N shots or SV% < .850 is a star, and the
+- **Done when:** in the side-by-side, no goalie under .900 is a star and low-shot goalies score less (operator's pick), and the
   operator OKs the stars on the recent games.
 
 ## Log
@@ -64,6 +64,8 @@ average delta, the Discord star line and the news sheet.
   never a star); side-by-side below: old and new code on the same live rows (read-only export of the
   last 40 games; loadout overrides not applied, they change positions only, not scores).
 - **Not done:** deploy (operator's OK). Skater weights unchanged.
+- **Deployed:** live check on the Discord game route: #3422 stars Henry, Silky, Nxtluvv; #3405
+  camrazz, Lehmann (10/10), Henry. Same as the side-by-side.
 - **Side-by-side (only the 17 games that change; score in brackets):**
 
 | Game                                                  | Old stars                                                                                                  | New stars                                                                                                           |

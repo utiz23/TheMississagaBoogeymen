@@ -66,3 +66,4 @@ night, and the feed reads newest game first.
 - 2026-11-09 Lead: `web` deployed at `48a03828` (rollback `:rollback-he-2026-11-09-pre-news-order`):
   `/news` leads with the week of 06-15, then 06-21. First #chel posts come with the next game.
 - **Rollback:** `NEWS_DRY_RUN=1` in `.env`, `docker compose up -d --no-deps news`.
+- 2026-11-09 Lead: operator D2: cap raised to $60 (`NEWS_MONTHLY_LIMIT_USD=60`, `news` restarted: "limit 60 USD/month"); the operator raises the Anthropic workspace limit to $60.

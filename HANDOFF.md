@@ -22,8 +22,8 @@ always the operator's OK. Guide [`workflow-v2.md`](docs/operations/workflow-v2.m
 [`docs/board.md`](docs/board.md); **operator's live page [`docs/decisions.md`](docs/decisions.md)**;
 commit/push rules in `CLAUDE.md`.
 
-**Operator requests 2026-11-09** (`docs/tasks/`): no badge posts (LIVE); goalie score for the 3
-stars (branch ready, D1); news desk LIVE in the game channel, feed in time order (cost cap: D2).
+**Operator requests 2026-11-09** (`docs/tasks/`): all three LIVE 11-09: no badge posts; goalie
+score for the 3 stars; news desk in the game channel, feed in time order, cap $60/month.
 
 ## Current Objective / Status
 
@@ -50,7 +50,7 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 **Latest deploys 2026-11-09:** no badge posts (web, discord `761c5186`; rollback
 `:rollback-he-2026-11-09-pre-no-badges`); news desk live (`NEWS_DRY_RUN=0`, webhook set; rollback
-`NEWS_DRY_RUN=1` + `up -d --no-deps news`); web `48a03828` feed time order (`:…-pre-news-order`).
+`NEWS_DRY_RUN=1` + `up -d --no-deps news`); web `820bf96a` goalie stars + feed order (`:…-pre-goalie-stars`).
 
 **2026-10-26: club-only badges** (web, worker, discord `06992a2`; rollback `:rollback-he-2026-10-26-pre-club-badges`; card dump `~/eanhl-backups/manual/cards-pre-rebase-2026-10-26-1600.dump`). Badges count club games only; NHL 27 card history reset once (`card-recompute --rebase`). [Spec](docs/superpowers/specs/2026-10-26-club-only-badges-design.md).
 
