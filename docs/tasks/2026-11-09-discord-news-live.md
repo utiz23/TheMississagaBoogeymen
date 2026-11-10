@@ -67,3 +67,4 @@ night, and the feed reads newest game first.
   `/news` leads with the week of 06-15, then 06-21. First #chel posts come with the next game.
 - **Rollback:** `NEWS_DRY_RUN=1` in `.env`, `docker compose up -d --no-deps news`.
 - 2026-11-09 Lead: operator D2: cap raised to $60 (`NEWS_MONTHLY_LIMIT_USD=60`, `news` restarted: "limit 60 USD/month"); the operator raises the Anthropic workspace limit to $60.
+- 2026-11-09 Lead, evening: see journal 2026-11 (live rewrite of 5 test-covered games, their Discord messages removed but kept on the site; week column posted; bot test channel off).
