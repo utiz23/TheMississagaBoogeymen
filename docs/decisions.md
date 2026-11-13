@@ -1,7 +1,8 @@
 # For the operator: what needs you now
 
-Live page. The Lead updates it after every merge, decision or new Ready task.
-Last update: **2026-11-09, late** (Lead). All tasks: `docs/board.md`.
+Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
+Last update: **2026-11-13** (Lead). All tasks: `docs/board.md`.
+Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
@@ -9,11 +10,32 @@ Last update: **2026-11-09, late** (Lead). All tasks: `docs/board.md`.
 | --- | --------- | --------- | ------------- |
 | -   | none open | -         | -             |
 
-## 2. Can start now
+## 2. Your to-dos (only you can do these)
 
-- Watch the first live game night: news posts in the game channel, stars on the game pages.
+- **Name the Lead chat tab** (for example `website-lead`) and tell the Lead, so task chats can find it.
+- **Anthropic workspace limit:** set it to $60 a month to match the news desk cap (you said yes on
+  11-09). November so far: $15.17.
 
-## 3. Soon
+## 3. Can start when you say so
 
-- Release 1 of the press bots (`feat/news-desk-bots`): privacy text waits for you.
-- Remove the merged `feat/news-desk` worktree.
+| Item                                             | Size  | Note                                                                                            |
+| ------------------------------------------------ | ----- | ----------------------------------------------------------------------------------------------- |
+| Press bots, release 1 (scrums, quotes, GM notes) | large | Built on `feat/news-desk-bots` (30 commits). First step: you read and approve the privacy text. |
+| Backup hardening (Codex review, 10-09)           | small | Weekly/monthly copies after a missed Sunday/1st; a lock for manual + scheduled runs.            |
+| Remove the merged `feat/news-desk` worktree      | tiny  | Clean-up only.                                                                                  |
+| Contribution Wheel hydration warning             | small | Old warning in the browser console; no visible fault.                                           |
+
+## 4. Watch (no action now)
+
+- **Game post speed:** since 11-09 the post goes out about 1 minute after the worker saves the game.
+  The rest of the wait is EA: on 11-12 the worker saw games 1–12 minutes after they ended (it checks
+  every 5 minutes).
+- **News desk:** live in the game channel. 11-12: Barlow's recap "Sunnyvale Shot Hawks push the
+  Boogeymen skid to five" posted.
+- **Cards:** re-check the season pace at mid-season; re-tune before NHL 28.
+- **Legal footer notice** (AI news): hides itself on 2026-11-25. Nothing to do.
+
+## 5. Done recently
+
+- 2026-11-09: no badge posts · goalie stars fix (A + .900) · news desk live, feed in time order, cap
+  $60 · game posts after one worker pass · bot test channel off · workflow v2 adopted.
