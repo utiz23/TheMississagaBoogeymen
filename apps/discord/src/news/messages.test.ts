@@ -1,7 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { REPORTERS } from '@eanhl/db/news'
-import { articleSlug, buildArticlePayload, buildNewsPostPayload, toBotMessage } from './messages.ts'
+import {
+  articleSlug,
+  buildArticlePayload,
+  buildNewsPostPayload,
+  testModePayload,
+  toBotMessage,
+} from './messages.ts'
 
 const SITE = 'https://boogeymen.app'
 
@@ -99,4 +105,14 @@ void test('toBotMessage: without an item id there are no components', () => {
   const m = toBotMessage(p, null)
   assert.deepEqual(m, { content: p.content, allowed_mentions: { parse: [] } })
   assert.ok(!('components' in m))
+})
+
+void test('testModePayload: the reporter name says test; content and mentions unchanged', () => {
+  const p = {
+    username: 'Mara Quill',
+    avatar_url: 'a',
+    content: 'Hello',
+    allowed_mentions: { parse: [] as never[] },
+  }
+  assert.deepEqual(testModePayload(p), { ...p, username: 'Mara Quill (test)' })
 })

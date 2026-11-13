@@ -203,10 +203,13 @@ still-open blocker or decision. Full detail:
 
 ## Workflow Policy
 
-How we work — roles (the operator decides, Claude leads, Codex is an optional
-second-opinion reviewer), process sized to risk, reporting, and when to stop
-and ask — is one page: `docs/operations/agent-manager-workflow.md`. Don't
-restate it here.
+Workflow v2 (since 2026-11-09, adapted from the sister repo): one Lead chat,
+one task file and one `work/<slug>` branch/worktree per piece of work, lanes
+that say who may edit which paths, only the Lead merges, a Verifier for any
+claimed number, deploys and live-database writes always the operator's OK.
+Guide: `docs/operations/workflow-v2.md`; tasks in `docs/tasks/`; board
+`docs/board.md`; the operator's live page `docs/decisions.md`; prompts
+`docs/operations/kickoff-prompts.md`. Don't restate it here.
 
 ## Commit Protocol
 

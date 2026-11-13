@@ -46,7 +46,6 @@ const THEME_SHORT: Readonly<Record<CardThemeKey, string>> = {
   olympus: 'MAXIMUS',
 }
 
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI'] as const
 const ROW_COUNT = 6
 const TIERS: readonly CardTier[] = [1, 2, 3, 4, 5, 6]
 
@@ -190,7 +189,7 @@ function buildRequirement(
     title: `NEXT · ${upper(tierName(next))}`,
     count: `${String(shown)} / ${String(FAMILIES_PER_TIER)} BADGES`,
     pct: Math.round((shown / FAMILIES_PER_TIER) * 100),
-    note: `${String(FAMILIES_PER_TIER)} ${pool} badges at Tier ${ROMAN[next - 1] ?? ''} (LVL ${String(bar)}+).`,
+    note: `${String(FAMILIES_PER_TIER)} ${pool} badges at Tier ${String(next)} (LVL ${String(bar)}+).`,
   }
 }
 

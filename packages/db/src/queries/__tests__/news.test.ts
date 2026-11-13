@@ -311,20 +311,23 @@ void test('soft delete: the item and its replies, only those not yet deleted', (
   )
 })
 
-void test('public feed: not test, not deleted, newest first, keyset only when beforeId is set', () => {
+void test('public feed: not test, not deleted, newest story first (time order), keyset only when beforeId is set', () => {
   const first = dialect.sqlToQuery(newsFeedSql({ kind: 'post', beforeId: null, limit: 20 }))
   const a = flat(first.sql)
   assert.match(a, /from news_items n/)
   assert.match(a, /n\.kind = \$\d+/)
   assert.match(a, /n\.is_test = false/)
   assert.match(a, /n\.deleted_at is null/)
-  assert.match(a, /order by n\.id desc/)
+  assert.match(a, /order by n\.created_at desc, n\.id desc/)
   assert.match(a, /limit \$\d+/)
-  assert.doesNotMatch(a, /n\.id < \$/)
+  assert.doesNotMatch(a, /\(n\.created_at, n\.id\) </)
   assert.deepEqual(first.params, ['post', 20])
 
   const next = dialect.sqlToQuery(newsFeedSql({ kind: 'article', beforeId: 77, limit: 10 }))
-  assert.match(flat(next.sql), /n\.id < \$\d+/)
+  assert.match(
+    flat(next.sql),
+    /and \(n\.created_at, n\.id\) < \(select b\.created_at, b\.id from news_items b where b\.id = \$\d+\) order by n\.created_at desc, n\.id desc/,
+  )
   assert.deepEqual(next.params, ['article', 77, 10])
 })
 

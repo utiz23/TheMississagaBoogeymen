@@ -6,7 +6,7 @@ documents, not here.
 
 - **Launch plan** (the active checklist):
   [`docs/planning/operational-v1-roadmap.md`](docs/planning/operational-v1-roadmap.md)
-- Work diary: [`docs/journal/2026-10.md`](docs/journal/2026-10.md)
+- Work diary: [`docs/journal/2026-11.md`](docs/journal/2026-11.md) (October: [`2026-10.md`](docs/journal/2026-10.md))
 - Previous handoffs, archived unchanged: full Proton/E3 backup state in
   [`handoff-history-2026-10-05.md`](docs/archive/handoff-history-2026-10-05.md);
   the full 10-05 launch checkpoint in
@@ -16,10 +16,14 @@ documents, not here.
 
 ## How We Work
 
-The operator decides; Claude Code leads; Codex is an optional second-opinion
-reviewer. Process is sized to risk. One page:
-[`docs/operations/agent-manager-workflow.md`](docs/operations/agent-manager-workflow.md);
+**Workflow v2 since 2026-11-09** (adapted from the sister repo): one Lead chat, one task file and one
+`work/<slug>` branch per piece of work, lanes, only the Lead merges, deploys and live writes are
+always the operator's OK. Guide [`workflow-v2.md`](docs/operations/workflow-v2.md); board
+[`docs/board.md`](docs/board.md); **operator's live page [`docs/decisions.md`](docs/decisions.md)**;
 commit/push rules in `CLAUDE.md`.
+
+**Operator requests 2026-11-09** (`docs/tasks/`): all three LIVE 11-09: no badge posts; goalie
+score for the 3 stars; news desk in the game channel, feed in time order, cap $60/month.
 
 ## Current Objective / Status
 
@@ -36,21 +40,21 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 **Awards trophy case is live** (2026-10-08); add trophies/banners (3s/6s/arcade) on `/admin/awards`. Awards rank ALL SKATERS totals (operator choice).
 
-**Responsive sizes are live** (2026-10-09): Medium/Small/Micro tiers, compact cards on phones, side rail on wide screens.
-
 **Member-only player pages are live** (2026-10-09, `fafeefb`; rollback `:rollback-he-2026-10-09-pre-members`): only team members, present and past (EA member list for any title, member archive, pinned, AI goalies — 18 of 92) have a `/roster/[id]` page; guests 404 and show as plain text elsewhere (`PlayerLink` + `MemberLinks`), and the home carousel shows members only.
-
-**Also live 2026-10-09** (`3d62b8a`; rollback `:rollback-he-2026-10-09-pre-locker-v3`): stats-table size tiers, Build Locker v3 (persona name from OCR), Action Map clocks, short-code build names.
 
 **Player cards are live** (2026-10-08): season cards (one per NHL title, from NHL 27), badges, the EDIT locker, Build Locker v2 and the Career Action Map. Spec: [`2026-10-07-player-cards-badges-design.md`](docs/superpowers/specs/2026-10-07-player-cards-badges-design.md), amended by [season cards](docs/superpowers/specs/2026-10-08-season-cards-design.md).
 
 ## Latest Verified Checkpoint
 
-**Latest web 2026-10-24: gamertag URLs + round nav picture** (`a85e5d0`, `:rollback-he-2026-10-24-pre-round-pfp`). Before: nav drop-downs `d2627da` (`:…-pre-nav-menus`), design imports `6745609` (`:…-2026-10-21-pre-redesigns`). [Journal](docs/journal/2026-10.md).
+**Latest deploys 2026-11-09:** no badge posts (web, discord `761c5186`; rollback
+`:rollback-he-2026-11-09-pre-no-badges`); news desk live (`NEWS_DRY_RUN=0`, webhook set; rollback
+`NEWS_DRY_RUN=1` + `up -d --no-deps news`); web `820bf96a` goalie stars + feed order (`:…-pre-goalie-stars`); worker + discord `ce88ac63` game posts after one pass (`:…-pre-one-pass`).
+
+**2026-10-26: club-only badges** (web, worker, discord `06992a2`; rollback `:rollback-he-2026-10-26-pre-club-badges`; card dump `~/eanhl-backups/manual/cards-pre-rebase-2026-10-26-1600.dump`). Badges count club games only; NHL 27 card history reset once (`card-recompute --rebase`). [Spec](docs/superpowers/specs/2026-10-26-club-only-badges-design.md).
 
 **2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean.
 
-**2026-10-09 — responsive sizes, side rail, compact carousel deployed** (`fb40008`, web only; rollback image `eanhl-team-website-web:rollback-he-2026-10-09-pre-responsive`). Medium ≤1100 / Small ≤720 / Micro ≤480 tiers for the player, roster and home components; `PlayerCardCompact`; player-page side rail at ≥1680px; Charts & Visuals and Recent Form removed (`4095e49`, rollback `:rollback-he-2026-10-09-pre-no-form`).
+**2026-10-09 — responsive sizes deployed** (`fb40008`, web; rollback `:rollback-he-2026-10-09-pre-responsive`): size tiers; Charts & Visuals and Recent Form removed (`4095e49`, `:…-pre-no-form`).
 
 **2026-10-08 — Awards + migration 0064** (`d038b36`; rollback `:rollback-he-2026-10-08-pre-awards`; 0064 rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`). [Journal](docs/journal/2026-10.md).
 
@@ -133,7 +137,7 @@ None.
 0. Discord: operator's live ping check (award + clear a mythic for a player with an ID).
    Logins/admin open choices: club role display, more flags, a 6v6 banner.
 1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
-2. Polish passes deployed 2026-10-09 (`5269fbe`); every backlog entry has an outcome ([`docs/planning/polish-backlog.md`](docs/planning/polish-backlog.md), journal 10-09).
+2. The 2026-11-09 requests: see `docs/decisions.md` (D1 deploy, D2 goalie score, D3 news live).
 3. Backup hardening from the Codex review (optional, small): weekly/monthly
    copies after a missed Sunday/1st, and a run lock for manual + scheduled
    overlap. Watch teammates' feedback (including on speed). OCR writing to

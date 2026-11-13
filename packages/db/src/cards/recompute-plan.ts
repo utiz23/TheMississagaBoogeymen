@@ -29,23 +29,38 @@ export interface PlannedPlayer {
   writeStanding: boolean
 }
 
-/** `laddersOf`: the ladder set per player (the AI goalies have their own). */
+/**
+ * `laddersOf`: the ladder set per player (the AI goalies have their own).
+ * `rebase`: the one-time switch to new badge sources or ladders
+ * (docs/superpowers/specs/2026-10-26-club-only-badges-design.md): the computed
+ * standing replaces the stored one even when lower, and no events are emitted.
+ * A manual standing still stays as it is.
+ */
 export function planCardRecompute(
   totals: ReadonlyMap<number, BadgeValues>,
   storedStanding: ReadonlyMap<number, CardStanding>,
   storedLevels: ReadonlyMap<number, Partial<Record<BadgeFamilyId, number>>>,
   laddersOf: (playerId: number) => LadderSet = () => BADGE_LADDERS,
+  opts: { rebase?: boolean } = {},
 ): PlannedPlayer[] {
+  const rebase = opts.rebase === true
   const plan: PlannedPlayer[] = []
   for (const [playerId, values] of totals) {
     const ladders = laddersOf(playerId)
     const levels = badgeLevels(values, ladders)
     const prev = storedStanding.get(playerId) ?? null
-    const standing = applyStanding(prev, computeStanding(values, ladders))
-    const events = diffCardEvents(
-      prev === null ? null : { standing: prev, levels: storedLevels.get(playerId) ?? {} },
-      { standing, levels },
-    )
+    const computed = computeStanding(values, ladders)
+    const standing = rebase
+      ? prev?.pool === 'manual'
+        ? prev
+        : computed
+      : applyStanding(prev, computed)
+    const events = rebase
+      ? []
+      : diffCardEvents(
+          prev === null ? null : { standing: prev, levels: storedLevels.get(playerId) ?? {} },
+          { standing, levels },
+        )
     plan.push({
       playerId,
       standing,

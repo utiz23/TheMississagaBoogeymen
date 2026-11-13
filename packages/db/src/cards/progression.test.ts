@@ -39,10 +39,10 @@ void test('badgeProgress: locked, mid-level and maxed', () => {
     pct: 0,
     remaining: 5,
   })
-  const mid = badgeProgress(BADGE_LADDERS.pgoals, 50)
+  const mid = badgeProgress(BADGE_LADDERS.pgoals, 55)
   assert.equal(mid.level, 7)
-  assert.equal(mid.prevThreshold, 45)
-  assert.equal(mid.nextThreshold, 55)
+  assert.equal(mid.prevThreshold, 50)
+  assert.equal(mid.nextThreshold, 60)
   assert.equal(mid.remaining, 5)
   assert.ok(Math.abs(mid.pct - 5 / 10) < 1e-9)
   const maxed = badgeProgress(BADGE_LADDERS.pgoals, 6000)

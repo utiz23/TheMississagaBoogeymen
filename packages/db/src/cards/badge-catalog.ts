@@ -44,6 +44,13 @@ export interface BadgeFamily {
   glyph: string
   group: BadgeGroupId
   unit: string
+  /**
+   * Where the season total comes from: 'club' = the worker's per-game club
+   * records; 'ea' = EA's member totals, which include drop-in games. Only stats
+   * missing from the per-game records use EA
+   * (docs/superpowers/specs/2026-10-26-club-only-badges-design.md).
+   */
+  source: 'club' | 'ea'
 }
 
 export interface BadgeGroup {
@@ -65,6 +72,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'users',
     group: 'games',
     unit: '3v3 games',
+    source: 'club',
   },
   {
     id: 'p6v6',
@@ -73,6 +81,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'hexagon',
     group: 'games',
     unit: '6v6 games',
+    source: 'club',
   },
   {
     id: 'p6g',
@@ -81,9 +90,26 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'shield-check',
     group: 'games',
     unit: 'games with goalie',
+    source: 'club',
   },
-  { id: 'pwins', name: 'Wins', short: 'WINS', glyph: 'trophy', group: 'games', unit: 'wins' },
-  { id: 'pgoals', name: 'Goals', short: 'GOALS', glyph: 'siren', group: 'scoring', unit: 'goals' },
+  {
+    id: 'pwins',
+    name: 'Wins',
+    short: 'WINS',
+    glyph: 'trophy',
+    group: 'games',
+    unit: 'wins',
+    source: 'club',
+  },
+  {
+    id: 'pgoals',
+    name: 'Goals',
+    short: 'GOALS',
+    glyph: 'siren',
+    group: 'scoring',
+    unit: 'goals',
+    source: 'club',
+  },
   {
     id: 'pasts',
     name: 'Assists',
@@ -91,6 +117,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'apple',
     group: 'scoring',
     unit: 'assists',
+    source: 'club',
   },
   {
     id: 'pshots',
@@ -99,6 +126,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'crosshair',
     group: 'scoring',
     unit: 'shots',
+    source: 'club',
   },
   {
     id: 'pdekes',
@@ -107,6 +135,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'traffic-cone',
     group: 'scoring',
     unit: 'dekes',
+    source: 'ea',
   },
   {
     id: 'pht',
@@ -115,6 +144,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'sparkles',
     group: 'scoring',
     unit: 'hat tricks',
+    source: 'club',
   },
   {
     id: 'pbrk',
@@ -123,8 +153,17 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'unlink',
     group: 'scoring',
     unit: 'breakaways',
+    source: 'ea',
   },
-  { id: 'phits', name: 'Hits', short: 'HITS', glyph: 'hammer', group: 'physical', unit: 'hits' },
+  {
+    id: 'phits',
+    name: 'Hits',
+    short: 'HITS',
+    glyph: 'hammer',
+    group: 'physical',
+    unit: 'hits',
+    source: 'club',
+  },
   {
     id: 'pfo',
     name: 'Faceoffs Won',
@@ -132,6 +171,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'circle-dot',
     group: 'defense',
     unit: 'faceoffs won',
+    source: 'club',
   },
   {
     id: 'ptka',
@@ -140,6 +180,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'magnet',
     group: 'defense',
     unit: 'takeaways',
+    source: 'club',
   },
   {
     id: 'pblk',
@@ -148,6 +189,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'shield',
     group: 'defense',
     unit: 'blocked shots',
+    source: 'club',
   },
   {
     id: 'pfight',
@@ -156,6 +198,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'swords',
     group: 'physical',
     unit: 'fights won',
+    source: 'ea',
   },
   {
     id: 'gg',
@@ -164,6 +207,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'scan-face',
     group: 'goalie',
     unit: 'goalie games',
+    source: 'club',
   },
   {
     id: 'gw',
@@ -172,8 +216,17 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'award',
     group: 'goalie',
     unit: 'goalie wins',
+    source: 'club',
   },
-  { id: 'gsv', name: 'Saves', short: 'SAVES', glyph: 'hand', group: 'goalie', unit: 'saves' },
+  {
+    id: 'gsv',
+    name: 'Saves',
+    short: 'SAVES',
+    glyph: 'hand',
+    group: 'goalie',
+    unit: 'saves',
+    source: 'club',
+  },
   {
     id: 'gdsv',
     name: 'Desperation Saves',
@@ -181,6 +234,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'heart-pulse',
     group: 'goalie',
     unit: 'desperation saves',
+    source: 'club',
   },
   {
     id: 'gpoke',
@@ -189,6 +243,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'sword',
     group: 'goalie',
     unit: 'poke-checks',
+    source: 'club',
   },
   {
     id: 'gso',
@@ -197,6 +252,7 @@ export const BADGE_FAMILIES: readonly BadgeFamily[] = [
     glyph: 'brick-wall',
     group: 'goalie',
     unit: 'shutouts',
+    source: 'club',
   },
 ]
 
@@ -244,6 +300,10 @@ export function poolOf(family: BadgeFamily): TierPool {
  * docs/superpowers/specs/2026-10-08-season-cards-design.md). Level = number of
  * thresholds the season total meets. Level 30 = the operator's ceiling; levels
  * are multiples of 5/10/50, except plain counts for rare stats' first levels.
+ * Goals and Assists use round steps (operator, 2026-10-26): 5s to 20, 10s to
+ * 150 at level 17, then 50s to 800. Badges count club games only since then
+ * (docs/superpowers/specs/2026-10-26-club-only-badges-design.md); the other
+ * ladders were kept.
  */
 // prettier-ignore
 export const BADGE_LADDERS: Readonly<Record<BadgeFamilyId, readonly number[]>> = {
@@ -251,8 +311,8 @@ export const BADGE_LADDERS: Readonly<Record<BadgeFamilyId, readonly number[]>> =
   p6v6: [5, 10, 15, 20, 25, 30, 35, 40, 45, 55, 65, 80, 95, 110, 130, 140, 160, 180, 200, 220, 250, 270, 290, 320, 350, 380, 410, 440, 470, 500],
   p6g: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],
   pwins: [1, 2, 3, 6, 9, 12, 20, 25, 30, 35, 45, 50, 60, 70, 80, 90, 100, 120, 130, 140, 160, 170, 190, 200, 220, 240, 260, 280, 300, 320],
-  pgoals: [5, 10, 15, 20, 25, 30, 45, 55, 70, 90, 110, 130, 150, 170, 200, 230, 260, 290, 320, 360, 390, 430, 470, 510, 560, 600, 650, 700, 750, 800],
-  pasts: [5, 10, 15, 20, 25, 30, 45, 55, 70, 90, 110, 130, 150, 170, 200, 230, 260, 290, 320, 360, 390, 430, 470, 510, 560, 600, 650, 700, 750, 800],
+  pgoals: [5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800],
+  pasts: [5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800],
   pshots: [5, 10, 25, 45, 70, 100, 140, 180, 230, 280, 340, 400, 470, 540, 630, 710, 800, 900, 1000, 1100, 1250, 1350, 1450, 1600, 1750, 1900, 2050, 2200, 2350, 2500],
   pdekes: [5, 10, 15, 20, 25, 30, 45, 55, 70, 90, 110, 130, 150, 170, 200, 230, 260, 290, 320, 360, 390, 430, 470, 510, 560, 600, 650, 700, 750, 800],
   pht: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],

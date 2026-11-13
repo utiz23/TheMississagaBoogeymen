@@ -41,7 +41,9 @@ void test('candidates: only once the ingesting worker cycle has finished', () =>
   assert.match(sql, /from "raw_match_payloads" r/)
   assert.match(sql, /r\.game_title_id = "matches"\."game_title_id"/)
   assert.match(sql, /r\.ea_match_id = "matches"\."ea_match_id"/)
-  // …was logged by a cycle that has since been followed by another (non-overlapping loop)…
+  // …was logged by a cycle the worker has stamped finished (after AI goalies and cards)…
+  assert.match(sql, /\(l1\.id is not null and l1\.finished_at is not null\)\s+or/)
+  // …or that has since been followed by another (non-overlapping loop)…
   assert.match(
     sql,
     /l2\.id > l1\.id and l2\.game_title_id = l1\.game_title_id and l2\.match_type = l1\.match_type/,

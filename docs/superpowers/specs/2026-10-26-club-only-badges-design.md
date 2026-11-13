@@ -22,7 +22,7 @@ The worker already stores every club game per player (`player_match_stats`). Tha
 
 1. Badge values count club games only, from the site's per-game club records.
 2. EA's totals are used only for stats that the per-game records do not have.
-3. The ladders are sized again for a club-only season, so the pace is sustainable.
+3. The ladders are checked for a club-only season, so the pace is sustainable (result: the 10-08 ladders stay; see Decisions).
 4. The switch-over does not post a burst of false level-ups to Discord.
 
 ## Non-goals
@@ -42,8 +42,9 @@ The worker already stores every club game per player (`player_match_stats`). Tha
 
 - **Source.** Badges and card levels count club games only, from the worker's per-game club records (operator, 2026-10-25).
 - **Three stats with no per-game data.** Dekes made, fights won and skater breakaways keep using EA's totals, drop-ins included (operator, 2026-10-26).
-- **Season size.** Size the ladders for about 300 club games in the NHL 27 season, half of NHL 26's 621 (operator, 2026-10-26).
-- **Pace goal.** Unchanged from spec S5: a regular player gets to Franchise (tier 5) in the last month or two of the season. Part-timers finish around Stud or Elite.
+- **Ladders.** Keep the 10-08 ladders (operator, 2026-10-26). The club is on pace for about 500 club games (October was unusually slow), and the concern was that cards moved too fast. Only Goals and Assists change, to round steps: 5s to 20, 10s to 150 at level 17, then 50s to 800. The AI goalies keep their ladders.
+- **Pace (accepted).** With club games only and about 500 games, the top regulars reach Elite around week 28 and nobody reaches Franchise this season. The S5 goal (Franchise in the last month or two) no longer holds for a club-only season; the operator accepted this.
+- **Season size (superseded).** The first sizing used about 300 club games. The operator replaced it with about 500 (2026-10-26).
 - **Switch-over.** Badge values and levels drop to their true club-only numbers one time. Discord does not post about the switch-over (operator, 2026-10-25).
 
 ## Source of each badge value
@@ -52,24 +53,24 @@ All per-game values come from `player_match_stats` joined to `matches`, for that
 
 "Club games" means all three match types the worker ingests (`gameType5`, `gameType10`, `club_private`), the same as the per-title aggregates. EA's club record counts the same games (Claude's call, 2026-10-26).
 
-| Family                | Name                   | New source (per-game club records)                                                          |
-| --------------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
-| `pwins`               | Wins                   | Club games the player played that the club won (`matches.result = 'WIN'`), skater or goalie |
-| `pgoals`              | Goals                  | Sum of `goals`                                                                              |
-| `pasts`               | Assists                | Sum of `assists`                                                                            |
-| `pshots`              | Shots                  | Sum of `shots`                                                                              |
-| `pht`                 | Hat-Tricks             | Count of games with `goals >= 3`                                                            |
-| `phits`               | Hits                   | Sum of `hits`                                                                               |
-| `pfo`                 | Faceoffs Won           | Sum of `faceoff_wins`                                                                       |
-| `ptka`                | Takeaways              | Sum of `takeaways`                                                                          |
-| `pblk`                | Blocked Shots          | Sum of `blocked_shots`                                                                      |
-| `gg`                  | Goalie Games Completed | Count of goalie games the player completed (`is_goalie`, not `player_dnf`)                  |
-| `gw`                  | Goalie Wins            | Count of goalie games that the club won                                                     |
-| `gsv`                 | Saves                  | Sum of `saves` in goalie games                                                              |
-| `gdsv`                | Desperation Saves      | Sum of `desp_saves` in goalie games                                                         |
-| `gpoke`               | Poke-Checks            | Sum of `pokechecks` in goalie games                                                         |
-| `gso`                 | Shutouts               | Count of completed goalie games with `goals_against = 0`                                    |
-| `p3v3`, `p6v6`, `p6g` | Games by mode          | No change. These already use site records.                                                  |
+| Family                | Name                   | New source (per-game club records)                                                                |
+| --------------------- | ---------------------- | ------------------------------------------------------------------------------------------------- |
+| `pwins`               | Wins                   | Club games the player played that the club won (`matches.result = 'WIN'`), skater or goalie       |
+| `pgoals`              | Goals                  | Sum of `goals`                                                                                    |
+| `pasts`               | Assists                | Sum of `assists`                                                                                  |
+| `pshots`              | Shots                  | Sum of `shots`                                                                                    |
+| `pht`                 | Hat-Tricks             | Count of games with `goals >= 3`                                                                  |
+| `phits`               | Hits                   | Sum of `hits`                                                                                     |
+| `pfo`                 | Faceoffs Won           | Sum of `faceoff_wins`                                                                             |
+| `ptka`                | Takeaways              | Sum of `takeaways`                                                                                |
+| `pblk`                | Blocked Shots          | Sum of `blocked_shots`                                                                            |
+| `gg`                  | Goalie Games Completed | Count of goalie games the player completed (`is_goalie`, not `player_dnf`, club result not `DNF`) |
+| `gw`                  | Goalie Wins            | Count of goalie games that the club won                                                           |
+| `gsv`                 | Saves                  | Sum of `saves` in goalie games                                                                    |
+| `gdsv`                | Desperation Saves      | Sum of `desp_saves` in goalie games                                                               |
+| `gpoke`               | Poke-Checks            | Sum of `pokechecks` in goalie games                                                               |
+| `gso`                 | Shutouts               | Count of completed goalie games (as `gg`) with `goals_against = 0`                                |
+| `p3v3`, `p6v6`, `p6g` | Games by mode          | No change. These already use site records.                                                        |
 
 Families that stay on EA's totals, drop-ins included:
 
@@ -81,23 +82,32 @@ Families that stay on EA's totals, drop-ins included:
 
 The badge UI labels these three badges as EA season totals that include drop-ins. The other 18 badges are labeled as club games. (Wording and placement: builder's call.)
 
-The AI goalies (Matteo Lehmann, Jonas Wagner) use the same per-game rules. They keep their own ladder set (`AI_GOALIE_LADDERS`), which is sized again with the same method.
+The AI goalies (Matteo Lehmann, Jonas Wagner) use the same per-game rules. They keep their own ladder set (`AI_GOALIE_LADDERS`) unchanged. A goalie game counts as completed (and can be a shutout) only when neither the goalie nor the team quit (`player_dnf`, `matches.result = 'DNF'`).
 
-## Ladders: size again for a club-only season
+## Ladders
 
-Method (same as `2026-10-08-season-cards-design.md`, with new inputs):
+The 10-08 ladders stay (see Decisions). Goals and Assists:
 
-1. Measure each player's per-game rate for every family from NHL 27 club games only.
-2. Project each player to a 48-week season with about 300 club games for the club. A player's share of club games is their NHL 27 share so far.
-3. Size the 30 levels of each ladder so the pace goal holds: regulars reach T5 in weeks 40–48, part-timers finish at T3 or T4.
-4. Keep the nice-number rules: thresholds are multiples of 5, 10 or 50, except plain counts for the first levels of rare stats.
-5. The three EA-sourced families are sized on their EA rates (drop-ins included).
-6. Keep the tier bars (`TIER_BARS = [1, 5, 12, 20, 29]`) unless the simulation shows the pace goal cannot hold with the ladders alone.
-7. Level-30 ceilings (Claude's call, 2026-10-26): on 10-08 the operator chose each ceiling. Now the builder proposes each ceiling from the projected club-only season (about the best regular's projected season total for that stat, rounded to a nice number). The `top × (L/30)²` curve below the ceiling stays. The operator approves the ceilings together with the pace table.
+`5 10 15 20 30 40 50 60 70 80 90 100 110 120 130 140 150 200 250 300 350 400 450 500 550 600 650 700 750 800`
 
-The design document for the build must include a simulated-pace table (week each tier is reached, per player), like the one in the 2026-10-08 spec, for the operator to approve before the ladders ship.
+Re-check the pace at mid-season with `apps/worker/src/__scripts__/card-ladder-sizing-2026-10.ts`.
 
-Note: NHL 27 club play dropped in October (16, 2 and 1 games in the last three weeks). The 300-game target already accounts for this. Re-check the pace at mid-season.
+## Ladder review (Task 3, 2026-10-26) — proposal rejected
+
+A first proposal resized every ladder for a 300-game club season (Goals 240, Wins 140, Shots 1,350 at level 30). The operator rejected it: the season is closer to 500 games, and the old ladders fit years like NHL 24 and NHL 26.
+
+Old ladders, club games only, 500-game season (week each tier is reached):
+
+| Player          | Projected games |  T2 |  T3 |  T4 |  T5 |
+| --------------- | --------------: | --: | --: | --: | --: |
+| Stick Menace    |             462 |   2 |  10 |  28 |   – |
+| silkyjoker85    |             435 |   2 |  10 |  28 |   – |
+| HenryTheBobJr   |             348 |   3 |  13 |  36 |   – |
+| camrazz         |             348 |   3 |  10 |  34 |   – |
+| JoeyFlopfish    |             283 |   4 |  17 |  46 |   – |
+| AI goalies      |       about 200 |  12 |  27 |  45 |   – |
+| MrHomiecide     |             201 |   5 |  23 |   – |   – |
+| Ordinary_Samich |             179 |   7 |  30 |   – |   – |
 
 ## Switch-over
 

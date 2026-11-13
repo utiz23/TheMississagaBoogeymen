@@ -194,15 +194,26 @@ function skaterBreakdown(p: SkaterScoreInput): ScoreFactor[] {
   ]
 }
 
+/**
+ * Shots faced for the SV% factor's full weight (operator, 2026-11-09, fix A).
+ * Below it the weight shrinks with the shots: 2 saves on 4 shots (.500) no
+ * longer scores like a busy night.
+ */
+export const GOALIE_FULL_WEIGHT_SHOTS = 15
+/** A goalie is a star only at this SV% or better (operator, 2026-11-09). */
+export const STAR_MIN_GOALIE_SV_PCT = 0.9
+
 function goalieBreakdown(p: GoalieScoreInput): ScoreFactor[] {
   const saves = p.saves ?? 0
   const ga = p.goalsAgainst ?? 0
   const sa = p.shotsAgainst ?? 0
   const svPct = sa > 0 ? saves / sa : 0
+  const volume = Math.min(1, sa / GOALIE_FULL_WEIGHT_SHOTS)
   return [
     f('Saves', saves, 0.2),
-    // SV% stored as 0–1; multiplied by 15 so .920 → +13.8 (dominant factor)
-    f('SV%', svPct, 15),
+    // SV% stored as 0–1; × 15 at 15+ shots so .920 → +13.8 (dominant
+    // factor); fewer shots scale the weight down (4 shots → × 4).
+    f('SV%', svPct, 15 * volume),
     f('Goals Against', ga, -0.8),
     f('Desp. Saves', p.despSaves ?? 0, 0.5),
     f('Breakaway Saves', p.breakawaySaves ?? 0, 0.8),
@@ -477,6 +488,17 @@ export interface TopPerformer {
   archetype: PlayerArchetype | null
 }
 
+/**
+ * May this entry be one of the three stars? Skaters always; a goalie only
+ * with shots faced and SV% ≥ STAR_MIN_GOALIE_SV_PCT.
+ */
+export function isStarEligible(e: Pick<PlayerScoreEntry, 'isGoalie' | 'stats'>): boolean {
+  if (!e.isGoalie) return true
+  const sa = e.stats.shotsAgainst ?? 0
+  const saves = e.stats.saves ?? 0
+  return sa > 0 && saves / sa >= STAR_MIN_GOALIE_SV_PCT
+}
+
 export function buildTopPerformers(
   match: Pick<Match, 'result' | 'scoreFor' | 'scoreAgainst'>,
   bgm: PlayerStat[],
@@ -690,7 +712,16 @@ export function buildAllTeamScores(
   const oppEntries = opponent
     .filter((p) => hasRecordedActivity(p))
     .map((p) => toEntry('opp', winner, null, p.eaPlayerId, p))
-  return [...bgmEntries, ...oppEntries].sort((a, b) => b.score - a.score)
+  const ranked = [...bgmEntries, ...oppEntries].sort((a, b) => b.score - a.score)
+  // The three stars lead (ranks 1-3 on the match page, the Discord post and
+  // the news sheet all read the first three); everyone else follows by score.
+  const stars: PlayerScoreEntry[] = []
+  const rest: PlayerScoreEntry[] = []
+  for (const e of ranked) {
+    if (stars.length < 3 && isStarEligible(e)) stars.push(e)
+    else rest.push(e)
+  }
+  return [...stars, ...rest]
 }
 
 // ─── Overtime derivation ──────────────────────────────────────────────────────

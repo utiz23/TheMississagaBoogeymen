@@ -21,10 +21,13 @@ export const DISCORD_UNLOGGED_SETTLE_MS = 15 * 60_000
  * every column (see feedback: unqualified columns in single-table selects).
  *
  * Settled only: the worker commits a match mid-cycle and then still adds AI
- * goalies, resolves members and recomputes cards. Its loop never overlaps, so
- * once the same title + match type has a later ingestion_log row, the cycle
- * that ingested this match has finished. A payload with no log row (manual
- * insert) waits until `unloggedBefore` instead.
+ * goalies, resolves members and recomputes cards. It stamps `finished_at` on
+ * the cycle's ingestion_log rows only after all of that (since 2026-11-09), so
+ * a stamped row means the cycle that ingested this match has finished: the
+ * game posts after one pass (operator, 2026-11-09). Fallback, for a cycle that
+ * died before stamping: the same title + match type has a later log row (the
+ * loop never overlaps). A payload with no log row (manual insert) waits until
+ * `unloggedBefore` instead.
  */
 export function discordPostCandidatesQuery(args: {
   since: Date
@@ -36,7 +39,8 @@ export function discordPostCandidatesQuery(args: {
     left join ${ingestionLog} l1 on l1.id = r.ingestion_log_id
     where r.game_title_id = ${matches.gameTitleId} and r.ea_match_id = ${matches.eaMatchId}
       and (
-        (l1.id is not null and exists (
+        (l1.id is not null and l1.finished_at is not null)
+        or (l1.id is not null and exists (
           select 1 from ${ingestionLog} l2
           where l2.id > l1.id and l2.game_title_id = l1.game_title_id and l2.match_type = l1.match_type
         ))

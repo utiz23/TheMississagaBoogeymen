@@ -1499,7 +1499,14 @@ export function newsFeedSql(args: {
   beforeId: number | null
   limit: number
 }): SQL {
-  const before = args.beforeId === null ? sql`` : sql`and n.id < ${args.beforeId}`
+  // Time order (operator, 2026-11-09): newest story first by created_at,
+  // which holds the story's time (a backfilled story keeps its game night),
+  // then id. The cursor stays an item id; the next page starts below that
+  // item's (created_at, id).
+  const before =
+    args.beforeId === null
+      ? sql``
+      : sql`and (n.created_at, n.id) < (select b.created_at, b.id from news_items b where b.id = ${args.beforeId})`
   return sql`
     select n.*
     from news_items n
@@ -1507,7 +1514,7 @@ export function newsFeedSql(args: {
       and n.is_test = false
       and n.deleted_at is null
       ${before}
-    order by n.id desc
+    order by n.created_at desc, n.id desc
     limit ${args.limit}`
 }
 
@@ -1540,7 +1547,7 @@ export async function listReporterArticles(reporter: string): Promise<NewsItemRo
         sql`${newsItems.reporter} = ${reporter}`,
       ),
     )
-    .orderBy(desc(newsItems.id))
+    .orderBy(desc(newsItems.createdAt), desc(newsItems.id))
 }
 
 // ── Admin ───────────────────────────────────────────────────────────────────

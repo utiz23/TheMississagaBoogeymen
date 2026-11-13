@@ -1,9 +1,7 @@
 import { BADGE_FAMILIES, BADGE_GROUPS } from '@eanhl/db/cards'
 import type { BadgeLevelRef } from '@eanhl/db/cards'
 import { Badge, resolveBadgeSkin } from '../badges/badge'
-import { badgeVisual } from '../badges/badge-board'
-
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI'] as const
+import { badgeCaption, badgeVisual } from '../badges/badge-board'
 
 /**
  * A badge with its label underneath, as the card's footer slot and back-face
@@ -27,7 +25,6 @@ export function CardBadge({
   if (family === undefined) return null
   const shape = BADGE_GROUPS.find((g) => g.id === family.group)?.shape ?? 'hex'
   const look = badgeVisual(badge.level)
-  const roman = ROMAN[Math.min(6, Math.max(1, Math.ceil(badge.level / 5))) - 1] ?? 'I'
   return (
     <div
       title={`${family.name} · Level ${String(badge.level)}`}
@@ -54,7 +51,7 @@ export function CardBadge({
           textOverflow: 'ellipsis',
         }}
       >
-        {family.short} {roman}
+        {badgeCaption(family.short, badge.level)}
       </span>
     </div>
   )
