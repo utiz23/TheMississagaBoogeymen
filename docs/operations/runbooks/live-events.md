@@ -152,6 +152,7 @@ signature or the body.
    Funnel: never run `tailscale funnel`. Docker keeps all its ports on loopback, so there is no
    boot-order dependency between Docker and Tailscale. From a device that is not on the tailnet,
    port 3100 must not answer.
+
 5. Check the tunnel refuses: `curl -sS -o /dev/null -w '%{http_code}' -X POST https://boogeymen.app/api/internal/live-events`
    gives `404`.
 6. Send one test event with the example in section 3 (use `"type":"lobby_countdown"`: it starts no
