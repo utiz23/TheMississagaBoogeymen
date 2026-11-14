@@ -4,6 +4,7 @@ import type {
   DiscordResult,
   DiscordStar,
 } from '@eanhl/db/discord'
+import { finalsPostLine, type ClubFinalsFacts } from './club-finals.ts'
 
 export const CARDS_FILENAME = 'cards.png'
 
@@ -65,7 +66,12 @@ function starLine(s: DiscordStar, siteUrl: string): string {
 
 export function buildGameResultPayload(
   r: DiscordGameResult,
-  opts: { siteUrl: string; hasImage: boolean },
+  opts: {
+    siteUrl: string
+    hasImage: boolean
+    /** CF1's stored Club Finals state of the game; null or absent = not a Club Finals game. */
+    clubFinals?: ClubFinalsFacts | null
+  },
 ): WebhookPayload {
   const gameUrl = `${opts.siteUrl}/games/${String(r.matchId)}`
   const unix = Math.floor(Date.parse(r.playedAt) / 1000)
@@ -74,7 +80,11 @@ export function buildGameResultPayload(
     .join(' · ')
   const body =
     r.result === 'DNF' ? ['Game ended early.'] : r.stars.map((s) => starLine(s, opts.siteUrl))
-  const description = [meta, '', ...body, '', `[Full box score →](${gameUrl})`].join('\n')
+  // The Club Finals line (CF2) sits first: only CF1's stored round, game and series numbers.
+  const finals = opts.clubFinals == null ? [] : [finalsPostLine(opts.clubFinals)]
+  const description = [...finals, meta, '', ...body, '', `[Full box score →](${gameUrl})`].join(
+    '\n',
+  )
   const title =
     `BGM ${String(r.scoreFor)} – ${String(r.scoreAgainst)} ${r.opponentName} · ${resultLabel(r.result, r.overtime)}`.slice(
       0,

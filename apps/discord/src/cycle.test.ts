@@ -170,3 +170,63 @@ void test('dry run writes files, marks skipped, sends nothing', async () => {
   assert.ok(h.events.includes('dry:1'))
   assert.ok(h.events.includes('skipped:1:dry run'))
 })
+
+// ── Club Finals line (CF2) ───────────────────────────────────────────────────
+
+const FINALS_STATE = {
+  attempt: 3,
+  round: 2,
+  gameInRound: 2,
+  roundWinsAfter: 1,
+  roundLossesAfter: 1,
+  attemptWinsAfter: 5,
+  attemptLossesAfter: 2,
+  isFinal: false,
+  roundWon: false,
+  eliminated: false,
+  finalWon: false,
+}
+
+void test('Club Finals: the post carries the line from the stored state, for the right game', async () => {
+  const asked: number[] = []
+  const h = harness({
+    clubFinals: async (id) => {
+      asked.push(id)
+      return FINALS_STATE
+    },
+  })
+  await runPosterCycle(h.deps, OPTS)
+  assert.deepEqual(asked, [1])
+  assert.match(
+    h.sent[0]!.payload.embeds[0]!.description,
+    /^\*\*Club Finals\*\* · Attempt 3 · Round 2 · Game 2 · Series 1–1\n/,
+  )
+})
+
+void test('Club Finals: a game with no state posts as before', async () => {
+  const h = harness({ clubFinals: async () => null })
+  await runPosterCycle(h.deps, OPTS)
+  assert.ok(!h.sent[0]!.payload.embeds[0]!.description.includes('Club Finals'))
+})
+
+void test('Club Finals: a failed read still posts (no line), logs it, and the game is posted once', async () => {
+  const h = harness({
+    clubFinals: async () => {
+      throw new Error('relation "club_finals_games" does not exist')
+    },
+  })
+  const s = await runPosterCycle(h.deps, OPTS)
+  assert.deepEqual(s, { posted: 1, failed: 0, dryRun: 0 })
+  assert.ok(!h.sent[0]!.payload.embeds[0]!.description.includes('Club Finals'))
+  assert.ok(h.events.some((e) => e.startsWith('log:game 1: Club Finals state not read')))
+})
+
+void test('Club Finals: a dry run writes the line too', async () => {
+  const written: WebhookPayload[] = []
+  const h = harness({
+    clubFinals: async () => FINALS_STATE,
+    writeDryRun: async (_id, payload) => void written.push(payload),
+  })
+  await runPosterCycle(h.deps, { ...OPTS, dryRun: true })
+  assert.match(written[0]!.embeds[0]!.description, /^\*\*Club Finals\*\* · Attempt 3/)
+})

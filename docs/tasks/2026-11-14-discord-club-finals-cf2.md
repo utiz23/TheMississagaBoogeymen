@@ -1,6 +1,6 @@
 # Task: CF2 — Club Finals in Discord: game post line, news desk and press weighting
 
-- **State:** Running (since 2026-11-14 16:50; task agent of `Lead2`) (operator 2026-11-14 15:07: "approve all 4 items")
+- **State:** Verify (task agent done 2026-11-14 17:07; branch `work/club-finals-cf2`; waits for the operator's OK on the samples) (operator 2026-11-14 15:07: "approve all 4 items")
 - **Lane:** Discord (`apps/discord/src/`), Queries (read CF1's derived states)
 - **Risk:** medium (what the channel reads on finals nights)
 - **Slug:** club-finals-cf2
@@ -48,11 +48,20 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 16:50 Lead2: started (CF1 live; B2 merged, so the press/news code is settled).
 
-Resume: task agent makes the branch and worktree, reads CF1's queries, the poster, news desk and press big-moment code.
+- 2026-11-14 17:07 task agent: branch `work/club-finals-cf2` and worktree made from `main` (a7b4d1cb). Read CF1 (queries, `club-finals-view.ts` words) and the poster, news desk and press code. Built: `apps/discord/src/club-finals.ts` (words, floor, facts, moment tone), poster line, news weighting and writer facts (game posts, game articles, night recap), press big moments + tone line. Tests added. Samples (fakes only) written. State = Verify.
+- Design choices the operator may change (all in `club-finals.ts`): floors normal / big / huge as in the Report; a DNF or "ended early" game keeps staying quiet (spec §12.12-3), so an elimination by DNF (game 3435) is not a big moment; the line says "Attempt N" (the site's word) and the series score after the game, never a before/after pair; the tone lines are in `MOMENT_TONE`.
+
+Resume: Lead repeats the checks on `work/club-finals-cf2`, shows `samples.md` (see the Report) to the operator, merges after the operator's OK; then the deploy of `discord`, `news`, `press` is the operator's call.
 
 ## Report (task agent fills when state = Verify)
 
 - **What changed (visible effect):**
-- **How it was checked (commands, numbers):**
-- **Not done:**
-- **Git state:** branch, last commit, rebased on `main` at <hash>, checks pass/fail
+  - **Game post:** a first line on every Club Finals game, from CF1's stored values only, e.g. `Club Finals · Attempt 3 · Round 1 · Game 5 · Series 4–1 · ROUND WON`; a game of the final reads `Club Finals · THE FINAL · Attempt 1 · Game 5 · Series 1–4 · ELIMINATED · run ends 13–9`; `FINAL WON` for a won final. No line when the game has no stored state (regular games, games after a won final). A failed read leaves the line out and the post still goes out once.
+  - **News desk:** floors. Ordinary Club Finals game: normal (2 posts, no article). Round won or elimination: big (3 to 5 posts and a game story). Any game of the final, a won final and a round decided in its 7th game: huge (6 to 8 posts, a game story and a spotlight or column of 400 to 700 words). A game that already weighs more keeps its weight. Writers (game posts, game articles, night recap) get a CLUB FINALS block with the stored round, game, series, run record and stakes; the review gets the same lines as true notes; the number check allows exactly those numbers (and the rule limits 4 and 7).
+  - **Press:** a round won, an elimination, every game of the final, a won final and a round decided in its 7th game are big moments: the scrum opens at big or huge and the picked player is pinged (the 3 pings a night limit, GM asks, heat, Go easy, Leave me out, hard lines and no-crude-quotes rules are unchanged). The scrum writer gets the same facts as desk notes and a one-line tone for the moment.
+  - Samples for the operator (fakes only): `/tmp/claude-1000/-home-michal-projects-eanhl-team-website/a2a7873b-2807-4e71-85a1-f9e79d57ba31/scratchpad/samples-cf2/samples.md`.
+- **How it was checked (commands, numbers):** `pnpm --filter @eanhl/discord typecheck` pass. `pnpm --filter @eanhl/discord test` 957 pass, 0 fail (was 910 on `main`: 47 new tests; zero real model calls, all fakes). `node --test packages/db/dist/queries/__tests__/club-finals-panel.test.js` 3 pass (db unchanged). `prettier --check` on every changed file: pass (`pnpm format:check` lists 8 other files that were already unformatted on `main`; none is in this diff). The drift guard test checks `planForLevel` against `planBuzz` on 400 games.
+- **Not done:** no dry run through the live web app (no Docker, no web internal route here): the samples are built from the real code with fake stars. The weekly feature, the interview and the Press Box are not changed (no Club Finals facts there). A DNF or "ended early" elimination (game 3435) stays quiet: operator decision (see Log and samples). Not run: worker integration tests (not touched).
+- **Deploy order:** no migration, no web or worker change; CF1 is live and the three services read its tables (`getClubFinalsBadge(s)`). Deploy `discord`, `news` and `press` together (press and news use the same floor; one without the other gives a post without its scrum ping). Rollback: the previous image tags. Operator's OK first.
+- **Paths outside "May edit":** none. All changes are in `apps/discord/src/` plus this task file.
+- **Git state:** branch `work/club-finals-cf2`, rebased on `main` at a7b4d1cb, checks pass (see above).

@@ -1,4 +1,5 @@
 import type { DiscordGameResult } from '@eanhl/db/discord'
+import type { ClubFinalsFacts } from './club-finals.ts'
 import { buildGameResultPayload, type WebhookPayload } from './message.ts'
 import { WebhookOutcomeUnknownError } from './webhook.ts'
 
@@ -17,6 +18,11 @@ export interface PosterDeps {
   store: PosterStore
   fetchGameResult(matchId: number): Promise<DiscordGameResult>
   renderCards(matchId: number): Promise<Uint8Array>
+  /**
+   * CF1's stored Club Finals state of the game, or null when it has none. Optional: a host without
+   * it posts no Club Finals line. A read error never stops the post (the line is left out).
+   */
+  clubFinals?(matchId: number): Promise<ClubFinalsFacts | null>
   send(payload: WebhookPayload, image: Uint8Array | null): Promise<string | null>
   writeDryRun(matchId: number, payload: WebhookPayload, image: Uint8Array | null): Promise<void>
   log(message: string): void
@@ -77,7 +83,21 @@ export async function runPosterCycle(deps: PosterDeps, opts: CycleOptions): Prom
           deps.log(`${game}: card render failed, posting text only (${message(err)})`)
         }
       }
-      payload = buildGameResultPayload(result, { siteUrl: opts.siteUrl, hasImage: image !== null })
+      let clubFinals: ClubFinalsFacts | null = null
+      if (deps.clubFinals !== undefined) {
+        try {
+          clubFinals = await deps.clubFinals(matchId)
+        } catch (err: unknown) {
+          deps.log(
+            `${game}: Club Finals state not read, posting without its line (${message(err)})`,
+          )
+        }
+      }
+      payload = buildGameResultPayload(result, {
+        siteUrl: opts.siteUrl,
+        hasImage: image !== null,
+        clubFinals,
+      })
       if (opts.dryRun) {
         await deps.writeDryRun(matchId, payload, image)
         await deps.store.markSkipped(matchId, 'dry run')

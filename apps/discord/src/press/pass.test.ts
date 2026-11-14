@@ -505,3 +505,89 @@ void test('a failing closing line does not stop the other closings', async () =>
   assert.equal(t.sent.length, 1)
   assert.ok(t.logs.some((l) => l === '[press] expired answers: person 1: Discord bot HTTP 500'))
 })
+
+// ── Club Finals big moments (CF2) ────────────────────────────────────────────
+
+const FINALS_BASE = {
+  attempt: 3,
+  round: 2,
+  gameInRound: 2,
+  roundWinsAfter: 1,
+  roundLossesAfter: 1,
+  attemptWinsAfter: 5,
+  attemptLossesAfter: 2,
+  isFinal: false,
+  roundWon: false,
+  eliminated: false,
+  finalWon: false,
+}
+
+void test('CF2: an ordinary Club Finals game is no big moment: the scrum opens at normal, nobody is pinged', async () => {
+  const t = setup()
+  t.store.clubFinals.set(90001, FINALS_BASE)
+  liveRecap(t.store)
+  await runPressPass(t.deps, config('live'))
+  assert.equal(t.store.scrums[0]!.buzzLevel, 'normal')
+  assert.equal(t.store.people.length, 0)
+  assert.equal(t.sent.length, 0)
+})
+
+for (const [name, state, level] of [
+  ['a round won', { ...FINALS_BASE, roundWinsAfter: 4, roundWon: true }, 'big'],
+  ['an elimination', { ...FINALS_BASE, roundLossesAfter: 4, eliminated: true }, 'big'],
+  ['a game of the final', { ...FINALS_BASE, round: 4, isFinal: true }, 'huge'],
+  ['a won final', { ...FINALS_BASE, round: 4, isFinal: true, finalWon: true }, 'huge'],
+  [
+    'a round decided in its 7th game',
+    { ...FINALS_BASE, gameInRound: 7, roundWinsAfter: 4, roundLossesAfter: 3, roundWon: true },
+    'huge',
+  ],
+] as const) {
+  void test(`CF2: ${name} is a big moment: the scrum opens at ${level} and the picked player is pinged`, async () => {
+    const t = setup()
+    t.store.clubFinals.set(90001, state)
+    liveRecap(t.store)
+    await runPressPass(t.deps, config('live'))
+    assert.equal(t.store.scrums[0]!.buzzLevel, level)
+    assert.equal(t.store.people.length, 1)
+    assert.equal(t.store.people[0]!.requestedBy, 'auto')
+    assert.equal(pings(t.sent).length, 1)
+  })
+}
+
+void test('CF2: a big moment never lowers a game that is already historic', async () => {
+  const t = setup({ response: bigResponse() })
+  t.store.clubFinals.set(90001, { ...FINALS_BASE, roundWinsAfter: 4, roundWon: true })
+  liveRecap(t.store)
+  await runPressPass(t.deps, config('live'))
+  assert.equal(t.store.scrums[0]!.buzzLevel, 'historic')
+})
+
+void test('CF2: a failed Club Finals read is logged and the scrum is made as before (quiet, no ping)', async () => {
+  const t = setup()
+  t.store.clubFinalsError = new Error('relation does not exist')
+  liveRecap(t.store)
+  await runPressPass(t.deps, config('live'))
+  assert.equal(t.store.scrums[0]!.buzzLevel, 'quiet')
+  assert.equal(t.store.people.length, 0)
+  assert.ok(t.logs.some((l) => l.includes('Club Finals state not read')))
+})
+
+void test('CF2: the ping limit and the GM rules still apply to a big moment (3 pings a night)', async () => {
+  const t = setup()
+  t.store.clubFinals.set(90001, { ...FINALS_BASE, roundWinsAfter: 4, roundWon: true })
+  liveRecap(t.store)
+  // Three automatic pings of this player already went out tonight.
+  for (let i = 0; i < 3; i++) {
+    await t.store.insertScrumPerson({
+      scrumId: 900 + i,
+      playerId: 1,
+      discordUserId: USER_A,
+      role: 'picked',
+      requestedBy: 'auto',
+      pingedAt: NOW,
+    })
+  }
+  await runPressPass(t.deps, config('live'))
+  assert.equal(pings(t.sent).length, 0)
+})

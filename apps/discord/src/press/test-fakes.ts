@@ -26,6 +26,7 @@ import type {
   ScrumPersonUpdate,
 } from '@eanhl/db/queries'
 import type { BotMessage } from '../bot-rest.ts'
+import type { ClubFinalsFacts } from '../club-finals.ts'
 import { escapeMarkdown } from '../message.ts'
 import { fallbackPool, type FallbackKind } from './fallbacks.ts'
 import type { MessageScreen, ScreenVerdict } from './hard-lines.ts'
@@ -206,6 +207,14 @@ export class FakeStore implements PressStore {
     return Promise.resolve()
   }
   getNewsItem = (id: number) => Promise.resolve(this.items.find((i) => i.id === id) ?? null)
+  /** Club Finals state by match id (CF2); a match with none is not a Club Finals game. */
+  clubFinals = new Map<number, ClubFinalsFacts>()
+  /** When set, the Club Finals read fails with this error. */
+  clubFinalsError: Error | null = null
+  getClubFinalsBadge = (matchId: number) =>
+    this.clubFinalsError !== null
+      ? Promise.reject(this.clubFinalsError)
+      : Promise.resolve(this.clubFinals.get(matchId) ?? null)
   listRecapItemsWithoutScrum = (args: { since: Date; mode: 'trial' | 'live'; limit: number }) => {
     const out: RecapItemWithoutScrum[] = []
     for (const n of [...this.items].sort((a, b) => a.id - b.id)) {

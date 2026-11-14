@@ -16,6 +16,7 @@ import {
   type NewsGameFacts,
   type ReporterId,
 } from '@eanhl/db/news'
+import { FINALS_START, type ClubFinalsFacts } from '../club-finals.ts'
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
   createNewsCycleState,
@@ -2729,4 +2730,254 @@ void test('relationships and crude lines: the writing rules say it, and the rule
     relationshipsBlock([{ reporter: 'quill', player: 'Skater A', level: 'feud' }], ['voss']),
     null,
   )
+})
+
+// ── Club Finals (CF2): weight, facts for the writers, numbers ───────────────
+
+const FINALS_ROUND_WON: ClubFinalsFacts = {
+  attempt: 3,
+  round: 1,
+  gameInRound: 5,
+  roundWinsAfter: 4,
+  roundLossesAfter: 1,
+  attemptWinsAfter: 4,
+  attemptLossesAfter: 1,
+  isFinal: false,
+  roundWon: true,
+  eliminated: false,
+  finalWon: false,
+}
+/** Attempt 18 (a number on no sheet), the 7th game of the final, lost: eliminated. */
+const FINALS_ELIMINATED: ClubFinalsFacts = {
+  attempt: 18,
+  round: 4,
+  gameInRound: 7,
+  roundWinsAfter: 3,
+  roundLossesAfter: 4,
+  attemptWinsAfter: 22,
+  attemptLossesAfter: 13,
+  isFinal: true,
+  roundWon: false,
+  eliminated: true,
+  finalWon: false,
+}
+const FINALS_NORMAL: ClubFinalsFacts = {
+  ...FINALS_ROUND_WON,
+  round: 2,
+  gameInRound: 2,
+  roundWinsAfter: 1,
+  roundLossesAfter: 1,
+  roundWon: false,
+}
+
+function finalsHarness(state: ClubFinalsFacts | null, deps: Partial<NewsDeps> = {}) {
+  const asked: (readonly number[])[] = []
+  const h = harness({
+    candidates: [701],
+    store: {
+      clubFinalsOf: async (ids) => {
+        asked.push(ids)
+        return new Map(state === null ? [] : ids.map((id) => [id, state]))
+      },
+    },
+    deps: { writer: longWriter, ...deps },
+  })
+  return { h, asked }
+}
+
+const gameItems = (h: ReturnType<typeof harness>) => ({
+  posts: [...h.items.values()].filter((i) => i.kind === 'post'),
+  articles: [...h.items.values()].filter((i) => i.kind === 'article'),
+})
+
+void test('CF2: with no Club Finals state the game is written as before (normal: 2 posts, no article)', async () => {
+  const { h } = finalsHarness(null)
+  await runNewsCycle(h.deps, h.opts)
+  const { posts, articles } = gameItems(h)
+  assert.equal(planBuzz(lossGame(701), gameResponse(701).facts).level, 'normal')
+  assert.equal(posts.length, 2)
+  assert.equal(articles.length, 0)
+})
+
+void test('CF2: an ordinary Club Finals game stays normal but the writers get its round, game and series', async () => {
+  const users: string[] = []
+  const { h, asked } = finalsHarness(FINALS_NORMAL, {
+    writer: async (req) => {
+      users.push(req.user)
+      return longWriter(req)
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.deepEqual(asked, [[701]])
+  const { posts, articles } = gameItems(h)
+  assert.equal(posts.length, 2)
+  assert.equal(articles.length, 0)
+  const prompt = users.find((u) => u.includes('Write exactly 2 posts'))!
+  assert.ok(prompt.includes(FINALS_START))
+  assert.ok(prompt.includes('Game 2 of Round 2 in Attempt 3 of the Club Finals'))
+  assert.ok(prompt.includes('Series after this game: 1 win and 1 loss for the Boogeymen (1–1)'))
+})
+
+void test('CF2: a round won is always covered big: 3-5 posts and a game story', async () => {
+  const { h } = finalsHarness(FINALS_ROUND_WON)
+  await runNewsCycle(h.deps, h.opts)
+  assert.deepEqual(logs(h.events), [])
+  const { posts, articles } = gameItems(h)
+  assert.ok(posts.length >= 3 && posts.length <= 5)
+  assert.equal(articles.length, 1)
+  assert.equal(articles[0]!.featureKind, null) // the game story
+  assert.equal(h.jobs.get('game_article:701:game')?.status, 'done')
+  assert.equal(h.jobs.get('game:701')?.status, 'done')
+})
+
+void test('CF2: a game of the final gets the bigger piece: 6-8 posts, a game story and a feature-length article', async () => {
+  const prompts: string[] = []
+  const { h } = finalsHarness(FINALS_ELIMINATED, {
+    writer: async (req) => {
+      prompts.push(req.user)
+      // The writer states the stored numbers only: the final, game 7, attempt 18, series 3-4.
+      if (req.schema === GAME_POSTS_SCHEMA) {
+        const r = await longWriter(req)
+        const j = r.json as { posts: { text: string }[] }
+        return {
+          ...r,
+          json: {
+            posts: j.posts.map((p) => ({
+              ...p,
+              text: 'Game 7 of the final in attempt 18. The series ended 3–4.',
+            })),
+          },
+        }
+      }
+      return longWriter(req)
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.deepEqual(logs(h.events), [])
+  const { posts, articles } = gameItems(h)
+  assert.ok(posts.length >= 6 && posts.length <= 8)
+  assert.equal(articles.length, 2)
+  assert.ok(['spotlight', 'bigpicture'].includes(articles[1]!.featureKind ?? ''))
+  assert.ok(posts.every((p) => p.body.includes('attempt 18')))
+  // Every request of the game carries the block, with the elimination and the run record.
+  const articlePrompts = prompts.filter((u) => u.includes('article format from the reporter notes'))
+  assert.equal(articlePrompts.length, 2)
+  for (const u of [prompts[0]!, ...articlePrompts]) {
+    assert.ok(u.includes(FINALS_START))
+    assert.ok(u.includes('Game 7 of The Final in Attempt 18'))
+    assert.ok(u.includes('eliminated'))
+    assert.ok(u.includes('22 wins and 13 losses'))
+  }
+})
+
+void test('CF2: the same text fails the number check when the game has no Club Finals state', async () => {
+  const { h } = finalsHarness(null, {
+    writer: async (req) => {
+      if (req.schema === GAME_POSTS_SCHEMA) {
+        const r = await longWriter(req)
+        const j = r.json as { posts: { text: string }[] }
+        return {
+          ...r,
+          json: {
+            posts: j.posts.map((p) => ({
+              ...p,
+              text: 'Game 7 of the final in attempt 18. The series ended 3–4.',
+            })),
+          },
+        }
+      }
+      return longWriter(req)
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('game:701')?.status, 'failed')
+  assert.match(h.jobs.get('game:701')?.error ?? '', /is not on the fact sheet/)
+})
+
+void test('CF2: the review gets the Club Finals facts as true desk notes', async () => {
+  const reviews: string[] = []
+  const { h } = finalsHarness(FINALS_ROUND_WON, {
+    writer: async (req) => {
+      if (req.schema === REVIEW_SCHEMA) reviews.push(req.user)
+      return longWriter(req)
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(reviews.length >= 1)
+  assert.ok(reviews.every((u) => u.includes('Club tracker: Game 5 of Round 1 in Attempt 3')))
+})
+
+void test('CF2: a read error is logged and the game is written as before', async () => {
+  const h = harness({
+    candidates: [701],
+    store: {
+      clubFinalsOf: async () => {
+        throw new Error('relation does not exist')
+      },
+    },
+    deps: { writer: longWriter },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.ok(logs(h.events).some((l) => l.includes('Club Finals state not read, none used')))
+  assert.equal(h.jobs.get('game:701')?.status, 'done')
+  assert.equal(gameItems(h).posts.length, 2)
+})
+
+void test('CF2: a failed big-game article retried later keeps its Club Finals weight and facts', async () => {
+  const users: string[] = []
+  let failArticles = true
+  const { h } = finalsHarness(FINALS_ROUND_WON, {
+    writer: async (req) => {
+      if (req.schema === ARTICLE_SCHEMA) {
+        users.push(req.user)
+        if (failArticles) {
+          const r = await goodWriter(req) // 300 words, a game story needs 200-350: use a tiny body
+          return { ...r, json: { ...(r.json as object), paragraphs: ['Too short.'] } }
+        }
+      }
+      return longWriter(req)
+    },
+  })
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('game_article:701:game')?.status, 'failed')
+  failArticles = false
+  h.state.candidates = []
+  h.deps.store.listGameArticleRetries = async () => ['701:game']
+  users.length = 0
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('game_article:701:game')?.status, 'done')
+  assert.ok(users[0]!.includes(FINALS_START))
+})
+
+void test('CF2: a night recap names each Club Finals game by its opponent and may use their numbers', async () => {
+  const users: string[] = []
+  const byMatch = new Map<number, ClubFinalsFacts>([[90002, FINALS_ELIMINATED]])
+  const h = harness({
+    store: {
+      clubFinalsOf: async (ids) =>
+        new Map(ids.flatMap((id) => (byMatch.has(id) ? [[id, byMatch.get(id)!] as const] : []))),
+    },
+    deps: {
+      writer: async (req) => {
+        users.push(req.user)
+        const r = await goodWriter(req)
+        if (req.schema !== ARTICLE_SCHEMA) return r
+        // The recap states the stored attempt number, which is on no sheet.
+        return {
+          ...r,
+          json: { ...(r.json as object), paragraphs: [`${FILLER} It was attempt 18.`] },
+        }
+      },
+    },
+  })
+  h.state.nights = [{ night: '2026-10-12', lastEnd: new Date(NOW.getTime() - 91 * MIN) }]
+  h.state.nightGames['2026-10-12'] = 2
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('night:2026-10-12')?.status, 'done')
+  const prompt = users.find((u) => u.includes('whole night'))!
+  assert.ok(prompt.includes(FINALS_START))
+  assert.ok(
+    prompt.includes('The game against WestKent Creamers: Game 7 of The Final in Attempt 18'),
+  )
+  assert.ok(!prompt.includes('The game against Shake N Bake'))
 })

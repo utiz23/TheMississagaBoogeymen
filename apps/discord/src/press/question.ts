@@ -1,5 +1,6 @@
 import { REPORTERS, type RelLevel, type NewsFactsResponse, type ReporterId } from '@eanhl/db/news'
 import type { NewsGmAskRow, NewsScrumRow, ScrumPersonDetail } from '@eanhl/db/queries'
+import { finalsFactLines, finalsMoment, type FinalsMoment } from '../club-finals.ts'
 import { crudeHit } from '../news/crude.ts'
 import { containsName } from '../news/fact-check.ts'
 import { answerButton, type BotMessage } from '../bot-rest.ts'
@@ -254,6 +255,22 @@ export async function scrumAskContext(
 ): Promise<AskContext> {
   const easy = onSheet.pressLevel === 'easy'
   const material = await store.nightPressMaterial(scrum.night, scrum.isTest)
+  // Club Finals (CF2): CF1's stored state of the game, as true desk notes and the moment's tone. A
+  // read error leaves it out: the question is written as before.
+  let finalsNotes: string[] = []
+  let moment: FinalsMoment | null = null
+  if (store.getClubFinalsBadge !== undefined && scrum.matchId !== null) {
+    try {
+      const badge = await store.getClubFinalsBadge(scrum.matchId)
+      if (badge !== null) {
+        finalsNotes = finalsFactLines(badge).map((l) => `Club Finals: ${l}`)
+        moment = finalsMoment(badge)
+      }
+    } catch {
+      finalsNotes = []
+      moment = null
+    }
+  }
   return {
     facts: res.facts,
     forbiddenNames: res.forbiddenNames,
@@ -265,9 +282,13 @@ export async function scrumAskContext(
       ...(onSheet.bench === undefined ? {} : { bench: onSheet.bench }),
     },
     // "Go easy" means no criticism: a critical note is never used for them.
-    gmNotes: pressForSheet(material, res.facts)
-      .gmNotes.filter((n) => n.matchId === scrum.matchId && !(easy && n.critical))
-      .map((n) => n.note),
+    gmNotes: [
+      ...pressForSheet(material, res.facts)
+        .gmNotes.filter((n) => n.matchId === scrum.matchId && !(easy && n.critical))
+        .map((n) => n.note),
+      ...finalsNotes,
+    ],
+    ...(moment === null ? {} : { moment }),
     takes: res.takes,
     history,
     questionNumber,

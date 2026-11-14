@@ -1631,3 +1631,38 @@ void test('fan follow-ups: a post written from a night sheet is checked as a pos
     ),
   )
 })
+
+void test('CF2: Club Finals numbers (extraNumbers) are allowed in game posts and articles, nothing else is', () => {
+  const extra = new Set([4, 7, 18])
+  const post = (text: string, extraNumbers?: ReadonlySet<number>) =>
+    checkGamePosts(
+      [{ reporter: 'barlow', text, ...none, criticized: [] }],
+      facts,
+      FORBIDDEN,
+      [],
+      extraNumbers === undefined ? {} : { extraNumbers },
+    )
+  const text = 'Game 7 of the final in attempt 18.'
+  assert.ok(!post(text).ok)
+  assert.deepEqual(post(text, extra), { ok: true })
+  // A number that is neither on the sheet nor stored is still refused.
+  assert.ok(!post('Game 19 of the final.', extra).ok)
+
+  const article = (body: string, extraNumbers?: ReadonlySet<number>) =>
+    checkArticleFacts(
+      {
+        headline: 'The final goes to game 7',
+        dek: 'Attempt 18.',
+        paragraphs: [`${Array.from({ length: 250 }, () => 'hockey').join(' ')} ${body}`],
+        summary: 'It went to game 7.',
+        ...none,
+        criticized: [],
+      },
+      night,
+      FORBIDDEN,
+      [],
+      { length: 'game-story', ...(extraNumbers === undefined ? {} : { extraNumbers }) },
+    )
+  assert.ok(!article('It was game 7 of attempt 18.').ok)
+  assert.deepEqual(article('It was game 7 of attempt 18.', extra), { ok: true })
+})

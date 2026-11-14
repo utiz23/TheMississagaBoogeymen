@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   }
   const config = loaded.config
   // Imported after the config check so a misconfigured host never opens a DB pool.
-  const { listStuckDiscordPosts } = await import('@eanhl/db/queries')
+  const { listStuckDiscordPosts, getClubFinalsBadge } = await import('@eanhl/db/queries')
   const { dbStore, dbUnlockStore } = await import('./store.ts')
   const { runPosterCycle, WINDOW_MS, BATCH_LIMIT } = await import('./cycle.ts')
   const { runUnlockCycle, UNLOCK_LIMIT } = await import('./cycle-unlocks.ts')
@@ -44,6 +44,7 @@ async function main(): Promise<void> {
           fetchGameResult: (matchId) => fetchGameResult({ ...web, matchId }),
           renderCards: (matchId) =>
             renderLineup({ ...web, matchId, timeoutMs: config.renderTimeoutMs }),
+          clubFinals: (matchId) => getClubFinalsBadge(matchId),
           send: (payload, image) => {
             if (config.webhookUrl === null) throw new Error('no webhook configured')
             return sendWebhook(config.webhookUrl, payload, image)

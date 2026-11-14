@@ -34,6 +34,7 @@ import {
   listRelationships,
   getConfirmedBackground,
   addRelationshipPoints,
+  getClubFinalsBadges,
 } from '@eanhl/db/queries'
 import type { WriterFact } from '@eanhl/db/queries'
 import { REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
@@ -99,6 +100,8 @@ export const newsDbStore: NewsStore = {
   // T5, T9: reporter relationships (migration 0078); a missing table is caught by the caller.
   listRelationships: (args) => listRelationships({ now: args.now, playerIds: args.playerIds }),
   addRelationshipPoints,
+  // Club Finals (CF2): CF1's stored state of games (migration 0083); a failure is caught by the caller.
+  clubFinalsOf: (matchIds) => getClubFinalsBadges(matchIds),
   // Task background-b2: confirmed background facts (migration 0082); a failure is caught by the caller.
   listConfirmedBackground: async (playerIds) => {
     const out: { playerId: number; facts: WriterFact[] }[] = []

@@ -25,6 +25,7 @@ import type {
   ScrumPersonWithScrum,
 } from '@eanhl/db/queries'
 import { acceptButton, type BotMessage } from '../bot-rest.ts'
+import { applyFinalsFloor, type ClubFinalsFacts } from '../club-finals.ts'
 import { benchGameOf, nameBench, personColumns, type BenchPort } from './bench.ts'
 import { payloadForItem, toBotMessage } from '../news/messages.ts'
 import type { ModelCall } from '../news/writer.ts'
@@ -70,6 +71,11 @@ export interface PressStore {
   listMirrorDeletions(limit: number): Promise<MirrorDeletion[]>
   markMirrorDeleted(itemId: number): Promise<void>
   getNewsItem(id: number): Promise<NewsItemRow | null>
+  /**
+   * Club Finals (CF2): CF1's stored state of a game, or null when it has none. Optional: a store
+   * without it means no Club Finals moments (the scrum is as before).
+   */
+  getClubFinalsBadge?(matchId: number): Promise<ClubFinalsFacts | null>
   listRecapItemsWithoutScrum(args: {
     since: Date
     mode: 'trial' | 'live'
@@ -328,7 +334,18 @@ export async function runPressPass(
     const res = await deps.fetchFacts('game', String(matchId))
     const game = res.facts.games.find((g) => g.matchId === matchId)
     if (game === undefined) throw new Error('the game is not on its fact sheet')
-    const plan = planBuzz(game, res.facts)
+    // Club Finals (CF2): a round won, an elimination, a game of the final and a round decided in
+    // its 7th game are big moments: the game's level goes up to `big` or more, so the picked player
+    // is pinged. A read error leaves the plan as it was.
+    let finals: ClubFinalsFacts | null = null
+    if (store.getClubFinalsBadge !== undefined) {
+      try {
+        finals = await store.getClubFinalsBadge(matchId)
+      } catch (err: unknown) {
+        log(`[press] scrums: ${tag}: Club Finals state not read, none used (${reason(err)})`)
+      }
+    }
+    const plan = applyFinalsFloor(planBuzz(game, res.facts), game, finals)
     const asks = await store.gmAsksForMatch(matchId, trial)
     const gmAsk = (await store.gmAskForMatch(matchId, trial)) ?? asks[0]?.playerId ?? null
 

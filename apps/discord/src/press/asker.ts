@@ -27,6 +27,7 @@ import {
 } from '../news/prompts.ts'
 import { redactTakes } from '../news/redact.ts'
 import { writeChecked, type ModelCall } from '../news/writer.ts'
+import { MOMENT_TONE, type FinalsMoment } from '../club-finals.ts'
 import type { BenchRole } from './bench.ts'
 import type { Heat } from './rules.ts'
 
@@ -79,6 +80,12 @@ export interface AskContext {
    * proposed or rejected one; none for "Leave me out"). Context only, never the player's words.
    */
   background?: readonly { part: string; text: string }[]
+  /**
+   * Club Finals (CF2): the big moment this game was (a round won, an elimination, a game of the
+   * final, a deciding 7th game). Tone only: the hard lines, "Go easy" and the crude-quote rules stay
+   * as they are. Its facts reach the writer as desk notes in `gmNotes`.
+   */
+  moment?: FinalsMoment
 }
 
 /**
@@ -304,6 +311,7 @@ function contextLines(ctx: AskContext, history: AskContext['history']): string[]
       ? ['Other reporters of the desk asked some of the earlier questions: do not repeat them.']
       : []),
     `Heat: ${ctx.heat}. ${HEAT_RULE[ctx.heat]}`,
+    ...(ctx.moment === undefined ? [] : [MOMENT_TONE[ctx.moment]]),
     ctx.player.pressLevel === 'easy'
       ? `${name} is at press level "easy": no criticism at any heat.`
       : `${name} is at press level "full".`,

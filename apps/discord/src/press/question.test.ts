@@ -307,3 +307,109 @@ void test('startScrumQuestion: a person no longer on the sheet gets no thread an
   assert.equal(t.store.people.find((x) => x.id === pinged)!.status, 'expired')
   assert.equal(t.store.people.find((x) => x.id === asking)!.status, 'done')
 })
+
+// ── Club Finals moment (CF2) ─────────────────────────────────────────────────
+
+function capturingModel(reqs: Parameters<ModelCall>[0][], question: string): ModelCall {
+  return (req) => {
+    reqs.push(req)
+    return Promise.resolve({
+      json: req.purpose === 'write' ? { question } : { ok: true, problems: [] },
+      refused: false,
+      model: 'claude-opus-5-5',
+      usage: { input_tokens: 10, output_tokens: 5 },
+    })
+  }
+}
+
+const ELIMINATED = {
+  attempt: 1,
+  round: 4,
+  gameInRound: 7,
+  roundWinsAfter: 3,
+  roundLossesAfter: 4,
+  attemptWinsAfter: 13,
+  attemptLossesAfter: 9,
+  isFinal: true,
+  roundWon: false,
+  eliminated: true,
+  finalWon: false,
+}
+
+void test('CF2: the scrum question gets the Club Finals facts as desk notes and the moment tone', async () => {
+  const reqs: Parameters<ModelCall>[0][] = []
+  // Game 7 and the run record 13-9 are on no sheet: the question may use them because the tracker stored them.
+  const t = setup({
+    model: capturingModel(reqs, 'Skater A, how did game 7 of the final slip away?'),
+  })
+  const personId = await scrumWithPerson(t)
+  t.store.clubFinals.set(90001, ELIMINATED)
+  await startScrumQuestion(t.deps, config('live'), personId)
+  const write = reqs.find((r) => r.purpose === 'write')!
+  assert.ok(write.user.includes('Club Finals: Game 7 of The Final in Attempt 1 of the Club Finals'))
+  assert.ok(write.user.includes('13 wins and 9 losses'))
+  assert.ok(write.user.includes('Moment: this game ended the attempt'))
+  assert.equal(
+    t.sent.at(-1)!.msg.content,
+    `<@${USER_A}> Skater A, how did game 7 of the final slip away?`,
+  )
+})
+
+void test('CF2: a scrum for a game with no Club Finals state has no note and no moment', async () => {
+  const reqs: Parameters<ModelCall>[0][] = []
+  const t = setup({ model: capturingModel(reqs, 'Skater A, what changed after the first period?') })
+  const personId = await scrumWithPerson(t)
+  await startScrumQuestion(t.deps, config('live'), personId)
+  const write = reqs.find((r) => r.purpose === 'write')!
+  assert.ok(!write.user.includes('Club Finals'))
+  assert.ok(!write.user.includes('Moment:'))
+})
+
+void test('CF2: an ordinary Club Finals game adds the facts but no moment tone', async () => {
+  const reqs: Parameters<ModelCall>[0][] = []
+  const t = setup({ model: capturingModel(reqs, 'Skater A, what changed after the first period?') })
+  const personId = await scrumWithPerson(t)
+  t.store.clubFinals.set(90001, {
+    ...ELIMINATED,
+    round: 2,
+    gameInRound: 2,
+    roundWinsAfter: 1,
+    roundLossesAfter: 1,
+    attemptWinsAfter: 5,
+    attemptLossesAfter: 2,
+    isFinal: false,
+    eliminated: false,
+  })
+  await startScrumQuestion(t.deps, config('live'), personId)
+  const write = reqs.find((r) => r.purpose === 'write')!
+  assert.ok(write.user.includes('Club Finals: Game 2 of Round 2'))
+  assert.ok(!write.user.includes('Moment:'))
+})
+
+void test('CF2: a failed Club Finals read leaves the question as before', async () => {
+  const reqs: Parameters<ModelCall>[0][] = []
+  const t = setup({ model: capturingModel(reqs, 'Skater A, what changed after the first period?') })
+  const personId = await scrumWithPerson(t)
+  t.store.clubFinalsError = new Error('relation does not exist')
+  await startScrumQuestion(t.deps, config('live'), personId)
+  const write = reqs.find((r) => r.purpose === 'write')!
+  assert.ok(!write.user.includes('Club Finals'))
+  assert.equal(
+    t.sent.at(-1)!.msg.content,
+    `<@${USER_A}> Skater A, what changed after the first period?`,
+  )
+})
+
+void test('CF2: the hard rules stay in every moment: Go easy text and the rule list are unchanged', async () => {
+  const reqs: Parameters<ModelCall>[0][] = []
+  const t = setup({
+    model: capturingModel(reqs, 'Skater B, how did game 7 of the final slip away?'),
+  })
+  const personId = await scrumWithPerson(t, 2)
+  t.store.clubFinals.set(90001, ELIMINATED)
+  await startScrumQuestion(t.deps, config('live'), personId)
+  const write = reqs.find((r) => r.purpose === 'write')!
+  assert.ok(write.user.includes('press level "easy": no criticism at any heat'))
+  assert.ok(write.system.includes('A player at press level "easy" gets no criticism at any heat.'))
+  assert.ok(write.system.includes('Never repeat or paraphrase a crude word or line of the player.'))
+})

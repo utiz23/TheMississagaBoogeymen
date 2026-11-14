@@ -970,6 +970,8 @@ export interface ArticleContext extends PieceContext {
    * piece quotes no teammate.
    */
   press?: PressForCheck
+  /** Club Finals (CF2): the round, game and series numbers the tracker stored; allowed in the text. */
+  extraNumbers?: ReadonlySet<number>
 }
 
 /** A night recap's press material as the check sees it. */
@@ -1131,6 +1133,7 @@ export function checkArticleFacts(
   const body = article.paragraphs.join('\n\n')
   const quoted = quoteProblems(body, article.quotes ?? [], facts, forbiddenNames, ctx.press)
   const numbers = noteNumbers(ctx.press, facts)
+  for (const n of ctx.extraNumbers ?? []) numbers.add(n)
   const problems = [
     ...quoted.problems,
     ...check(
@@ -1181,6 +1184,8 @@ export interface GamePostsContext {
   zeroCalledPrevious?: readonly string[]
   /** Per post: the ids of the takes it was offered (in post order). */
   offeredTakes?: readonly (readonly number[])[]
+  /** Club Finals (CF2): the round, game and series numbers the tracker stored; allowed in the text. */
+  extraNumbers?: ReadonlySet<number>
 }
 
 export function checkGamePosts(
@@ -1220,6 +1225,7 @@ export function checkGamePosts(
         zeroCalledPrevious: ctx.zeroCalledPrevious ?? [],
         offeredTakes: ctx.offeredTakes?.[i] ?? [],
       },
+      ctx.extraNumbers === undefined ? {} : { numbers: ctx.extraNumbers },
     )
     problems.push(...r)
     const side = sideText((p.stances ?? []).map((st) => st.stance))

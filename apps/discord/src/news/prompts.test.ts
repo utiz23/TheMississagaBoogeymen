@@ -1120,3 +1120,60 @@ void test('article and feature fields: "quotes" is [] unless a PRESS ROOM block 
     }).includes(line),
   )
 })
+
+// ── Club Finals block (CF2) ──────────────────────────────────────────────────
+
+const finalsCtx = {
+  ...EMPTY_DESK_CONTEXT,
+  clubFinals: [
+    {
+      opponent: null,
+      facts: {
+        attempt: 3,
+        round: 1,
+        gameInRound: 5,
+        roundWinsAfter: 4,
+        roundLossesAfter: 1,
+        attemptWinsAfter: 4,
+        attemptLossesAfter: 1,
+        isFinal: false,
+        roundWon: true,
+        eliminated: false,
+        finalWon: false,
+      },
+    },
+  ],
+}
+
+void test('CF2: the Club Finals block is in the game, game-article and night prompts, before the desk context', () => {
+  const posts = buildGameUserPrompt({ facts: oct12Facts(), posts: one('barlow'), ctx: finalsCtx })
+  const article = buildGameArticleUserPrompt({
+    facts: oct12Facts(),
+    reporter: REPORTERS.barlow,
+    kind: 'game',
+    ctx: finalsCtx,
+  })
+  const nightPrompt = buildArticleUserPrompt({
+    facts: oct12Facts('night'),
+    reporter: REPORTERS.quill,
+    ctx: finalsCtx,
+  })
+  for (const p of [posts, article, nightPrompt]) {
+    assert.ok(p.includes('CLUB FINALS (the club tracker'))
+    assert.ok(p.includes('Game 5 of Round 1 in Attempt 3 of the Club Finals'))
+    assert.ok(p.indexOf('END OF CLUB FINALS') < p.indexOf(DESK_CONTEXT_START))
+  }
+})
+
+void test('CF2: no Club Finals state, no block and an unchanged prompt', () => {
+  const plain = buildGameUserPrompt({ facts: oct12Facts(), posts: one('barlow') })
+  assert.ok(!plain.includes('CLUB FINALS'))
+  assert.equal(
+    buildGameUserPrompt({
+      facts: oct12Facts(),
+      posts: one('barlow'),
+      ctx: { ...EMPTY_DESK_CONTEXT, clubFinals: [] },
+    }),
+    plain,
+  )
+})

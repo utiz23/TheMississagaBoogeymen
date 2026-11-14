@@ -99,6 +99,12 @@ import {
 } from './prompts.ts'
 import { classifyGame } from './situation.ts'
 import {
+  applyFinalsFloor,
+  finalsNumbers,
+  finalsTrusted,
+  type ClubFinalsFacts,
+} from '../club-finals.ts'
+import {
   NewsRetryableError,
   NewsStopError,
   budgetLeft,
@@ -230,6 +236,11 @@ export interface NewsStore {
   listConfirmedBackground?(
     playerIds: readonly number[],
   ): Promise<{ playerId: number; facts: { part: string; text: string }[] }[]>
+  /**
+   * Club Finals (CF2): CF1's stored state of these games (by match id). Optional: a store without it
+   * (or a database with no Club Finals table yet) means no Club Finals facts and no extra weight.
+   */
+  clubFinalsOf?(matchIds: readonly number[]): Promise<Map<number, ClubFinalsFacts>>
   /**
    * T9: adds signed relationship points (a big night in a reporter's taste). Optional like the read;
    * a failure is logged and never stops the recap.
@@ -448,14 +459,22 @@ function trustedWithRelationships(
   press: { quotes: readonly PressQuote[]; gmNotes: readonly PressNote[] } | undefined,
   rels: readonly RelationshipStory[],
   background: readonly BackgroundLine[] = [],
+  finals: readonly string[] = [],
 ): TrustedMaterial | undefined {
-  if (press === undefined && rels.length === 0 && background.length === 0) return undefined
+  if (press === undefined && rels.length === 0 && background.length === 0 && finals.length === 0) {
+    return undefined
+  }
   const base: TrustedMaterial =
     press === undefined ? { gmNotes: [], answers: [] } : trustedOf(press)
-  return rels.length === 0 && background.length === 0
+  return rels.length === 0 && background.length === 0 && finals.length === 0
     ? base
     : {
-        gmNotes: [...base.gmNotes, ...relationshipTrusted(rels), ...backgroundTrusted(background)],
+        gmNotes: [
+          ...base.gmNotes,
+          ...relationshipTrusted(rels),
+          ...backgroundTrusted(background),
+          ...finals,
+        ],
         answers: base.answers,
       }
 }
@@ -856,11 +875,14 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         }
         continue
       }
-      const plan = planBuzz(game, res.facts)
+      const finals = await finalsOfGame(game.matchId, tag)
+      const plan = applyFinalsFloor(planBuzz(game, res.facts), game, finals)
       // A Discord rate limit during the send ends the pass but must not cost the game its
       // articles (their jobs are only created here): write them, then stop (I2).
-      if ((await writeGame(jobId, tag, res, game, plan)) === 'end' && !sendingStopped) return 'end'
-      if ((await gameArticles(res, game, plan, plan.articles)) === 'end') return 'end'
+      if ((await writeGame(jobId, tag, res, game, plan, finals)) === 'end' && !sendingStopped) {
+        return 'end'
+      }
+      if ((await gameArticles(res, game, plan, plan.articles, finals)) === 'end') return 'end'
       if (sendingStopped) return 'end'
     }
     // Big-game articles whose job failed earlier (C3a.8): written again under the cap.
@@ -877,10 +899,35 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       }
       const game = res.facts.games.find((g) => String(g.matchId) === matchKey)
       if (game === undefined) continue
-      const plan = planBuzz(game, res.facts)
-      if ((await gameArticles(res, game, plan, [kind as GameArticleKind])) === 'end') return 'end'
+      const finals = await finalsOfGame(game.matchId, `game ${matchKey!}`)
+      const plan = applyFinalsFloor(planBuzz(game, res.facts), game, finals)
+      if ((await gameArticles(res, game, plan, [kind as GameArticleKind], finals)) === 'end') {
+        return 'end'
+      }
     }
     return 'go'
+  }
+
+  /**
+   * Club Finals (CF2): CF1's stored state of one game, or null (not a Club Finals game, no support
+   * in the store, or a read error: Club Finals is flavour and weight, so the game is written
+   * without it and the failure is logged).
+   */
+  async function finalsOfGame(matchId: number, tag: string): Promise<ClubFinalsFacts | null> {
+    return (await finalsOfGames([matchId], tag)).get(matchId) ?? null
+  }
+
+  async function finalsOfGames(
+    matchIds: readonly number[],
+    tag: string,
+  ): Promise<Map<number, ClubFinalsFacts>> {
+    if (store.clubFinalsOf === undefined || matchIds.length === 0) return new Map()
+    try {
+      return await store.clubFinalsOf(matchIds)
+    } catch (err: unknown) {
+      log(`${tag}: Club Finals state not read, none used (${message(err)})`)
+      return new Map()
+    }
   }
 
   /** The reporters' own last pieces (C3a.3), for every reporter of a request. */
@@ -908,9 +955,11 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     res: NewsFactsResponse,
     game: NewsGameFacts,
     plan: BuzzPlan,
+    finals: ClubFinalsFacts | null,
   ): Promise<Step> {
     const { facts, forbiddenNames } = res
     const night = facts.key // a game sheet's key is its night (R12)
+    const finalsEntries = finals === null ? [] : [{ opponent: null, facts: finals }]
     const now = deps.now()
     // The job is claimed: any error before the write must mark it failed, never leave it pending.
     let posts: PostAssignment[]
@@ -947,7 +996,11 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       user: buildGameUserPrompt({
         facts,
         posts,
-        ctx: { ...ctx, takes: takes.filter((t) => offered.flat().includes(t.id)) },
+        ctx: {
+          ...ctx,
+          takes: takes.filter((t) => offered.flat().includes(t.id)),
+          ...(finals === null ? {} : { clubFinals: finalsEntries }),
+        },
       }),
       schema: GAME_POSTS_SCHEMA,
       parse: (v) => parseGamePosts(v, order),
@@ -957,11 +1010,15 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           zeroCalledTonight: ctx.zeroCalledTonight,
           zeroCalledPrevious: ctx.zeroCalledPrevious,
           offeredTakes: offered,
+          ...(finals === null ? {} : { extraNumbers: finalsNumbers([finals]) }),
         }),
       textForReview: (out) =>
         out.posts.map((p) => `${REPORTERS[p.reporter].name}: ${p.text}`).join('\n\n'),
       criticizedForReview: (out) => [...new Set(out.posts.flatMap((p) => p.criticized))],
       takesForReview: takes.filter((t) => offered.flat().includes(t.id)),
+      ...(finals === null
+        ? {}
+        : { trusted: { gmNotes: finalsTrusted(finalsEntries), answers: [] } }),
       facts,
     })
     if (written === 'end') return 'end'
@@ -1056,10 +1113,12 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     game: NewsGameFacts,
     plan: BuzzPlan,
     kinds: readonly GameArticleKind[],
+    finals: ClubFinalsFacts | null,
   ): Promise<Step> {
     if (kinds.length === 0) return 'go'
     const { facts, forbiddenNames } = res
     const night = facts.key
+    const finalsEntries = finals === null ? [] : [{ opponent: null, facts: finals }]
     const now = deps.now()
     let writers: { kind: GameArticleKind; reporter: ReporterId }[]
     try {
@@ -1104,7 +1163,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           facts,
           reporter,
           kind: w.kind,
-          ctx: { ...ctx, takes: mine },
+          ctx: { ...ctx, takes: mine, ...(finals === null ? {} : { clubFinals: finalsEntries }) },
         }),
         schema: ARTICLE_SCHEMA,
         parse: parseArticle,
@@ -1115,11 +1174,15 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
             zeroCalledTonight: ctx.zeroCalledTonight,
             zeroCalledPrevious: ctx.zeroCalledPrevious,
             offeredTakes: mine.map((t) => t.id),
+            ...(finals === null ? {} : { extraNumbers: finalsNumbers([finals]) }),
           }),
         textForReview: (x) =>
           [`By ${REPORTERS[w.reporter].name}`, x.headline, x.dek, ...x.paragraphs].join('\n\n'),
         criticizedForReview: (x) => x.criticized,
         takesForReview: mine,
+        ...(finals === null
+          ? {}
+          : { trusted: { gmNotes: finalsTrusted(finalsEntries), answers: [] } }),
         facts,
       })
       if (written === 'end') return 'end'
@@ -1492,6 +1555,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     let rels: RelationshipStory[] = []
     /** Task background-b2: the confirmed background of the sheet's people (night recaps). */
     let background: BackgroundLine[] = []
+    /** Club Finals (CF2): CF1's stored state of the night's games, named by opponent (night recaps). */
+    let clubFinals: { opponent: string | null; facts: ClubFinalsFacts }[] = []
     try {
       const activity = await loadActivity(now)
       let zero = { tonight: [] as string[], previous: [] as string[] }
@@ -1524,6 +1589,17 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           log(`${tag}: background not read, none used (${message(err)})`)
         }
       }
+      // Club Finals state is flavour and weight: when it cannot be read, the recap is written without it.
+      if (kind === 'night') {
+        const byMatch = await finalsOfGames(
+          facts.games.map((g) => g.matchId),
+          tag,
+        )
+        clubFinals = facts.games.flatMap((g) => {
+          const f = byMatch.get(g.matchId)
+          return f === undefined ? [] : [{ opponent: g.opponentName, facts: f }]
+        })
+      }
       // A relationship is flavour: when it cannot be read, the piece is written without it.
       if (store.listRelationships !== undefined) {
         try {
@@ -1546,6 +1622,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         ...(press === undefined ? {} : { press }),
         ...(rels.length === 0 ? {} : { relationships: rels }),
         ...(background.length === 0 ? {} : { background }),
+        ...(clubFinals.length === 0 ? {} : { clubFinals }),
       }
       const who = reporterId
       mine = (await takesDue(res, now)).filter((t) => takeCritics(t).includes(who))
@@ -1575,14 +1652,25 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
             ...(press === undefined
               ? {}
               : { press: { quotes: press.quotes, gmNotes: press.gmNotes.map((n) => n.note) } }),
+            ...(clubFinals.length === 0
+              ? {}
+              : { extraNumbers: finalsNumbers(clubFinals.map((c) => c.facts)) }),
           }),
         textForReview: (x) =>
           [`By ${REPORTERS[reporterId].name}`, x.headline, x.dek, ...x.paragraphs].join('\n\n'),
         criticizedForReview: (x) => x.criticized,
         takesForReview: mine,
-        ...(trustedWithRelationships(press, rels, background) === undefined
+        ...(trustedWithRelationships(press, rels, background, finalsTrusted(clubFinals)) ===
+        undefined
           ? {}
-          : { trusted: trustedWithRelationships(press, rels, background)! }),
+          : {
+              trusted: trustedWithRelationships(
+                press,
+                rels,
+                background,
+                finalsTrusted(clubFinals),
+              )!,
+            }),
         facts,
       })
       if (written === 'end') return 'end'

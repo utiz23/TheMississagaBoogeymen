@@ -16,6 +16,7 @@ import {
   expireUnpingedGmPerson,
   findReactionItem,
   getAdminNewsItem,
+  getClubFinalsBadge,
   getGmNote,
   getPlayerDiscordUserId,
   getPlayerForDiscordUser,
@@ -92,6 +93,8 @@ export const pressDbStore: PressStore = {
   listMirrorDeletions,
   markMirrorDeleted,
   getNewsItem: getAdminNewsItem,
+  // Club Finals (CF2): CF1's stored state (migration 0083); a failure is caught by the caller.
+  getClubFinalsBadge,
   listRecapItemsWithoutScrum,
   scrumByRecapItem,
   gmAskForMatch,

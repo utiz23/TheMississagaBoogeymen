@@ -13,6 +13,7 @@ import {
   type ReporterId,
 } from '@eanhl/db/news'
 import type { PressNote, PressQuote } from '@eanhl/db/queries'
+import { finalsBlock, type ClubFinalsFacts } from '../club-finals.ts'
 import { ANGLE_TEXT, type PostAssignment } from './assign.ts'
 import { isBench, quoteSpeaker } from './press-material.ts'
 
@@ -204,6 +205,11 @@ export interface DeskContext {
    * the reporter's own words; never quoted, never a player's words.
    */
   background?: readonly BackgroundLine[]
+  /**
+   * Club Finals (CF2): the stored round, game and series of the sheet's games that have a Club Finals
+   * state (CF1), in game order. A night sheet names each game by its opponent. None when absent.
+   */
+  clubFinals?: readonly { opponent: string | null; facts: ClubFinalsFacts }[]
 }
 
 /** One confirmed background fact about a player on the sheet. */
@@ -511,6 +517,8 @@ export function buildGameUserPrompt(args: {
   lines.push('', storyBlock(story, facts))
   const threads = threadsBlock(facts)
   if (threads !== null) lines.push('', threads)
+  const finals = finalsBlock(ctx.clubFinals ?? [])
+  if (finals !== null) lines.push('', finals)
   lines.push(
     '',
     facts.games.some((g) => g.endedEarly) ? RECAP_RULES_ENDED_EARLY : RECAP_RULES,
@@ -646,6 +654,8 @@ export function buildArticleUserPrompt(args: {
   ]
   const threads = threadsBlock(facts)
   if (threads !== null) lines.push('', threads)
+  const finals = finalsBlock(ctx.clubFinals ?? [])
+  if (finals !== null) lines.push('', finals)
   const pressRoom = pressRoomBlock(ctx.press)
   if (pressRoom !== null) lines.push('', pressRoom)
   const background = backgroundBlock(ctx.background)
@@ -686,6 +696,8 @@ export function buildGameArticleUserPrompt(args: {
   )
   const threads = threadsBlock(facts)
   if (threads !== null) lines.push('', threads)
+  const finals = finalsBlock(ctx.clubFinals ?? [])
+  if (finals !== null) lines.push('', finals)
   lines.push('', deskContextBlock(ctx, [reporter.id]))
   return lines.join('\n')
 }

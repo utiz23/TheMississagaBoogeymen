@@ -201,3 +201,71 @@ void test('new-card unlocks ping exactly their player; nothing else pings', () =
   )
   assert.deepEqual(none.allowed_mentions, { parse: [] })
 })
+
+// ── Club Finals line (CF2) ───────────────────────────────────────────────────
+
+const finals = {
+  attempt: 3,
+  round: 1,
+  gameInRound: 5,
+  roundWinsAfter: 4,
+  roundLossesAfter: 1,
+  attemptWinsAfter: 4,
+  attemptLossesAfter: 1,
+  isFinal: false,
+  roundWon: true,
+  eliminated: false,
+  finalWon: false,
+}
+
+void test('Club Finals: the line is the first line of the post, only CF1 values, nothing else changes', () => {
+  const plain = buildGameResultPayload(r, { siteUrl: SITE, hasImage: true })
+  const withLine = buildGameResultPayload(r, { siteUrl: SITE, hasImage: true, clubFinals: finals })
+  const e = withLine.embeds[0]!
+  assert.equal(
+    e.description.split('\n')[0],
+    '**Club Finals** · Attempt 3 · Round 1 · Game 5 · Series 4–1 · **ROUND WON**',
+  )
+  // The rest of the post is the same: title, colour, box score link, image, nobody pinged.
+  assert.equal(e.description.split('\n').slice(1).join('\n'), plain.embeds[0]!.description)
+  assert.equal(e.title, plain.embeds[0]!.title)
+  assert.equal(e.color, plain.embeds[0]!.color)
+  assert.deepEqual(withLine.attachments, plain.attachments)
+  assert.deepEqual(withLine.allowed_mentions, { parse: [] })
+})
+
+void test('Club Finals: null or absent state = the post as before', () => {
+  const plain = buildGameResultPayload(r, { siteUrl: SITE, hasImage: false })
+  assert.deepEqual(
+    buildGameResultPayload(r, { siteUrl: SITE, hasImage: false, clubFinals: null }),
+    plain,
+  )
+  assert.ok(!plain.embeds[0]!.description.includes('Club Finals'))
+})
+
+void test('Club Finals: an eliminating loss in the final names the run record', () => {
+  const p = buildGameResultPayload(
+    { ...r, result: 'OTL', overtime: true, scoreFor: 2, scoreAgainst: 3 },
+    {
+      siteUrl: SITE,
+      hasImage: false,
+      clubFinals: {
+        ...finals,
+        attempt: 1,
+        round: 4,
+        gameInRound: 5,
+        roundWinsAfter: 1,
+        roundLossesAfter: 4,
+        attemptWinsAfter: 13,
+        attemptLossesAfter: 9,
+        isFinal: true,
+        roundWon: false,
+        eliminated: true,
+      },
+    },
+  )
+  assert.equal(
+    p.embeds[0]!.description.split('\n')[0],
+    '**Club Finals · THE FINAL** · Attempt 1 · Game 5 · Series 1–4 · **ELIMINATED** · run ends 13–9',
+  )
+})
