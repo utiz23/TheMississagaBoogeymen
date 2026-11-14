@@ -62,7 +62,18 @@ All checks pass; screenshots match the mock-up's layout; every action is admin-o
   press pass runs; needs a `press` deploy). db tests 20/20, discord box tests 5/5.
 - 2026-11-14 03:49 Task agent: web pages built, screenshots taken, rebased on main (9ab1a87a), all checks green (see Report). State = Verify.
 
-Resume: Lead reviews and runs the checks again; the operator looks at the screenshots. Deploy order: back up, apply 0080, then `web` and `press` together.
+- 2026-11-14 03:52 Lead2: reviewed. Every page and action calls `requireAdmin` first; 0080 only adds
+  tables/columns (rollback in header); no login bypass in the branch. Path stretch accepted by the
+  Lead: `apps/discord/src/press/` got a request reader + one pass step (the web has no bot tokens; the
+  task foresaw "`press` only if a control needs a new reader"); `queries/news-relationships.ts` and
+  `news-press.ts` are inside `packages/db/src/queries/`. Rebased on `main` (E1 merged): the two expected
+  one-line conflicts in the schema and queries index files, resolved by the Lead (both export lines
+  kept). Checks again: typecheck db/web/worker/discord clean; web 701/701; discord 848/848; db
+  press-box + news-relationships + live-events 26/26; prettier clean. Screenshots seen. The preview's
+  spend tile shows a $60 cap (no local setting); live has `NEWS_MONTHLY_LIMIT_USD=100`.
+
+Resume: operator looks at the screenshots (D3); then the Lead merges. Deploy (separate OK): fresh
+backup, apply 0080, then `web` and `press` together; click each action once and check the change log.
 
 ## Report
 
