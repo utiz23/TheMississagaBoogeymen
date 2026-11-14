@@ -1,4 +1,5 @@
 import { REPORTER_IDS, REL_LEVELS, type RelLevel, type ReporterId } from '@eanhl/db/news'
+import { DOSSIER_NOTICE_TEXT } from './dossier-box-actions.ts'
 import type {
   PressBoxActor,
   RelationshipAction,
@@ -129,6 +130,8 @@ export const NOTICE_TEXT: Readonly<Record<string, string>> = {
   easy: 'Nothing changed: this player is on Go easy, so the feud side is never used.',
   no_pin: 'Nothing changed: no level is pinned.',
   no_player: 'Nothing changed: no such player.',
+  // The player dossier (release L2).
+  ...DOSSIER_NOTICE_TEXT,
 }
 
 /** The notice code from a query string, or null when it is none of ours. */

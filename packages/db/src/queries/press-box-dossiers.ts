@@ -236,7 +236,9 @@ export function mergeIndex(args: {
   const talk = new Map(args.talk.map((t) => [t.key, t]))
   const members = args.roster.map((r): DossierIndexRow => {
     const key = String(r.playerId)
-    const t = talk.get(key)
+    // "Leave me out": identity only, so no counts or dates are carried for them.
+    const t = r.pressLevel === 'out' ? undefined : talk.get(key)
+    const out = r.pressLevel === 'out'
     return {
       key,
       playerId: r.playerId,
@@ -245,10 +247,10 @@ export function mergeIndex(args: {
       gamertag: r.gamertag,
       role: 'player',
       pressLevel: r.pressLevel,
-      relationships: args.relationships.get(r.playerId) ?? 0,
+      relationships: out ? 0 : (args.relationships.get(r.playerId) ?? 0),
       quotes: t?.quotes ?? 0,
       lastTalkedAt: t?.lastAt ?? null,
-      profileWrittenAt: args.profiles.get(key) ?? null,
+      profileWrittenAt: out ? null : (args.profiles.get(key) ?? null),
     }
   })
   const bench = args.bench.map((b): DossierIndexRow => {
@@ -789,7 +791,7 @@ export function namesAny(note: string, keys: readonly string[]): boolean {
 export const DOSSIER_ERROR_CODES = [
   'no_player',
   'out',
-  'easy',
+  'note_easy',
   'bad_level',
   'bad_nickname',
   'nick_taken',
@@ -947,7 +949,7 @@ export async function addGmNoteWithAudit(args: {
     const player = await readPlayer(tx, args.playerId)
     if (player === null) return { ok: false, code: 'no_player' } as const
     if (player.press_level === 'out') return { ok: false, code: 'out' } as const
-    if (player.press_level === 'easy') return { ok: false, code: 'easy' } as const
+    if (player.press_level === 'easy') return { ok: false, code: 'note_easy' } as const
     const roster = await tx.execute<{
       name: string
       gamertag: string

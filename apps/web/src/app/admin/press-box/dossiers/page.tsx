@@ -1,13 +1,8 @@
-import { ComingSoon } from '@/components/press-box/coming-soon'
+import { redirect } from 'next/navigation'
 import { requireAdmin } from '@/lib/auth'
 
+/** The dossiers moved to /admin/press-box/players (release L2); the old address keeps working. */
 export default async function PressBoxDossiersPage() {
   await requireAdmin()
-  return (
-    <ComingSoon
-      title="Player dossiers"
-      release="L2"
-      note="What the press knows about each player: form, quotes, takes, relationships and an AI profile on demand."
-    />
-  )
+  redirect('/admin/press-box/players')
 }

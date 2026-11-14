@@ -4,13 +4,28 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { nightKey } from '@eanhl/db/news'
 import {
+  addGmNoteWithAudit,
+  addNicknameWithAudit,
   applyRelationshipAction,
   hasOpenPressBoxRequest,
   latestPressNight,
+  queueInterviewRequest,
   queuePressBoxRequest,
+  queueProfileRequest,
+  removeNicknameWithAudit,
   setHeatWithAudit,
+  setPressLevelWithAudit,
 } from '@eanhl/db/queries'
 import { requireAdmin } from '@/lib/auth'
+import {
+  addNicknameBox,
+  gmNoteBox,
+  interviewBox,
+  pressLevelBox,
+  profileBox,
+  removeNicknameBox,
+  type DossierActionDeps,
+} from './dossier-box-actions'
 import {
   parseId,
   relationshipBox,
@@ -65,4 +80,61 @@ export async function relationshipAction(formData: FormData): Promise<void> {
       ? `&player=${String(player)}&reporter=${reporter}`
       : ''
   back('/admin/press-box/relationships', notice, keep)
+}
+
+// ── Player dossiers (release L2) ────────────────────────────────────────────
+
+/** The same admin check and the same night rule as the overview actions. */
+const dossierDeps: DossierActionDeps = {
+  requireAdmin: deps.requireAdmin,
+  now: deps.now,
+  tonight: deps.tonight,
+  setPressLevelWithAudit,
+  addNicknameWithAudit,
+  removeNicknameWithAudit,
+  addGmNoteWithAudit,
+  queueProfileRequest,
+  queueInterviewRequest,
+}
+
+/** Back to the dossier the form came from (the key is checked again: only a member id or `u<id>`). */
+function backToDossier(
+  formData: FormData,
+  notice: ActionNotice | { ok: boolean; code: string },
+): never {
+  const raw = formData.get('key')
+  const key = typeof raw === 'string' && /^(?:[1-9]\d{0,9}|u\d{17,20})$/.test(raw) ? raw : null
+  back(
+    key === null ? '/admin/press-box/players' : `/admin/press-box/players/${key}`,
+    notice as ActionNotice,
+  )
+}
+
+export async function pressLevelAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await pressLevelBox(formData, dossierDeps))
+}
+
+export async function addNicknameAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await addNicknameBox(formData, dossierDeps))
+}
+
+export async function removeNicknameAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await removeNicknameBox(formData, dossierDeps))
+}
+
+export async function gmNoteAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await gmNoteBox(formData, dossierDeps))
+}
+
+export async function profileAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await profileBox(formData, dossierDeps))
+}
+
+export async function interviewAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await interviewBox(formData, dossierDeps))
+}
+
+/** Cool down a relationship from a dossier: the same rule and audit line as the board, then back here. */
+export async function dossierRelationshipAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await relationshipBox(formData, deps))
 }

@@ -135,18 +135,26 @@ void test('mergeIndex: members by name, then bench; counts and dates joined by k
     roster: [
       { playerId: 5, name: 'Beev', gamertag: 'beev', pressLevel: 'full' },
       { playerId: 2, name: 'Silky', gamertag: 'silkyjoker85', pressLevel: 'easy' },
+      { playerId: 9, name: 'Zed', gamertag: 'zed', pressLevel: 'out' },
     ],
     bench: [{ discordUserId: '123456789012345678', name: 'Coach', role: 'coach' }],
     talk: [
       { key: '2', quotes: 4, lastAt: AT },
+      { key: '9', quotes: 6, lastAt: AT },
       { key: 'u123456789012345678', quotes: 1, lastAt: null },
     ],
-    profiles: new Map([['2', AT]]),
-    relationships: new Map([[2, 3]]),
+    profiles: new Map([
+      ['2', AT],
+      ['9', AT],
+    ]),
+    relationships: new Map([
+      [2, 3],
+      [9, 2],
+    ]),
   })
   assert.deepEqual(
     rows.map((r) => r.key),
-    ['5', '2', 'u123456789012345678'],
+    ['5', '2', '9', 'u123456789012345678'],
   )
   const silky = rows.find((r) => r.key === '2')!
   assert.equal(silky.quotes, 4)
@@ -156,6 +164,12 @@ void test('mergeIndex: members by name, then bench; counts and dates joined by k
   const beev = rows.find((r) => r.key === '5')!
   assert.equal(beev.lastTalkedAt, null)
   assert.equal(beev.profileWrittenAt, null)
+  // A "Leave me out" member carries no counts and no dates.
+  const zed = rows.find((r) => r.key === '9')!
+  assert.deepEqual(
+    [zed.quotes, zed.relationships, zed.lastTalkedAt, zed.profileWrittenAt],
+    [0, 0, null, null],
+  )
   const coach = rows.find((r) => r.role === 'coach')!
   assert.equal(coach.pressLevel, null)
   assert.equal(coach.playerId, null)

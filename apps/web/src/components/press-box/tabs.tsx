@@ -3,10 +3,10 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-/** The Press Box tab bar (the nav of the mock-up). Only the Overview and Relationships tabs are built in L1. */
+/** The Press Box tab bar (the nav of the mock-up). Overview, Dossiers and Relationships are built (L1, L2). */
 const TABS = [
   { href: '/admin/press-box', label: 'Overview', exact: true },
-  { href: '/admin/press-box/dossiers', label: 'Dossiers', exact: false },
+  { href: '/admin/press-box/players', label: 'Dossiers', exact: false },
   { href: '/admin/press-box/relationships', label: 'Relationships', exact: false },
   { href: '/admin/press-box/storylines', label: 'Storylines', exact: false },
   { href: '/admin/press-box/reporters', label: 'Reporters', exact: false },
