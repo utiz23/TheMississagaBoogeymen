@@ -573,6 +573,8 @@ void test('fallback lines are never the same twice in one thread', async () => {
   // Every judgement fails closed and every question write fails: all lines are fixed lines.
   const t = setup({ model: model({ failJudgement: true }).call })
   const personId = await scrumWithPerson(t)
+  // A pinged player: the thread starts from the ping, so no step-up line is posted.
+  t.store.people.find((x) => x.id === personId)!.pingMessageId = 'ping-1'
   withPanel(t, personId, ['voss', 'mercer', 'vale'], 3)
   t.deps.call = () => Promise.reject(new Error('model down'))
   await onAccept(t.deps, live, personId, USER_A)

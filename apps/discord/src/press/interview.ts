@@ -32,7 +32,8 @@ import {
 import { interviewStoreOf, type InterviewStore } from './interview-store.ts'
 import { ANSWER_MAX_CHARS, TEXT, type Reply } from './interactions.ts'
 import type { PressDeps, PressStore } from './pass.ts'
-import { pressRecorder, safeWhy, threadLine } from './question.ts'
+import { latestPlayerMessage, rememberPlayerMessage } from './player-latest.ts'
+import { answerComponents, pressRecorder, safeWhy, threadLine } from './question.ts'
 import { replyingTo } from './reply-ref.ts'
 import { extrasBudgetLeft } from './rules.ts'
 
@@ -381,7 +382,13 @@ async function close(
  * the Answer button. The extras budget spent, or the player no longer on the
  * sheet: the interview stops. True when a question was posted.
  */
-export async function askNext(deps: PressDeps, config: PressConfig, id: number): Promise<boolean> {
+export async function askNext(
+  deps: PressDeps,
+  config: PressConfig,
+  id: number,
+  /** T6: the player's latest message: the question replies to it. */
+  replyTo: string | null = null,
+): Promise<boolean> {
   const st = interviewStore(deps)
   if (st === null) return false
   const iv = await st.getInterview(id)
@@ -438,9 +445,14 @@ export async function askNext(deps: PressDeps, config: PressConfig, id: number):
   await deps.discord.send(
     iv.reporter,
     threadId,
-    threadLine(iv.discordUserId, escapeMarkdown(text), [
-      { type: 1, components: [interviewAnswerButton(id)] },
-    ]),
+    replyingTo(
+      threadLine(
+        iv.discordUserId,
+        escapeMarkdown(text),
+        answerComponents(config, interviewAnswerButton(id)),
+      ),
+      replyTo,
+    ),
   )
   return true
 }
@@ -698,6 +710,8 @@ export async function onInterviewAnswerSubmit(
     deps.log(`[press] interview ${String(id)}: ${OFFLIMITS_LOG} (judge)`)
     return { kind: 'ack', offLimits: true }
   }
+  // T6: the player's latest message in their thread; the "no answer" closing replies to it.
+  rememberPlayerMessage(deps, target, iv.discordUserId, answerRef)
   // T5, feuds: an insult at a reporter (not off-limits) adds points; "Leave me out" adds none.
   if (!refused && screened.reporter !== null && sheet?.person !== undefined) {
     await recordInsult(deps, {
@@ -723,9 +737,11 @@ export async function onInterviewAnswerSubmit(
         iv.reporter,
         target,
         replyingTo(
-          threadLine(mention, escapeMarkdown(verdict.followUp), [
-            { type: 1, components: [interviewAnswerButton(id)] },
-          ]),
+          threadLine(
+            mention,
+            escapeMarkdown(verdict.followUp),
+            answerComponents(config, interviewAnswerButton(id)),
+          ),
           answerRef,
         ),
       )
@@ -755,7 +771,7 @@ export async function onInterviewAnswerSubmit(
       }
     }
     try {
-      if (await askNext(deps, config, id)) return ACK
+      if (await askNext(deps, config, id, answerRef)) return ACK
     } catch (err: unknown) {
       deps.log(`[press] interview ${String(id)}: next question: ${reason(err)}`)
     }
@@ -808,7 +824,10 @@ export async function closeExpired(
     await deps.discord.send(
       iv.reporter,
       lineTarget(iv),
-      threadLine(iv.discordUserId, escapeMarkdown(interviewClosing(iv.name))),
+      replyingTo(
+        threadLine(iv.discordUserId, escapeMarkdown(interviewClosing(iv.name))),
+        latestPlayerMessage(deps, lineTarget(iv), iv.discordUserId),
+      ),
     )
   } catch (err: unknown) {
     deps.log(`[press] interview ${String(iv.id)}: closing line failed (${reason(err)})`)

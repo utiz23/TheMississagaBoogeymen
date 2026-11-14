@@ -358,13 +358,17 @@ export class FakeStore implements PressStore {
   findOpenQuestionInThread = (threadId: string, userId: string) => {
     const hits = this.people.filter(
       (p) =>
-        this.scrumOf(p).threadId === threadId &&
+        (this.scrumOf(p).threadId === threadId || p.pingMessageId === threadId) &&
         p.discordUserId === userId &&
         p.status === 'asking' &&
         p.currentQuestion !== null,
     )
     return Promise.resolve(hits.at(-1)?.id ?? null)
   }
+  scrumThreadOwner = (threadId: string) =>
+    Promise.resolve(
+      this.people.filter((p) => p.pingMessageId === threadId).at(-1)?.discordUserId ?? null,
+    )
   claimPing = (personId: number) => {
     const p = this.people.find((x) => x.id === personId)
     if (!p || p.pingedAt !== null) return Promise.resolve(false)
@@ -386,7 +390,7 @@ export class FakeStore implements PressStore {
       pingMessageId: p.pingMessageId,
       currentQuestion: p.currentQuestion,
       channelId: s.channelId,
-      threadId: s.threadId,
+      threadId: s.threadId ?? (p.questionsAsked > 0 ? p.pingMessageId : null),
       scrumMessageId: s.messageId,
       reporter: s.reporter,
       isTest: s.isTest,

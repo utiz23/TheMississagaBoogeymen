@@ -1,6 +1,6 @@
 # Task: T6 — one thread per player, reporters reply to the player, no Answer button
 
-- **State:** Ready (operator 2026-11-14)
+- **State:** Verify
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** medium (live scrum and interview flow)
 - **Slug:** press-player-threads (branch `work/press-player-threads`, worktree
@@ -68,5 +68,65 @@ All checks pass and the tests above pin the behaviour.
 ## Log
 
 - 2026-11-14 Lead: written from the operator's three requests.
+- 2026-11-14 agent: Running on `work/press-player-threads` (base 7bea5386). Decided: no migration (see Report).
+- 2026-11-14 agent: checks green; rebased on main; State = Verify.
 
 ## Report
+
+Branch `work/press-player-threads`. Not merged, not pushed, not deployed. **No migration.**
+
+**What changed**
+
+- One thread per player (`question.ts`, `startScrumQuestion`). A pinged player (auto, GM note, `/gm ask`,
+  `/scrum @player`, `/scrum random`) gets a thread from their own ping message, named
+  `<Player> — press scrum`. A volunteer (or a ping that was never stored) gets a step-up line from the
+  first reporter under the recap (a reply to it, mentions only the player; fixed pool of 2 per reporter,
+  `fallbacks.ts` `stepUpLine`) and the thread starts from it. The recap keeps its button and gets no
+  shared thread: new scrums never get `news_scrums.thread_id`. A scrum that already has one (made before
+  this release) keeps it for everyone in it, so old scrums finish as before. Joining: the thread comes from
+  `discord.thread(...)`, which `withBarlowJoin` already wraps, so Barlow joins new threads like T4.
+- Only the owner's messages count in a player's thread (`replies.ts`, new store method
+  `scrumThreadOwner`): another user's message gets one log line and nothing else (no screen call, no
+  echo, no feud points). The owner's own insult still counts for feuds there.
+- Reporter lines reply to the player's latest message: the next question now does too (it did not
+  before); follow-up, acknowledgement and closing already did. The "no answer in 15 minutes" closing
+  (scrums and interviews) replies to the latest message remembered in memory (`player-latest.ts`).
+  Interviews: next question and expiry closing reply as well.
+- No Answer button while `PRESS_TYPED_ANSWERS=1` (scrum and interview questions and follow-ups,
+  `answerComponents`); with it off the button is posted as before. An Answer button on an older message
+  still opens the pop-up (agent's choice: it works, nothing is lost).
+- A Discord Reply to a button-less question counts when its text is the current question line
+  (`replyTargetProblem`); another person's Answer button is still "another message".
+- DB (`news-press.ts`): `openQuestionInThreadSql` matches the shared thread or the person's own thread
+  (`ping_message_id`); expired-question rows carry the person's thread; new `scrumThreadOwner`.
+- Runbook section "One thread per player"; rulings 65-69.
+
+**Choices and why**
+
+- No column: the thread id is the id of its start message, so `ping_message_id` is reused for volunteers
+  (ruling 65). Cost: the column name is a little loose.
+- Latest player message is kept in memory, not stored (ruling 67): only the expiry closing needs it, and it
+  is cosmetic. After a restart that one line is a plain post.
+- Interview threads keep accepting other users' messages (not asked; they are one-player threads already).
+- No prompt changed: `NEWS_RULES_VERSION` unchanged.
+
+**Checks** (all in the worktree, on top of 7bea5386, then rebased on main)
+
+- `pnpm --filter @eanhl/db build`: ok. Typecheck db, discord, web, worker: clean.
+- `pnpm --filter @eanhl/discord test`: 782/782 (was 767; 15 new in `player-threads.test.ts`; 4 old tests
+  updated for the step-up line and no shared thread).
+- `node --test packages/db/dist/queries/__tests__/news-press.test.js`: 49/49 (1 new, 2 updated).
+- Prettier: clean on every changed file. Mutation check: with the owner check off, the "another user's
+  message" test fails.
+- Not run: anything needing Docker or Discord (no live check of the thread, the step-up line, the join, or
+  the missing button; first live scrum after the deploy shows it).
+
+**Not done / open risks**
+
+- Not checked live: Discord must allow a bot to start a thread from another bot's ping message (it does
+  for any message the bot can see; same call as before, on a different message).
+- After a restart the expiry closing is a plain post (ruling 67).
+- Players in a typed-answers scrum see no button: the Accept line and question are the only cue.
+  The deploy keeps `PRESS_TYPED_ANSWERS=1` as live now.
+
+**Git state:** branch `work/press-player-threads`; see the last commit hash in the hand-off.

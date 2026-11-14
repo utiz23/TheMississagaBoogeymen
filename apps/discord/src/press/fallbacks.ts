@@ -187,6 +187,29 @@ const ACKS: Record<ReporterId, readonly string[]> = {
   ],
 }
 
+/**
+ * T6: the line a reporter posts under the recap when a player steps up to the mic ("Talk to the
+ * press", `/scrum`): the player's own scrum thread starts from it. `who` is the player's mention.
+ * No numbers, no other name.
+ */
+const STEP_UPS: Record<ReporterId, readonly ((who: string) => string)[]> = {
+  barlow: [(w) => `${w} steps up to the mic.`, (w) => `${w} is on the record.`],
+  voss: [(w) => `${w} has a moment for us.`, (w) => `${w} stops to talk.`],
+  mercer: [(w) => `${w} steps up. Let us see what they say.`, (w) => `${w} takes the mic.`],
+  halberd: [(w) => `${w} comes to the board.`, (w) => `${w} steps up to the mic.`],
+  vale: [(w) => `${w} grabs the mic!`, (w) => `Look who steps up: ${w}!`],
+  quill: [(w) => `${w} steps up to the mic.`, (w) => `${w} is ready for questions.`],
+  rink: [(w) => `${w} walks up to the mic.`, (w) => `${w} comes to speak with the ice.`],
+  pettibone: [(w) => `${w} steps up. Finally.`, (w) => `${w} takes the mic.`],
+  bergstrom: [(w) => `${w} steps up to the mic.`, (w) => `${w} is here to talk.`],
+}
+
+/** The step-up line of a reporter (`seed` picks one). */
+export function stepUpLine(reporter: ReporterId, who: string, seed: number): string {
+  const pool = STEP_UPS[reporter]
+  return pool[Math.abs(Math.trunc(seed)) % pool.length]!(who)
+}
+
 /** Every line of a kind for a reporter, as text (the name filled in for questions). */
 export function fallbackPool(kind: FallbackKind, reporter: ReporterId, name = 'Player'): string[] {
   if (kind === 'question') return QUESTIONS[reporter].map((q) => q(name))

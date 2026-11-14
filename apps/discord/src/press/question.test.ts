@@ -22,7 +22,7 @@ function poolQuestion(_t: ReturnType<typeof setup>, s: Sent): boolean {
   return isPoolLine('question', s, USER_A)
 }
 
-void test('startScrumQuestion: thread "<Reporter> — <player>", question with the Answer button, asking', async () => {
+void test('startScrumQuestion: a player with no ping message gets a step-up line, their own thread "<Player> — press scrum", question with the Answer button, asking', async () => {
   const reqs: Parameters<ModelCall>[0][] = []
   const model: ModelCall = (req) => {
     reqs.push(req)
@@ -60,13 +60,21 @@ void test('startScrumQuestion: thread "<Reporter> — <player>", question with t
   t.store.answers.push({ personId: 99, question: 'Not theirs', answer: 'x', usability: 'usable' })
   await startScrumQuestion(t.deps, config('live'), personId)
   const scrum = t.store.scrums[0]!
-  const reporterName = t.threads[0]!.name.split(' — ')[0]!
+  // T6: the reporter says who steps up, under the recap (a reply to it); the thread starts there.
+  const stepUp = t.sent[0]!
+  assert.equal(stepUp.channelId, 'chel')
+  assert.equal(stepUp.reporter, scrum.reporter)
+  assert.match(stepUp.msg.content, new RegExp(`^<@${USER_A}> `))
+  assert.deepEqual(stepUp.msg.allowed_mentions, { parse: [], users: [USER_A] })
+  assert.equal(stepUp.msg.message_reference?.message_id, 'msg-10')
   assert.deepEqual(t.threads, [
-    { channelId: 'chel', messageId: 'msg-10', name: `${reporterName} — Skater A` },
+    { channelId: 'chel', messageId: 'sent-1', name: 'Skater A — press scrum' },
   ])
-  assert.equal(scrum.threadId, 'msg-10')
+  // The scrum gets no shared thread; the person's thread starts from the step-up line.
+  assert.equal(scrum.threadId, null)
+  assert.equal(t.store.people.find((x) => x.id === personId)!.pingMessageId, 'sent-1')
   const q = t.sent.at(-1)!
-  assert.equal(q.channelId, 'msg-10')
+  assert.equal(q.channelId, 'sent-1')
   assert.equal(q.reporter, scrum.reporter)
   assert.equal(q.msg.content, `<@${USER_A}> Skater A, what changed after the first period?`)
   assert.deepEqual(q.msg.allowed_mentions, { parse: [], users: [USER_A] })
@@ -161,8 +169,9 @@ void test('startScrumQuestion: a thread that already exists (Discord 400) is the
   t.threadFails(new Error('Discord bot HTTP 400'))
   await startScrumQuestion(t.deps, config('live'), personId)
   assert.equal(t.threads.length, 1)
-  assert.equal(t.store.scrums[0]!.threadId, 'msg-10')
-  assert.equal(t.sent.at(-1)!.channelId, 'msg-10')
+  // The thread exists already: its id is the id of the message it starts from (the step-up line).
+  assert.equal(t.store.scrums[0]!.threadId, null)
+  assert.equal(t.sent.at(-1)!.channelId, 'sent-1')
   assert.equal(t.store.people.find((x) => x.id === personId)!.status, 'asking')
 })
 
@@ -173,7 +182,9 @@ void test('startScrumQuestion: another thread error posts nothing and claims not
   const before = t.sent.length
   t.threadFails(new Error('Discord bot HTTP 500'))
   await assert.rejects(startScrumQuestion(t.deps, config('live'), personId), /HTTP 500/)
-  assert.equal(t.sent.length, before)
+  // Only the step-up line went out (and is stored, so a retry never posts a second one).
+  assert.equal(t.sent.length, before + 1)
+  assert.equal(t.store.people.find((x) => x.id === personId)!.pingMessageId, 'sent-1')
   assert.equal(t.store.scrums[0]!.threadId, null)
   assert.equal(t.store.people.find((x) => x.id === personId)!.questionsAsked, 0)
 })

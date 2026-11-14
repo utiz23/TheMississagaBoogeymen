@@ -314,7 +314,7 @@ header of `packages/db/migrations/0072_news_press.sql`.
 
 A player is now asked by a panel of reporters. A picked player gets 3 reporters, one question
 each. A volunteer ("Talk to the press", `/scrum`) gets 2 reporters and no follow-up. Each
-reporter posts in their own name, in the same scrum thread. Each picked player has a target
+reporter posts in their own name, in the player's own scrum thread (T6, below). Each picked player has a target
 of 3 to 6 questions and follow-ups (3: 10%, 4: 25%, 5: 50%, 6: 15%). A follow-up is always
 by the reporter who asked the question before it. An unusable answer gets no follow-up, so
 that round is shorter.
@@ -365,7 +365,8 @@ Rules in the code:
 
 - The player has 30 minutes to accept. No answer is a no. No reminder.
 - 30 minutes for each answer. A typed answer in the thread counts when
-  `PRESS_TYPED_ANSWERS=1`; the Answer button always works.
+  `PRESS_TYPED_ANSWERS=1`. With it on, the questions have no Answer button
+  (T6); an Answer button on an older message still opens the pop-up.
 - A short "I'm done" or "that's it" ends the interview politely. No answer in
   30 minutes ends it too.
 - The article is written only with 3 or more usable or joke answers. Answers
@@ -536,3 +537,28 @@ not need the table.
 
 Rollback: put the old `press` and `news` images back. The table does no harm;
 its rollback SQL is in the header of `packages/db/migrations/0076_press_feuds.sql`.
+
+## One thread per player (task T6, 2026-11-14)
+
+No migration. Deploy `press` only.
+
+- Each player's scrum has a thread of its own. A pinged player (automatic, GM note,
+  `/gm ask`, `/scrum @player`, `/scrum random`): the thread starts from their ping
+  message and is named `<Player> — press scrum`. A volunteer ("Talk to the press",
+  `/scrum`): the reporter first posts a short line under the recap ("<Player> steps up
+  to the mic", as a reply to the recap) and the thread starts from it. The recap keeps
+  its "Talk to the press" button.
+- In a player's thread only that player's messages count. Another person's message
+  gets one log line (`a player's own thread`) and nothing else.
+- Every reporter line after the player's first message is a Discord reply to the
+  player's latest message and mentions only the player. This holds for scrums and
+  interviews. The "no answer" closing replies to the latest message the press process
+  remembers; after a restart it is a plain line.
+- With `PRESS_TYPED_ANSWERS=1` the questions have no Answer button: the player just
+  types. With it off the button is posted as before. An Answer button on an older
+  message still opens the pop-up.
+- A scrum made before this release keeps its one shared thread until it closes (every
+  scrum of an older recap, up to 6 hours).
+- To check after the deploy: accept one ping and confirm that the thread is named
+  `<Player> — press scrum`, that the question has no button, and that the reporter's
+  next line replies to your message.

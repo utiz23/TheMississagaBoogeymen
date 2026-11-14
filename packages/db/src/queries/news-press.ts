@@ -320,6 +320,11 @@ export interface ScrumPersonWithScrum {
   pingMessageId: string | null
   currentQuestion: string | null
   channelId: string
+  /**
+   * The thread the person's lines go to: the scrum's shared thread (an old scrum), else the
+   * person's own thread (its id is the id of `pingMessageId`, the message it starts from) once
+   * a question was asked; null before that (no thread yet).
+   */
   threadId: string | null
   scrumMessageId: string
   reporter: NewsReporterId
@@ -343,7 +348,12 @@ type RawPersonWithScrum = {
 
 const PERSON_WITH_SCRUM_COLUMNS = sql`
   p.id, p.scrum_id, p.player_id, p.discord_user_id, p.ping_message_id, p.current_question,
-  s.channel_id, s.thread_id, s.message_id as scrum_message_id, s.reporter, s.is_test`
+  s.channel_id,
+  case
+    when s.thread_id is not null then s.thread_id
+    when p.questions_asked > 0 then p.ping_message_id
+  end as thread_id,
+  s.message_id as scrum_message_id, s.reporter, s.is_test`
 
 function rowToPersonWithScrum(r: RawPersonWithScrum): ScrumPersonWithScrum {
   return {
@@ -446,15 +456,17 @@ export async function listPeopleToPing(): Promise<ScrumPersonDetail[]> {
 /**
  * The person a typed message answers: the asked person of this Discord user in
  * this scrum thread, with a question open right now (`asking`, a current
- * question). The window and the counters are checked by the handler. Newest
- * person first, one row.
+ * question). The thread is the scrum's shared thread (an old scrum) or the
+ * person's own (T6: one thread per player, started from `ping_message_id`: a
+ * thread's id is its message's id). The window and the counters are checked by
+ * the handler. Newest person first, one row.
  */
 export function openQuestionInThreadSql(threadId: string, userId: string): SQL {
   return sql`
     select p.id
     from news_scrum_people p
     join news_scrums s on s.id = p.scrum_id
-    where s.thread_id = ${threadId}
+    where (s.thread_id = ${threadId} or p.ping_message_id = ${threadId})
       and p.discord_user_id = ${userId}
       and p.status = 'asking'
       and p.current_question is not null
@@ -470,6 +482,25 @@ export async function findOpenQuestionInThread(
   const rows = await db.execute<{ id: number }>(openQuestionInThreadSql(threadId, userId))
   const id = rows[0]?.id
   return id === undefined ? null : Number(id)
+}
+
+/**
+ * The owner of a player's own scrum thread (T6): the Discord user of the person whose thread
+ * starts from this message, or null (the shared thread of an old scrum, an interview thread,
+ * any other channel). Only the owner's messages count in such a thread.
+ */
+export function scrumThreadOwnerSql(threadId: string): SQL {
+  return sql`
+    select p.discord_user_id
+    from news_scrum_people p
+    where p.ping_message_id = ${threadId}
+    order by p.id desc
+    limit 1`
+}
+
+export async function scrumThreadOwner(threadId: string): Promise<string | null> {
+  const rows = await db.execute<{ discord_user_id: string }>(scrumThreadOwnerSql(threadId))
+  return rows[0]?.discord_user_id ?? null
 }
 
 export function listScrumAnswersQuery(personId: number) {

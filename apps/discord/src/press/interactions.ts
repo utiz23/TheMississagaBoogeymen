@@ -7,12 +7,15 @@ import { FALLBACK_CLOSING, judgeAnswer, type FollowUpMode, type Usability } from
 import { fallbackLine } from './fallbacks.ts'
 import { feudLevel, recordInsult } from './feuds.ts'
 import { OFFLIMITS_LOG, screenMessage } from './hard-lines.ts'
+import { rememberPlayerMessage } from './player-latest.ts'
 import { replyingTo } from './reply-ref.ts'
 import type { PressConfig } from './config.ts'
 import { SCRUM_SOURCE_WINDOW_MS, type PressDeps } from './pass.ts'
 import {
+  answerComponents,
   panelOf,
   personSeed,
+  personThreadId,
   pressRecorder,
   reporterAt,
   safeWhy,
@@ -140,9 +143,15 @@ async function gameCandidates(
  * Ask the next question: `ack` once it is posted. The person is already
  * `asking`: when it was not posted, the expiry pass closes the round.
  */
-async function askNow(deps: PressDeps, config: PressConfig, personId: number): Promise<Reply> {
+async function askNow(
+  deps: PressDeps,
+  config: PressConfig,
+  personId: number,
+  /** T6: the player's latest message: the question replies to it. */
+  replyTo: string | null = null,
+): Promise<Reply> {
   try {
-    if (await startScrumQuestion(deps, config, personId)) return ACK
+    if (await startScrumQuestion(deps, config, personId, replyTo)) return ACK
   } catch (err: unknown) {
     deps.log(`[press] question: person ${String(personId)}: ${reason(err)}`)
   }
@@ -446,7 +455,7 @@ export async function onAnswerSubmit(
   if (!claimed) return say(TEXT.answered)
 
   const scrum = person.scrum
-  const threadId = scrum.threadId ?? scrum.messageId
+  const threadId = personThreadId(person) ?? scrum.messageId
   const mention = person.discordUserId
 
   const sheet = await loadSheet(deps, person)
@@ -493,6 +502,8 @@ export async function onAnswerSubmit(
     log(`[press] answer: person ${String(personId)}: ${OFFLIMITS_LOG} (judge)`)
     return { kind: 'ack', offLimits: true }
   }
+  // T6: the player's latest message in their thread; the "no answer" closing replies to it.
+  rememberPlayerMessage(deps, threadId, person.discordUserId, answerRef)
   // T5, feuds: an insult at a reporter (not off-limits) adds points; "Leave me out" adds none.
   if (!refused && screened.reporter !== null) {
     await recordInsult(deps, {
@@ -536,9 +547,11 @@ export async function onAnswerSubmit(
       asker,
       threadId,
       replyingTo(
-        threadLine(mention, escapeMarkdown(verdict.followUp), [
-          { type: 1, components: [answerButton(personId)] },
-        ]),
+        threadLine(
+          mention,
+          escapeMarkdown(verdict.followUp),
+          answerComponents(config, answerButton(personId)),
+        ),
         answerRef,
       ),
     )
@@ -562,7 +575,7 @@ export async function onAnswerSubmit(
         log(`[press] answer: person ${String(personId)}: acknowledgement failed (${reason(err)})`)
       }
     }
-    return askNow(deps, config, personId)
+    return askNow(deps, config, personId, answerRef)
   }
   await store.updateScrumPerson(personId, { status: 'done', currentQuestion: null })
   await discord.send(

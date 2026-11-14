@@ -31,7 +31,9 @@ import { fallbackLine } from './fallbacks.ts'
 import type { MessageScreen } from './hard-lines.ts'
 import type { PressConfig } from './config.ts'
 import { runInterviewPass } from './interview-pass.ts'
+import { latestPlayerMessage } from './player-latest.ts'
 import { threadLine } from './question.ts'
+import { replyingTo } from './reply-ref.ts'
 import {
   PRESS_ACCEPT_MS,
   PRESS_ANSWER_MS,
@@ -94,6 +96,11 @@ export interface PressStore {
   getScrumPerson(id: number): Promise<ScrumPersonDetail | null>
   /** The person with a question open for this user in this thread (a typed answer), or null. */
   findOpenQuestionInThread(threadId: string, userId: string): Promise<number | null>
+  /**
+   * T6: the Discord user who owns this thread when it is a player's own scrum thread (it starts
+   * from their ping or step-up message), else null (a shared thread of an old scrum, anything else).
+   */
+  scrumThreadOwner(threadId: string): Promise<string | null>
   claimPing(personId: number): Promise<boolean>
   /** Never with an empty patch: the query throws. */
   updateScrumPerson(id: number, patch: ScrumPersonUpdate): Promise<void>
@@ -488,7 +495,15 @@ export async function runPressPass(
           name: '',
           seed: p.id,
         })
-        await discord.send(p.reporter, p.threadId, threadLine(p.discordUserId, line))
+        // T6: it replies to the player's latest message in the thread (none: a plain line).
+        await discord.send(
+          p.reporter,
+          p.threadId,
+          replyingTo(
+            threadLine(p.discordUserId, line),
+            latestPlayerMessage(deps, p.threadId, p.discordUserId),
+          ),
+        )
       } catch (err: unknown) {
         // Closed: the line is never sent again.
         log(`[press] expired answers: person ${String(p.id)}: ${reason(err)}`)

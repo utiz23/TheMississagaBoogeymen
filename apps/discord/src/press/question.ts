@@ -15,9 +15,10 @@ import { pressForSheet } from '../news/press-material.ts'
 import { askQuestion, type AskContext, type Recorder, type ScrumHistoryEntry } from './asker.ts'
 import { redactTakes } from '../news/redact.ts'
 import type { PressConfig } from './config.ts'
-import { fallbackLine } from './fallbacks.ts'
+import { fallbackLine, stepUpLine } from './fallbacks.ts'
 import { feudLevel, feudsFor, panelFeudReporters, type PressLevelNow } from './feuds.ts'
 import type { PressDeps, PressStore } from './pass.ts'
+import { replyingTo } from './reply-ref.ts'
 import { choosePanel, effectiveHeat, extrasBudgetLeft, panelSize, targetTotalFor } from './rules.ts'
 
 /**
@@ -38,6 +39,26 @@ export function threadLine(userId: string, text: string, components?: unknown[])
   }
   if (components !== undefined) msg.components = components
   return msg
+}
+
+/**
+ * T6: the components of a question post. While typed answers are on the player just types in their
+ * thread: no Answer button. With typed answers off the button is posted as before (answering must
+ * never be impossible).
+ */
+export function answerComponents(config: Pick<PressConfig, 'typedAnswers'>, button: unknown) {
+  return config.typedAnswers ? undefined : [{ type: 1, components: [button] }]
+}
+
+/**
+ * The thread a person's lines go to (T6): the scrum's shared thread (a scrum made before one thread
+ * per player), else the person's own thread, whose id is the id of the message it starts from
+ * (`pingMessageId`: the ping, or the step-up line of a volunteer). Null while there is none yet.
+ */
+export function personThreadId(
+  person: Pick<ScrumPersonDetail, 'scrum' | 'pingMessageId'>,
+): string | null {
+  return person.scrum.threadId ?? person.pingMessageId
 }
 
 /**
@@ -228,9 +249,14 @@ const THREAD_EXISTS = /\bHTTP 400\b/
  * the scrum already put to others (no repeated angle); writes the question
  * (the fallback when the extras budget is spent or anything fails). The
  * first question of a GM-asked player is the GM's: word for word, or as a
- * topic in the reporter's voice. Opens the thread on the scrum message when it
- * has none (`<Reporter> — <player>`; a thread's id is its message's id); claims
- * the question; posts it with the Answer button, mentioning the person. A
+ * topic in the reporter's voice. T6, one thread per player: the person's thread
+ * starts from the ping message (a volunteer, or a ping that was never stored:
+ * from a step-up line the reporter posts under the recap) at the first question
+ * (`<Player> — press scrum`; a thread's id is its message's id); a scrum that
+ * already has a shared thread (made before T6) keeps using it. Claims the
+ * question; posts it, mentioning the person, with the Answer button only while
+ * typed answers are off; `replyTo` (the player's latest message) makes it a
+ * Discord reply. A
  * person who is done, expired or no longer on the sheet gets nothing; one no
  * longer on the sheet is ended. True when the question was posted.
  */
@@ -238,6 +264,8 @@ export async function startScrumQuestion(
   deps: PressDeps,
   config: PressConfig,
   personId: number,
+  /** T6: the player's latest message in their thread; the question replies to it. */
+  replyTo: string | null = null,
 ): Promise<boolean> {
   const { store, discord, log } = deps
   const person = await store.getScrumPerson(personId)
@@ -332,6 +360,44 @@ export async function startScrumQuestion(
     })
   }
 
+  /**
+   * The thread this person's lines go to. A shared thread of an old scrum is used as it is. A
+   * person's own thread is started at the first question; a retry (nothing claimed yet) meets
+   * Discord's "thread exists" answer and uses the message id.
+   */
+  async function ensureThread(): Promise<string> {
+    if (scrum.threadId !== null) return scrum.threadId
+    if (person!.questionsAsked > 0 && person!.pingMessageId !== null) return person!.pingMessageId
+    let anchor = person!.pingMessageId
+    if (anchor === null) {
+      // A volunteer (or a ping that was never stored): the reporter says who steps up, under the
+      // recap, and the person's thread starts from that line. It is stored first, so a retry
+      // never posts a second one.
+      anchor = await discord.send(reporter, scrum.channelId, {
+        content: stepUpLine(
+          reporter,
+          `<@${person!.discordUserId}>`,
+          personSeed(scrum.id, personId),
+        ),
+        allowed_mentions: { parse: [], users: [person!.discordUserId] },
+        message_reference: { message_id: scrum.messageId, fail_if_not_exists: false },
+      })
+      await store.updateScrumPerson(personId, { pingMessageId: anchor })
+    }
+    try {
+      return await discord.thread(
+        reporter,
+        scrum.channelId,
+        anchor,
+        Array.from(`${name} — press scrum`).slice(0, 100).join(''),
+      )
+    } catch (err: unknown) {
+      // Started before (a restart, or another caller): its id is the message id.
+      if (!THREAD_EXISTS.test(reason(err))) throw err
+      return anchor
+    }
+  }
+
   if (scrum.matchId !== null) {
     try {
       const out = await writeQuestion(scrum.matchId)
@@ -347,22 +413,7 @@ export async function startScrumQuestion(
   }
 
   const text = question ?? (await fallbackQuestion())
-  let threadId = scrum.threadId
-  if (threadId === null) {
-    try {
-      threadId = await discord.thread(
-        reporter,
-        scrum.channelId,
-        scrum.messageId,
-        `${reporterName(reporter)} — ${name}`,
-      )
-    } catch (err: unknown) {
-      // Started before (a restart, or another caller): its id is the message id.
-      if (!THREAD_EXISTS.test(reason(err))) throw err
-      threadId = scrum.messageId
-    }
-    await store.setScrumThread(scrum.id, threadId)
-  }
+  const threadId = await ensureThread()
   const claimed = await store.claimScrumQuestion({
     personId,
     questionsAsked: person.questionsAsked,
@@ -373,9 +424,14 @@ export async function startScrumQuestion(
   await discord.send(
     reporter,
     threadId,
-    threadLine(person.discordUserId, escapeMarkdown(text), [
-      { type: 1, components: [answerButton(personId)] },
-    ]),
+    replyingTo(
+      threadLine(
+        person.discordUserId,
+        escapeMarkdown(text),
+        answerComponents(config, answerButton(personId)),
+      ),
+      replyTo,
+    ),
   )
   return true
 }

@@ -47,8 +47,9 @@ export interface ThreadMessage {
 /**
  * Why a message may not answer this question, or null when it may. A plain
  * message may. A Reply may only when it points at the question message that
- * is open now: it has `answerCustomId` (this person's Answer button) and its
- * text is the current question line (`<@user> question`).
+ * is open now: its text is the current question line (`<@user> question`), and
+ * it has no buttons or has `answerCustomId` (this person's Answer button). T6:
+ * with typed answers on the question has no Answer button, so the text decides.
  */
 export function replyTargetProblem(
   reference: ReferencedMessage | null | undefined,
@@ -58,10 +59,19 @@ export function replyTargetProblem(
 ): string | null {
   if (reference === null || reference === undefined) return null
   if (reference.content === null) return 'a reply to a message that could not be read'
-  if (!reference.customIds.includes(answerCustomId)) return 'a reply to another message'
+  if (reference.customIds.length > 0 && !reference.customIds.includes(answerCustomId)) {
+    return 'a reply to another message'
+  }
   if (currentQuestion === null) return 'no question is open'
   const line = `<@${userId}> ${escapeMarkdown(currentQuestion)}`
-  if (reference.content.trim() !== line.trim()) return 'a reply to an earlier question'
+  if (reference.content.trim() !== line.trim()) {
+    // A message of ours to this player (a question without a button, an acknowledgement) or the
+    // earlier question with its button: an earlier line. Anything else: another message.
+    return reference.customIds.includes(answerCustomId) ||
+      reference.content.startsWith(`<@${userId}> `)
+      ? 'a reply to an earlier question'
+      : 'a reply to another message'
+  }
   return null
 }
 
@@ -88,7 +98,10 @@ async function insultFromThread(
     if (hit === null) return
     // Only a press thread (a scrum or an interview): not any other thread of the guild.
     const feuds = feudStoreOf(deps.store)
-    if (feuds === null || !(await feuds.isPressThread(msg.threadId))) return
+    // T6: a player's own scrum thread counts too (the owner's message only reaches here).
+    if (feuds === null) return
+    const own = (await deps.store.scrumThreadOwner(msg.threadId)) === msg.userId
+    if (!own && !(await feuds.isPressThread(msg.threadId))) return
     const me = await deps.store.getPlayerForDiscordUser(msg.userId)
     if (me === null) return
     const member = (await deps.store.listPressRoster()).find((p) => p.playerId === me.playerId)
@@ -117,6 +130,13 @@ export async function onThreadMessage(
   msg: ThreadMessage,
 ): Promise<void> {
   const tag = `[press] thread message: thread ${msg.threadId} user ${msg.userId}`
+  // T6: in a player's own scrum thread only that player's messages count. Anyone else's message
+  // is ignored entirely: no answer, no echo, no feud points, nothing stored.
+  const owner = await deps.store.scrumThreadOwner(msg.threadId)
+  if (owner !== null && owner !== msg.userId) {
+    deps.log(`${tag}: not taken (a player's own thread: the message is not the player's)`)
+    return
+  }
   const opts = { typed: true, ...(msg.messageId === undefined ? {} : { messageId: msg.messageId }) }
 
   const ist = interviewStoreOf(deps.store)

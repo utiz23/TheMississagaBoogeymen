@@ -45,6 +45,7 @@ const {
   insertReactionTriggerQuery,
   PRESS_ACCEPT_WINDOW_MS,
   openQuestionInThreadSql,
+  scrumThreadOwnerSql,
   PRESS_ANSWER_WINDOW_MS,
   setScrumThreadQuery,
   lastScrumReporterQuery,
@@ -177,7 +178,21 @@ void test('expired pings: pinged, pinged_at older than the accept window (15 min
   assert.match(s, /p\.pinged_at is not null/)
   assert.match(s, /p\.pinged_at < \$1::timestamptz/)
   assert.match(s, /s\.message_id as scrum_message_id, s\.reporter, s\.is_test/)
+  // T6: the thread of a person is the scrum's shared one, else their own once a question was asked.
+  assert.match(
+    s,
+    /case when s\.thread_id is not null then s\.thread_id when p\.questions_asked > 0 then p\.ping_message_id end as thread_id/,
+  )
   assert.deepEqual(q.params, ['2026-10-25T20:05:00.000Z'])
+})
+
+void test('scrum thread owner: the person whose thread starts from this message (T6)', () => {
+  const q = dialect.sqlToQuery(scrumThreadOwnerSql('thread-9'))
+  const s = flat(q.sql)
+  assert.match(s, /select p\.discord_user_id from news_scrum_people p/)
+  assert.match(s, /where p\.ping_message_id = \$1/)
+  assert.match(s, /order by p\.id desc limit 1/)
+  assert.deepEqual(q.params, ['thread-9'])
 })
 
 void test('expired questions: asking, last_asked_at older than the answer window (15 min)', () => {
@@ -204,12 +219,13 @@ void test('night has active scrum: asking, or pinged within 15 minutes; test row
 void test('open question in thread: this user, this thread, asking with a current question', () => {
   const q = dialect.sqlToQuery(openQuestionInThreadSql('thread-9', '200000000000000001'))
   const s = flat(q.sql)
-  assert.match(s, /s\.thread_id = \$1/)
-  assert.match(s, /p\.discord_user_id = \$2/)
+  // The scrum's shared thread (an old scrum) or the person's own thread (T6).
+  assert.match(s, /\(s\.thread_id = \$1 or p\.ping_message_id = \$2\)/)
+  assert.match(s, /p\.discord_user_id = \$3/)
   assert.match(s, /p\.status = 'asking'/)
   assert.match(s, /p\.current_question is not null/)
   assert.match(s, /order by p\.id desc\s+limit 1/)
-  assert.deepEqual(q.params, ['thread-9', '200000000000000001'])
+  assert.deepEqual(q.params, ['thread-9', 'thread-9', '200000000000000001'])
 })
 
 void test('night press material: usable or joke answers only, never from players who are out', () => {
