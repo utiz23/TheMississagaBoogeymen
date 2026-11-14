@@ -1,6 +1,6 @@
 # Task: B1 — Player background: question bank, facts and the admin editor
 
-- **State:** Merged 2026-11-14 15:35 (`4e4ba1fa`); deploy waits for the operator's OK
+- **State:** Deployed 2026-11-14 15:41 (operator: "approved deployt")
 - **Lane:** Database (one migration), Queries, Web (`/admin/press-box/players/[id]`), Discord (profile
   writer reads confirmed facts only)
 - **Risk:** medium (facts about real teammates that the writers will treat as true)
@@ -98,7 +98,12 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   confirmed at once; camrazz.md's 55 answers come in as proposed facts in B2. Rebased; typecheck clean;
   merged `--ff-only`.
 
-Resume: operator's OK to deploy: fresh backup, 0082, `press`, then `web`.
+- 2026-11-14 15:43 Lead2: deployed. HE at `1e3cc3e2`; backup `~/eanhl-backups/manual/eanhl-pre-0082-2026-11-14.dump`
+  (29 MB, 90 table-data entries); 0082 applied: 352 questions (30 about a teammate), 0 facts (operator:
+  blank sheets); rollback tags `eanhl-team-website-{press,web}:rollback-he-2026-11-14-pre-b1`; `press`
+  ("started (live) … 9 bots"), then `web` (Ready). `/` 200; Press Box pages 307 → `/login` signed out.
+
+Resume: none (B2 makes the bots ask).
 
 ## Report (task agent fills when state = Verify)
 

@@ -1,14 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 15:37 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 15:43 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                | My advice            | Waiting costs                      |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------- |
-| D15 | Deploy player background B1? Fresh backup, migration 0082 (2 new tables + the question bank), then the press service, then the website. | Yes, at a quiet time | Background section not usable live |
+| ID  | Question  | My advice | Waiting costs |
+| --- | --------- | --------- | ------------- |
+| -   | none open | -         | -             |
 
 ## 2. Right now
 
@@ -20,7 +20,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                         |
 | Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights. |
 | Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                              |
-| Player background B1                            | merged; deploy is D15. B2 (bots ask, propose facts) running: you get the privacy sentence and samples before the merge. |
+| Player background B1                            | LIVE since 15:41: a Background section on every dossier; 352 questions, every fact sheet blank. B2 (bots ask) running.  |
 | Club Finals (playoffs) CF1                      | verified; being changed: no separate page, a Club Finals component on the home page instead. Badges approved.           |
 | News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                        |
 | Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                               |
@@ -55,6 +55,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 15:39 · "approved deployt" (D15) → B1 deployed 15:41.
 - 2026-11-14 15:37 · "blank fact sheets for everyone. Start from scratch, throw those 55 answers out" → no
   camrazz import (replaces D13 b); every player starts with no facts; the question bank stays.
 - 2026-11-14 15:35 · Club Finals: "club finals page not approved. This can just be a component on the home
