@@ -1,6 +1,6 @@
 # Task: CF1 — Club Finals: rounds from EA results, game badges, the Club Finals page
 
-- **State:** Merged 2026-11-14 15:50 (`3b2b3300`; operator D16 "Its acceptable then"); deploy waits for the operator's OK
+- **State:** Deployed 2026-11-14 15:54 (operator: "deployt")
 - **Lane:** Worker (derive after each pass), Database (one migration), Queries, Web
 - **Risk:** medium (a number teammates see: round, game number, series score) — a Verifier checks it
 - **Slug:** club-finals-cf1 (branch `work/club-finals-cf1`, worktree `.claude/worktrees/club-finals-cf1`)
@@ -94,7 +94,14 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 15:50 Lead2: rebased, web/worker typecheck clean, web 727/727; merged `--ff-only`.
 
-Resume: operator's OK to deploy: fresh backup, 0083, `worker` (log "Club Finals nhl27: … games, … attempts"), then `web`.
+- 2026-11-14 15:55 Lead2: deployed. HE at `e22acd6c`; backup `~/eanhl-backups/manual/eanhl-pre-0083-2026-11-14.dump`
+  (29 MB, 92 table-data entries); 0083 applied (`club_finals_attempts`, `club_finals_games`); rollback tags
+  `eanhl-team-website-{worker,web}:rollback-he-2026-11-14-pre-cf1`; `worker` ("Club Finals nhl27: 33
+  games, 3 attempts"; attempts 13-9 R4 eliminated, 0-4 R1 eliminated, 5-2 R2 active = the Verifier's
+  numbers), then `web`. Live: `/` 200 with the component; `/games` and `/games/3431` show the badges;
+  `/club-finals` 404 (no page, operator).
+
+Resume: none.
 
 ## Report (task agent fills when state = Verify)
 

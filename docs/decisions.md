@@ -1,29 +1,29 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 15:50 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 15:55 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                  | My advice                                | Waiting costs              |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------- |
-| D17 | Deploy Club Finals CF1? Fresh backup, migration 0083 (2 new tables), the worker (it then fills in all 33 finals games), then the website (the home component and the game badges appear). | Yes, at a quiet time (not during a game) | Club Finals not shown live |
+| ID  | Question  | My advice | Waiting costs |
+| --- | --------- | --------- | ------------- |
+| -   | none open | -         | -             |
 
 ## 2. Right now
 
-| What                                            | State                                                                                                                   |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)            |
-| T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                   |
-| E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                       |
-| Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                         |
-| Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights. |
-| Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                              |
-| Player background B1                            | LIVE since 15:41: a Background section on every dossier; 352 questions, every fact sheet blank. B2 (bots ask) running.  |
-| Club Finals (playoffs) CF1                      | merged; deploy is D17. CF3 (finals look) running; CF2 (Discord + news) starts after B2.                                 |
-| News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                        |
-| Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                               |
+| What                                            | State                                                                                                                                        |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                 |
+| T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                        |
+| E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                                            |
+| Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                                              |
+| Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights.                      |
+| Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                                                   |
+| Player background B1                            | LIVE since 15:41: a Background section on every dossier; 352 questions, every fact sheet blank. B2 (bots ask) running.                       |
+| Club Finals                                     | LIVE since 15:54: the Club Finals card on the home page and round badges on games. CF3 (finals look) running; CF2 (Discord + news) after B2. |
+| News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                                             |
+| Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                                                    |
 
 ## 3. Your to-dos (only you can do these)
 
@@ -55,6 +55,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 15:51 · "deployt" (D17) → Club Finals CF1 deployed 15:54.
 - 2026-11-14 15:46 · "Oh never mind that is a drop down. Its acceptable then" → streamline cancelled; CF1 (D16)
   merged as shown.
 - 2026-11-14 15:39 · "approved deployt" (D15) → B1 deployed 15:41.

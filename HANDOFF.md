@@ -26,8 +26,10 @@ commit/push rules in `CLAUDE.md`.
 $100, `PRESS_TYPED_ANSWERS=1`, `PRESS_WIRE_REPLIES=1`, coach `PRESS_COACH_USER_IDS`). Live (migrations
 0072–0078): typed answers, one thread per player, 3-reporter panels, `/gm ask|note|interview|testscrum`,
 interviews + Q&A articles, Discord replies, hard lines, relationships (open war ↔ glazing; Father Rink
-never feuds), bench voices from the call, free test scrums. Tasks T1–T10 in `docs/tasks/`. **E1** live
-events merged (deploy = D2); **Press Box** L1 running, then L2–L4 (`/admin/press-box`).
+never feuds), bench voices from the call, free test scrums. Tasks T1–T10 in `docs/tasks/`. Also live
+(11-14, 0079–0083): **E1** live events (Tailscale only) + worker watchdog; **Press Box** L1–L2
+(`/admin/press-box`); player background B1; **Club Finals** CF1 (home card, game badges). Running: B2,
+CF3. Next: CF2, L3, L4.
 
 ## Current Objective / Status
 
@@ -50,9 +52,9 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 ## Latest Verified Checkpoint
 
-**Latest deploys 2026-11-14:** T3–T10 on Hotel-Echo (rollback tags `:rollback-he-2026-11-14-pre-*`;
-backups `~/eanhl-backups/manual/eanhl-pre-00{74..78}*-2026-11-14.dump`); 03:42 backup hardening
-(`backup` only; `:rollback-he-2026-11-14-pre-hardening`; lock proven live). Earlier: journal.
+**Latest deploys 2026-11-14** (all on Hotel-Echo; rollback tags `:rollback-he-2026-11-14-pre-*`; backups
+`~/eanhl-backups/manual/eanhl-pre-00NN-2026-11-14.dump`): T3–T10; backup hardening; E1 + watchdog (14:12);
+News Desk rename; L1, L2; B1; CF1 (15:54). Detail: journal 11-14.
 
 **2026-10-26: club-only badges** (web, worker, discord `06992a2`; rollback `:rollback-he-2026-10-26-pre-club-badges`; card dump `~/eanhl-backups/manual/cards-pre-rebase-2026-10-26-1600.dump`). Badges count club games only; NHL 27 card history reset once (`card-recompute --rebase`). [Spec](docs/superpowers/specs/2026-10-26-club-only-badges-design.md).
 
@@ -136,10 +138,8 @@ None.
 
 ## Next 1-3 Actions
 
-1. **D2 — deploy E1** (merged `314854ad`): Codex second opinion first (secrets + a new way in), then
-   runbook §6 (`docs/operations/runbooks/live-events.md`): 0079, two `.env` secrets, `web` + `worker`,
-   `tailscale serve` 3100 (no Docker port on the Tailscale address: Docker does not wait for tailscaled).
-   Engine E2 sender waits for OBS-EC (engine Lead `[LEAD4]`).
-2. **Press Box L1** (Lead2's task agent; screenshots to the operator before merge), then L2–L4.
-3. Check the 11-15 03:00 backup (5/5); watch the next game night; small: Contribution Wheel warning,
-   prettier red on 8 old files, card pace at mid-season.
+1. **B2** (bots ask background questions; teammate facts need the admin): privacy sentence + samples are
+   the operator's gate; switch stays off until the operator turns it on. Then **CF2** (Discord, news).
+2. **CF3** (finals look on the site): operator screenshots, then deploy. CF4 (finals stats) proposed.
+3. Check the 11-15 03:00 backup; watch the next game night (Club Finals derive, quick checks); engine
+   E2 sender (secrets by file when it names a path); small: Contribution Wheel, prettier on old files.
