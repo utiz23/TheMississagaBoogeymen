@@ -11,11 +11,11 @@
 
 Finals-only stats from CF1's per-game state, precomputed (never on read):
 
-12. Season records table (home): a row for the best Club Finals run.
-13. Scoring leaders (home): a "Club Finals leaders" switch.
-14. Player pages (`/roster/[id]`): Club Finals GP, G, A, +/-; "played in the final".
-15. Stats page (`/stats`): a "Club Finals only" filter.
-16. News page (`/news`): finals articles tagged and pinned while a run is alive.
+- (12) Season records table (home): a row for the best Club Finals run.
+- (13) Scoring leaders (home): a "Club Finals leaders" switch.
+- (15) Player pages (`/roster/[id]`): Club Finals GP, G, A, +/-; "played in the final".
+- (16) Stats page (`/stats`): a "Club Finals only" filter.
+- (17) News page (`/news`): finals articles tagged and pinned while a run is alive.
 
 ## Log
 
