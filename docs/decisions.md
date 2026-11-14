@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 14:04 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 14:05 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -20,6 +20,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Worker watchdog (D4)                         | running (task agent): a stuck worker exits and Docker restarts it; time limits on EA requests                           |
 | Press Box L1                                 | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights. |
 | Press Box L2 (player dossiers + AI profiles) | running (task agent); you get screenshots before the merge                                                              |
+| Rename /news "Press Room" → "News Desk"      | running (task agent); ships with the next website deploy                                                                |
 | Backup hardening                             | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                               |
 
 ## 3. Your to-dos (only you can do these)
@@ -52,6 +53,8 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 14:05 · "rename Press Room … To News Desk" → public `/news` pages only (the AI writer's
+  internal "PRESS ROOM" label and `/admin/news` stay).
 - 2026-11-14 14:04 · "start L2" → Press Box L2 started (2 task agents with D4).
 - 2026-11-14 13:58 · "D4 yes" → worker watchdog + time limits task started; "D5 yes, now is a quiet time" →
   Press Box L1 deploy.
