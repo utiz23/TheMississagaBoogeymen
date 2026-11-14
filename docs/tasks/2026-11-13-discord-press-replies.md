@@ -1,13 +1,32 @@
 # Task: T4 — Discord replies (answers, reporter replies, replies to wire posts)
 
-- **State:** Ready (operator 2026-11-13: all three items; privacy paragraph approved as written); starts
-  after T3 is merged
+- **State:** Ready (operator 2026-11-13: all three items; privacy paragraph approved as written; run in
+  parallel with T3 in the operator's chat)
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Web (privacy text),
   Database only if item 3 needs a small table
 - **Risk:** medium (reads more Discord messages; new AI calls on player text)
 - **Slug:** press-replies
 - **Operator gate before merge:** yes (privacy text)
 - **Needs a deploy:** `press`, `news`, `web` (privacy text); a migration only if needed
+
+## Running in parallel with T3 (read first)
+
+T3 (`2026-11-13-discord-press-interviews.md`, branch `work/press-interviews`) changes the same press code
+at the same time. Keep edits to shared files (`gateway.ts`, `interactions.ts`, `store.ts`,
+`test-fakes.ts`, `config.ts`, `pass.ts`, `question.ts`) small and additive; put new logic in new files
+(e.g. `apps/discord/src/press/replies*.ts`). A migration, if any, is `0075` and must not depend on 0074. Before Verify: `git rebase main` (T3 may be merged first); resolve conflicts, re-run every check,
+say what you resolved. You report to the operator in this chat; the Lead merges.
+
+## First: typed answers did not work live (operator 2026-11-13: "we still have to press answer")
+
+T1 (deployed, `PRESS_TYPED_ANSWERS=1`, Message Content intent ON for Wade Barlow, log "typed answers
+on") should take a plain message in a scrum thread as the answer. Players still had to press Answer.
+Likely cause (Lead, not proven): only Barlow's client has the message intents, and the thread is
+started by the asking reporter's bot; Barlow is not a member of that thread and may not receive its
+messages. Fix: Barlow joins every scrum (and interview) thread when it is created or first used
+(`PUT /channels/{thread.id}/thread-members/@me`), and re-joins open threads at start-up. Add one log
+line per received thread message that is considered (thread id, user id, taken or why not; never the
+text). Check discord.js thread behaviour in its docs (Context7) and say what you found.
 
 ## Goal and visible result
 
