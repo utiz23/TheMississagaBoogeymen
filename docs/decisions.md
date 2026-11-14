@@ -16,7 +16,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums) |
 | T9 relationships + T10 Talk fix | merged, waiting for D1                                                                                       |
-| E1 live events endpoint         | Ready; the Lead starts it next                                                                               |
+| E1 live events endpoint         | running (task agent)                                                                                         |
 | Press Box L1                    | Ready, after the deploy of T9                                                                                |
 
 ## 3. Your to-dos (only you can do these)

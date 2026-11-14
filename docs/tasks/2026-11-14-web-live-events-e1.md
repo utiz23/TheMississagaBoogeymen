@@ -20,7 +20,7 @@ Design: `docs/superpowers/specs/2026-11-14-live-events-interface.md` (approved; 
    answers `202` fast; rate limit (e.g. 60/min). Never logs the token, the HMAC or full bodies.
 2. **Reachability** (the sender may run on the main PC or, later, on Hotel-Echo itself): reachable only through Hotel-Echo's Tailscale address — a compose port bound to the
    Tailscale IP (`100.98.29.119`) for `web`, and the route refuses requests that came through the
-   public tunnel (check the `cf-connecting-ip`/`cf-ray` headers or the Host: refuse when present). The
+   public tunnel (check the `cf-connecting-ip`/`cf-ray` headers or the Host: refuse when present).
    A sender on Hotel-Echo reaches `web` over the local Docker network (no port needed). The Lead
    applies the compose change; the agent writes it and explains both paths in the runbook.
 3. **Storage:** `live_events` table (id text primary key, type, source, at, received_at, payload jsonb;
