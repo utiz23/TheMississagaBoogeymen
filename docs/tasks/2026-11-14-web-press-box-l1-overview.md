@@ -1,6 +1,6 @@
 # Task: L1 — Press Box: shell, overview, relationships board, change log
 
-- **State:** Merged 2026-11-14 13:57 (`2f11c6df`; operator D3 "I meant D2 and D3"); deploy is a separate OK
+- **State:** Deployed 2026-11-14 14:01 (operator: "D5 yes, now is a quiet time")
   (operator 2026-11-14: design and mock-up approved; "Proceed with both" 03:22)
 - **Lane:** Web (`apps/web/src/app/admin/press-box/`), Queries, Database (one migration)
 - **Risk:** medium (admin controls that change live press behaviour)
@@ -77,8 +77,17 @@ All checks pass; screenshots match the mock-up's layout; every action is admin-o
   file names the untracked `preview/news` page (0 errors in the code), and the main checkout lacked
   `@anthropic-ai/sdk` (`pnpm install --offline` fixed it; discord typecheck clean, 848/848).
 
-Resume: operator's OK to deploy: fresh backup, apply 0080, then `web` and `press` together; click each
-action once and check the change log.
+- 2026-11-14 14:02 Lead2: deployed. HE `git pull` to `dd7af527`; backup
+  `~/eanhl-backups/manual/eanhl-pre-0080-2026-11-14.dump` (29 MB, 86 table-data entries); 0080 applied
+  (2 tables + 5 columns confirmed); rollback tags `eanhl-team-website-{web,press}:rollback-he-2026-11-14-pre-l1`;
+  `build web press` + `up -d --no-deps web press`. Checks: `/` 200; `/admin/press-box` and
+  `/relationships` 307 → `/login` when signed out; press "started (live) … 9 bots", wrote
+  `press_mode=live` at 14:02:05. The web image also carries E1's route (inert: no secrets → 503; public
+  tunnel → 404, checked). The worker was not rebuilt. Rollback: retag both `:latest`, `up -d --no-deps
+web press`; 0080 rollback in its header (after the code).
+
+Resume: operator opens `/admin/press-box` signed in and looks; the board is empty until relationships
+build up. "Run a free test scrum" posts in the test channel (operator's call).
 
 ## Report
 
