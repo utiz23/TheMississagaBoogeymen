@@ -1,6 +1,6 @@
 # Task: B1 — Player background: question bank, facts and the admin editor
 
-- **State:** Running (since 2026-11-14 15:00; task agent of `Lead2`) (operator 2026-11-14: "B1 and B2 ready")
+- **State:** Running (since 2026-11-14 15:02; task agent of `Lead2`) (operator 2026-11-14: "B1 and B2 ready")
 - **Lane:** Database (one migration), Queries, Web (`/admin/press-box/players/[id]`), Discord (profile
   writer reads confirmed facts only)
 - **Risk:** medium (facts about real teammates that the writers will treat as true)
@@ -79,7 +79,7 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-14 14:57 Lead2: written (Proposed). Operator: bots fill these in over time, mostly in
   interviews; teammates asked for rate/criticise questions; admin veto; admin edits everything.
 
-- 2026-11-14 15:00 Lead2: operator "B1 and B2 ready"; started.
+- 2026-11-14 15:02 Lead2: operator "B1 and B2 ready"; started.
 
 Resume: task agent makes the branch and worktree, reads the worksheets and L2's dossier code, then builds.
 

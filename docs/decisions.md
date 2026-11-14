@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 15:00 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 15:02 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -54,7 +54,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
-- 2026-11-14 15:00 · "B1 and B2 ready" → B1 started; B2 after B1.
+- 2026-11-14 15:02 · "B1 and B2 ready" → B1 started; B2 after B1.
 - 2026-11-14 14:56 · Player background: bots fill it in over time (mostly interviews, rare in scrums);
   "they specifically requested the ability to be asked to rate or criticise teammates" → allowed, with an
   admin veto (teammate facts confirm-only); the admin edits every fact. "write B1 and B2".
