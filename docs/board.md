@@ -18,6 +18,7 @@ Limits: 2 task agents at once; 3 open operator decisions. Updated 2026-11-13 by 
 | [T1 typed answers](tasks/2026-11-13-discord-press-typed-answers.md)           | Discord            | medium | Deployed 11-13                                       | done                                      |
 | [T2 panel scrums + `/gm ask`](tasks/2026-11-13-discord-press-panel-gm-ask.md) | Discord + DB       | medium | Deployed 11-13 (0073 on live)                        | watch the next game night                 |
 | [T3 interviews](tasks/2026-11-13-discord-press-interviews.md)                 | Discord + DB + Web | medium | Ready (after T2)                                     | migration 0074 on live with operator OK   |
+| [T4 Discord replies](tasks/2026-11-13-discord-press-replies.md)               | Discord + Web      | medium | Proposed (after T3)                                  | operator: privacy paragraph               |
 
 ## Branches and worktrees from before v2
 

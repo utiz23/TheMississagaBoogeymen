@@ -6,9 +6,9 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                          | My advice          | Waiting costs                             |
+| --- | ----------------------------------------------------------------------------------------------------------------- | ------------------ | ----------------------------------------- |
+| D1  | T4: approve the privacy paragraph for replies to reporters (in `docs/tasks/2026-11-13-discord-press-replies.md`)? | Approve as written | Item 3 (reply to a wire post) cannot ship |
 
 ## 2. Your to-dos (only you can do these)
 
