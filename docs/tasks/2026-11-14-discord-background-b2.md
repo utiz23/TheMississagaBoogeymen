@@ -1,6 +1,6 @@
 # Task: B2 — Player background: the bots ask, propose facts; teammate answers need the admin
 
-- **State:** Verify (task agent done 2026-11-14 16:08; started 15:36 by `Lead2`) (operator 2026-11-14 15:02: "B1 and B2 ready")
+- **State:** Merged 2026-11-14 16:49 (`44daf4bd`; operator D19 "yes"); deploy waits for the operator's OK (D20)
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Queries, Database (only if a
   column is needed), Web (privacy page: one sentence)
 - **Risk:** medium-high (AI questions and AI-written facts about real teammates; a privacy text change)
@@ -130,7 +130,11 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   draft), so I copied those 3 paragraphs into the draft too; with that, the rendered page text equals the draft text
   exactly (checked offline). `legal-docs.ts` was not touched: `privacy.lastUpdated` is already 2026-11-14.
 
-Resume: Lead rebases/merges after the operator approves the privacy sentence and the samples; deploy order: backup, 0084, `press` (and `news`), then `web`; the switch stays OFF until the operator turns it on in the Press Box.
+- 2026-11-14 16:50 Lead2: operator "D18-19 yes": privacy wording and samples approved. Rebased; typecheck
+  db/web/discord/worker clean; web 755/755; discord 910/910; prettier clean except the privacy draft's
+  2-line gap that was already on `main`. Merged `--ff-only`.
+
+Resume: operator's OK to deploy (D20): fresh backup, 0084, `press` + `news`, then `web`; switch stays OFF.
 
 ## Report (task agent fills when state = Verify)
 

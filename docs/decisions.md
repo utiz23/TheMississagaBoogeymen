@@ -1,30 +1,29 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 16:12 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 16:50 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | My advice    | Waiting costs                            |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ---------------------------------------- |
-| D18 | Finals look CF3: screenshots OK (games page with Finals filter and round dividers, the final's game page, home in playoff mode; sent)? OK = I merge; the deploy (website only, a few seconds) is a separate OK.                                                                                                                                                                                                                                                             | Yes          | Finals nights look like any other night  |
-| D19 | Player background B2 (bots ask): (1) privacy sentence OK? "Answers to background questions may be kept as short notes about your hockey history and your teammates; an admin checks them before the reporters use them, and you can ask to have them removed." (2) samples OK (sent)? (3) switch off the ~writer-only bank questions ("useful sub-plot", "should be captured here")? (4) "no background question after a loss by 3+ goals" = the scrum about that game: OK? | Yes to all 4 | The bots keep asking only game questions |
+| ID  | Question                                                                                                                                                                                                                                                   | My advice            | Waiting costs                        |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------ |
+| D20 | Deploy player background B2? Fresh backup, migration 0084 (switch + ask log), the press and news services, then the website (the privacy sentence goes live). The switch stays OFF: no background question is asked until you turn it on in the Press Box. | Yes, at a quiet time | Nothing until you want the questions |
 
 ## 2. Right now
 
-| What                                            | State                                                                                                                                                       |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                                |
-| T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                                       |
-| E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                                                           |
-| Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                                                             |
-| Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights.                                     |
-| Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                                                                  |
-| Player background B1                            | LIVE since 15:41 (blank fact sheets). B2 (bots ask) built and checked: waits for your OK (D19); its switch stays OFF after the deploy until you turn it on. |
-| Club Finals                                     | LIVE since 15:54: the Club Finals card on the home page and round badges on games. CF3 (finals look) running; CF2 (Discord + news) after B2.                |
-| News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                                                            |
-| Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                                                                   |
+| What                                            | State                                                                                                                                        |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                 |
+| T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                        |
+| E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                                            |
+| Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                                              |
+| Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights.                      |
+| Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                                                   |
+| Player background                               | B1 LIVE (blank fact sheets). B2 (bots ask) merged; deploy is D20; its switch stays OFF until you turn it on.                                 |
+| Club Finals                                     | LIVE since 15:54: the Club Finals card on the home page and round badges on games. CF3 (finals look) running; CF2 (Discord + news) after B2. |
+| News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                                             |
+| Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                                                    |
 
 ## 3. Your to-dos (only you can do these)
 
@@ -56,6 +55,8 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 16:45 · "CF3 OK deploy" → finals look live 16:47. "D18-19 yes" → B2 privacy wording + samples approved, B2 merged.
+- 2026-11-14 16:15 · B2: "No cap on interviews. If a player requests an interview it's a random interview-worthy topic" (may be all background); "questions for reporters are approved" (none switched off); "4. yes". CF3: "axe the before and after".
 - 2026-11-14 15:51 · "deployt" (D17) → Club Finals CF1 deployed 15:54.
 - 2026-11-14 15:46 · "Oh never mind that is a drop down. Its acceptable then" → streamline cancelled; CF1 (D16)
   merged as shown.

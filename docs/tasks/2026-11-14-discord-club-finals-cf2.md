@@ -1,6 +1,6 @@
 # Task: CF2 — Club Finals in Discord: game post line, news desk and press weighting
 
-- **State:** Ready (operator 2026-11-14 15:07: "approve all 4 items"); starts after CF1 is merged
+- **State:** Running (since 2026-11-14 16:50; task agent of `Lead2`) (operator 2026-11-14 15:07: "approve all 4 items")
 - **Lane:** Discord (`apps/discord/src/`), Queries (read CF1's derived states)
 - **Risk:** medium (what the channel reads on finals nights)
 - **Slug:** club-finals-cf2
@@ -46,7 +46,9 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 15:08 Lead2: written (Ready; after CF1).
 
-Resume: start after CF1 is merged.
+- 2026-11-14 16:50 Lead2: started (CF1 live; B2 merged, so the press/news code is settled).
+
+Resume: task agent makes the branch and worktree, reads CF1's queries, the poster, news desk and press big-moment code.
 
 ## Report (task agent fills when state = Verify)
 

@@ -1,6 +1,6 @@
 # Task: CF3 — Club Finals look on the site (games page, game page, home "playoff mode", nav)
 
-- **State:** Verify (task agent done 2026-11-14 16:07; was Running since 15:50, task agent of `Lead2`) (operator 2026-11-14 15:27: "Lets go with your advice")
+- **State:** Deployed 2026-11-14 16:47 (operator: "CF3 OK deploy")
 - **Lane:** Web (`apps/web/src/`)
 - **Risk:** low-medium (visible design on the main pages; numbers come from CF1, never computed here)
 - **Slug:** club-finals-cf3
@@ -93,7 +93,11 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 16:25 task agent: operator (via Lead2, ~16:15): "axe the before and after". Removed "Before 1–3 → After 1–4" from the series panel (boxes, "Series / round" label and the "this game" mark stay); `seriesPanelView` no longer returns before/after and its tests are updated. No other before/after in CF3 (the card, banner and footer show the series score after the game only, as chips). State stays Verify.
 
-Resume: Lead merges (operator gate: screenshots at 1280 and 390 px), then deploy `web`.
+- 2026-11-14 16:50 Lead2: operator "axe the before and after" (done, `0574691e`), then "CF3 OK deploy". Rebased;
+  web typecheck clean, 749/749; merged (`47b54bd7`); `web` deployed (rollback `:rollback-he-2026-11-14-pre-cf3`).
+  Live: `/`, `/games`, `/games?mode=finals`, `/games/3431` 200 with the finals look.
+
+Resume: none.
 
 ## Report (task agent fills when state = Verify)
 
