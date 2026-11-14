@@ -1,6 +1,6 @@
 # Task: T5 — hard lines (never acknowledged) and reporter feuds
 
-- **State:** Verify (task agent, 2026-11-13; Lead repeats the checks and decides the merge)
+- **State:** Merged (Lead review 2026-11-13); deploy waits for the operator's OK
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Database (one migration),
   Queries
 - **Risk:** medium (what the bots answer to player text; story content about players)
@@ -82,6 +82,13 @@ All checks pass; tests pin A and B; the Report lists the thresholds and the prom
 - 2026-11-13 Lead: written from the operator's choice (A and B; cool-off = players' own press status).
 - 2026-11-13 Task agent: work on `work/press-feuds`. A, B and C built; checks green (see Report). Judgment calls are rulings 56-64 in `docs/superpowers/plans/2026-10-26-news-desk-bots-rulings.md`. Nothing deployed, migration 0076 not applied, nothing pushed. No Docker here: the SQL was pinned by tests, never run on a database.
 - 2026-11-13 Task agent: `apps/discord/src/press-main.ts` is outside "May edit", so it was NOT changed. The hard-line check is built inside `press/` from the deps' model call and store when `deps.screen` is absent (`screenMessage`), so the process needs no wiring.
+
+- 2026-11-13 Lead review: on main 96ec0fe2; paths inside "May edit" plus the rulings file (56-64, at
+  the Lead's request); migration 0076 = one table, rollback in header. Hard-line check = the desk's
+  model at low effort, recorded in spend (about a cent per player message). Ruling 59 accepted (plain
+  pro-hockey talk allowed). Re-ran: typecheck db/discord/web/worker clean; discord 766/766; news db
+  tests 125/125; web unit 672/672; prettier clean. Deploy with T3/T4: backup → 0074, 0075, 0076 →
+  `press`, `news`, `web`.
 
 ## Report
 
