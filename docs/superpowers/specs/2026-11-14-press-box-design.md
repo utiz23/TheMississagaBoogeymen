@@ -1,6 +1,6 @@
-# Lore admin — design (`/admin/lore`)
+# Press Box — admin design (`/admin/press-box`)
 
-Status: **proposed** (operator 2026-11-14: "an admin only page on the site to manage the lore … read the
+Status: **proposed** (operator 2026-11-14; name "Press Box" chosen by the operator over "lore": "an admin only page on the site to manage the lore … read the
 player dossiers, current feuds and trends, and manage the game"). Written for the operator; built in
 four tasks (L1–L4, end of this file).
 
@@ -21,7 +21,7 @@ still be readable on a phone.
 
 ## 3. Pages
 
-All under `/admin/lore`, behind the existing admin check (`requireAdmin`, the operator only). Each page
+All under `/admin/press-box`, behind the existing admin check (`requireAdmin`, the operator only). Each page
 says where its data comes from; every change is logged (who, when, what) in a small audit list shown on
 the overview.
 
@@ -32,10 +32,10 @@ the overview.
 - Now: open scrums and interviews (with links to their threads), pending GM asks.
 - Top 5 feuds, top 5 storylines, hot and cold players (form over the last nights), milestones within
   reach (e.g. "Silky: 2 goals from 50").
-- Last 20 lore changes (audit list).
+- Last 20 Press Box changes (audit list).
 - Buttons: `/gm testscrum` equivalent ("Run a free test scrum"), switch heat.
 
-### 3.2 Player dossiers — `/admin/lore/players` and `/admin/lore/players/[id]`
+### 3.2 Player dossiers — `/admin/press-box/players` and `/admin/press-box/players/[id]`
 
 Index: every club member (and bench people who have talked to the press), with press level, feud count,
 quote count, last scrum/interview, profile age.
@@ -58,13 +58,13 @@ One dossier:
 - **Actions:** change press level (on the player's behalf; logged), add/remove nicknames, add a GM note,
   start an interview (`/gm interview` equivalent), cool down or reset a feud.
 
-### 3.3 Feuds — `/admin/lore/feuds`
+### 3.3 Feuds — `/admin/press-box/feuds`
 
 A board: players × reporters, each cell the level (none / simmering / feud / open war) with points and
 trend. Actions per cell: **cool down** (halve), **reset** (zero), **set level** (GM override, with a
 reason), **freeze** (no change until unfrozen). All logged; the writers see only the resulting level.
 
-### 3.4 Storylines and trends — `/admin/lore/storylines`
+### 3.4 Storylines and trends — `/admin/press-box/storylines`
 
 - Open storylines (the reporter-system "threads") with each reporter's stance and when it last moved.
 - Trends from data: streaks, slumps, milestones, most-quoted, most-insulted reporter, quiet players.
@@ -73,20 +73,20 @@ reason), **freeze** (no change until unfrozen). All logged; the writers see only
 - Takes and stances: **edit** the text, **remove**, **add** a take for a reporter about a player (moves
   the takes editor from `/admin/news` here; `/admin/news` keeps a link).
 
-### 3.5 Reporters — `/admin/lore/reporters` and `/admin/lore/reporters/[id]`
+### 3.5 Reporters — `/admin/press-box/reporters` and `/admin/press-box/reporters/[id]`
 
 Each reporter's card: bio, voice notes, catchphrases, scrum/interview record, takes, feuds, best quotes
 they drew out, on/off switch. **Edit** bio, voice notes and catchphrases. Edits are stored as overrides
 on top of the reporter definitions in code; the writers read the merged version; every item records the
-lore version it was written with (so the admin can tell which character version wrote it).
+character version it was written with (so the admin can tell which character version wrote it).
 
 ## 4. Data
 
 New tables (hand-written migrations, one per task that needs one):
 
-- `news_player_profiles` (player or bench person, profile text, written_at, rules/lore version, cost).
-- `news_lore_audit` (who, when, kind, target, before/after summary).
-- `news_reporter_overrides` (reporter, bio, voice_notes, catchphrases, updated_at, lore_version).
+- `news_player_profiles` (player or bench person, profile text, written_at, rules/character version, cost).
+- `news_press_box_audit` (who, when, kind, target, before/after summary).
+- `news_reporter_overrides` (reporter, bio, voice_notes, catchphrases, updated_at, character_version).
 - Feuds: `frozen`, `override_level`, `override_reason` columns on `news_press_feuds`.
 - Storylines: `pinned`, `closed_at` on the stance/thread rows (or a small table; builder's choice).
 
@@ -107,7 +107,7 @@ interview answers, GM notes and asks, feuds, settings).
 
 | Task   | Scope                                                                                     | Migration                 |
 | ------ | ----------------------------------------------------------------------------------------- | ------------------------- |
-| **L1** | `/admin/lore` shell + overview + feuds board with all feud actions + audit list           | audit table; feud columns |
+| **L1** | `/admin/press-box` shell + overview + feuds board with all feud actions + audit list      | audit table; feud columns |
 | **L2** | Player dossiers (index + page) + players' press actions + AI profile on demand            | profiles table            |
 | **L3** | Storylines and trends + takes/stances editor (moved here) + pin/close feeding the writers | storyline flags           |
 | **L4** | Reporters: cards + editable bio/voice/catchphrases feeding the writers                    | reporter overrides        |
