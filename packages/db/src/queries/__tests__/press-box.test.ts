@@ -150,7 +150,12 @@ void test('freezing a pair with no row makes a frozen row at zero', () => {
 })
 
 void test('set level: needs a reason, a level in the reporter range; clear returns to the points', () => {
-  const set = (level: string, reason: string, reporter = 'vale' as const, pressLevel = 'full' as const) =>
+  const set = (
+    level: string,
+    reason: string,
+    reporter = 'vale' as const,
+    pressLevel = 'full' as const,
+  ) =>
     q.planRelationshipAction({
       state: null,
       reporter,
@@ -243,7 +248,10 @@ void test('every action kind maps to an audit kind of its own', () => {
     const action =
       kind === 'level' ? { kind, level: 'warm' as const, reason: 'r' } : ({ kind } as never)
     const plan = q.planRelationshipAction({
-      state: state({ frozen: kind === 'unfreeze', overrideLevel: kind === 'level_clear' ? 'warm' : null }),
+      state: state({
+        frozen: kind === 'unfreeze',
+        overrideLevel: kind === 'level_clear' ? 'warm' : null,
+      }),
       reporter: 'vale',
       pressLevel: 'full',
       action,

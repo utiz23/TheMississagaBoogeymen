@@ -23,6 +23,7 @@ import {
   type PressBoxRequestKind,
 } from '../schema/news-press-box.js'
 import type { NewsReporterId, PressHeat, PressHeatScope, PressLevel } from '../schema/index.js'
+import { REPORTERS } from '../news/reporters.js'
 import { MEMBER_CONDITION } from './club-members.js'
 
 // Press Box queries (the admin page /admin/press-box, migration 0080, task press-box-l1).
@@ -57,7 +58,11 @@ export function shownPoints(state: RelationshipState, now: Date): number {
 }
 
 /** The level the points give now (the reporter's lean and range applied), ignoring any pinned level. */
-export function pointsLevel(state: RelationshipState, reporter: NewsReporterId, now: Date): RelLevel {
+export function pointsLevel(
+  state: RelationshipState,
+  reporter: NewsReporterId,
+  now: Date,
+): RelLevel {
   if (!state.frozen) return relLevelAt(state, reporter, now)
   const total = Math.max(
     -REL_MAX_POINTS,
@@ -112,8 +117,25 @@ const AUDIT_KIND = {
   level_clear: 'relationship_level_clear',
 } as const satisfies Record<RelationshipAction['kind'], PressBoxAuditKind>
 
+/** Why an action was refused (the page shows its own text for each code). */
+export const RELATIONSHIP_ERROR_CODES = [
+  'out',
+  'frozen',
+  'zero',
+  'already_frozen',
+  'not_frozen',
+  'no_reason',
+  'reason_long',
+  'bad_level',
+  'range',
+  'easy',
+  'no_pin',
+  'no_player',
+] as const
+export type RelationshipErrorCode = (typeof RELATIONSHIP_ERROR_CODES)[number]
+
 export type RelationshipPlan =
-  | { ok: false; error: string }
+  | { ok: false; code: RelationshipErrorCode; error: string }
   | {
       ok: true
       /** What the row holds after the action. */
@@ -153,7 +175,11 @@ export function planRelationshipAction(args: {
 }): RelationshipPlan {
   const { reporter, pressLevel, action, now } = args
   if (pressLevel === 'out') {
-    return { ok: false, error: 'This player is on Leave me out: nothing is stored for them.' }
+    return {
+      ok: false,
+      code: 'out',
+      error: 'This player is on Leave me out: nothing is stored for them.',
+    }
   }
   const state: RelationshipState = args.state ?? {
     points: 0,
@@ -174,41 +200,51 @@ export function planRelationshipAction(args: {
   switch (action.kind) {
     case 'cooldown':
     case 'reset': {
-      if (state.frozen) return { ok: false, error: 'This pair is frozen. Unfreeze it first.' }
-      if (Math.abs(faded) < 0.005) return { ok: false, error: 'The points are already at zero.' }
+      if (state.frozen)
+        return { ok: false, code: 'frozen', error: 'This pair is frozen. Unfreeze it first.' }
+      if (Math.abs(faded) < 0.005)
+        return { ok: false, code: 'zero', error: 'The points are already at zero.' }
       const points = action.kind === 'reset' ? 0 : round2(faded / 2)
       return done({ ...state, points, lastEventAt: now })
     }
     case 'freeze': {
-      if (state.frozen) return { ok: false, error: 'This pair is already frozen.' }
+      if (state.frozen)
+        return { ok: false, code: 'already_frozen', error: 'This pair is already frozen.' }
       return done({ ...state, points: round2(faded), lastEventAt: now, frozen: true })
     }
     case 'unfreeze': {
-      if (!state.frozen) return { ok: false, error: 'This pair is not frozen.' }
+      if (!state.frozen) return { ok: false, code: 'not_frozen', error: 'This pair is not frozen.' }
       return done({ ...state, lastEventAt: now, frozen: false })
     }
     case 'level': {
       const reason = action.reason.trim()
-      if (reason === '') return { ok: false, error: 'Write a reason for the change log.' }
+      if (reason === '')
+        return { ok: false, code: 'no_reason', error: 'Write a reason for the change log.' }
       if (reason.length > OVERRIDE_REASON_MAX) {
-        return { ok: false, error: `The reason is longer than ${String(OVERRIDE_REASON_MAX)} characters.` }
+        return {
+          ok: false,
+          code: 'reason_long',
+          error: `The reason is longer than ${String(OVERRIDE_REASON_MAX)} characters.`,
+        }
       }
       if (!(REL_LEVELS as readonly string[]).includes(action.level)) {
-        return { ok: false, error: 'That level does not exist.' }
+        return { ok: false, code: 'bad_level', error: 'That level does not exist.' }
       }
       if (!allowedLevels(reporter).includes(action.level)) {
-        return { ok: false, error: 'That level is outside this reporter’s range.' }
+        return { ok: false, code: 'range', error: 'That level is outside this reporter’s range.' }
       }
       if (pressLevel === 'easy' && isNegative(action.level)) {
         return {
           ok: false,
+          code: 'easy',
           error: 'This player is on Go easy: the feud side is never used for them.',
         }
       }
       return done({ ...state, overrideLevel: action.level, overrideReason: reason })
     }
     case 'level_clear': {
-      if (state.overrideLevel === null) return { ok: false, error: 'No level is pinned.' }
+      if (state.overrideLevel === null)
+        return { ok: false, code: 'no_pin', error: 'No level is pinned.' }
       return done({ ...state, overrideLevel: null, overrideReason: null })
     }
   }
@@ -292,7 +328,7 @@ export function upsertRelationshipStateSql(args: {
 
 export type RelationshipActionResult =
   | { ok: true; summary: string }
-  | { ok: false; error: string }
+  | { ok: false; code: RelationshipErrorCode; error: string }
 
 /**
  * Runs one GM action on a player-reporter pair and writes its audit line, in one transaction. The
@@ -312,7 +348,7 @@ export async function applyRelationshipAction(args: {
       from players p left join player_profiles pp on pp.player_id = p.id
       where p.id = ${args.playerId}`)
     const player = who[0]
-    if (player === undefined) return { ok: false, error: 'No such player.' }
+    if (player === undefined) return { ok: false, code: 'no_player', error: 'No such player.' }
     const rows = await tx.execute<RawRelRow>(lockRelationshipSql(args.playerId, args.reporter))
     const raw = rows[0]
     const state: RelationshipState | null =
@@ -341,14 +377,13 @@ export async function applyRelationshipAction(args: {
         at: args.now,
       }),
     )
-    const reason =
-      args.action.kind === 'level' ? ` (reason: ${args.action.reason.trim()})` : ''
+    const reason = args.action.kind === 'level' ? ` (reason: ${args.action.reason.trim()})` : ''
     await writeAudit(
       tx,
       args.actor,
       {
         kind: plan.auditKind,
-        target: `${player.name} x ${args.reporter}`,
+        target: `${player.name} x ${REPORTERS[args.reporter].name}`,
         summary: `${plan.summary}${reason}`,
       },
       args.now,
@@ -390,6 +425,53 @@ export async function setHeatWithAudit(args: {
       args.now,
     )
   })
+}
+
+// ── Press settings for the page ──────────────────────────────────────────────
+
+export interface PressBoxSettings {
+  heat: PressHeat
+  heatScope: PressHeatScope
+  heatNight: string | null
+  pressMode: 'trial' | 'live' | null
+  pressSeenAt: Date | null
+}
+
+/**
+ * The settings row for the page. Before migration 0080 is applied the two press columns do not
+ * exist: the page still renders (mode unknown), as the other admin pages do for a missing table.
+ */
+export async function getPressBoxSettings(): Promise<PressBoxSettings> {
+  const read = async (withPress: boolean) => {
+    const rows = await db.execute<{
+      heat: PressHeat
+      heat_scope: PressHeatScope
+      heat_night: string | null
+      press_mode?: 'trial' | 'live' | null
+      press_seen_at?: Date | string | null
+    }>(
+      withPress
+        ? sql`select heat, heat_scope, heat_night, press_mode, press_seen_at from news_press_settings where id = 1`
+        : sql`select heat, heat_scope, heat_night from news_press_settings where id = 1`,
+    )
+    return rows[0]
+  }
+  let row: Awaited<ReturnType<typeof read>>
+  try {
+    row = await read(true)
+  } catch {
+    row = await read(false)
+  }
+  return {
+    heat: row?.heat ?? 'normal',
+    heatScope: row?.heat_scope ?? 'night',
+    heatNight: row?.heat_night ?? null,
+    pressMode: row?.press_mode ?? null,
+    pressSeenAt:
+      row?.press_seen_at === undefined || row.press_seen_at === null
+        ? null
+        : toDate(row.press_seen_at),
+  }
 }
 
 // ── Requests to the press service ────────────────────────────────────────────
@@ -544,6 +626,32 @@ export function listBoardCellsSql(): SQL {
     from news_press_relationships r`
 }
 
+/** The same read before migration 0080 (no freeze or pin columns yet). */
+export function listBoardCellsLegacySql(): SQL {
+  return sql`
+    select r.player_id, r.reporter, r.points, r.last_event_at, false as frozen,
+      null::text as override_level, null::text as override_reason
+    from news_press_relationships r`
+}
+
+type RawCell = {
+  player_id: string | number
+  reporter: NewsReporterId
+  points: string | number
+  last_event_at: Date | string
+  frozen: boolean
+  override_level: RelLevel | null
+  override_reason: string | null
+}
+
+async function readCells() {
+  try {
+    return await db.execute<RawCell>(listBoardCellsSql())
+  } catch {
+    return await db.execute<RawCell>(listBoardCellsLegacySql())
+  }
+}
+
 /**
  * The board: every club member (and anyone with a relationship row) and every stored pair with
  * its level now. Pairs not in `cells` are "none". "Leave me out" players are left off the board.
@@ -555,15 +663,7 @@ export async function listRelationshipBoard(
     db.execute<{ id: string | number; name: string; gamertag: string; press_level: PressLevel }>(
       listBoardPlayersSql(),
     ),
-    db.execute<{
-      player_id: string | number
-      reporter: NewsReporterId
-      points: string | number
-      last_event_at: Date | string
-      frozen: boolean
-      override_level: RelLevel | null
-      override_reason: string | null
-    }>(listBoardCellsSql()),
+    readCells(),
   ])
   return {
     players: players

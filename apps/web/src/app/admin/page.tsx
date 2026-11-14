@@ -53,6 +53,11 @@ const TOOLS = [
     note: 'On/off, spending, delete items, press levels.',
   },
   {
+    href: '/admin/press-box',
+    label: 'Press Box',
+    note: 'State of the press game: heat, relationships, change log.',
+  },
+  {
     href: '/admin/titles',
     label: 'Game titles',
     note: 'Collection, default and order (view only).',
