@@ -6,9 +6,9 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                                      | My advice                                                           | Waiting costs   |
+| --- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------- |
+| D1  | Deploy T3 interviews (backup → migration 0074 → `press`, `news`, `web`)? Merged and checked; deploy alone or together with T4 | Together with T4 (one restart, typed answers in interviews need T4) | Interviews wait |
 
 ## 2. Your to-dos (only you can do these)
 
