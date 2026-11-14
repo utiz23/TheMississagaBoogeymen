@@ -150,7 +150,7 @@ export type NewsBackgroundFactRow = typeof newsBackgroundFacts.$inferSelect
 
 /**
  * Background questions the bots put to members (migration 0084, task background-b2): one row per
- * ask. It keys the rules (one per interview, one per scrum panel, one per person per 7 days in
+ * ask. It keys the rules (one per scrum panel, one per person per 7 days in
  * scrums, never the same question twice) and links the ask to the answer that came back, so the
  * fact proposer knows which bank question the answer belongs to. The posted text is the reporter's
  * own wording, so this row, not the text, is the link.
@@ -196,7 +196,8 @@ export const newsBackgroundAsks = pgTable(
     uniqueIndex('news_background_asks_scrum_person_uniq')
       .on(table.scrumPersonId)
       .where(sql`scrum_person_id IS NOT NULL`),
-    uniqueIndex('news_background_asks_interview_uniq')
+    // No cap per interview (operator, 2026-11-14): an interview may hold many asks.
+    index('news_background_asks_interview_idx')
       .on(table.interviewId)
       .where(sql`interview_id IS NOT NULL`),
     index('news_background_asks_player_idx').on(table.playerId, table.askedAt),

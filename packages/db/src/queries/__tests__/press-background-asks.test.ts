@@ -106,7 +106,8 @@ void test('schema: the ask log keys one ask per panel and per interview, and nev
   assert.equal(cfg.name, 'news_background_asks')
   const idx = cfg.indexes.map((i) => i.config.name)
   assert.ok(idx.includes('news_background_asks_scrum_person_uniq'))
-  assert.ok(idx.includes('news_background_asks_interview_uniq'))
+  assert.ok(idx.includes('news_background_asks_interview_idx'))
+  assert.ok(!idx.includes('news_background_asks_interview_uniq'), 'no cap per interview')
   const checks = cfg.checks.map((c) => c.name)
   assert.ok(checks.includes('news_background_asks_kind_check'))
   assert.ok(checks.includes('news_background_asks_subject_check'))
@@ -127,7 +128,8 @@ void test('migration 0084: switch row created OFF, idempotent, no fact, no works
   assert.match(sql, /ON CONFLICT \("id"\) DO NOTHING/)
   assert.match(sql, /CREATE TABLE IF NOT EXISTS "news_background_asks"/)
   assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS "news_background_asks_scrum_person_uniq"/)
-  assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS "news_background_asks_interview_uniq"/)
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS "news_background_asks_interview_idx"/)
+  assert.doesNotMatch(sql, /news_background_asks_interview_uniq/)
   // Starts from nothing: no fact row and no worksheet answer is created (operator, 2026-11-14).
   const code = sql
     .split('\n')

@@ -14,7 +14,7 @@ import { setup } from './test-fakes.ts'
 
 /**
  * Test fakes for the background questions (task background-b2): the interview fake store plus the
- * background methods, with the same rules as the SQL (one ask per panel or interview, a question
+ * background methods, with the same rules as the SQL (one ask per scrum panel, no cap per interview, a question
  * never asked twice, a proposed fact only from a real answered ask, at most 2 per answer).
  */
 export interface FakeAsk extends NewBackgroundAsk {
@@ -77,11 +77,10 @@ export class BgFakeStore extends InterviewFakeStore implements BackgroundStore {
       ).length,
     )
   insertBackgroundAsk = (ask: NewBackgroundAsk) => {
-    const dup = this.asks.some(
-      (a) =>
-        (ask.scrumPersonId !== undefined && a.scrumPersonId === ask.scrumPersonId) ||
-        (ask.interviewId !== undefined && a.interviewId === ask.interviewId),
-    )
+    // The SQL's unique index: one ask per scrum panel. An interview has no cap (operator, 2026-11-14).
+    const dup =
+      ask.scrumPersonId !== undefined &&
+      this.asks.some((a) => a.scrumPersonId === ask.scrumPersonId)
     if (dup) return Promise.resolve(null)
     const id = this.asks.length + 1
     this.asks.push({ ...ask, id, answeredAt: null, answerScrumId: null, answerInterviewId: null })

@@ -333,6 +333,11 @@ export const sections: LegalPageSection[] = [
           your answers or reword them. Answering is optional.
         </P>
         <P>
+          Answers to background questions may be kept as short notes about your hockey history and
+          your teammates; an admin checks them before the reporters use them, and you can ask to
+          have them removed.
+        </P>
+        <P>
           If you react to a news post in our team's Discord channel, the bots store your Discord
           user ID with that post. We use it only to count the reactions to the post.
         </P>

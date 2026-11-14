@@ -242,6 +242,26 @@ and from Discord. A deleted item stays in our database but is no longer
 shown. For more detail, see our [Data Collection
 Policy](PLACEHOLDER-DATA-COLLECTION-POLICY-URL).
 
+If you answer a reporter's questions in Discord, we store your answers and send them to
+Claude AI (Anthropic) to write the questions and the stories. We can show your answers in
+the scrum thread in our team's Discord channel. The night recaps on this site can quote
+your answers or reword them. Answering is optional.
+
+Answers to background questions may be kept as short notes about your hockey history and your teammates; an admin checks them before the reporters use them, and you can ask to have them removed.
+
+If you react to a news post in our team's Discord channel, the bots store your Discord
+user ID with that post. We use it only to count the reactions to the post.
+
+**Replies to reporters in Discord.** If you reply to a reporter's post in our
+team's Discord channel, the bots may send your reply to Claude AI (Anthropic) so the
+reporter can answer you. We store the answer and the message IDs, not the text of your
+reply.
+
+**Who is in the team's voice call.** On game nights the bots check who is in
+the team's voice channel, only so people who watched but did not play can be invited to,
+or step up to, talk to the press. We do not store who was in the call. If you answer, the
+rules for answers to reporters apply.
+
 ### 14. Changes to this policy
 
 We will post an on-site notice when we make a material change to this

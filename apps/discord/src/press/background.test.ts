@@ -16,7 +16,14 @@ import {
   onGmInterview,
   onInterviewAccept,
   onInterviewAnswerSubmit,
+  onInterviewCommand,
 } from './interview.ts'
+import {
+  BACKGROUND_TOPIC,
+  INTERVIEW_GAME_TOPICS,
+  chooseInterviewTopic,
+  interviewWantsBackground,
+} from './background-rules.ts'
 import { runPressPass } from './pass.ts'
 import { pressRecorder, scrumHistory, startScrumQuestion } from './question.ts'
 import { GM, NOW, USER_A, USER_B, config, scrumWithPerson } from './test-fakes.ts'
@@ -43,10 +50,14 @@ function answer(t: T, cfg: ReturnType<typeof config>, id: number, userId: string
   return onInterviewAnswerSubmit(t.deps, cfg, id, userId, text, seen)
 }
 
-/** The GM offers an interview, the player accepts: question 1 is out. */
-async function startInterview(t: T, user = USER_A) {
+/**
+ * The GM offers an interview, the player accepts: question 1 is out. The default topic is
+ * "background" (a GM may type it): every planned question may be a background one, so a test with
+ * ONE open bank question sees it at item 1 and the ordinary writer after it.
+ */
+async function startInterview(t: T, user = USER_A, topic: string | null = 'background') {
   const cfg = config('live')
-  await onGmInterview(t.deps, cfg, GM, { player: user, reporter: 'barlow', topic: null })
+  await onGmInterview(t.deps, cfg, GM, { player: user, reporter: 'barlow', topic })
   await runPressPass(t.deps, cfg)
   await onInterviewAccept(t.deps, cfg, 1, user)
   return cfg
@@ -80,7 +91,7 @@ void test('interview: the switch is OFF, so no background question is asked and 
   assert.equal(t.store.interviews[0]!.status, 'done')
 })
 
-void test('interview: at most one background question, at the 5th item; the answer proposes a fact (always proposed)', async () => {
+void test('interview: a background interview asks the bank question; the answer proposes a fact (always proposed)', async () => {
   const m = bgModel({
     questions: SEVEN,
     background: ['What is the habit you lean on most when the game gets tight?'],
@@ -92,11 +103,11 @@ void test('interview: at most one background question, at the 5th item; the answ
   t.store.bank = [t.store.bank[0]!]
   const cfg = await startInterview(t)
   await runAll(t, cfg, USER_A, [
-    'Answer one.',
+    'I lean on a hard forecheck when the game gets tight, always have.',
     'Answer two.',
     'Answer three.',
     'Answer four.',
-    'I lean on a hard forecheck when the game gets tight, always have.',
+    'Answer five.',
     'Answer six.',
     'Answer seven.',
   ])
@@ -105,16 +116,16 @@ void test('interview: at most one background question, at the 5th item; the answ
   assert.equal(t.store.asks[0]!.kind, 'interview')
   assert.equal(t.store.asks[0]!.interviewId, 1)
   assert.equal(t.store.asks[0]!.subjectPlayerId, null)
-  // Items 1-4, 6, 7 are the ordinary writer's; item 5 is the background question.
+  // Item 1 is the background question (the only open one); items 2-7 are the ordinary writer's.
   const posted = sentQuestions(t).slice(1) // the first line is the offer
-  assert.equal(posted[4], 'What is the habit you lean on most when the game gets tight?')
+  assert.equal(posted[0], 'What is the habit you lean on most when the game gets tight?')
   assert.equal(posted.filter((q) => q.includes('Ordinary question')).length, 6)
   // One small request proposed one fact; it is proposed, linked to its ask and its answer.
   assert.equal(m.kinds().proposers, 1)
   assert.equal(t.store.facts.length, 1)
   assert.equal(t.store.facts[0]!.status, 'proposed')
   assert.equal(t.store.facts[0]!.askId, 1)
-  assert.equal(t.store.facts[0]!.interviewAnswerId, 5)
+  assert.equal(t.store.facts[0]!.interviewAnswerId, 1)
   assert.ok(t.store.asks[0]!.answeredAt !== null)
 })
 
@@ -122,17 +133,17 @@ void test('interview: a joke answer to a background question proposes nothing (a
   const m = bgModel({
     questions: SEVEN,
     background: ['What is your best habit on the ice?'],
-    judgements: [usable, usable, usable, usable, joke, usable, usable],
+    judgements: [joke, usable, usable, usable, usable, usable, usable],
   })
   const t = bgSetup({ model: m.call })
   t.store.bank = [t.store.bank[0]!]
   const cfg = await startInterview(t)
   await runAll(t, cfg, USER_A, [
-    'One.',
+    'My best habit is being the best, obviously, ask anyone.',
     'Two.',
     'Three.',
     'Four.',
-    'My best habit is being the best, obviously, ask anyone.',
+    'Five.',
     'Six.',
     'Seven.',
   ])
@@ -146,12 +157,12 @@ void test('interview: an unusable answer to a background question proposes nothi
   const m = bgModel({
     questions: SEVEN,
     background: ['What is your best habit on the ice?'],
-    judgements: [usable, usable, usable, usable, unusableJ, usable, usable],
+    judgements: [unusableJ, usable, usable, usable, usable, usable, usable],
   })
   const t = bgSetup({ model: m.call })
   t.store.bank = [t.store.bank[0]!]
   const cfg = await startInterview(t)
-  await runAll(t, cfg, USER_A, ['One.', 'Two.', 'Three.', 'Four.', 'Nope.', 'Six.', 'Seven.'])
+  await runAll(t, cfg, USER_A, ['Nope.', 'Two.', 'Three.', 'Four.', 'Five.', 'Six.', 'Seven.'])
   assert.equal(m.kinds().proposers, 0)
   assert.equal(t.store.facts.length, 0)
 })
@@ -173,11 +184,11 @@ void test('interview: a teammate question is about an eligible teammate only (Go
   t.store.bank = [t.store.bank[1]!] // only the teammate question is open
   const cfg = await startInterview(t)
   await runAll(t, cfg, USER_A, [
-    'One.',
+    'Goalie G reads my game when it breaks down, no question about it.',
     'Two.',
     'Three.',
     'Four.',
-    'Goalie G reads my game when it breaks down, no question about it.',
+    'Five.',
     'Six.',
     'Seven.',
   ])
@@ -217,13 +228,13 @@ void test('interview: an answer to a teammate question is never offered to a wri
   const t = bgSetup({ model: m.call })
   t.store.bank = [t.store.bank[1]!]
   const cfg = await startInterview(t)
-  await runAll(t, cfg, USER_A, ['One.', 'Two.', 'Three.', 'Four.', SECRET, 'Six.', 'Seven.'])
-  // The ordinary writer's next question (item 6) never saw the answer text.
+  await runAll(t, cfg, USER_A, [SECRET, 'Two.', 'Three.', 'Four.', 'Five.', 'Six.', 'Seven.'])
+  // Every ordinary question written after the answer (items 2-7) never saw its text.
   const later = m.reqs.filter(
     (r) =>
       r.purpose === 'write' &&
       !r.system.includes('BACKGROUND QUESTION RULES') &&
-      r.user.includes('Task: ask question 6'),
+      r.user.includes('Task: ask question'),
   )
   assert.ok(later.length > 0)
   for (const r of later) assert.doesNotMatch(r.user, /ZEBRA-TEAMMATE-ANSWER/)
@@ -259,6 +270,185 @@ void test('interview: a Go easy person is never asked a question for the bad sid
   assert.match(bgReq.user, /best habit of Skater B/)
   assert.doesNotMatch(bgReq.user, /classic bad/)
   assert.equal(t.store.asks[0]!.questionId, 11)
+})
+
+/** Seven open bank questions about the person (none about a teammate), so the pick never runs out. */
+const SEVEN_BANK = WORDS.map((w, i) => ({
+  id: 100 + i,
+  part: 'hockey' as const,
+  question: `What is the ${w} habit of {name}?`,
+  aboutTeammate: false,
+}))
+
+const BG_SAMPLES = WORDS.map((w) => `What is your ${w} habit on the ice?`)
+
+/** The items of an interview the seeded rule makes background ones (interview 1, no cap). */
+const mixedPositions = (): number[] =>
+  [1, 2, 3, 4, 5, 6, 7].filter((position) =>
+    interviewWantsBackground({
+      isMember: true,
+      backgroundMode: false,
+      position,
+      seed: 1000 + position,
+    }),
+  )
+
+void test('interview: no cap, a "background" interview asks a background question at EVERY item', async () => {
+  const m = bgModel({
+    background: BG_SAMPLES,
+    judgements: Array(7).fill(usable),
+    facts: Array(7).fill([]),
+  })
+  const t = bgSetup({ model: m.call })
+  t.store.bank = SEVEN_BANK
+  const cfg = await startInterview(t) // topic "background"
+  await runAll(t, cfg, USER_A, Array(7).fill('A hockey answer about my own habits on the ice.'))
+  assert.equal(m.kinds().backgroundQuestions, 7)
+  assert.equal(t.store.asks.length, 7)
+  assert.deepEqual(
+    new Set(t.store.asks.map((a) => a.questionId)).size,
+    7,
+    'never the same question twice',
+  )
+  assert.equal(m.kinds().proposers, 7)
+  const ordinary = m.reqs.filter(
+    (r) =>
+      r.purpose === 'write' &&
+      !r.system.includes('BACKGROUND QUESTION RULES') &&
+      r.user.includes('Task: ask question'),
+  )
+  assert.equal(ordinary.length, 0)
+  assert.equal(t.store.interviews[0]!.status, 'done')
+  assert.deepEqual(sentQuestions(t).slice(1, 8), BG_SAMPLES)
+})
+
+void test('interview: any other interview mixes background questions in (never the opener, no cap) and keeps its own topic', async () => {
+  const positions = mixedPositions()
+  assert.ok(
+    positions.length >= 1 && positions.length <= 6,
+    `seeded positions ${positions.join(',')}`,
+  )
+  assert.ok(!positions.includes(1))
+  const nOrdinary = 7 - positions.length
+  const m = bgModel({
+    questions: WORDS.slice(0, nOrdinary).map(
+      (w) => `Ordinary question ${w} about his shot volume?`,
+    ),
+    background: BG_SAMPLES.slice(0, positions.length),
+    judgements: Array(7).fill(usable),
+    facts: Array(positions.length).fill([]),
+  })
+  const t = bgSetup({ model: m.call })
+  t.store.bank = SEVEN_BANK
+  const cfg = await startInterview(t, USER_A, 'his shot volume')
+  await runAll(t, cfg, USER_A, Array(7).fill('A hockey answer about my own habits on the ice.'))
+  assert.equal(t.store.interviews[0]!.topic, 'his shot volume')
+  assert.equal(m.kinds().backgroundQuestions, positions.length)
+  assert.equal(t.store.asks.length, positions.length)
+  const posted = sentQuestions(t).slice(1, 8)
+  posted.forEach((q, i) => {
+    assert.equal(
+      q.startsWith('What is your'),
+      positions.includes(i + 1),
+      `item ${String(i + 1)}: ${q}`,
+    )
+  })
+  // The ordinary writer still gets the GM's topic.
+  const ordinary = m.reqs.filter(
+    (r) =>
+      r.purpose === 'write' &&
+      !r.system.includes('BACKGROUND QUESTION RULES') &&
+      r.user.includes('Task: ask question'),
+  )
+  assert.ok(ordinary.length > 0)
+  for (const r of ordinary) assert.match(r.user, /his shot volume/)
+})
+
+/** The first `now` (a minute at a time) for which the player's request gets (or does not get) the background topic. */
+function nowFor(background: boolean, playerId = 1): Date {
+  for (let k = 0; k < 500; k++) {
+    const at = new Date(NOW.getTime() + k * 60_000)
+    if (
+      chooseInterviewTopic({ seed: (at.getTime() ^ playerId) >>> 0, backgroundOn: true })
+        .background === background
+    ) {
+      return at
+    }
+  }
+  throw new Error('no such time')
+}
+
+void test('player request: the topic is chosen at random; "background" makes every question a background question', async () => {
+  const m = bgModel({
+    background: BG_SAMPLES,
+    judgements: Array(7).fill(usable),
+    facts: Array(7).fill([]),
+  })
+  const t = bgSetup({ model: m.call })
+  t.store.bank = SEVEN_BANK
+  t.deps.now = () => nowFor(true)
+  const cfg = config('live')
+  await onInterviewCommand(t.deps, cfg, USER_A)
+  const iv = t.store.interviews[0]!
+  assert.equal(iv.trigger, 'player')
+  assert.equal(iv.topic, BACKGROUND_TOPIC)
+  await runAll(t, cfg, USER_A, Array(7).fill('A hockey answer about my own habits on the ice.'))
+  assert.equal(m.kinds().backgroundQuestions, 7)
+  assert.equal(t.store.asks.length, 7)
+  assert.equal(
+    m.reqs.filter(
+      (r) =>
+        r.purpose === 'write' &&
+        !r.system.includes('BACKGROUND QUESTION RULES') &&
+        r.user.includes('Task: ask question'),
+    ).length,
+    0,
+    'no ordinary question at all',
+  )
+})
+
+void test('player request: a game topic is chosen and background questions are mixed in; the writer is told the topic', async () => {
+  const positions = mixedPositions()
+  const m = bgModel({
+    questions: WORDS.slice(0, 7 - positions.length).map(
+      (w) => `Ordinary question ${w} about the night?`,
+    ),
+    background: BG_SAMPLES.slice(0, positions.length),
+    judgements: Array(7).fill(usable),
+    facts: Array(positions.length).fill([]),
+  })
+  const t = bgSetup({ model: m.call })
+  t.store.bank = SEVEN_BANK
+  const at = nowFor(false)
+  t.deps.now = () => at
+  const cfg = config('live')
+  await onInterviewCommand(t.deps, cfg, USER_A)
+  const iv = t.store.interviews[0]!
+  assert.ok(INTERVIEW_GAME_TOPICS.includes(iv.topic!), `a game topic: ${String(iv.topic)}`)
+  await runAll(t, cfg, USER_A, Array(7).fill('A hockey answer about my own habits on the ice.'))
+  assert.equal(m.kinds().backgroundQuestions, positions.length)
+  const ordinary = m.reqs.filter(
+    (r) =>
+      r.purpose === 'write' &&
+      !r.system.includes('BACKGROUND QUESTION RULES') &&
+      r.user.includes('Task: ask question'),
+  )
+  assert.equal(ordinary.length, 7 - positions.length)
+  for (const r of ordinary) assert.ok(r.user.includes(iv.topic!), 'the writer gets the game topic')
+})
+
+void test('player request: with the switch OFF the topic is never "background" and nothing background is asked', async () => {
+  for (let k = 0; k < 40; k++) {
+    const m = bgModel({ questions: SEVEN.concat(ORDINARY(5)), judgements: Array(7).fill(usable) })
+    const t = bgSetup({ model: m.call })
+    t.store.switchOn = false
+    t.deps.now = () => new Date(nowFor(true).getTime() + k * 7 * 60_000)
+    await onInterviewCommand(t.deps, config('live'), USER_A)
+    const iv = t.store.interviews[0]!
+    assert.ok(INTERVIEW_GAME_TOPICS.includes(iv.topic!), String(iv.topic))
+    assert.equal(m.kinds().backgroundQuestions, 0)
+    assert.equal(t.store.asks.length, 0)
+  }
 })
 
 void test('writers: the ordinary interview question writer sees the CONFIRMED background only; a proposed fact never reaches a prompt', async () => {

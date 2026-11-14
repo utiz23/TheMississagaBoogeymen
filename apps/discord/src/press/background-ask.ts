@@ -37,7 +37,7 @@ import { extrasBudgetLeft } from './rules.ts'
 /**
  * Background questions (task background-b2). A reporter puts ONE question of the bank (migration
  * 0082) to a member, in the reporter's own voice; the bank text is a seed, not a script. Where and
- * when (the rules): interviews ask one, from the 5th item on; scrums ask at most one per person per
+ * when (the rules): interviews have no cap (a "background" interview may ask one at every item, any other mixes them in after the opener); scrums ask at most one per person per
  * 7 days, only as the LAST question of the person's panel, never after a loss by 3+ goals. The
  * admin switch (default OFF) gates everything here.
  *
@@ -272,7 +272,7 @@ export function blockedRosterNames(
 /**
  * The switch is on, a question is still open for this member, and the reporter could write it:
  * the plan, else null (the caller asks its ordinary question). The caller has already checked the
- * rules of its place (`scrumMayAskBackground`, `interviewMayAskBackground`) and the money.
+ * rules of its place (`scrumMayAskBackground`, `interviewWantsBackground`) and the money.
  */
 export async function planBackgroundQuestion(
   deps: PressDeps,

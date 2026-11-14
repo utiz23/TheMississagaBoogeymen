@@ -14,6 +14,7 @@ import {
   chooseInterviewReporter,
   pickAutoStory,
 } from './interview-rules.ts'
+import { isBackgroundTopic } from './background-rules.ts'
 import type { InterviewStore } from './interview-store.ts'
 import { closeExpired, interviewStore, offerMessage } from './interview.ts'
 import type { PressDeps, PressStore } from './pass.ts'
@@ -251,7 +252,8 @@ async function writeArticle(
         pressLevel: person.pressLevel,
         ...(person.bench === undefined ? {} : { bench: person.bench }),
       },
-      topic: iv.topic,
+      // The "background" marker is not a topic the article may mention.
+      topic: isBackgroundTopic(iv.topic) ? null : iv.topic,
     },
     offered,
     pressRecorder(st),

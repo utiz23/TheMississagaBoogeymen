@@ -8,7 +8,7 @@ import type { PressLevel } from '@eanhl/db/news'
 //      "Go easy" and "Leave me out" teammates are never the subject (`eligibleSubjects`), and
 //      "Leave me out" people get no background question at all (`mayAskBackground`).
 //   2. A "Go easy" person is never asked a question for the bad side (`seedIsCritical`).
-//   3. Where and when: `scrumMayAskBackground`, `interviewMayAskBackground`.
+//   3. Where and when: `scrumMayAskBackground`, `interviewWantsBackground`, `chooseInterviewTopic`.
 
 /** Scrums: at most one background question per person in this time. */
 export const BACKGROUND_SCRUM_LIMIT_MS = 7 * 86_400_000
@@ -122,20 +122,61 @@ export function scrumMayAskBackground(args: {
   )
 }
 
-/** The first planned question that may be the background one (the bigger picture, after the night and the season). */
-export const INTERVIEW_BACKGROUND_FROM_POSITION = 5
+/**
+ * Interviews have NO cap on background questions (operator, 2026-11-14). In a "background"
+ * interview EVERY planned question may be one; in any other interview they are mixed in: the first
+ * question stays the ordinary opener, and each later planned question is a background one with this
+ * chance (seeded, so a test can pin it).
+ */
+export const INTERVIEW_MIX_PERCENT = 30
 
-/** An interview asks at most one, from this position on, only to a member. */
-export function interviewMayAskBackground(args: {
+/** The topic text that marks a whole-background interview (also what a GM may type for one). */
+export const BACKGROUND_TOPIC = 'background'
+
+export function isBackgroundTopic(topic: string | null): boolean {
+  return topic !== null && topic.trim().toLowerCase() === BACKGROUND_TOPIC
+}
+
+/** Should this planned question of an interview be a background question? (The caller still checks the switch.) */
+export function interviewWantsBackground(args: {
   isMember: boolean
+  /** The interview's topic is "background": every question may be one. */
+  backgroundMode: boolean
+  /** The 1-based number of the item about to be asked. */
   position: number
-  askedInThisInterview: number
+  seed: number
 }): boolean {
-  return (
-    args.isMember &&
-    args.position >= INTERVIEW_BACKGROUND_FROM_POSITION &&
-    args.askedInThisInterview === 0
-  )
+  if (!args.isMember) return false
+  if (args.backgroundMode) return true
+  return args.position >= 2 && seededIndex(args.seed, 100) < INTERVIEW_MIX_PERCENT
+}
+
+/**
+ * The interview-worthy topics the press already writes interviews from (the interview writer's
+ * rule 2: the latest night, the season, streaks and milestones, the club's records and threads),
+ * as the desk's topic line. No digit in any line.
+ */
+export const INTERVIEW_GAME_TOPICS: readonly string[] = [
+  "how the player's latest night went, game by game",
+  "the player's season so far: totals, form and what comes next",
+  'streaks, bests, firsts and milestones on the sheet',
+  "the club's records and the threads that name the player",
+]
+
+/**
+ * The topic of an interview the PLAYER asks for (`/interview`): one of the game topics or, when
+ * the admin switch is on, "background", each equally likely. Seeded: the same seed gives the same
+ * topic. GM and Press Box interviews keep the topic they were given and never use this.
+ */
+export function chooseInterviewTopic(args: { seed: number; backgroundOn: boolean }): {
+  topic: string
+  background: boolean
+} {
+  const pool = args.backgroundOn
+    ? [...INTERVIEW_GAME_TOPICS, BACKGROUND_TOPIC]
+    : INTERVIEW_GAME_TOPICS
+  const topic = pool[seededIndex(args.seed, pool.length)]!
+  return { topic, background: topic === BACKGROUND_TOPIC }
 }
 
 /** The bank text for a person as plain text (the writer rewrites it in the reporter's voice). */

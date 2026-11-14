@@ -161,7 +161,7 @@ export interface NewBackgroundAsk {
   at: Date
 }
 
-/** Logs an ask. The unique indexes (one per panel, one per interview) make a second one a no-op: null. */
+/** Logs an ask. The unique index (one per scrum panel) makes a second one for the panel a no-op: null. */
 export async function insertBackgroundAsk(a: NewBackgroundAsk): Promise<number | null> {
   const rows = await db.execute<{ id: string | number }>(sql`
     insert into news_background_asks
@@ -213,6 +213,7 @@ export async function getOpenBackgroundAsk(
     left join players sp on sp.id = a.subject_player_id
     left join player_profiles spp on spp.player_id = a.subject_player_id
     where ${cond} and a.answered_at is null
+    order by a.id desc
     limit 1`)
   const r = rows[0]
   if (r === undefined) return null

@@ -147,12 +147,55 @@ void test('scrum: one per person per 7 days, only as the last question of the pa
   assert.equal(q.scrumMayAskBackground({ ...SCRUM_OK, isMember: false }), false)
 })
 
-void test('interview: one per interview, from the 5th item on, a member only', () => {
-  const ok = { isMember: true, position: 5, askedInThisInterview: 0 }
-  assert.equal(q.interviewMayAskBackground(ok), true)
-  assert.equal(q.interviewMayAskBackground({ ...ok, position: 7 }), true)
-  assert.equal(q.interviewMayAskBackground({ ...ok, position: 4 }), false)
-  assert.equal(q.interviewMayAskBackground({ ...ok, position: 1 }), false)
-  assert.equal(q.interviewMayAskBackground({ ...ok, askedInThisInterview: 1 }), false)
-  assert.equal(q.interviewMayAskBackground({ ...ok, isMember: false }), false)
+void test('interview: no cap; a background interview may ask one at every item, any other mixes them in after the opener, a member only', () => {
+  const bg = { isMember: true, backgroundMode: true, seed: 1 }
+  for (let position = 1; position <= 7; position++) {
+    assert.equal(q.interviewWantsBackground({ ...bg, position }), true, `item ${String(position)}`)
+  }
+  assert.equal(q.interviewWantsBackground({ ...bg, position: 3, isMember: false }), false)
+  // Mixed in: never the opener; later items at about INTERVIEW_MIX_PERCENT, seeded.
+  const mixed = { isMember: true, backgroundMode: false }
+  for (let seed = 0; seed < 200; seed++) {
+    assert.equal(q.interviewWantsBackground({ ...mixed, position: 1, seed }), false)
+  }
+  let hits = 0
+  for (let seed = 0; seed < 2000; seed++) {
+    if (q.interviewWantsBackground({ ...mixed, position: 4, seed })) hits++
+  }
+  assert.ok(hits > 2000 * 0.24 && hits < 2000 * 0.36, `about 30 percent, got ${String(hits)}`)
+  assert.deepEqual(
+    q.interviewWantsBackground({ ...mixed, position: 4, seed: 77 }),
+    q.interviewWantsBackground({ ...mixed, position: 4, seed: 77 }),
+  )
+})
+
+void test('a player-requested interview gets a random interview-worthy topic: a game topic, or "background" when the switch is on', () => {
+  // Switch off: only game topics, all of them reachable.
+  const off = new Set<string>()
+  for (let seed = 0; seed < 400; seed++) {
+    const t = q.chooseInterviewTopic({ seed, backgroundOn: false })
+    assert.equal(t.background, false)
+    assert.ok(q.INTERVIEW_GAME_TOPICS.includes(t.topic))
+    off.add(t.topic)
+  }
+  assert.equal(off.size, q.INTERVIEW_GAME_TOPICS.length)
+  // Switch on: "background" is one of five, each about equally likely.
+  const counts = new Map<string, number>()
+  for (let seed = 0; seed < 5000; seed++) {
+    const t = q.chooseInterviewTopic({ seed, backgroundOn: true })
+    assert.equal(t.background, t.topic === q.BACKGROUND_TOPIC)
+    counts.set(t.topic, (counts.get(t.topic) ?? 0) + 1)
+  }
+  assert.equal(counts.size, q.INTERVIEW_GAME_TOPICS.length + 1)
+  for (const n of counts.values()) assert.ok(n > 800 && n < 1200, String(n))
+  // Seeded: the same seed gives the same topic.
+  assert.deepEqual(
+    q.chooseInterviewTopic({ seed: 12345, backgroundOn: true }),
+    q.chooseInterviewTopic({ seed: 12345, backgroundOn: true }),
+  )
+  assert.equal(q.isBackgroundTopic('Background'), true)
+  assert.equal(q.isBackgroundTopic(' background '), true)
+  assert.equal(q.isBackgroundTopic('his shot volume'), false)
+  assert.equal(q.isBackgroundTopic(null), false)
+  for (const topic of q.INTERVIEW_GAME_TOPICS) assert.doesNotMatch(topic, /\d/)
 })

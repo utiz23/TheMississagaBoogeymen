@@ -52,7 +52,11 @@ import {
 } from './interview-rules.ts'
 import { interviewStoreOf, type InterviewStore } from './interview-store.ts'
 import type { WriterFact } from '@eanhl/db/queries'
-import { interviewMayAskBackground } from './background-rules.ts'
+import {
+  chooseInterviewTopic,
+  interviewWantsBackground,
+  isBackgroundTopic,
+} from './background-rules.ts'
 import { ANSWER_MAX_CHARS, TEXT, type Reply } from './interactions.ts'
 import { SCRUM_SOURCE_WINDOW_MS, type PressDeps, type PressStore } from './pass.ts'
 import { latestPlayerMessage, rememberPlayerMessage } from './player-latest.ts'
@@ -380,11 +384,23 @@ export async function onInterviewCommand(
     seed: now.getTime() ^ me.playerId,
   })
   if (typeof prepared === 'string') return say(prepared)
+  // The player asked for it: a random interview-worthy topic (operator, 2026-11-14), or
+  // "background" (the whole interview may be background questions) when the admin switch is on.
+  // GM, Press Box and automatic interviews keep the topic they were given.
+  const bs = backgroundStoreOf(deps.store)
+  let backgroundOn = false
+  try {
+    backgroundOn = bs !== null && (await bs.backgroundQuestionsOn())
+  } catch {
+    backgroundOn = false
+  }
+  const chosen = chooseInterviewTopic({ seed: (now.getTime() ^ me.playerId) >>> 0, backgroundOn })
   // offered_at is set at once: the timer pass never posts an offer for it.
   const id = await st.insertInterview({
     playerId: me.playerId,
     discordUserId: prepared.discordUserId,
     reporter: prepared.reporter,
+    topic: chosen.topic,
     trigger: 'player',
     requestedByUserId: userId,
     status: 'offered',
@@ -410,7 +426,9 @@ export async function onInterviewCommand(
   if (!(await st.acceptInterview(id, new Date(now.getTime() - INTERVIEW_OFFER_MS), now))) {
     return say(TEXT.tooLate)
   }
-  deps.log(`[press] interview ${String(id)}: player ${String(me.playerId)} started one`)
+  deps.log(
+    `[press] interview ${String(id)}: player ${String(me.playerId)} started one (topic: ${chosen.background ? 'background' : 'a game topic'})`,
+  )
   return (await askNext(deps, config, id)) ? say(INTERVIEW_TEXT.inThread) : say(TEXT.rightWithYou)
 }
 
@@ -538,9 +556,12 @@ export async function askNext(
     }
     name = person.name
     const relationship = await relationshipLevel(deps, iv.playerId, iv.reporter, person.pressLevel)
+    const backgroundMode = isBackgroundTopic(iv.topic)
     const history = interviewHistory(await st.listInterviewAnswers(id))
-    // Background question (task background-b2): at most one, from the 5th item on, a member only,
-    // and only when the admin switch is on. Any failure asks the ordinary question.
+    // Background question (task background-b2): NO cap per interview (operator, 2026-11-14). In a
+    // "background" interview every planned question may be one; in any other they are mixed in
+    // (never the opener). A member only, and only when the admin switch is on. Any failure asks
+    // the ordinary question.
     const bs = backgroundStoreOf(deps.store)
     // The confirmed background of the person (admin-approved facts only) for the ordinary writer.
     if (bs !== null && iv.playerId !== null) {
@@ -553,10 +574,11 @@ export async function askNext(
     if (bs !== null && iv.personRole === 'player' && iv.playerId !== null) {
       try {
         if (
-          interviewMayAskBackground({
+          interviewWantsBackground({
             isMember: true,
+            backgroundMode,
             position,
-            askedInThisInterview: await bs.countBackgroundAsksFor({ interviewId: id }),
+            seed: id * 1000 + position,
           })
         ) {
           plan = await planBackgroundQuestion(deps, bs, {
@@ -592,7 +614,8 @@ export async function askNext(
             pressLevel: person.pressLevel,
             ...(person.bench === undefined ? {} : { bench: person.bench }),
           },
-          topic: iv.topic,
+          // The "background" marker is not a topic for the ordinary writer.
+          topic: backgroundMode ? null : iv.topic,
           history,
           position,
           relationship,

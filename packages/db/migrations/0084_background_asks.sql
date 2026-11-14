@@ -11,8 +11,8 @@
 --      in their own voice, so the posted text is not the key), the teammate named when the question
 --      is about a teammate (the code picks only members at press level "full"; this table just
 --      stores the pick), and the answer that came back. It drives
---      three rules: at most one background question per interview, at most one per scrum panel, at
---      most one per person per 7 days in scrums, and never again a question that was already asked.
+--      these rules: at most one background question per scrum panel, at most one per person per 7
+--      days in scrums, and never again a question that was already asked (interviews have no cap).
 --      A proposed fact points at its answer (0082); this table links the ask to that answer.
 --   No fact is created by this migration. No worksheet answer is imported (operator, 2026-11-14:
 --   every player starts with a blank fact sheet).
@@ -80,10 +80,11 @@ DO $$ BEGIN
     CHECK ("subject_player_id" IS NULL OR "subject_player_id" <> "player_id");
 END $$;
 
--- At most one background question per scrum person (one panel) and per interview.
+-- At most one background question per scrum person (one panel). An interview has NO cap (operator,
+-- 2026-11-14): it may hold many asks, one open at a time.
 CREATE UNIQUE INDEX IF NOT EXISTS "news_background_asks_scrum_person_uniq"
   ON "news_background_asks" ("scrum_person_id") WHERE "scrum_person_id" IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS "news_background_asks_interview_uniq"
+CREATE INDEX IF NOT EXISTS "news_background_asks_interview_idx"
   ON "news_background_asks" ("interview_id") WHERE "interview_id" IS NOT NULL;
 CREATE INDEX IF NOT EXISTS "news_background_asks_player_idx"
   ON "news_background_asks" ("player_id", "asked_at");
