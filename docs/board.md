@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 15:27 CST by Lead2. Fully done tasks leave the board; their files stay in `docs/tasks/`.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 15:30 CST by Lead2. Fully done tasks leave the board; their files stay in `docs/tasks/`.
 
 ## Open tasks
 
@@ -26,9 +26,9 @@ Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. 
 | [Rename public Press Room → News Desk](tasks/2026-11-14-web-news-desk-rename.md)                          | Web                     | low         | Deployed 11-14 14:15                                            | done                                                |
 | [L3 Press Box: storylines + takes editor](tasks/2026-11-14-web-press-box-l3-storylines.md)                | Web + DB                | medium      | Ready (L2 merged: can start)                                    |                                                     |
 | [L4 Press Box: reporter editor](tasks/2026-11-14-web-press-box-l4-reporters.md)                           | Web + DB                | medium      | Ready (after L3)                                                |                                                     |
-| [B1 Player background: bank, facts, admin editor](tasks/2026-11-14-web-background-b1.md)                  | Web + DB + Queries      | medium      | Running (Lead2's task agent; migration 0082)                    | screenshots to the operator before merge            |
+| [B1 Player background: bank, facts, admin editor](tasks/2026-11-14-web-background-b1.md)                  | Web + DB + Queries      | medium      | Verify (Lead checks pass)                                       | D13 operator screenshots; then merge                |
 | [B2 Player background: bots ask, propose facts, teammate veto](tasks/2026-11-14-discord-background-b2.md) | Discord + Web           | medium-high | Ready (after B1)                                                | privacy sentence + samples are a gate               |
-| [CF1 Club Finals: rounds, badges, page](tasks/2026-11-14-web-club-finals-cf1.md)                          | Worker + DB + Web       | medium      | Running (Lead2's task agent; migration 0083)                    | Verifier on the round numbers; operator screenshots |
+| [CF1 Club Finals: rounds, badges, page](tasks/2026-11-14-web-club-finals-cf1.md)                          | Worker + DB + Web       | medium      | Verify (Verifier running)                                       | Verifier, then operator screenshots + history (D14) |
 | [CF2 Club Finals in Discord + news weighting](tasks/2026-11-14-discord-club-finals-cf2.md)                | Discord                 | medium      | Ready (after CF1)                                               | operator OKs samples                                |
 | [CF3 Club Finals look on the site](tasks/2026-11-14-web-club-finals-cf3.md)                               | Web                     | low-medium  | Ready (after CF1)                                               | operator screenshots before merge                   |
 | [CF4 Club Finals stats](tasks/2026-11-14-web-club-finals-cf4.md)                                          | Worker + DB + Web       | medium      | Proposed                                                        | operator decides (after CF3)                        |
