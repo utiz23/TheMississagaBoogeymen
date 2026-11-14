@@ -104,8 +104,14 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
   command). Hotel-Echo checked read-only: passwordless sudo (for `tailscale serve`), no `live_events`
   table, no `LIVE_EVENTS_*` in `.env`, last game ended 22:18 the night before.
 
-Resume: read the Codex result; if nothing serious, deploy by runbook §6 (fresh backup first, `.env`
-copy, rollback tags for `web` and `worker`).
+- 2026-11-14 13:55 Lead2: Codex adversarial review: **needs-attention, no-ship**. Auth and tunnel
+  refusal "look defensible". One [high] finding: the worker's only loop awaits quick checks and the
+  5-second event read with no deadline; a hung EA or database connection stops all ingestion (and the
+  heartbeat) until someone restarts the worker. Lead's check: true, and older than E1 (the normal pass
+  has no timeout either: `INGEST_CYCLE_TIMEOUT_MS` is documented but not wired; no fetch signal; no
+  database query timeout); E1 adds more chances. Healthchecks would email; nothing restarts. Deploy held.
+
+Resume: operator decides on the fix task (worker watchdog + timeouts) before the E1 deploy.
 
 ## Report
 

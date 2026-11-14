@@ -1,24 +1,25 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 13:51 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 13:57 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                                                                                                                  | My advice                                               | Waiting costs                                               |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------- |
+| D4  | Fix first: a small task for a worker watchdog (if the loop makes no progress for 15 minutes, the worker exits and Docker restarts it) plus time limits on EA requests and database reads. Then deploy E1. | Yes: it also protects game collection today, without E1 | E1 stays undeployed; today's small risk of lost games stays |
+| D5  | Deploy Press Box L1? Fresh backup, migration 0080 (adds tables/columns only), then `web` + `press`. I then click each action once and check the change log.                                               | Yes, at a quiet time                                    | Press Box not usable; L2 can be built meanwhile             |
 
 ## 2. Right now
 
-| What                            | State                                                                                                           |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)    |
-| T9 relationships + T10 Talk fix | LIVE since 2026-11-14                                                                                           |
-| E1 live events endpoint         | D2 approved 13:46: Codex second opinion running (E1 changes only); deploy after it, if it finds nothing serious |
-| Press Box L1                    | D3 approved 13:46: merge after the Codex review ends (so Codex reads E1 only); L1's deploy is a separate OK     |
-| Backup hardening                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                       |
+| What                            | State                                                                                                                                          |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                   |
+| T9 relationships + T10 Talk fix | LIVE since 2026-11-14                                                                                                                          |
+| E1 live events endpoint         | deploy HELD: Codex found that a hung EA or database connection can stop game collection (an older weakness that E1 makes more likely). See D4. |
+| Press Box L1                    | merged 13:57; deploy waits for your OK (D5)                                                                                                    |
+| Backup hardening                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                                                      |
 
 ## 3. Your to-dos (only you can do these)
 

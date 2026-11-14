@@ -1,6 +1,6 @@
 # Task: L1 — Press Box: shell, overview, relationships board, change log
 
-- **State:** Verify (done 2026-11-14 03:49; was Running since 03:22; task agent of `Lead2`; Opus: migration + admin controls)
+- **State:** Merged 2026-11-14 13:57 (`2f11c6df`; operator D3 "I meant D2 and D3"); deploy is a separate OK
   (operator 2026-11-14: design and mock-up approved; "Proceed with both" 03:22)
 - **Lane:** Web (`apps/web/src/app/admin/press-box/`), Queries, Database (one migration)
 - **Risk:** medium (admin controls that change live press behaviour)
@@ -72,8 +72,13 @@ All checks pass; screenshots match the mock-up's layout; every action is admin-o
   press-box + news-relationships + live-events 26/26; prettier clean. Screenshots seen. The preview's
   spend tile shows a $60 cap (no local setting); live has `NEWS_MONTHLY_LIMIT_USD=100`.
 
-Resume: operator looks at the screenshots (D3); then the Lead merges. Deploy (separate OK): fresh
-backup, apply 0080, then `web` and `press` together; click each action once and check the change log.
+- 2026-11-14 13:57 Lead2: merged `--ff-only` after the Codex review of E1 ended (operator D3). In the
+  main checkout, typecheck first failed for environment reasons only: a stale `apps/web/.next/types`
+  file names the untracked `preview/news` page (0 errors in the code), and the main checkout lacked
+  `@anthropic-ai/sdk` (`pnpm install --offline` fixed it; discord typecheck clean, 848/848).
+
+Resume: operator's OK to deploy: fresh backup, apply 0080, then `web` and `press` together; click each
+action once and check the change log.
 
 ## Report
 
