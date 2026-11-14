@@ -1,6 +1,6 @@
 # Task: T1 — typed scrum answers, 15-minute accept, softer answer judge
 
-- **State:** Merged (task agent done 2026-11-13; the Lead repeats the checks)
+- **State:** Deployed 2026-11-13 (`PRESS_TYPED_ANSWERS=1`; rollback `:rollback-he-2026-11-13-pre-typed`)
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** medium (live bots in the team channel; reads messages in scrum threads)
 - **Slug:** press-typed-answers (branch `work/press-typed-answers`, worktree

@@ -8,16 +8,16 @@ Limits: 2 task agents at once; 3 open operator decisions. Updated 2026-11-13 by 
 
 ## Open tasks
 
-| Task                                                                          | Lane               | Risk   | State                                                | Next                                                                  |
-| ----------------------------------------------------------------------------- | ------------------ | ------ | ---------------------------------------------------- | --------------------------------------------------------------------- |
-| [No badge announcements](tasks/2026-11-09-discord-no-badge-posts.md)          | Discord            | low    | Deployed 11-09                                       | done                                                                  |
-| [Goalie game score for 3 stars](tasks/2026-11-09-web-three-stars-score.md)    | Web                | medium | Deployed 11-09                                       | done                                                                  |
-| [News live, in time order](tasks/2026-11-09-discord-news-live.md)             | Queries/Web/Ops    | high   | Deployed 11-09                                       | watch the first game night in the channel                             |
-| [Game posts after one pass](tasks/2026-11-09-worker-post-after-one-pass.md)   | Worker             | medium | Deployed 11-09                                       | check the timing on the next game night                               |
-| [Press bots release 1](tasks/2026-11-13-discord-press-bots-release-1.md)      | Discord + DB + Web | high   | Deployed 11-13; LIVE in the game channel since 11-13 | done                                                                  |
-| [T1 typed answers](tasks/2026-11-13-discord-press-typed-answers.md)           | Discord            | medium | Running (task agent)                                 | Lead reviews, merges; operator: Message Content intent on Wade Barlow |
-| [T2 panel scrums + `/gm ask`](tasks/2026-11-13-discord-press-panel-gm-ask.md) | Discord + DB       | medium | Ready (after T1)                                     | migration 0073 on live with operator OK                               |
-| [T3 interviews](tasks/2026-11-13-discord-press-interviews.md)                 | Discord + DB + Web | medium | Ready (after T2)                                     | migration 0074 on live with operator OK                               |
+| Task                                                                          | Lane               | Risk   | State                                                | Next                                      |
+| ----------------------------------------------------------------------------- | ------------------ | ------ | ---------------------------------------------------- | ----------------------------------------- |
+| [No badge announcements](tasks/2026-11-09-discord-no-badge-posts.md)          | Discord            | low    | Deployed 11-09                                       | done                                      |
+| [Goalie game score for 3 stars](tasks/2026-11-09-web-three-stars-score.md)    | Web                | medium | Deployed 11-09                                       | done                                      |
+| [News live, in time order](tasks/2026-11-09-discord-news-live.md)             | Queries/Web/Ops    | high   | Deployed 11-09                                       | watch the first game night in the channel |
+| [Game posts after one pass](tasks/2026-11-09-worker-post-after-one-pass.md)   | Worker             | medium | Deployed 11-09                                       | check the timing on the next game night   |
+| [Press bots release 1](tasks/2026-11-13-discord-press-bots-release-1.md)      | Discord + DB + Web | high   | Deployed 11-13; LIVE in the game channel since 11-13 | done                                      |
+| [T1 typed answers](tasks/2026-11-13-discord-press-typed-answers.md)           | Discord            | medium | Deployed 11-13                                       | done                                      |
+| [T2 panel scrums + `/gm ask`](tasks/2026-11-13-discord-press-panel-gm-ask.md) | Discord + DB       | medium | Deployed 11-13 (0073 on live)                        | watch the next game night                 |
+| [T3 interviews](tasks/2026-11-13-discord-press-interviews.md)                 | Discord + DB + Web | medium | Ready (after T2)                                     | migration 0074 on live with operator OK   |
 
 ## Branches and worktrees from before v2
 

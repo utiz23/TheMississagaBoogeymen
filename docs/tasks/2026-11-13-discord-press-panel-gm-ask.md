@@ -1,6 +1,6 @@
 # Task: T2 — panel scrums (3 reporters) and `/gm ask` (GM shapes questions)
 
-- **State:** Merged (Lead review 2026-11-13); deploy waits for the operator's OK
+- **State:** Deployed 2026-11-13 (`ef44027b`; migration 0073 on live; rollback `:rollback-he-2026-11-13-pre-panel`)
 - **Lane:** Discord (`apps/discord/src/press/`), Database (one hand-written migration), Queries
 - **Risk:** medium (live bots; a migration on live, additive only)
 - **Slug:** press-panel (branch `work/press-panel`, worktree `.claude/worktrees/press-panel`)
@@ -168,3 +168,4 @@ requested_by_user_id, is_test, created_at; status and reporter checks; 2 indexes
   table `news_gm_asks` instead of note columns, reason accepted). Re-ran: typecheck db/discord/web/worker
   clean; discord 650/650; news + news-press db tests 105/105; web unit 672/672. Rulings file edited
   (51-55) at the Lead's request. Deploy order: backup → 0073 → `press` + `news`.
+- 2026-11-13 Lead: deployed. Backup `~/eanhl-backups/manual/eanhl-pre-0073-2026-11-13.dump` (29 MB); 0073 applied (3 columns + `news_gm_asks`); `press` + `news` rebuilt: "started (live) … 9 bots, typed answers on".
