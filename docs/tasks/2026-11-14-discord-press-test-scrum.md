@@ -1,6 +1,6 @@
 # Task: T8 — `/gm testscrum`: a free test scrum in `#bot-test` (no AI calls)
 
-- **State:** Merged (Lead review 2026-11-14); deploy `press` waits for the operator's OK
+- **State:** Deployed 2026-11-14 (`press`, rollback `:rollback-he-2026-11-14-pre-t8`)
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** low (GM-only command; posts only in the test channel; no AI; test data only)
 - **Slug:** press-test-scrum (branch `work/press-test-scrum`, worktree `.claude/worktrees/press-test-scrum`)

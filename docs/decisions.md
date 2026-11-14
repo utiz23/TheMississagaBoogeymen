@@ -6,9 +6,9 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                     | My advice                      | Waiting costs                     |
-| --- | ------------------------------------------------------------------------------------------------------------ | ------------------------------ | --------------------------------- |
-| D1  | Deploy T8 (`/gm testscrum`, free test scrums in `#bot-test`)? `press` only, no migration; merged and checked | Yes: then test T6 + T7 with it | You wait for a game night to test |
+| ID  | Question  | My advice | Waiting costs |
+| --- | --------- | --------- | ------------- |
+| -   | none open | -         | -             |
 
 ## 2. Your to-dos (only you can do these)
 
