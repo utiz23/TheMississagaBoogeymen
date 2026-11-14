@@ -1,6 +1,6 @@
 # Task: T9 — relationships: one scale from open war to glazing, plus reporter dispositions
 
-- **State:** Verify (task agent done 2026-11-14; Lead review next)
+- **State:** Merged (Lead review 2026-11-14); deploy waits for the operator's OK
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Database (one migration)
 - **Risk:** medium (tone of posts about players; data model change of T5's feuds)
 - **Slug:** press-relationships
@@ -69,7 +69,9 @@ All checks pass and the tests pin the rules above.
 
 - 2026-11-14 Lead: written from the operator's request and approval.
 - 2026-11-14 operator: some reporters are more prone to conflict; Father Rink never feuds → per-reporter range added.
-- 2026-11-14 Task agent: work on `work/press-relationships` (rebased on main, `6fe80d6b`). Built the signed scale, dispositions, ranges, taste, praise, strong-answer rating, effects, admin line. Checks green (see Report). Judgment calls are rulings 84-91 in `docs/superpowers/plans/2026-10-26-news-desk-bots-rulings.md`. Nothing deployed, migration 0078 not applied, nothing pushed. No Docker: the SQL was pinned by tests, never run on a database. Paths: all inside "May edit" plus the rulings file and the press runbook.
+- 2026-11-14 Task agent: work on `work/press-relationships` (rebased on main, `6fe80d6b`). Built the signed scale, dispositions, ranges, taste, praise, strong-answer rating, effects, admin line. Checks green (see Report). Judgment calls are rulings 85-92 in `docs/superpowers/plans/2026-10-26-news-desk-bots-rulings.md`. Nothing deployed, migration 0078 not applied, nothing pushed. No Docker: the SQL was pinned by tests, never run on a database. Paths: all inside "May edit" plus the rulings file and the press runbook.
+
+- 2026-11-14 Lead review: rebased on main (T10 inside); rulings renumbered 85-92 (T10 took 84); paths inside "May edit" plus the rulings file, the runbook and a one-line re-export in `queries/index.ts` (accepted). Re-ran: typecheck db/discord/web/worker clean; discord 843/843; news db tests 132/132; web unit 672/672; prettier clean. Deploy: build images first, then backup → 0078 → `press`, `news`, `web` at once (old code reads the old table name).
 
 ## Report
 
@@ -80,7 +82,7 @@ All checks pass and the tests pin the rules above.
 - **Disposition and range per reporter** (in `reporters.ts`, code). Disposition scales the steps (up x(1+0.25d), down x(1-0.25d)) and gives a lean of 0.5d points that never fades (max 1, below the first threshold). Range clamps the level on read; a step the range cannot allow is not stored. **Father Rink: floor = neutral, hard rule at write and at read** (tested; an old T5 row for him reads neutral).
 - **Effects.** Level lines for warm, fan, glazing in questions, judgements, interview questions and wire replies (tone only). Panel: feud or war x3, fan or glazing x2. Interview rotation: fan or glazing x2. Night recap and weekly column: storyline at feud, open war, fan, glazing (writing reporter only, at most 2, as the reporter's view). "Go easy": feud side reads neutral everywhere, favour side used.
 - **Admin.** `/admin/news` line is now "Press relationships (GM only)" with signed points and level.
-- **Rules/runbook.** Rulings 84-91; runbook section "Relationships".
+- **Rules/runbook.** Rulings 85-92; runbook section "Relationships".
 
 ### Thresholds (T5 kept on the negative side)
 
