@@ -70,7 +70,9 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
 - 2026-11-14 03:18 Lead2: operator decision: replace "every 30 s for 15 minutes" (worst case ~210 EA
   calls per game) with match-list-only checks at 0/+1/+2/+4/+8 min (worst case ~15 calls per game).
   Goal item 4 and Checks changed. Sent to the task agent through the old Lead chat.
+- 2026-11-14 03:14 agent: database step done: migration 0079_live_events.sql (table, checks, index;
+  rollback in the header), schema `live-events.ts`, queries `live-events.ts`, SQL-shape test (6 pass).
 
-Resume: task agent finishes, writes the Report, rebases, sets Verify; Lead2 reviews and merges.
+Resume: build the web endpoint (`lib/live-events/` + the route) and its tests.
 
 ## Report
