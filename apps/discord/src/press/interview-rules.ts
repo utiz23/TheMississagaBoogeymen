@@ -28,8 +28,12 @@ export const INTERVIEW_PLAYER_LIMIT_MS = 7 * 86_400_000
 export const INTERVIEW_AUTO_LIMIT_MS = 7 * 86_400_000
 /** The questions use the player's latest night in this time; older ⇒ no interview. */
 export const INTERVIEW_NIGHT_LOOKBACK_MS = 30 * 86_400_000
-/** A night recap newer than this can start an automatic offer. */
-export const INTERVIEW_AUTO_SOURCE_MS = 6 * 3_600_000
+/**
+ * A night recap newer than this can start an automatic offer: the offer comes
+ * right after the night, never hours later (operator, 2026-11-14: a restart at
+ * 1 am offered on a recap from 1.5 hours before).
+ */
+export const INTERVIEW_AUTO_SOURCE_MS = 30 * 60_000
 /** The article needs at least this many usable or joke answers. */
 export const INTERVIEW_ARTICLE_MIN_ANSWERS = 3
 /** Father Rink's weight in the rotation (every other reporter has 1): rare. */

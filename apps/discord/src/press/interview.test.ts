@@ -473,6 +473,20 @@ void test('automatic offer: a night with a milestone offers once; at most one a 
   assert.equal(t.store.interviews.length, 1)
 })
 
+void test('automatic offer: only within 30 minutes of the night recap, never hours later', async () => {
+  const t = interviewSetup()
+  t.store.nightRecaps.push({
+    night: NIGHT,
+    createdAt: new Date(NOW.getTime() - 31 * 60_000),
+    isTest: false,
+  })
+  await runPressPass(t.deps, config('live'))
+  assert.equal(t.store.interviews.length, 0)
+  t.store.nightRecaps[0]!.createdAt = new Date(NOW.getTime() - 29 * 60_000)
+  await runPressPass(t.deps, config('live'))
+  assert.equal(t.store.interviews.length, 1)
+})
+
 void test('automatic offer: live never uses a test night recap; trial does', async () => {
   const t = interviewSetup()
   t.store.nightRecaps.push({
