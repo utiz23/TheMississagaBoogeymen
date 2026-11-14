@@ -29,7 +29,7 @@ webhook. Design: `docs/superpowers/specs/2026-10-25-news-desk-bots-design.md` (a
   `news-main.ts` header and a lost `sendWebhook` import (the test-channel copy), two test files (both
   sides' tests kept).
 - The runbook's cost table is stale: it says the desk costs $8–10 a month with a $20 cap. Real:
-  $1–5 per game night (November $15.17 by 11-13), cap $60. Its 80% rule stops scrums at $48.
+  $1–5 per game night (November $15.17 by 11-13), cap $60. Its 80% rule stops scrums at 80% of the cap.
 - **Clash with an operator rule:** the design runs a trial in the bot test channel (only the GM is
   there, every ping goes to the GM). The operator turned the news desk's test-channel copies off on
   2026-11-09. The press trial uses its own channel setting (`PRESS_TEST_CHANNEL_ID`), not that webhook.
@@ -72,3 +72,7 @@ webhook. Design: `docs/superpowers/specs/2026-10-25-news-desk-bots-design.md` (a
   in the channel and the test marking; trial pings say "(trial)". `/gm` stays GM-only. 5 trial tests
   rewritten to pin the open trial. Runbook: real costs ($60 cap, 80% = $48), live channel = the game
   channel, open-trial wording. DRAFT markers removed from the privacy text.
+- 2026-11-13 operator: news cap $100 (set on Hotel-Echo: `NEWS_MONTHLY_LIMIT_USD=100`, `.env` backup
+  `.env.bak-2026-11-13-pre-cap-100`, `news` restarted "limit 100 USD/month"; scrums stop at $80).
+  Asked: 9 bot accounts or one central bot + an app-owned webhook? Operator: "I want a robust
+  solution" → **9 accounts, as built** (tested code; one bad token silences one reporter only).

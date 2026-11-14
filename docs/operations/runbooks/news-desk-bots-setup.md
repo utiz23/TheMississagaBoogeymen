@@ -15,10 +15,10 @@ $20 per million tokens. One scrum (2 questions + 2 follow-ups, each written and 
 8 calls, about **$0.25**. A GM note is about $0.03; a reaction follow-up about $0.06.
 
 Real spend of the news desk alone (updated 2026-11-13): $1–5 per game night (November $15.17 by
-11-13). The monthly cap is `NEWS_MONTHLY_LIMIT_USD=60` on Hotel-Echo; the Anthropic workspace limit
-must be the same or higher. Scrums add about $0.25–1 per game night.
+11-13). The monthly cap is `NEWS_MONTHLY_LIMIT_USD=100` on Hotel-Echo (operator, 2026-11-13); the
+Anthropic workspace limit must be the same or higher. Scrums add about $0.25–1 per game night.
 
-The 80% rule (spec section 10): when the month's spend reaches 80% of the cap ($48), scrums and
+The 80% rule (spec section 10): when the month's spend reaches 80% of the cap ($80), scrums and
 reaction follow-ups stop first. Posts and night recaps continue.
 
 ## What you need
