@@ -27,10 +27,14 @@ The route is **not** on the public internet. A request that comes through the Cl
 | Hotel-Echo, in a compose container  | `http://web:3000/api/internal/live-events`           |
 | Hotel-Echo, on the host (no Docker) | `http://127.0.0.1:3000/api/internal/live-events`     |
 
-- `100.98.29.119` is Hotel-Echo's Tailscale address. Only devices on the operator's tailnet can
-  reach it. The port is published only when `.env` on Hotel-Echo has
-  `LIVE_EVENTS_BIND_ADDR=100.98.29.119` (the default is loopback).
-- The port reaches the whole website, not only this route, but only for tailnet devices.
+- `100.98.29.119` is Hotel-Echo's Tailscale address. Port 3100 on it is a `tailscale serve`
+  forward to `127.0.0.1:3000` (the loopback port of `web`). See section 6, step 4.
+- Docker publishes `web` on loopback only (port 3000). Docker has no port on the Tailscale
+  address, so Docker does not depend on Tailscale at boot.
+- Only devices on the operator's tailnet can reach port 3100. It is `tailscale serve`, not
+  Funnel: never run `tailscale funnel` for it.
+- The forward reaches the whole website, not only this route, but only for tailnet devices. The
+  route refuses requests that came through the public tunnel.
 - Plain HTTP is acceptable on these paths: Tailscale encrypts the traffic, and the Docker network
   and loopback stay on the machine. The HMAC protects the body in every case.
 
@@ -137,22 +141,21 @@ signature or the body.
 1. Apply migration `packages/db/migrations/0079_live_events.sql` (the command is in its header).
    Rollback: `DROP TABLE IF EXISTS "live_events";` after the code is rolled back.
 2. On Hotel-Echo, add to `.env` (make each secret with `openssl rand -hex 32`):
-   `LIVE_EVENTS_TOKEN=…`, `LIVE_EVENTS_HMAC_KEY=…`, `LIVE_EVENTS_BIND_ADDR=100.98.29.119`.
+   `LIVE_EVENTS_TOKEN=…`, `LIVE_EVENTS_HMAC_KEY=…`.
 3. Rebuild and restart `web` and `worker` (skill `docker-redeploy`).
-4. Check the port is on the Tailscale address only: `ss -ltnp | grep 3100` shows
-   `100.98.29.119:3100`, not `0.0.0.0:3100`. From a device that is not on the tailnet, the port
-   must not answer.
+4. Operator step on Hotel-Echo: forward the tailnet port to the loopback port of `web`.
+   - Set up: `sudo tailscale serve --bg --tcp=3100 tcp://127.0.0.1:3000`
+   - Check: `tailscale serve status` shows `tcp://127.0.0.1:3000` on port 3100 (tailnet only).
+   - Undo: `sudo tailscale serve --tcp=3100 off`
+
+   `tailscaled` keeps this setting across reboots. It listens only on the tailnet. It is not
+   Funnel: never run `tailscale funnel`. Docker keeps all its ports on loopback, so there is no
+   boot-order dependency between Docker and Tailscale. From a device that is not on the tailnet,
+   port 3100 must not answer.
 5. Check the tunnel refuses: `curl -sS -o /dev/null -w '%{http_code}' -X POST https://boogeymen.app/api/internal/live-events`
    gives `404`.
 6. Send one test event with the example in section 3 (use `"type":"lobby_countdown"`: it starts no
    EA checks). Expect `202`.
-
-**Boot order:** Docker can bind `100.98.29.119` only when Tailscale is up. If Docker starts `web`
-before Tailscale at boot, the bind fails and `web` does not start (the whole site is down). Before
-the deploy, check how Hotel-Echo boots (`systemctl cat docker` / `tailscaled`; an
-`After=tailscaled.service` drop-in for `docker.service`, or `net.ipv4.ip_nonlocal_bind=1`). If
-`DB_BIND_ADDR` is already the Tailscale address on Hotel-Echo, the same risk exists today and the
-boot order is already proven.
 
 ## 7. Worker log lines
 

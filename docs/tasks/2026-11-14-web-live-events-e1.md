@@ -1,13 +1,13 @@
 # Task: E1 — live events endpoint (Tailscale only) and fast EA polling at the horn
 
 - **State:** Verify (since 2026-11-14 03:31; was Running since ~03:09; task agent inside the old Lead chat `Lead` 08efa5) (operator 2026-11-14: plan approved, E1–E3 now; route left to the Lead: Tailscale only)
-- **Lane:** Web (endpoint), Worker (fast poll), Database (one migration), Ops (compose port)
+- **Lane:** Web (endpoint), Worker (fast poll), Database (one migration), Ops (`tailscale serve` step)
 - **Risk:** high (a new listening port on Hotel-Echo; a new writer into the database) — the port and
   the deploy are the operator's OK
 - **Slug:** live-events-e1
-- **Operator gate before merge:** no; migration, compose port and deploy with the operator's OK
-- **Needs a deploy:** migration, `web`, `worker`; compose change (a port bound to Hotel-Echo's Tailscale
-  address only); a new secret `LIVE_EVENTS_TOKEN` + HMAC key in Hotel-Echo's `.env`
+- **Operator gate before merge:** no; migration, `tailscale serve` step and deploy with the operator's OK
+- **Needs a deploy:** migration, `web`, `worker`; operator step `tailscale serve` on Hotel-Echo (tailnet
+  port 3100 to loopback 3000; no new Docker port); a new secret `LIVE_EVENTS_TOKEN` + HMAC key in Hotel-Echo's `.env`
 
 ## Goal and visible result
 
@@ -18,11 +18,12 @@ Design: `docs/superpowers/specs/2026-11-14-live-events-interface.md` (approved; 
    body with a timestamp header (replay window 2 minutes; constant-time compare); JSON validated against
    v1 (required `v`, `id`, `type`, `source`, `at`; known types only; size limit 4 KB); idempotent by `id`;
    answers `202` fast; rate limit (e.g. 60/min). Never logs the token, the HMAC or full bodies.
-2. **Reachability** (the sender may run on the main PC or, later, on Hotel-Echo itself): reachable only through Hotel-Echo's Tailscale address — a compose port bound to the
-   Tailscale IP (`100.98.29.119`) for `web`, and the route refuses requests that came through the
+2. **Reachability** (the sender may run on the main PC or, later, on Hotel-Echo itself): reachable only through Hotel-Echo's Tailscale address — `tailscale serve` on the host
+   forwards tailnet port 3100 (`100.98.29.119:3100`) to `web` on loopback port 3000 (Docker publishes no
+   extra port), and the route refuses requests that came through the
    public tunnel (check the `cf-connecting-ip`/`cf-ray` headers or the Host: refuse when present).
    A sender on Hotel-Echo reaches `web` over the local Docker network (no port needed). The Lead
-   applies the compose change; the agent writes it and explains both paths in the runbook.
+   applies the `tailscale serve` step; the agent explains both paths in the runbook.
 3. **Storage:** `live_events` table (id text primary key, type, source, at, received_at, payload jsonb;
    30-day retention by a small cleanup in the worker). Hand-written migration with rollback.
 4. **Worker quick checks at the horn** (changed by the operator 2026-11-14 03:18, "lets go with your
@@ -87,8 +88,12 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
 - 2026-11-14 03:31 agent: compose port + web env, `.env.example`, runbook (`ab306a02`). Report
   written; State = Verify.
 
-Resume: Lead2 reviews the branch (Report below), repeats the checks, merges; deploy only with the
-operator's OK (migration 0079, `.env`, compose port, `web` + `worker`).
+- 2026-11-14 03:40 agent: Lead2 sent back: boot-order defect; fixed with tailscale serve. The second
+  `web` port is gone from compose and `.env.example` (all Docker ports stay on loopback); the runbook
+  now has `tailscale serve --bg --tcp=3100 tcp://127.0.0.1:3000` as an operator step. State = Verify.
+
+Resume: Lead2 re-reviews the boot-order fix, repeats the checks, merges; deploy only with the
+operator's OK (migration 0079, `.env` secrets, `tailscale serve` step on Hotel-Echo, `web` + `worker`).
 
 ## Report
 
@@ -134,15 +139,15 @@ checked to match).
 Apply before the `web`/`worker` deploy. Rollback after the code rollback:
 `DROP TABLE IF EXISTS "live_events";`. Not applied anywhere.
 
-**Compose change (why Tailscale only):** `web` gets a second port
-`${LIVE_EVENTS_BIND_ADDR:-127.0.0.1}:${LIVE_EVENTS_HOST_PORT:-3100}:3000`. On Hotel-Echo `.env` sets
-`LIVE_EVENTS_BIND_ADDR=100.98.29.119`, so only the tailnet reaches it; the default is loopback (the
-same pattern as `DB_BIND_ADDR`; a host without that address, such as the main PC fallback, still
-starts). The tunnel reaches `web` over the compose network, not this port, and the route refuses
-any request with Cloudflare headers or the `boogeymen.app` host. A sender on Hotel-Echo uses
-`http://web:3000` (container) or `http://127.0.0.1:3000` (host): no port needed. Also added (outside
-"port only", needed for the route to work): `LIVE_EVENTS_TOKEN` and `LIVE_EVENTS_HMAC_KEY` in the
-`web` environment. `.env.example` documents all four.
+**Reachability (why Tailscale only):** compose has no new port. `web` stays on loopback port 3000
+(Docker never binds the Tailscale address, so there is no boot-order dependency; the first version
+bound `100.98.29.119` and Lead2 sent it back for that). On Hotel-Echo the operator runs
+`sudo tailscale serve --bg --tcp=3100 tcp://127.0.0.1:3000` (check: `tailscale serve status`; undo:
+`sudo tailscale serve --tcp=3100 off`). `tailscaled` keeps it across reboots; it is tailnet only, not
+Funnel. The tunnel reaches `web` over the compose network, and the route refuses any request with
+Cloudflare headers or the `boogeymen.app` host. A sender on Hotel-Echo uses `http://web:3000`
+(container) or `http://127.0.0.1:3000` (host). Compose also gets `LIVE_EVENTS_TOKEN` and
+`LIVE_EVENTS_HMAC_KEY` in the `web` environment; `.env.example` documents both.
 
 **Checks (2026-11-14):**
 
@@ -161,9 +166,9 @@ any request with Cloudflare headers or the `boogeymen.app` host. A sender on Hot
 
 **Not done / open risks:**
 
-- **Boot order:** binding `100.98.29.119` fails if Docker starts `web` before Tailscale is up; then
-  `web` (the whole site) does not start. Check Hotel-Echo's boot order before the deploy (runbook §6).
-- The Tailscale port exposes the whole website (not only this route) to tailnet devices.
+- **Operator step at deploy:** `tailscale serve` (runbook §6, step 4) is not in git. Without it the
+  main PC cannot reach the route. Not tested here (no Tailscale/Docker in this worktree).
+- The Tailscale port (3100) exposes the whole website (not only this route) to tailnet devices.
 - A quick check that finds the game skips opponent club info, so a new opponent's crest can be
   missing from the Discord post until the next normal pass fetches it.
 - Rate limit is one in-memory bucket per `web` process, shared by all callers (also unauthenticated
