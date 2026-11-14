@@ -1,6 +1,6 @@
 # Task: T3 — in-depth interviews (one reporter, ~7 questions, Q&A article)
 
-- **State:** Verify (operator 2026-11-13: run in parallel with T2)
+- **State:** Merged (Lead review 2026-11-13); deploy waits for the operator's OK
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Database (one migration),
   Queries, Web (`/news` interview article)
 - **Risk:** medium (live bots, a new public article type, a migration)
@@ -156,3 +156,8 @@ check copies the scrum `lineProblems` (not exported; not changed to avoid touchi
   code change but delivers the live teaser). Runbook section "Interviews (task T3, 2026-11-13)".
 - Cost was not measured (no live run). Per interview: up to 7 questions and 7 judgements (write +
   review each) and one article (up to 3 writes + reviews).
+- 2026-11-13 Lead review: rebased on main (docs only since); every changed path inside "May edit";
+  migration 0074 read (new tables only, one transaction, rollback in header, independent of 0073).
+  Re-ran: typecheck db/discord/web/worker clean; discord 683/683; news + news-press + interview db
+  tests 115/115; web unit 672/672; prettier clean. Deploy order: backup → 0074 → `press`, `news`, `web`.
+  Typed answers in interview threads need T4's thread-join fix.
