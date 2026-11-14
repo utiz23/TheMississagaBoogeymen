@@ -58,7 +58,6 @@ answers, and a reply to a wire post gets an in-character answer within the limit
 ## Log
 
 - 2026-11-13 Lead: written from the operator's choice (all three).
+- 2026-11-13 operator: privacy paragraph approved as written.
 
 ## Report
-
-- 2026-11-13 operator: privacy paragraph approved as written.
