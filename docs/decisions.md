@@ -1,14 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 15:55 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 16:09 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                                                                                                                        | My advice | Waiting costs                           |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------- |
+| D18 | Finals look CF3: screenshots OK (games page with Finals filter and round dividers, the final's game page, home in playoff mode; sent)? OK = I merge; the deploy (website only, a few seconds) is a separate OK. | Yes       | Finals nights look like any other night |
 
 ## 2. Right now
 
