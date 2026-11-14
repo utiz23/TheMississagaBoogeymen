@@ -1,6 +1,6 @@
 # Task: T6 — one thread per player, reporters reply to the player, no Answer button
 
-- **State:** Verify
+- **State:** Merged (Lead review 2026-11-14); deploy `press` waits for the operator's explicit OK
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** medium (live scrum and interview flow)
 - **Slug:** press-player-threads (branch `work/press-player-threads`, worktree
@@ -70,6 +70,10 @@ All checks pass and the tests above pin the behaviour.
 - 2026-11-14 Lead: written from the operator's three requests.
 - 2026-11-14 agent: Running on `work/press-player-threads` (base 7bea5386). Decided: no migration (see Report).
 - 2026-11-14 agent: checks green; rebased on main; State = Verify.
+
+- 2026-11-14 Lead review: rebased on f356aafa (docs only); paths inside "May edit" plus rulings 65-69;
+  no migration. Re-ran: typecheck db/discord/web/worker clean; discord 782/782; news-press 49/49;
+  prettier clean. Deploy `press` only.
 
 ## Report
 
