@@ -1,14 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 14:56 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 14:57 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                                                                                                                                                                | My advice   | Waiting costs |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------------- |
-| D11 | The old player dossier files (`docs/specs/player-dossiers/`, ~120 unanswered questions each, nothing reads them): bring the answers into the system? (a) a "Background" box on each Press Box dossier that you fill with confirmed facts, as part of L3; (b) "background interviews": a reporter asks each player 3–5 of the questions in their thread. | (a) and (b) | None          |
+| ID  | Question                                                                                                                                                                                                                                | My advice      | Waiting costs                                         |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------- |
+| D12 | Player background tasks B1 (question bank, facts, your editor on each dossier) and B2 (bots ask, propose facts; anything about a teammate waits for your confirm) are written. Ready? Order: B1 first (can run beside L3), B2 after B1. | Ready for both | Facts stay unrecorded; the old worksheets stay unused |
 
 ## 2. Right now
 
@@ -53,6 +53,9 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 14:56 · Player background: bots fill it in over time (mostly interviews, rare in scrums);
+  "they specifically requested the ability to be asked to rate or criticise teammates" → allowed, with an
+  admin veto (teammate facts confirm-only); the admin edits every fact. "write B1 and B2".
 - 2026-11-14 14:52 · "deploy L2" → Press Box L2 deployed 14:55 (backup, 0081, `press`, `web`).
 - 2026-11-14 14:45 · Press Box L2: "D7 screenshots ok" (merged); "D8 Yes" (keep write + rule check, 2
   requests per profile); "D9 yes" (an admin may raise a "Leave me out" player's press level; logged).
