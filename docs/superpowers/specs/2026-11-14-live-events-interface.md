@@ -1,7 +1,6 @@
 # Live events — engine/OBS → website interface (draft)
 
-Status: **draft, reviewed by the engine Lead** (website Lead 2026-11-14; corrections from `[LEAD4]`
-the same day are in). Decisions are the operator's; the engine sends nothing to the website until he approves it
+Status: **approved by the operator 2026-11-14** (E1–E3 now, E4–E5 when the engine is live; reviewed by the engine Lead ; website Lead 2026-11-14). Decisions are the operator's; the engine sends nothing to the website until he approves it
 and the engine has a card for it (engine rule). One copy lives in each repo once agreed.
 
 Written for: the operator and both Leads.
@@ -92,8 +91,12 @@ confidence number (the engine has none). `id` makes resends harmless.
 Expected gain from E1+E2+E3: polling starts at the horn, so the game post and scrum pings go out as soon
 as EA lists the game (often about 1 minute after the end) instead of waiting for the next 5-minute poll.
 
-## 5. Open questions for the operator
+## 5. Operator decisions (2026-11-14)
 
-1. Public HTTPS route with token + HMAC, or Tailscale-only? (Both work from the main PC.)
-2. E1–E3 now (website first; OBS sender after OBS-EC), and E4–E5 when the engine goes live?
-3. Big-moment triggers: which moments count (list in E5), and how many automatic scrums a night at most?
+1. **Route:** the operator left it to the Lead ("this is going to run on Hotel-Echo … your call").
+   Lead's call: **Tailscale only** — nothing new on the public internet. The website listens for live
+   events on Hotel-Echo's Tailscale address only (a port bound to that address, not to the public
+   tunnel); every event still carries the bearer token and the HMAC.
+2. **Order:** approved — E1–E3 now (website first; the OBS sender after OBS-EC, with an engine card and
+   the operator's OK for his match sorter); E4–E5 when the engine is live.
+3. **Big moments:** the list in E5 is right; adjust later.

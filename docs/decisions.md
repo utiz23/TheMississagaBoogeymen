@@ -6,9 +6,9 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                                                                       | My advice                       | Waiting costs                                           |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------- |
+| D1  | Deploy T9 (relationships: open war ↔ glazing, Rink never feuds) + T10 (Talk to the press fix)? Build images → backup → migration 0078 → `press`, `news`, `web` | Yes, before the next game night | Feuds stay feud-only; Talk to the press stays confusing |
 
 ## 2. Your to-dos (only you can do these)
 
