@@ -1,15 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 17:48 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 17:55 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                                                                           | My advice            | Waiting costs                            |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- | ---------------------------------------- |
-| D22 | Deploy Club Finals in Discord (CF2)? From the next finals game: the Club Finals line in the game post, more news coverage for round wins, eliminations and the final, and big-moment scrums for them. Restarts `discord`, `news`, `press` (seconds; no migration). | Yes, at a quiet time | Finals games post as normal games        |
-| D23 | Finals card fix (CF3b): all tags in the top row, every card 277 px tall (sent). To fit, a finals card in the 3-column grid and on phones hides its game time and the Dominated/Outshot tag (hover shows the full words). OK? Then merge + website deploy.          | Yes                  | Finals cards stay taller than the others |
+| ID  | Question  | My advice | Waiting costs |
+| --- | --------- | --------- | ------------- |
+| -   | none open | -         | -             |
 
 ## 2. Right now
 
@@ -56,6 +55,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 17:51 · "D22 D23 deploy" → finals card fix live 17:54; CF2 (Discord) held until tonight's session ends (a scrum was open).
 - 2026-11-14 17:45 · CF2 samples: "approved" → merged.
 - 2026-11-14 17:40 · DNF elimination (CF2): "Yes" → the post shows ELIMINATED; the news desk stays quiet, no scrum ping.
 - 2026-11-14 17:39 · Finals game cards: "the extra stuff is messing with the height of the panel"; "put all the tags

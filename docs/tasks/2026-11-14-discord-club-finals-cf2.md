@@ -54,7 +54,12 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-14 17:45 Lead2: operator "approved" (samples); DNF rule "Yes" (quiet, no ping). Rebased; discord
   typecheck clean, 957/957; merged `--ff-only`. Deploy asked separately (it changes what posts in #chel).
 
-Resume: operator's OK (D22): deploy `discord`, `news`, `press` together (no migration).
+- 2026-11-14 17:55 Lead2: operator "D22 D23 deploy". Held: the team was playing at 17:00–17:36 (3v3,
+  code 206) with a scrum open; a `press`/`news` restart could cut the scrum and the night's news. CF2 only
+  changes 6v6 Club Finals games, none tonight so far. HE already holds the code (`c23e577c`).
+
+Resume: when the session is over and no scrum is open: rollback tags for `discord`, `news`, `press`; build
+and `up -d --no-deps discord news press`; check the start lines.
 
 ## Report (task agent fills when state = Verify)
 

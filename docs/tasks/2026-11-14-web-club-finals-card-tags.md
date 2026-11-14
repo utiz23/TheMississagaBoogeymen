@@ -1,6 +1,6 @@
 # Task: CF3b — Club Finals game cards: tags in the top row, same height as other cards
 
-- **State:** Verify (task agent done 2026-11-14 17:47; Running since 17:39; task agent of `Lead2`)
+- **State:** Deployed 2026-11-14 17:54 (operator: "D22 D23 deploy")
 - **Lane:** Web
 - **Risk:** low (layout of one card)
 - **Slug:** club-finals-card-tags (branch `work/club-finals-card-tags`)
@@ -58,7 +58,10 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   (it added 2 px). Preview on the live DB read-only (tunnel 5439, port 3600; no data patch needed, live has
   0083). Server and tunnel stopped, URL file deleted. Checks green.
 
-Resume: Lead reviews the screenshots and the report, then merges (operator gate) and deploys `web`.
+- 2026-11-14 17:55 Lead2: reviewed (finals card 277 px = normal card; tags in the top row); web typecheck
+  clean, 755/755; merged (`c23e577c`); `web` deployed (rollback `:rollback-he-2026-11-14-pre-cf3b`); `/`, `/games` 200.
+
+Resume: none.
 
 ## Report (task agent fills when state = Verify)
 
