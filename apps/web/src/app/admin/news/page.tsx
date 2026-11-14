@@ -7,6 +7,7 @@ import {
   listAdminTakes,
   listAliases,
   listDisabledReporters,
+  listFeuds,
   listQualityItems,
   listMemberPressLevels,
   listPressRoster,
@@ -32,6 +33,7 @@ import {
 import { qualityReport } from '@/lib/news/quality'
 import { PRESS_LEVEL_OPTIONS } from '@/lib/profile-edit'
 import { AliasesSection } from './aliases-section'
+import { FeudsSection } from './feuds-section'
 import { QualitySection } from './quality-section'
 import { TakesSection } from './takes-section'
 import {
@@ -57,18 +59,30 @@ export default async function AdminNewsPage({
   await requireAdmin()
   const takeError = (await searchParams).takeError === '1'
   const now = new Date()
-  const [enabled, spent, items, levels, disabledReporters, qualityItems, takes, aliases, roster] =
-    await Promise.all([
-      getNewsEnabled(),
-      monthNewsSpendUsd(now),
-      listAdminNewsItems(50),
-      listMemberPressLevels(),
-      listDisabledReporters(),
-      listQualityItems(new Date(now.getTime() - 30 * 86_400_000)),
-      listAdminTakes(),
-      listAliases(),
-      listPressRoster(),
-    ])
+  const [
+    enabled,
+    spent,
+    items,
+    levels,
+    disabledReporters,
+    qualityItems,
+    takes,
+    aliases,
+    roster,
+    feuds,
+  ] = await Promise.all([
+    getNewsEnabled(),
+    monthNewsSpendUsd(now),
+    listAdminNewsItems(50),
+    listMemberPressLevels(),
+    listDisabledReporters(),
+    listQualityItems(new Date(now.getTime() - 30 * 86_400_000)),
+    listAdminTakes(),
+    listAliases(),
+    listPressRoster(),
+    // Migration 0076 may not be applied yet: the page still renders.
+    listFeuds({ now }).catch(() => null),
+  ])
   const quality = qualityReport(qualityItems, new Map(takes.map((t) => [t.id, t.playerName])))
   const limit = monthlyLimitUsd(process.env['NEWS_MONTHLY_LIMIT_USD'])
   const testWaiting = items.filter((i) => i.isTest && i.deletedAt === null).length
@@ -247,6 +261,7 @@ export default async function AdminNewsPage({
       <TakesSection takes={takes} saveFailed={takeError} />
 
       <AliasesSection aliases={aliases} roster={roster} />
+      <FeudsSection feuds={feuds} />
 
       <AdminSection
         title="Press levels"

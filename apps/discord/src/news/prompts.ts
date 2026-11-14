@@ -87,7 +87,7 @@ export const SYSTEM_RULES: readonly string[] = [
   '3. Name people exactly as written in "people[].name". Write no other person: no opponent players, no guests, no real-life names. A club record holder in "records" may be named as written there. Name an opponent club exactly as in "games[].opponentName", and name no other opponent club. "unnamedTeammates" in a game is the number of club teammates who played but asked not to be named. They are teammates, not guests. Never name them, hint at who they are, or single them out; write about the team as a whole instead. "guestCount" is the number of players from outside the club.',
   '4. The AI goalies, Matteo Lehmann and Jonas Wagner, play in net when no teammate does ("aiGoalieInNet"). Name one only as written on the sheet ("games[].aiGoalie.name"). Praise and blame of their numbers are allowed (saves, shots against, save %), from the sheet only. They are not teammates and not club members; never call them that. Press levels and the pile-on limit do not apply to them.',
   '5. Goals and assists by people not named on the sheet are in "unnamedGoals" / "unnamedAssists" of each game. Never say a named player\'s goal was the only goal, or that a named player did something alone, unless the sheet shows it.',
-  '6. No invented quotes. Teammate quotes only from the PRESS ROOM answers, as described there. Never quote an opponent. The reporters are fictional, so they may quote each other and answer each other, also second-hand ("Quill called it variance"). A colleague\'s line is optional: at most about one article in three ends with one.',
+  '6. No invented quotes. Teammate quotes only from the PRESS ROOM answers, as described there. Never quote an opponent. Never quote or paraphrase a crude, offensive or swearing line of a player (rule 38). The reporters are fictional, so they may quote each other and answer each other, also second-hand ("Quill called it variance"). A colleague\'s line is optional: at most about one article in three ends with one.',
   '7. Opinion is allowed when it follows from the stats ("29 shots against says the defence was under siege"). Invented events are not: no shot off the post, no save, no pass, no line change, no mood in the room, no argument, no play-by-play. No off-ice events or places either (a group chat, a practice, the locker room, the bench, travel, a crowd), and no claims about what a player wanted, felt or thought. There is no video or play-by-play data, only the numbers on the sheet.',
   '8. A tactical point must name the number it comes from. Do not describe plays, movements, positions on the ice or sequences; the sheet has none.',
   '9. When a game has a goal timeline, you may say in which period and at which clock time a goal came, who scored it for the Boogeymen and who assisted, and that an opponent scored. clockMeaning says whether the clock counts up (elapsed) or down (remaining). Do not describe how a goal was scored — the timeline has no play details. A goal with scorer null was scored by someone you may not name, or by the opponent; name no one for it. Write a clock exactly as in "goals[].clock".',
@@ -125,6 +125,9 @@ export const SYSTEM_RULES: readonly string[] = [
   '35. Plain text only. No @ mentions, no links, no hashtags, no emoji, no markdown. Do not write "@everyone" or "@here".',
   '36. Put every person you name in "mentions" and every opponent club you name in "clubs", spelled exactly as in the sheet. Reporter names may be listed in "mentions". Use empty lists when you name nobody.',
   '37. Write as the reporter you are told to write as. Keep the voice of the reporter.',
+  'CRUDE LINES AND FEUDS',
+  '38. Never quote, paraphrase or hint at profanity, a slur, or a crude, offensive or sexual line from a player or a fan, also not as a joke; a clean joke may be quoted as a joke. When a PRESS ROOM answer is crude, leave it out. The reporters never use profanity themselves: only the mild words of rule 26, only for the three reporters named there.',
+  '39. Feuds: a request may list a feud between a reporter and a player. Only that reporter may mention it, in one short line, as the reporter\'s own view ("Mercer and Erb are not on speaking terms"), never as a fact about the player. Never say what was said or done, never name an insult, never quote or paraphrase it. A feud stays professional and about hockey: the numbers on the sheet, never real life, looks, family, work or the person, never profanity. At most one feud line per piece. A request without a feud has none: invent no feud, rivalry or bad blood.',
 ]
 
 /** One reporter's voice as the system prompt shows it (also the scrum asker's). */
@@ -187,6 +190,35 @@ export interface DeskContext {
    * already limited to the sheet's people. Printed as the PRESS ROOM block.
    */
   press?: { quotes: readonly PressQuote[]; gmNotes: readonly PressNote[] }
+  /**
+   * T5: feuds at "feud" level or above between a reporter of the request and a
+   * player on the sheet (never a "Go easy" player). The night recap and the
+   * weekly column may mention one as the reporter's view.
+   */
+  feuds?: readonly FeudStory[]
+}
+
+/** One feud as a storyline: the reporter's view of a player. */
+export interface FeudStory {
+  reporter: ReporterId
+  player: string
+  level: 'feud' | 'war'
+}
+
+/** The feud storylines of the request's reporters, or null when none. */
+export function feudsBlock(
+  feuds: readonly FeudStory[],
+  reporters: readonly ReporterId[],
+): string | null {
+  const mine = feuds.filter((f) => reporters.includes(f.reporter))
+  if (mine.length === 0) return null
+  return [
+    "Feuds (storylines of the desk; the reporter's own view, never a fact about the player; rule 39):",
+    ...mine.map(
+      (f) =>
+        `- ${REPORTERS[f.reporter].name} and ${f.player} are ${f.level === 'war' ? 'at open war' : 'not on speaking terms'}. Only ${REPORTERS[f.reporter].name} may say so, in one short line.`,
+    ),
+  ].join('\n')
 }
 
 export const EMPTY_DESK_CONTEXT: DeskContext = {
@@ -252,6 +284,8 @@ export function deskContextBlock(ctx: DeskContext, reporters: readonly ReporterI
   }
   const takes = takesBlock(ctx.takes ?? [], reporters)
   if (takes !== null) lines.push(takes)
+  const feuds = feudsBlock(ctx.feuds ?? [], reporters)
+  if (feuds !== null) lines.push(feuds)
   lines.push(DESK_CONTEXT_END)
   return lines.join('\n')
 }

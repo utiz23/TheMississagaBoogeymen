@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { NewsFacts, NewsTake } from '@eanhl/db/news'
+import { CRUDE_PROBLEM, crudeHitOutsideNames } from './crude.ts'
 import type { Usage } from './cost.ts'
 import {
   REVIEW_SYSTEM_PROMPT,
@@ -180,6 +181,12 @@ export async function writeChecked<T>(args: {
     const checked = args.check(out)
     if (!checked.ok) {
       problems = checked.problems
+      continue
+    }
+    // Rule C (T5): no desk text ever carries a swear word, a slur or a crude line, so a quoted
+    // player word never does either. The problem text never repeats the word.
+    if (crudeHitOutsideNames(args.textForReview(out), args.facts)) {
+      problems = [CRUDE_PROBLEM]
       continue
     }
 

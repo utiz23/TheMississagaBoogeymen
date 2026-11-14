@@ -28,6 +28,7 @@ import { acceptButton, type BotMessage } from '../bot-rest.ts'
 import { payloadForItem, toBotMessage } from '../news/messages.ts'
 import type { ModelCall } from '../news/writer.ts'
 import { fallbackLine } from './fallbacks.ts'
+import type { MessageScreen } from './hard-lines.ts'
 import type { PressConfig } from './config.ts'
 import { runInterviewPass } from './interview-pass.ts'
 import { threadLine } from './question.ts'
@@ -178,6 +179,12 @@ export interface PressDeps {
   discord: PressDiscordOps
   fetchFacts: (kind: 'game' | 'night', key: string) => Promise<NewsFactsResponse>
   call: ModelCall
+  /**
+   * T5, hard lines: the model check every player message passes before any reaction
+   * (`screenMessage` in hard-lines.ts adds the code layer and fails closed). Absent (the
+   * process): the default check on `call` and the store (`makeMessageScreen`); tests inject one.
+   */
+  screen?: MessageScreen
   log: (m: string) => void
   now: () => Date
 }

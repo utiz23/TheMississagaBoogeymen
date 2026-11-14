@@ -370,3 +370,26 @@ void test('trusted: notes and answers reach the review; a function gets the outp
   assert.ok(!none.reqs[1]!.user.includes('true events'))
   assert.ok(!none.reqs[1]!.user.includes('14.'))
 })
+
+void test('rule C (T5): a crude or slur text fails before the review; the rewrite is told without the word', async () => {
+  const { call, reqs } = fakeCall([
+    { json: { text: 'He called it a shitty night, in his words.' } },
+    { json: { text: 'He called it a rough night.' } },
+    REVIEW_OK,
+  ])
+  const h = harness()
+  const r = await writeChecked(args(call, h))
+  assert.equal(r.ok, true)
+  // write, rewrite, review: the crude text never reached the review call
+  assert.deepEqual(h.recorded, ['write', 'write', 'review'])
+  assert.match(reqs[1]!.user, /crude language/)
+  assert.doesNotMatch(reqs[1]!.user, /shit/)
+})
+
+void test('rule C (T5): a mild word is not crude', async () => {
+  const { call } = fakeCall([{ json: { text: 'That was a damn fine pass.' } }, REVIEW_OK])
+  const h = harness()
+  const r = await writeChecked(args(call, h))
+  assert.equal(r.ok, true)
+  assert.deepEqual(h.recorded, ['write', 'review'])
+})

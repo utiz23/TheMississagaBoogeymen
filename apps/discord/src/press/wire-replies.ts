@@ -1,4 +1,10 @@
-import { REPORTERS, mulberry32, type NewsFacts, type ReporterId } from '@eanhl/db/news'
+import {
+  REPORTERS,
+  mulberry32,
+  type FeudLevel,
+  type NewsFacts,
+  type ReporterId,
+} from '@eanhl/db/news'
 import type { ReactionItem } from '@eanhl/db/queries'
 import {
   FORBIDDEN_NAME_PROBLEM,
@@ -20,8 +26,10 @@ import {
 } from '../news/prompts.ts'
 import { writeChecked, type ModelCall } from '../news/writer.ts'
 import { escapeMarkdown } from '../message.ts'
-import type { Recorder } from './asker.ts'
+import { FEUD_RULE, feudLine, type Recorder } from './asker.ts'
 import type { PressConfig } from './config.ts'
+import { feudLevel, recordInsult } from './feuds.ts'
+import { OFFLIMITS_LOG, screenMessage } from './hard-lines.ts'
 import type { PressDeps } from './pass.ts'
 import { pressRecorder } from './question.ts'
 import { REACTION_MAX_AGE_MS } from './reactions.ts'
@@ -93,6 +101,8 @@ export interface WireReplyContext {
   member: { name: string; pressLevel: 'full' | 'easy' }
   /** Untrusted. */
   reply: string
+  /** T5: the feud between this reporter and the member (absent = none; never set for "Go easy"). */
+  feud?: FeudLevel
 }
 
 export const WIRE_REPLY_SCHEMA = {
@@ -118,6 +128,8 @@ export const WIRE_REPLY_RULES: readonly string[] = [
   '7. Set "answer" to false (and "text" to "") when the reply is not about hockey, is abuse of a real person, has a slur, asks about real life, or gives you nothing to answer. Banter aimed at you, the fictional reporter, is fine: answer it in your voice.',
   '8. Language: mild swearing (hell, damn, crap) only for Dex Mercer, Gord Pettibone and Rico Vale, at most once. Everyone else writes clean. Never a slur, never swearing aimed at a person.',
   `9. Plain text, at most ${String(WIRE_REPLY_MAX_CHARS)} characters. No @ mentions, no links, no hashtags, no emoji, no markdown.`,
+  '10. Never repeat or paraphrase a crude word, a slur or a crude line of the teammate. Never a stronger word than hell, damn or crap yourself.',
+  FEUD_RULE.replace(/^15\./, '11.'),
 ]
 
 function systemPrompt(reporter: ReporterId): string {
@@ -149,6 +161,7 @@ export function wireReplyPrompt(ctx: WireReplyContext): string {
     ctx.member.pressLevel === 'easy'
       ? `${name} is at press level "easy": no criticism at all.`
       : `${name} is at press level "full".`,
+    ...(ctx.member.pressLevel === 'easy' ? [] : feudLine(ctx.feud, name)),
     '',
     `Task: answer ${name} in "text" (at most ${String(WIRE_REPLY_MAX_CHARS)} characters), or set "answer" to false and "text" to "" (rule 7).`,
   ].join('\n')
@@ -310,14 +323,13 @@ export function onWireReply(
   return next
 }
 
-/** Why this reply gets no answer, before any claim or AI call; null = go on. */
-function gate(deps: PressDeps, item: ReactionItem, input: WireReplyInput): string | null {
+/** Why this reply is not looked at at all (no check, no feud), before any AI call; null = go on. */
+function gate(deps: PressDeps, item: ReactionItem): string | null {
   if (item.isCorrection) return 'a correction'
   if (item.night === null) return 'a post without a night'
   if (deps.now().getTime() - item.createdAt.getTime() > REACTION_MAX_AGE_MS) {
     return 'a post older than 24 hours'
   }
-  if (!wireReplyChosen(item.id, input.userId)) return 'not chosen (the seeded half)'
   return null
 }
 
@@ -340,12 +352,9 @@ async function handleWireReply(
   if (member === undefined) return skip('not a team member')
   if (member.pressLevel === 'out') return skip('Leave me out')
 
-  const gated = gate(deps, item, input)
+  const gated = gate(deps, item)
   if (gated !== null) return skip(gated)
   const night = item.night!
-  if ((await st.countWireRepliesTonight(night)) >= WIRE_REPLY_NIGHT_LIMIT) {
-    return skip(`the night limit of ${String(WIRE_REPLY_NIGHT_LIMIT)}`)
-  }
   if (!extrasBudgetLeft(await st.monthNewsSpendUsd(deps.now()), config.monthlyLimitUsd)) {
     return skip('the extras budget is spent')
   }
@@ -358,6 +367,25 @@ async function handleWireReply(
   if (res.forbiddenNames.some((n) => containsName(member.name, n))) return skip('Leave me out')
   if (res.forbiddenNames.some((n) => containsName(input.text, n))) {
     return skip('the reply names a person the desk may not name')
+  }
+
+  // T5, hard lines: every reply is checked before any reaction, also one that would not be
+  // chosen (an insult still counts for the feud). Off-limits: no answer, no claim, no feud points.
+  const screened = await screenMessage(deps, config, input.text, item.reporter)
+  if (screened.offLimits) return deps.log(`${tag}: ${OFFLIMITS_LOG} (${screened.why})`)
+  if (screened.reporter !== null) {
+    await recordInsult(deps, {
+      playerId: member.playerId,
+      reporter: screened.reporter,
+      insult: screened.insult,
+      pressLevel: member.pressLevel,
+      where: `wire reply ${String(item.id)}`,
+    })
+  }
+
+  if (!wireReplyChosen(item.id, input.userId)) return skip('not chosen (the seeded half)')
+  if ((await st.countWireRepliesTonight(night)) >= WIRE_REPLY_NIGHT_LIMIT) {
+    return skip(`the night limit of ${String(WIRE_REPLY_NIGHT_LIMIT)}`)
   }
 
   const claimId = await st.claimWireReply({
@@ -381,6 +409,7 @@ async function handleWireReply(
       post: reactionItemText(item),
       member: { name: member.name, pressLevel },
       reply: input.text,
+      feud: await feudLevel(deps, member.playerId, item.reporter, member.pressLevel),
     },
     pressRecorder(st),
     (why) => deps.log(`${tag}: write failed (${why.slice(0, 200)})`),

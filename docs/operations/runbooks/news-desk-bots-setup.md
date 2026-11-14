@@ -463,3 +463,76 @@ Deploy (operator's OK first):
 Rollback: remove `PRESS_WIRE_REPLIES` (item 3 stops at the next start), or put
 the old `press` image back. The table does no harm; its rollback SQL is in the
 header of `packages/db/migrations/0075_press_wire_replies.sql`.
+
+## Hard lines and feuds (task T5, 2026-11-13)
+
+Task file: `docs/tasks/2026-11-13-discord-press-hard-lines-feuds.md`.
+
+**A. Hard lines: never acknowledged.** A player message with a slur, a threat, a
+real person outside the club (a politician, a celebrity, any public figure),
+politics, family or a real-life private matter gets no reaction at all: no reply,
+no acknowledgement, no echo of a pop-up answer, never quoted, never stored, no
+feud points. It does not count as an answer: the open question stays open and
+the player can still answer properly in the window. This covers scrum answers
+(pop-up and typed), interview answers and replies to wire posts.
+
+- Two checks run before any reaction: a short slur list in code (no model
+  call), then one cheap Claude call that says "off-limits" and whether the
+  message insults a reporter. The answer judge also has an `offlimits` class as
+  a second line.
+- The check fails closed. If it cannot run (API error, refusal, the extras
+  budget spent), the message is treated as off-limits: the bots stay silent.
+  Each answer now costs one more small call.
+- Log line, never the text: `... off-limits, not acknowledged (<slur | model |
+check failed | judge>)`.
+- "Unusable" (no content, abuse of a teammate, a crude answer) is still
+  acknowledged briefly, as before.
+
+**B. Feuds.** A message that insults a reporter (and is not off-limits) adds
+points between that player and that reporter: 1 for a rude or cheeky message,
+2 for swearing or a hard insult. Points fade by half every 7 days. Levels:
+simmering from 2 points, feud from 5, open war from 10 (top 12).
+
+- The reporter's questions, judgements, interview questions and wire answers get
+  cooler and sharper at any level (professional, hockey only, never profanity,
+  never about real life, never naming the insult).
+- At feud and above, the night recap and the weekly column may tell it as that
+  reporter's view ("Erb and Pettibone are not on speaking terms"), and that
+  reporter is three times likelier on the player's scrum panel.
+- "Go easy" players: points may be stored, nothing is ever used. "Leave me out":
+  nothing, not even points.
+- Messages that are not answers (no question open for that player) in a press
+  thread count too, by a code check only: a reporter's name plus a rude word.
+- The GM sees the feuds on `/admin/news` ("Press feuds (GM only)").
+- Log: `[press] feud: <where>: <reporter> +2 (strong insult)`.
+
+**C. No crude quotes.** The recap, column, interview and wire pieces never quote
+or paraphrase profanity, slurs or crude lines, also not as a joke (a clean joke
+may be quoted as a joke). The judge marks a crude answer `unusable`; code also
+drops any stored answer with a swear word or slur from the quote material, and
+every written text with such a word fails the check. Mild words (hell, damn,
+crap) are not crude. `NEWS_RULES_VERSION` is `2026-11-13.4`.
+
+Deploy (operator's OK first):
+
+1. Take a fresh database backup (step 2 of the release checklist). Check that
+   it is not empty.
+2. Apply migration 0076. It adds one new table only. It is safe to run twice.
+
+   ```
+   docker exec -i -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=30s" \
+     eanhl-team-website-db-1 psql -U eanhl -d eanhl -v ON_ERROR_STOP=1 -f - \
+     < packages/db/migrations/0076_press_feuds.sql
+   ```
+
+3. Tag rollback images for `web`, `news` and `press`. Rebuild and restart the
+   three services (`web` for the admin line, `news` for the recap and column,
+   `press` for the rest).
+
+Without the table, nothing breaks: feud points are not saved (one log line per
+insult), every level reads "none", the admin line says "not available yet", and
+the recap is written without a storyline. Hard lines and "no crude quotes" do
+not need the table.
+
+Rollback: put the old `press` and `news` images back. The table does no harm;
+its rollback SQL is in the header of `packages/db/migrations/0076_press_feuds.sql`.

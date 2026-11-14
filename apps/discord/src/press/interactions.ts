@@ -5,6 +5,8 @@ import { escapeMarkdown } from '../message.ts'
 import { containsName } from '../news/fact-check.ts'
 import { FALLBACK_CLOSING, judgeAnswer, type FollowUpMode, type Usability } from './asker.ts'
 import { fallbackLine } from './fallbacks.ts'
+import { feudLevel, recordInsult } from './feuds.ts'
+import { OFFLIMITS_LOG, screenMessage } from './hard-lines.ts'
 import { replyingTo } from './reply-ref.ts'
 import type { PressConfig } from './config.ts'
 import { SCRUM_SOURCE_WINDOW_MS, type PressDeps } from './pass.ts'
@@ -50,7 +52,8 @@ import {
 export type Reply =
   | { kind: 'ephemeral'; text: string }
   | { kind: 'modal'; customId: string; title: string; label: string; maxLength: 500 }
-  | { kind: 'ack' }
+  /** `offLimits`: a hard-line message got no reaction at all (T5); the handlers log it. */
+  | { kind: 'ack'; offLimits?: true }
 
 /** The pop-up's answer limit; a longer submit is cut to it. */
 export const ANSWER_MAX_CHARS = 500
@@ -257,6 +260,8 @@ interface Verdict {
   byCode: boolean
   /** The model's verdict stands, but its reply line failed after all tries: a neutral line is used. */
   replyFailed: boolean
+  /** T5: the judge says the answer is off-limits: no reaction at all, nothing stored. */
+  offLimits: boolean
 }
 
 /**
@@ -331,6 +336,7 @@ async function judge(
     end: true,
     byCode: true,
     replyFailed: false,
+    offLimits: false,
   }
   const scrum = person.scrum
   // Why an answer is stored unusable without the model's verdict: a log line, never the answer.
@@ -364,8 +370,10 @@ async function judge(
       ...scrumHistory(earlier, scrum.reporter),
       { question, answer: null, by: asker },
     ]
+    const feud = await feudLevel(deps, person.playerId, asker, onSheet.pressLevel)
     const ctx = await scrumAskContext(store, scrum, res, onSheet, history, person.questionsAsked, {
       reporter: asker,
+      feud,
     })
     // One follow-up per reporter, and only as many as the round's target needs.
     const rule = followUpRule(person)
@@ -423,6 +431,17 @@ export async function onAnswerSubmit(
   const answer = Array.from(text.trim()).slice(0, ANSWER_MAX_CHARS).join('').trimEnd()
   if (answer === '') return say(TEXT.noAnswer)
   const question = person.currentQuestion!
+  // The reporter who asked this item: the answer, the follow-up and the next line are theirs.
+  const asker = askerOf(person)
+
+  // T5, hard lines: before any reaction, any claim and any echo. An off-limits message gets
+  // nothing (no reply, no echo, no store, no feud points) and the question stays open.
+  const screened = await screenMessage(deps, config, answer, asker)
+  if (screened.offLimits) {
+    log(`[press] answer: person ${String(personId)}: ${OFFLIMITS_LOG} (${screened.why})`)
+    return { kind: 'ack', offLimits: true }
+  }
+
   const claimed = await store.claimScrumAnswer({ personId, ...seen, at: now })
   if (!claimed) return say(TEXT.answered)
 
@@ -430,8 +449,6 @@ export async function onAnswerSubmit(
   const threadId = scrum.threadId ?? scrum.messageId
   const mention = person.discordUserId
 
-  // The reporter who asked this item: the answer, the follow-up and the next line are theirs.
-  const asker = askerOf(person)
   const sheet = await loadSheet(deps, person)
   const onSheet = sheet?.facts.people.find((p) => p.playerId === person.playerId)
   // The code refuses an answer that names a forbidden person ("Leave me out", a guest), and
@@ -459,6 +476,33 @@ export async function onAnswerSubmit(
     }
   }
   const verdict = await judge(deps, config, person, question, answer, asker, sheet)
+  if (verdict.offLimits) {
+    // The judge's second line: the answer is off-limits after all. The question is open again,
+    // the echo (if any) is taken down, nothing is stored and nothing is said.
+    await store.updateScrumPerson(personId, {
+      currentQuestion: question,
+      lastAskedAt: person.lastAskedAt,
+    })
+    if (opts.typed !== true && answerRef !== null) {
+      try {
+        await discord.remove(asker, threadId, answerRef)
+      } catch (err: unknown) {
+        log(`[press] answer: person ${String(personId)}: echo not removed (${reason(err)})`)
+      }
+    }
+    log(`[press] answer: person ${String(personId)}: ${OFFLIMITS_LOG} (judge)`)
+    return { kind: 'ack', offLimits: true }
+  }
+  // T5, feuds: an insult at a reporter (not off-limits) adds points; "Leave me out" adds none.
+  if (!refused && screened.reporter !== null) {
+    await recordInsult(deps, {
+      playerId: person.playerId,
+      reporter: screened.reporter,
+      insult: screened.insult,
+      pressLevel: onSheet.pressLevel,
+      where: `person ${String(personId)}`,
+    })
+  }
   /** A fixed line from the asking reporter's own pool: never one this thread already had. */
   const poolLine = (kind: 'closing' | 'ack'): string =>
     fallbackLine(deps, {

@@ -258,6 +258,7 @@ void test('judgeAnswer: followUpAllowed false drops a follow-up the model wrote'
     closing: 'Fair, Skater A. Next game.',
     replyFailed: false,
     closedFail: false,
+    offLimits: false,
   })
 })
 
@@ -297,6 +298,7 @@ void test('judgeAnswer: a joke answer is listed as a joke for the review', async
     closing: 'Very funny, Skater A.',
     replyFailed: false,
     closedFail: false,
+    offLimits: false,
   })
   assert.ok(
     reqs[1]!.user.includes(
@@ -323,6 +325,7 @@ void test('judgeAnswer: an unusable answer is not repeated and is not a trusted 
     closing: 'Fair enough. Next game.',
     replyFailed: false,
     closedFail: false,
+    offLimits: false,
   })
   assert.match(reqs[1]!.user, /repeats the player's answer/)
   assert.ok(!reqs[2]!.user.includes(answer))
@@ -336,6 +339,7 @@ void test('judgeAnswer: a stop error or no verdict at all gives the fallback (fa
     closing: FALLBACK_CLOSING,
     replyFailed: false,
     closedFail: true,
+    offLimits: false,
   }
   const stop = fakeCall([new NewsStopError('bad key')])
   assert.deepEqual(
@@ -542,7 +546,7 @@ void test('the judge rules: banter at the reporter is a joke, fair answers are u
   assert.match(rule, /banter aimed at you, the fictional reporter/)
   assert.match(rule, /banter at the reporter is a joke, never unusable/)
   assert.match(rule, /even a short, blunt or sour one/)
-  assert.match(rule, /"unusable" only for: real life/)
+  assert.match(rule, /"unusable" only for: abuse of a teammate/)
   assert.match(rule, /pick "usable" or "joke", not "unusable"/)
   // The model sees the rule: it is in the system prompt of the judging call.
   const { call, reqs } = fakeCall([judged('joke', '', 'Nice try, Skater A.'), REVIEW_OK])
@@ -763,4 +767,86 @@ void test("judgeAnswer: an unusable answer's acknowledgement may not repeat the 
   )
   assert.equal(out.closing, 'Noted. Moving on.')
   assert.match(reqs[1]!.user, /repeats the player's answer/)
+})
+
+// ── T5: hard lines and feuds in the judge and the question ───────────────────
+
+void test('judgeAnswer: an "offlimits" verdict stops at once: no review, no second write, no line', async () => {
+  const rec = recorder()
+  // Only one scripted answer: a second call would throw "ran out of answers".
+  const { call, reqs } = fakeCall([
+    { json: { usability: 'offlimits', chase: 'none', followUp: '', closing: '' } },
+  ])
+  const out = await judgeAnswer(
+    call,
+    {
+      ...ctx({ history: [{ question: 'Why?', answer: null }] }),
+      answer: 'A line about a politician.',
+      followUpAllowed: true,
+    },
+    rec.record,
+  )
+  assert.equal(out.offLimits, true)
+  assert.equal(out.closing, '')
+  assert.equal(out.followUp, null)
+  assert.equal(out.closedFail, false)
+  assert.equal(reqs.length, 1)
+  assert.deepEqual(rec.recorded, ['write'])
+})
+
+void test('judgeAnswer: the judge prompt names the offlimits class and a crude answer as unusable', async () => {
+  const { call, reqs } = fakeCall([judged('unusable', '', 'Noted. Moving on.'), REVIEW_OK])
+  await judgeAnswer(
+    call,
+    {
+      ...ctx({ history: [{ question: 'Why?', answer: null }] }),
+      answer: 'x',
+      followUpAllowed: false,
+    },
+    recorder().record,
+  )
+  const system = reqs[0]!.system
+  assert.match(system, /"offlimits": a slur; a threat; a real person outside the club/)
+  assert.match(system, /a crude answer \(swearing, a crude or offensive line, a crude joke/)
+  assert.match(system, /never profanity, never a slur/)
+  assert.deepEqual(
+    [...JUDGEMENT_SCHEMA.properties.usability.enum],
+    ['usable', 'joke', 'unusable', 'offlimits'],
+  )
+})
+
+void test('feud: the request shows the level to the reporter; none shows nothing; "Go easy" never', async () => {
+  const none = fakeCall([
+    { json: { question: 'Walk me through the third period, Skater A?' } },
+    REVIEW_OK,
+  ])
+  await askQuestion(none.call, ctx(), recorder().record)
+  assert.doesNotMatch(none.reqs[0]!.user, /feud|friction|open war/)
+
+  for (const [level, re] of [
+    ['simmering', /some friction between you and Skater A/],
+    ['feud', /in a feud: be cool and pointed/],
+    ['war', /at open war: be cold and sharp/],
+  ] as const) {
+    const m = fakeCall([
+      { json: { question: 'Walk me through the third period, Skater A?' } },
+      REVIEW_OK,
+    ])
+    await askQuestion(m.call, ctx({ feud: level }), recorder().record)
+    assert.match(m.reqs[0]!.user, re)
+    assert.match(m.reqs[0]!.system, /15\. Feuds: only when the request says/)
+    assert.match(m.reqs[0]!.system, /never profanity, never a slur/)
+    assert.match(m.reqs[0]!.system, /professional and hockey only/)
+  }
+
+  const easy = fakeCall([
+    { json: { question: 'Walk me through the third period, Skater A?' } },
+    REVIEW_OK,
+  ])
+  await askQuestion(
+    easy.call,
+    ctx({ feud: 'war', player: { name: 'Skater A', pressLevel: 'easy' } }),
+    recorder().record,
+  )
+  assert.doesNotMatch(easy.reqs[0]!.user, /feud|friction|open war/)
 })

@@ -1,6 +1,7 @@
 import {
   REPORTERS,
   interviewBody,
+  type FeudLevel,
   type NewsFacts,
   type NewsTake,
   type ReporterId,
@@ -25,7 +26,14 @@ import {
   type TrustedMaterial,
 } from '../news/prompts.ts'
 import { MAX_WRITES, writeChecked, type ModelCall } from '../news/writer.ts'
-import { ASK_MAX_WRITES, SCRUM_RULES, type Recorder, type ScrumHistoryEntry } from './asker.ts'
+import {
+  ASK_MAX_WRITES,
+  FEUD_RULE,
+  SCRUM_RULES,
+  feudLine,
+  type Recorder,
+  type ScrumHistoryEntry,
+} from './asker.ts'
 import { INTERVIEW_ARTICLE_MIN_ANSWERS, INTERVIEW_QUESTIONS } from './interview-rules.ts'
 
 /**
@@ -54,6 +62,8 @@ export interface InterviewContext {
   history: ScrumHistoryEntry[]
   /** The 1-based number of the item about to be asked. */
   position: number
+  /** T5: the feud between this reporter and the player (absent = none; never set for "Go easy"). */
+  feud?: FeudLevel
 }
 
 /** A question: as many writes as a scrum question (`ASK_MAX_WRITES`, raised by the Lead on 2026-11-13). */
@@ -83,6 +93,7 @@ function systemPrompt(reporter: ReporterId): string {
     'INTERVIEW RULES',
     ...INTERVIEW_RULES,
     ...SCRUM_RULES.slice(2),
+    FEUD_RULE,
     'YOUR VOICE',
     reporterVoice(REPORTERS[reporter]),
   ].join('\n\n')
@@ -144,6 +155,7 @@ function questionPrompt(ctx: InterviewContext): string {
     ctx.player.pressLevel === 'easy'
       ? `${name} is at press level "easy": no criticism at all.`
       : `${name} is at press level "full".`,
+    ...(ctx.player.pressLevel === 'easy' ? [] : feudLine(ctx.feud, name)),
     '',
     `Task: ask question ${String(ctx.position)} of about ${String(INTERVIEW_QUESTIONS)}. Put the one question in "question", at most ${String(INTERVIEW_QUESTION_MAX_CHARS)} characters.`,
   )
@@ -340,6 +352,7 @@ function articleSystemPrompt(reporter: ReporterId): string {
     'ARTICLE RULES',
     ...ARTICLE_RULES,
     ...SCRUM_RULES.slice(2),
+    FEUD_RULE,
     'YOUR VOICE',
     reporterVoice(REPORTERS[reporter]),
   ].join('\n\n')

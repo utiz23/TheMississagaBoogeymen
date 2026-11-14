@@ -1,4 +1,10 @@
-import { REPORTERS, type NewsFacts, type NewsTake, type ReporterId } from '@eanhl/db/news'
+import {
+  REPORTERS,
+  type FeudLevel,
+  type NewsFacts,
+  type NewsTake,
+  type ReporterId,
+} from '@eanhl/db/news'
 import type { Usage } from '../news/cost.ts'
 import {
   FORBIDDEN_NAME_PROBLEM,
@@ -60,6 +66,11 @@ export interface AskContext {
   usedQuestions?: string[]
   /** The GM's topic for the first question: the writer asks about it in its own voice. */
   gmTopic?: string
+  /**
+   * T5: the feud between the asking reporter and this player (absent or `none` = no feud).
+   * Never set for a "Go easy" or "Leave me out" player.
+   */
+  feud?: FeudLevel
 }
 
 /**
@@ -88,7 +99,11 @@ export const ASK_MAX_WRITES = 4
 /** A question, a follow-up or a closing line. */
 export const ASK_MAX_CHARS = 280
 
-const USABILITY: readonly Usability[] = ['usable', 'joke', 'unusable']
+/**
+ * What the judge may answer. `offlimits` (T5, hard lines) is not a stored
+ * usability: the message gets no reaction and is never stored.
+ */
+const JUDGED = ['usable', 'joke', 'unusable', 'offlimits'] as const
 const CHASE: readonly Chase[] = ['none', 'some', 'strong']
 
 export const QUESTION_SCHEMA = {
@@ -101,7 +116,7 @@ export const QUESTION_SCHEMA = {
 export const JUDGEMENT_SCHEMA = {
   type: 'object',
   properties: {
-    usability: { type: 'string', enum: [...USABILITY] },
+    usability: { type: 'string', enum: [...JUDGED] },
     chase: { type: 'string', enum: [...CHASE] },
     followUp: { type: 'string' },
     closing: { type: 'string' },
@@ -123,17 +138,44 @@ export const SCRUM_RULES: readonly string[] = [
   '6. A player at press level "easy" gets no criticism at any heat.',
   '7. The desk\'s notes are true events the desk saw: you may ask about them as facts. Never say or hint where a note came from: no tip, no source, no GM, no "I hear".',
   '8. Your private view on a player (a take) is a desk note: never quote it or say it is a note. Hockey only; a take marked mild stays mild.',
-  '9. Language: mild swearing (hell, damn, crap) only for Dex Mercer, Gord Pettibone and Rico Vale, at most once. Everyone else writes clean. Never a slur, never swearing aimed at a person.',
+  '9. Language: mild swearing (hell, damn, crap) only for Dex Mercer, Gord Pettibone and Rico Vale, at most once. Everyone else writes clean. Never a slur, never swearing aimed at a person, never a stronger word. Never repeat or paraphrase a crude word or line of the player.',
   '10. Plain text, at most 280 characters. No @ mentions, no links, no hashtags, no emoji, no markdown.',
 ]
 
 /** How a reporter judges an answer and goes on. */
 export const JUDGE_RULES: readonly string[] = [
-  '11. Judge the player\'s answer. "usable": a real answer about hockey, even a short, blunt or sour one, and even one that pushes back on the question. "joke": a joke or a bit instead of a real answer, and in-character banter aimed at you, the fictional reporter (rude or cheeky to you, "keep your nose out of our gameplan", "watch your tone"): banter at the reporter is a joke, never unusable. "unusable" only for: real life (work, family, health, looks), abuse of a real person other than you, a slur, another teammate\'s private matters, or an answer with no content. When it is close, pick "usable" or "joke", not "unusable".',
+  '11. Judge the player\'s answer. "usable": a real answer about hockey, even a short, blunt or sour one, and even one that pushes back on the question. "joke": a clean joke or bit instead of a real answer, and clean in-character banter aimed at you, the fictional reporter (cheeky to you, "keep your nose out of our gameplan", "watch your tone"): clean banter at the reporter is a joke, never unusable. "unusable" only for: abuse of a teammate, another teammate\'s private matters, a crude answer (swearing, a crude or offensive line, a crude joke, also when it is aimed at you) or an answer with no content. "offlimits": a slur; a threat; a real person outside the club (a politician, a celebrity or any other public figure, a private person) when it is not a plain hockey remark; politics; family; or a real-life private matter (work, health, money, relationships, looks, where someone lives). When it is close between "usable" or "joke" and "unusable", pick "usable" or "joke", not "unusable", except that a crude line is always "unusable". When it is close to "offlimits", pick "unusable".',
   '12. A joke answer: react in character. Dex Mercer and Gord Pettibone are annoyed, Rico Vale plays along, the others stay dry. Banter aimed at you is a bit: answer it in your own voice and move on. Never state a joke as fact.',
-  '13. An unusable answer: move on. Ask no follow-up, and never repeat or quote the answer. Still write "closing" so the player sees the answer arrived: one short line in your voice that acknowledges it without repeating any of its words (for example, say you will leave that one there), and moves on.',
-  '14. "chase" says how much the answer leaves to chase: "strong" (a clear opening: a dodge, a claim, a number or a moment worth pressing), "some" (a small opening) or "none". "followUp" is one follow-up question on the answer, or "" for none. Write "" when the request says no follow-up is allowed. "closing" is one short line that ends your part of the scrum. Quote the player only with words from the answer; never add to them or change their meaning.',
+  '13. An "offlimits" answer: write "followUp" and "closing" as "". The desk says and does nothing. An unusable answer: move on. Ask no follow-up, and never repeat or quote the answer. Still write "closing" so the player sees the answer arrived: one short line in your voice that acknowledges it without repeating any of its words (for example, say you will leave that one there), and moves on.',
+  '14. "chase" says how much the answer leaves to chase: "strong" (a clear opening: a dodge, a claim, a number or a moment worth pressing), "some" (a small opening) or "none". "followUp" is one follow-up question on the answer, or "" for none. Write "" when the request says no follow-up is allowed or the answer is "offlimits". "closing" is one short line that ends your part of the scrum. Quote the player only with words from the answer; never add to them or change their meaning.',
 ]
+
+/**
+ * T5, feuds: stable text for every reporter; a request says whether a feud
+ * exists with the player. Also used by the interview writer.
+ */
+export const FEUD_RULE =
+  '15. Feuds: only when the request says you and the player are in a feud, let it show in your voice: cooler, sharper, more pointed about the hockey (this game, the numbers). It stays professional and hockey only: never profanity, never a slur, never real life, looks, family, work or the person. Never mention an insult, never say what the player said or did to you, and never call it a feud. Without such a line, there is no feud and you write as usual.'
+
+/** The request's line for a feud level (none: no line at all). */
+export function feudLine(level: FeudLevel | undefined, name: string): string[] {
+  switch (level) {
+    case 'simmering':
+      return [
+        `There is some friction between you and ${name}: be a little cooler and sharper than usual.`,
+      ]
+    case 'feud':
+      return [
+        `You and ${name} are in a feud: be cool and pointed, press the weak spot in their game, stay professional.`,
+      ]
+    case 'war':
+      return [
+        `You and ${name} are at open war: be cold and sharp, press hard on the numbers, never childish, never personal.`,
+      ]
+    default:
+      return []
+  }
+}
 
 const HEAT_RULE: Record<Heat, string> = {
   hot: 'Name the bad moment directly and be pointed.',
@@ -149,6 +191,7 @@ function systemPrompt(reporter: ReporterId): string {
     ...SCRUM_RULES,
     'JUDGING AN ANSWER',
     ...JUDGE_RULES,
+    FEUD_RULE,
     'YOUR VOICE',
     reporterVoice(REPORTERS[reporter]),
   ].join('\n\n')
@@ -215,6 +258,8 @@ function contextLines(ctx: AskContext, history: AskContext['history']): string[]
     ctx.player.pressLevel === 'easy'
       ? `${name} is at press level "easy": no criticism at any heat.`
       : `${name} is at press level "full".`,
+    // A "Go easy" player never gets feud content, whatever the caller passed.
+    ...(ctx.player.pressLevel === 'easy' ? [] : feudLine(ctx.feud, name)),
   )
   return lines
 }
@@ -278,7 +323,7 @@ function judgePrompt(ctx: JudgeContext): string {
     `${ctx.player.name}'s answer to it:`,
     ...fencedAnswer(ctx.answer),
     '',
-    `Task: judge the answer in "usability" and say in "chase" how much it leaves to chase. ${followUpTask(ctx)} Write "closing", one short line that ends your part of the scrum (for an unusable answer: the short acknowledgement of rule 13). Each at most ${String(ASK_MAX_CHARS)} characters.`,
+    `Task: judge the answer in "usability" and say in "chase" how much it leaves to chase. ${followUpTask(ctx)} Write "closing", one short line that ends your part of the scrum (for an unusable answer: the short acknowledgement of rule 13; for an "offlimits" answer: ""). Each at most ${String(ASK_MAX_CHARS)} characters.`,
   ].join('\n')
 }
 
@@ -305,7 +350,7 @@ function parseQuestion(v: unknown): { question: string } {
 }
 
 interface Judgement {
-  usability: Usability
+  usability: Usability | 'offlimits'
   chase: Chase
   followUp: string
   closing: string
@@ -320,18 +365,38 @@ function parseJudgement(v: unknown): Judgement {
       : ['usability', 'followUp', 'closing'],
   )
   const usability = o['usability']
-  if (!(USABILITY as readonly unknown[]).includes(usability)) {
-    fail('usability', 'is not usable, joke or unusable')
+  if (!(JUDGED as readonly unknown[]).includes(usability)) {
+    fail('usability', 'is not usable, joke, unusable or offlimits')
   }
   const chase = 'chase' in o ? o['chase'] : 'some'
   if (!(CHASE as readonly unknown[]).includes(chase)) fail('chase', 'is not none, some or strong')
   if (typeof o['followUp'] !== 'string') fail('followUp', 'is not a string')
   return {
-    usability: usability as Usability,
+    usability: usability as Judgement['usability'],
     chase: chase as Chase,
     followUp: o['followUp'].trim(),
-    closing: nonEmpty(o['closing'], 'closing'),
+    // An off-limits answer gets no line at all.
+    closing:
+      usability === 'offlimits'
+        ? typeof o['closing'] === 'string'
+          ? o['closing'].trim()
+          : fail('closing', 'is not a string')
+        : nonEmpty(o['closing'], 'closing'),
   }
+}
+
+/** Thrown out of the judge's model call when the verdict is "offlimits" (see `judgeAnswer`). */
+class OffLimitsSignal extends Error {
+  constructor() {
+    super('off-limits')
+    this.name = 'OffLimitsSignal'
+  }
+}
+
+function isOffLimitsJson(v: unknown): boolean {
+  return (
+    typeof v === 'object' && v !== null && (v as { usability?: unknown }).usability === 'offlimits'
+  )
 }
 
 const collapse = (s: string): string => s.replace(/\s+/g, ' ').trim()
@@ -528,6 +593,12 @@ export async function judgeAnswer(
   replyFailed: boolean
   /** No verdict: unusable by fail-closed. `closing` is the fixed line. */
   closedFail: boolean
+  /**
+   * T5: the judge says the answer is off-limits (hard lines). The caller reacts to nothing:
+   * no line, no store, no feud points; the question stays open. Then `usability` is `unusable`
+   * only to satisfy the type, `closing` is "" and `followUp` is null.
+   */
+  offLimits: boolean
 }> {
   // Fails closed: an answer the desk could not judge is never quoted later.
   const fallback = {
@@ -536,6 +607,24 @@ export async function judgeAnswer(
     closing: FALLBACK_CLOSING,
     replyFailed: false,
     closedFail: true,
+    offLimits: false,
+  }
+  const offLimitsResult = {
+    usability: 'unusable' as const,
+    followUp: null,
+    closing: '',
+    replyFailed: false,
+    closedFail: false,
+    offLimits: true,
+  }
+  // The judge's "offlimits" stops everything: no code check, no review, no second write.
+  const guarded: ModelCall = async (req) => {
+    const res = await call(req)
+    if (req.purpose === 'write' && !res.refused && isOffLimitsJson(res.json)) {
+      await record('write', res.model, res.usage)
+      throw new OffLimitsSignal()
+    }
+    return res
   }
   // The last verdict that parsed (kept when only the reply line fails).
   let parsedVerdict: Judgement | null = null
@@ -548,6 +637,7 @@ export async function judgeAnswer(
   const followUpOf = (out: Judgement): string | null =>
     ctx.followUpAllowed &&
     out.usability !== 'unusable' &&
+    out.usability !== 'offlimits' &&
     out.followUp !== '' &&
     (mode !== 'chased' || out.chase === 'strong')
       ? out.followUp
@@ -555,7 +645,7 @@ export async function judgeAnswer(
 
   try {
     const r = await writeChecked({
-      call,
+      call: guarded,
       system: systemPrompt(ctx.reporter),
       user: judgePrompt(ctx),
       schema: JUDGEMENT_SCHEMA,
@@ -595,7 +685,7 @@ export async function judgeAnswer(
       trusted: (out) => ({
         gmNotes: ctx.gmNotes,
         answers:
-          out.usability === 'unusable'
+          out.usability === 'unusable' || out.usability === 'offlimits'
             ? earlier
             : [
                 ...earlier,
@@ -616,24 +706,27 @@ export async function judgeAnswer(
       if (kept !== null && r.reason !== 'refused') {
         onFailClosed(r.reason, true)
         return {
-          usability: kept.usability,
+          usability: kept.usability === 'offlimits' ? 'unusable' : kept.usability,
           followUp: null,
           closing: FALLBACK_CLOSING,
           replyFailed: true,
           closedFail: false,
+          offLimits: false,
         }
       }
       onFailClosed(r.reason, false)
       return fallback
     }
     return {
-      usability: r.out.usability,
+      usability: r.out.usability === 'offlimits' ? 'unusable' : r.out.usability,
       followUp: followUpOf(r.out),
       closing: r.out.closing,
       replyFailed: false,
       closedFail: false,
+      offLimits: false,
     }
   } catch (err: unknown) {
+    if (err instanceof OffLimitsSignal) return offLimitsResult
     onFailClosed(err instanceof Error ? err.message : String(err), false)
     return fallback
   }

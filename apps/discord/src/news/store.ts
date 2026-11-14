@@ -31,6 +31,7 @@ import {
   nightPressMaterial,
   listReactionTriggersWithoutJob,
   getReactionItem,
+  listFeuds,
 } from '@eanhl/db/queries'
 import { REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
 import type { NewsStore } from './cycle.ts'
@@ -92,4 +93,6 @@ export const newsDbStore: NewsStore = {
   nightPressMaterial,
   listReactionTriggersWithoutJob,
   getReactionItem,
+  // T5: reporter feuds (migration 0076); a missing table is caught by the caller.
+  listFeuds: (args) => listFeuds({ now: args.now, playerIds: args.playerIds }),
 }

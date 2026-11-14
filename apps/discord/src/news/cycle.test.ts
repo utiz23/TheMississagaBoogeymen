@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type {
+  FeudRow,
   NewNewsItem,
   NewNewsStance,
   NewNewsUsage,
@@ -30,7 +31,7 @@ import {
 } from './cycle.ts'
 import { assignGamePosts, type ActivityKind } from './assign.ts'
 import { pressForSheet } from './press-material.ts'
-import { PRESS_ROOM_START } from './prompts.ts'
+import { PRESS_ROOM_START, SYSTEM_RULES, feudsBlock } from './prompts.ts'
 import { classifyGame } from './situation.ts'
 import type { NewsWebhookPayload } from './messages.ts'
 import { ARTICLE_SCHEMA, FEATURE_SCHEMA, GAME_POSTS_SCHEMA, REVIEW_SCHEMA } from './outputs.ts'
@@ -2491,4 +2492,118 @@ void test('reactions: the pass runs after the night articles', async () => {
   const night = h.events.indexOf('claim:night:2026-10-12')
   const reaction = h.events.indexOf('claim:reaction:500')
   assert.ok(night >= 0 && reaction > night)
+})
+
+// ── T5: feuds in the night recap and the weekly column ──────────────────────
+
+const feudRow = (
+  playerId: number,
+  reporter: ReporterId,
+  level: 'simmering' | 'feud' | 'war',
+): FeudRow => ({
+  playerId,
+  name: `Player ${String(playerId)}`,
+  reporter,
+  points: level === 'war' ? 11 : level === 'feud' ? 6 : 3,
+  level,
+  lastEventAt: NOW,
+})
+const everyReporter = (playerId: number, level: 'simmering' | 'feud' | 'war'): FeudRow[] =>
+  Object.keys(REPORTERS).map((r) => feudRow(playerId, r as ReporterId, level))
+
+void test("feuds: the night recap gets the writing reporter's feud only at feud level; a simmer, Go easy and other reporters add nothing", async () => {
+  const run = async (rows: FeudRow[]) => {
+    const prompts: string[] = []
+    const reviews: string[] = []
+    const asked: unknown[] = []
+    const h = harness({
+      store: {
+        listFeuds: async (args) => {
+          asked.push(args)
+          return rows
+        },
+      },
+      deps: {
+        writer: async (req) => {
+          if (req.purpose === 'write') prompts.push(req.user)
+          else reviews.push(req.user)
+          return goodWriter(req)
+        },
+      },
+    })
+    pressNight(h)
+    await runNewsCycle(h.deps, h.opts)
+    assert.equal(h.jobs.get(`night:${PRESS_NIGHT}`)?.status, 'done')
+    return { prompts, reviews, asked, reporter: h.items.get(1)!.reporter }
+  }
+
+  const feud = await run(everyReporter(1, 'feud'))
+  const name = REPORTERS[feud.reporter].name
+  assert.match(feud.prompts[0]!, new RegExp(`${name} and Skater A are not on speaking terms`))
+  // Only the writing reporter's own feud: one line, not nine.
+  assert.equal((feud.prompts[0]!.match(/not on speaking terms/g) ?? []).length, 1)
+  // The review sees it as the reporter's own view, not as a fact.
+  assert.match(feud.reviews[0]!, /own view; the text may say so as that view/)
+  // Only players at press level "full" are asked about: Skater B (easy) never is.
+  const asked = feud.asked[0] as { playerIds: number[] }
+  assert.ok(asked.playerIds.includes(1) && !asked.playerIds.includes(2))
+
+  const war = await run(everyReporter(1, 'war'))
+  assert.match(war.prompts[0]!, /at open war/)
+
+  const simmer = await run(everyReporter(1, 'simmering'))
+  assert.doesNotMatch(simmer.prompts[0]!, /speaking terms|open war|Feuds \(/)
+
+  // "Go easy" (Skater B): stored feud, never used.
+  const easy = await run(everyReporter(2, 'war'))
+  assert.doesNotMatch(easy.prompts[0]!, /speaking terms|open war|Feuds \(/)
+  // Nothing about a feud when the table cannot be read.
+  const none = await run([])
+  assert.doesNotMatch(none.prompts[0]!, /Feuds \(/)
+})
+
+void test('feuds: a feud read that throws never stops the recap', async () => {
+  const h = harness({
+    store: {
+      listFeuds: async () => {
+        throw new Error('relation "news_press_feuds" does not exist')
+      },
+    },
+  })
+  pressNight(h)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get(`night:${PRESS_NIGHT}`)?.status, 'done')
+})
+
+void test('feuds: the weekly column gets the feud storyline at feud level too', async () => {
+  const prompts: string[] = []
+  const h = harness({
+    store: { listFeuds: async () => everyReporter(1, 'feud') },
+    deps: {
+      now: () => MONDAY_1201,
+      writer: async (req) => {
+        if (req.purpose === 'write') prompts.push(req.user)
+        return goodWriter(req)
+      },
+    },
+  })
+  h.state.nightGames['2026-10-22'] = 3
+  await runNewsCycle(h.deps, h.opts)
+  const name = REPORTERS[h.items.get(1)!.reporter].name
+  assert.match(prompts[0]!, new RegExp(`${name} and Skater A are not on speaking terms`))
+})
+
+void test('feuds and crude lines: the writing rules say it, and the rules version moved', () => {
+  const all = SYSTEM_RULES.join('\n')
+  assert.match(all, /Never quote, paraphrase or hint at profanity, a slur, or a crude/)
+  assert.match(all, /The reporters never use profanity themselves/)
+  assert.match(all, /A feud stays professional and about hockey/)
+  assert.match(all, /never as a fact about the player/)
+  assert.match(all, /A request without a feud has none/)
+  assert.ok(NEWS_RULES_VERSION >= '2026-11-13.4', NEWS_RULES_VERSION)
+  // The block is empty for a reporter who is not in the request.
+  assert.equal(
+    feudsBlock([{ reporter: 'quill', player: 'Skater A', level: 'feud' }], ['voss']),
+    null,
+  )
 })

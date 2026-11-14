@@ -8,9 +8,12 @@ import {
 import type { InterviewAnswer, InterviewDetail } from '@eanhl/db/queries'
 import type { BotMessage } from '../bot-rest.ts'
 import { escapeMarkdown } from '../message.ts'
+import { crudeHit } from '../news/crude.ts'
 import { containsName } from '../news/fact-check.ts'
 import { FALLBACK_ACK, judgeAnswer, type ScrumHistoryEntry, type Usability } from './asker.ts'
 import type { PressConfig } from './config.ts'
+import { feudLevel, recordInsult } from './feuds.ts'
+import { OFFLIMITS_LOG, screenMessage } from './hard-lines.ts'
 import { askInterviewQuestion } from './interview-asker.ts'
 import {
   INTERVIEW_ANSWER_MS,
@@ -94,7 +97,7 @@ async function pressOff(deps: PressDeps, config: PressConfig): Promise<boolean> 
 /** Earlier answers as asker history: an unusable answer goes in as no answer. */
 export function interviewHistory(answers: readonly InterviewAnswer[]): ScrumHistoryEntry[] {
   return answers.map((a) =>
-    a.usability === 'unusable'
+    a.usability === 'unusable' || crudeHit(a.answer)
       ? { question: a.question, answer: null }
       : { question: a.question, answer: a.answer, usability: a.usability },
   )
@@ -403,6 +406,7 @@ export async function askNext(deps: PressDeps, config: PressConfig, id: number):
       return false
     }
     name = person.name
+    const feud = await feudLevel(deps, iv.playerId, iv.reporter, person.pressLevel)
     question = await askInterviewQuestion(
       deps.call,
       {
@@ -414,6 +418,7 @@ export async function askNext(deps: PressDeps, config: PressConfig, id: number):
         topic: iv.topic,
         history: interviewHistory(await st.listInterviewAnswers(id)),
         position,
+        feud,
       },
       pressRecorder(st),
     )
@@ -483,6 +488,8 @@ interface Verdict {
   end: boolean
   /** The model's reply line is not used (the judge failed, or only its line did): post a fixed line. */
   fixed: boolean
+  /** T5: the judge says the answer is off-limits: no reaction at all, nothing stored. */
+  offLimits: boolean
 }
 
 /** The night sheet for an answer, or null when it cannot be read. */
@@ -522,6 +529,7 @@ async function judge(
     closing: interviewClosing(iv.name),
     end: true,
     fixed: true,
+    offLimits: false,
   }
   const why = (what: string): void =>
     deps.log(
@@ -543,6 +551,7 @@ async function judge(
     }
     const earlier = await st.listInterviewAnswers(iv.id)
     const history = [...interviewHistory(earlier), { question, answer: null }]
+    const feud = await feudLevel(deps, iv.playerId, iv.reporter, person.pressLevel)
     const out = await judgeAnswer(
       deps.call,
       {
@@ -558,6 +567,7 @@ async function judge(
         answer,
         followUpAllowed: interviewFollowUpAllowed(iv),
         followUpMode: 'chased',
+        feud,
       },
       pressRecorder(st),
       (text, verdictKept) => {
@@ -575,6 +585,7 @@ async function judge(
       closing: out.closing,
       end: false,
       fixed: out.replyFailed || out.closedFail,
+      offLimits: out.offLimits,
     }
   } catch (err: unknown) {
     deps.log(`[press] interview ${String(iv.id)}: judge: ${reason(err)}`)
@@ -620,6 +631,15 @@ export async function onInterviewAnswerSubmit(
   const answer = Array.from(text.trim()).slice(0, ANSWER_MAX_CHARS).join('').trimEnd()
   if (answer === '') return say(TEXT.noAnswer)
   const question = iv.currentQuestion
+  // T5, hard lines: before any reaction, any claim and any echo; the question stays open. A
+  // plain "I'm done" cannot be off-limits and costs no check.
+  const screened = saysItIsOver(answer)
+    ? ({ offLimits: false, insult: 'none', reporter: null } as const)
+    : await screenMessage(deps, config, answer, iv.reporter)
+  if (screened.offLimits) {
+    deps.log(`[press] interview ${String(id)}: ${OFFLIMITS_LOG} (${screened.why})`)
+    return { kind: 'ack', offLimits: true }
+  }
   if (!(await st.claimInterviewAnswer({ id, ...seen, at: now }))) return say(TEXT.answered)
   const target = lineTarget(iv)
   const mention = iv.discordUserId
@@ -664,6 +684,30 @@ export async function onInterviewAnswerSubmit(
     }
   }
   const verdict = await judge(deps, config, st, iv, question, answer, sheet)
+  if (verdict.offLimits) {
+    // The judge's second line: off-limits after all. The question is open again, the echo (if
+    // any) is taken down, nothing is stored and nothing is said.
+    await st.updateInterview(id, { currentQuestion: question, lastAskedAt: iv.lastAskedAt })
+    if (opts.typed !== true && answerRef !== null) {
+      try {
+        await deps.discord.remove(iv.reporter, target, answerRef)
+      } catch (err: unknown) {
+        deps.log(`[press] interview ${String(id)}: echo not removed (${reason(err)})`)
+      }
+    }
+    deps.log(`[press] interview ${String(id)}: ${OFFLIMITS_LOG} (judge)`)
+    return { kind: 'ack', offLimits: true }
+  }
+  // T5, feuds: an insult at a reporter (not off-limits) adds points; "Leave me out" adds none.
+  if (!refused && screened.reporter !== null && sheet?.person !== undefined) {
+    await recordInsult(deps, {
+      playerId: iv.playerId,
+      reporter: screened.reporter,
+      insult: screened.insult,
+      pressLevel: sheet.person.pressLevel,
+      where: `interview ${String(id)}`,
+    })
+  }
   await store(verdict.usability)
 
   if (verdict.followUp !== null) {

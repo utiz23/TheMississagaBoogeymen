@@ -1,4 +1,10 @@
-import type { NewsFactsResponse, ReporterId } from '@eanhl/db/news'
+import {
+  FEUD_MAX_POINTS,
+  decayedPoints,
+  feudLevelOf,
+  type NewsFactsResponse,
+  type ReporterId,
+} from '@eanhl/db/news'
 import type {
   GmNoteUpdate,
   NewNewsGmNote,
@@ -22,6 +28,7 @@ import type {
 import type { BotMessage } from '../bot-rest.ts'
 import { escapeMarkdown } from '../message.ts'
 import { fallbackPool, type FallbackKind } from './fallbacks.ts'
+import type { MessageScreen, ScreenVerdict } from './hard-lines.ts'
 import type { ModelCall } from '../news/writer.ts'
 import { oct12Response } from '../news/test-fixtures.ts'
 import type { PressConfig } from './config.ts'
@@ -680,6 +687,50 @@ export class FakeStore implements PressStore {
     this.triggers.push(args)
     return Promise.resolve(args.itemId)
   }
+  /** T5: feud rows in memory (the same fade, add and cap as the SQL upsert). */
+  feudRows: { playerId: number; reporter: ReporterId; points: number; lastEventAt: Date }[] = []
+  failFeudWrites = false
+  /** Thread ids of press threads for `isPressThread` (default: the scrums' and nothing else). */
+  isPressThread = (threadId: string) =>
+    Promise.resolve(this.scrums.some((x) => x.threadId === threadId || x.messageId === threadId))
+  addFeudPoints = (args: { playerId: number; reporter: ReporterId; points: number; at: Date }) => {
+    if (this.failFeudWrites) return Promise.reject(new Error('feud table missing'))
+    const row = this.feudRows.find(
+      (r) => r.playerId === args.playerId && r.reporter === args.reporter,
+    )
+    if (row === undefined) {
+      this.feudRows.push({
+        playerId: args.playerId,
+        reporter: args.reporter,
+        points: Math.min(FEUD_MAX_POINTS, args.points),
+        lastEventAt: args.at,
+      })
+    } else {
+      row.points = Math.min(
+        FEUD_MAX_POINTS,
+        decayedPoints(row.points, row.lastEventAt, args.at) + args.points,
+      )
+      row.lastEventAt = args.at
+    }
+    return Promise.resolve()
+  }
+  listFeuds = (args: { now: Date; playerIds?: readonly number[] | null }) =>
+    Promise.resolve(
+      this.feudRows
+        .filter((r) => args.playerIds == null || args.playerIds.includes(r.playerId))
+        .map((r) => {
+          const points = decayedPoints(r.points, r.lastEventAt, args.now)
+          return {
+            playerId: r.playerId,
+            name: NAMES.get(r.playerId) ?? `Player ${String(r.playerId)}`,
+            reporter: r.reporter,
+            points,
+            level: feudLevelOf(points),
+            lastEventAt: r.lastEventAt,
+          }
+        })
+        .filter((r) => r.level !== 'none'),
+    )
   setHeat = (heat: 'cool' | 'normal' | 'hot', scope: 'next' | 'night', night: string | null) => {
     this.heatCalls.push({ heat, scope, night })
     this.settings = {
@@ -710,7 +761,12 @@ export function isPoolLine(
   )
 }
 
-export function setup(opts: { response?: NewsFactsResponse; model?: ModelCall } = {}) {
+/** The default fake screen: every message is fine and insults nobody. */
+export const SCREEN_OK: ScreenVerdict = { offLimits: false, insult: 'none', target: null }
+
+export function setup(
+  opts: { response?: NewsFactsResponse; model?: ModelCall; screen?: MessageScreen } = {},
+) {
   const store = new FakeStore()
   const sent: Sent[] = []
   const edits: { messageId: string; msg: Partial<BotMessage> }[] = []
@@ -719,6 +775,8 @@ export function setup(opts: { response?: NewsFactsResponse; model?: ModelCall } 
   const dms: { userId: string; content: string }[] = []
   const logs: string[] = []
   const modelCalls: unknown[] = []
+  /** Every message the fake screen saw: the text and the reporter it was sent to. */
+  const screened: { text: string; asker: ReporterId }[] = []
   let failSend: ((s: Sent) => boolean) | null = null
   let threadError: Error | null = null
   let n = 0
@@ -756,6 +814,12 @@ export function setup(opts: { response?: NewsFactsResponse; model?: ModelCall } 
         modelCalls.push(req)
         return Promise.reject(new Error('no model in this test'))
       }),
+    screen:
+      opts.screen ??
+      ((text, asker) => {
+        screened.push({ text, asker })
+        return Promise.resolve(SCREEN_OK)
+      }),
     log: (m) => logs.push(m),
     now: () => NOW,
   }
@@ -769,6 +833,7 @@ export function setup(opts: { response?: NewsFactsResponse; model?: ModelCall } 
     dms,
     logs,
     modelCalls,
+    screened,
     failSendWhen: (f: (s: Sent) => boolean) => {
       failSend = f
     },

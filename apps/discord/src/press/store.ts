@@ -59,6 +59,7 @@ import {
   updateScrumPerson,
   upsertAlias,
 } from '@eanhl/db/queries'
+import { feudDbStore } from './feud-db.ts'
 import { interviewDbStore } from './interview-db.ts'
 import { repliesDbStore } from './replies-db.ts'
 import type { PressStore } from './pass.ts'
@@ -69,6 +70,8 @@ export const pressDbStore: PressStore = {
   ...interviewDbStore,
   // The wire-reply methods (replies-store.ts): found by `replyStoreOf`.
   ...repliesDbStore,
+  // The feud methods (feud-store.ts): found by `feudStoreOf`.
+  ...feudDbStore,
   getPressSettings,
   setMirrorFrom,
   newestNewsItemId: async () => (await listAdminNewsItems(1))[0]?.id ?? null,

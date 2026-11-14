@@ -5,6 +5,7 @@ import {
   weightedPick,
   TAKE_REUSE_DAYS,
   dueTakes,
+  feudAtLeast,
   nightsOfWeek,
   planBuzz,
   REPORTER_IDS,
@@ -19,6 +20,7 @@ import {
   type ReporterId,
 } from '@eanhl/db/news'
 import type {
+  FeudRow,
   NewNewsItem,
   NewNewsStance,
   NewNewsUsage,
@@ -86,6 +88,7 @@ import {
   buildSystemPrompt,
   reactionItemText,
   type DeskContext,
+  type FeudStory,
   type NightPost,
   type OwnPiece,
   type TrustedMaterial,
@@ -210,6 +213,11 @@ export interface NewsStore {
   ): Promise<ReactionTriggerToRun[]>
   /** A not deleted item as its fan follow-up needs it, or null. */
   getReactionItem(id: number): Promise<ReactionItem | null>
+  /**
+   * T5: the reporter feuds of these players above "none" now. Optional: a store without it (or
+   * a database that has no feud table yet) means no feud storylines.
+   */
+  listFeuds?(args: { now: Date; playerIds: readonly number[] }): Promise<FeudRow[]>
 }
 
 /** One stored item on its way to Discord. */
@@ -340,6 +348,50 @@ function trustedOf(press: {
       reporter: q.reporter,
     })),
   }
+}
+
+/**
+ * T5: the feuds the recap or the column may use as a storyline: the writing reporter's feuds at
+ * "feud" level or above with players on the sheet who are at press level "full" ("Go easy" and
+ * "Leave me out" players never show up: nothing about a feud is used for them). At most 2.
+ */
+export function feudStoriesFor(
+  rows: readonly FeudRow[],
+  facts: NewsFacts,
+  reporter: ReporterId,
+): FeudStory[] {
+  const full = new Map(
+    facts.people.filter((p) => p.pressLevel === 'full').map((p) => [p.playerId, p]),
+  )
+  return rows
+    .filter((r) => r.reporter === reporter && feudAtLeast(r.level, 'feud') && full.has(r.playerId))
+    .slice(0, 2)
+    .map((r) => ({
+      reporter,
+      player: full.get(r.playerId)!.name,
+      level: r.level === 'war' ? ('war' as const) : ('feud' as const),
+    }))
+}
+
+/** The review's view of a feud storyline: the reporter's own view, not a fact about the player. */
+function feudTrusted(feuds: readonly FeudStory[]): TrustedMaterial['gmNotes'] {
+  return feuds.map(
+    (f) =>
+      `About ${f.player}: ${REPORTERS[f.reporter].name} and ${f.player} are ${f.level === 'war' ? 'at open war' : 'not on speaking terms'} (${REPORTERS[f.reporter].name}'s own view; the text may say so as that view, in one short line, with no detail of what was said)`,
+  )
+}
+
+/** The recap's trusted material for the review: the press material, plus the feud storylines. */
+function trustedWithFeuds(
+  press: { quotes: readonly PressQuote[]; gmNotes: readonly PressNote[] } | undefined,
+  feuds: readonly FeudStory[],
+): TrustedMaterial | undefined {
+  if (press === undefined && feuds.length === 0) return undefined
+  const base: TrustedMaterial =
+    press === undefined ? { gmNotes: [], answers: [] } : trustedOf(press)
+  return feuds.length === 0
+    ? base
+    : { gmNotes: [...base.gmNotes, ...feudTrusted(feuds)], answers: base.answers }
 }
 
 /** The people an item names, as stored: sheet names only, one entry per player. */
@@ -1315,6 +1367,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     let feature: { kind: FeatureKind; previousPrediction: string | null } | null = null
     /** Night recaps: the press material for the sheet's people (news desk bots). */
     let press: { quotes: PressQuote[]; gmNotes: PressNote[] } | undefined
+    /** T5: the writing reporter's feuds (feud level and above) with players on the sheet. */
+    let feuds: FeudStory[] = []
     try {
       const activity = await loadActivity(now)
       let zero = { tonight: [] as string[], previous: [] as string[] }
@@ -1336,6 +1390,15 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         reporterId = next.reporter
         feature = { kind: next.kind, previousPrediction: predictionToJudge(key, last) }
       }
+      // A feud is flavour: when it cannot be read, the piece is written without it.
+      if (store.listFeuds !== undefined) {
+        try {
+          const ids = facts.people.filter((p) => p.pressLevel === 'full').map((p) => p.playerId)
+          feuds = feudStoriesFor(await store.listFeuds({ now, playerIds: ids }), facts, reporterId)
+        } catch (err: unknown) {
+          log(`${tag}: feuds not read, none used (${message(err)})`)
+        }
+      }
       ctx = {
         criticizedTonight: tonight,
         zeroCalledTonight: zero.tonight,
@@ -1343,6 +1406,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         ownRecent: await ownRecentOf([reporterId]),
         ...(nightPosts === undefined ? {} : { nightPosts }),
         ...(press === undefined ? {} : { press }),
+        ...(feuds.length === 0 ? {} : { feuds }),
       }
       const who = reporterId
       mine = (await takesDue(res, now)).filter((t) => takeCritics(t).includes(who))
@@ -1377,7 +1441,9 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           [`By ${REPORTERS[reporterId].name}`, x.headline, x.dek, ...x.paragraphs].join('\n\n'),
         criticizedForReview: (x) => x.criticized,
         takesForReview: mine,
-        ...(press === undefined ? {} : { trusted: trustedOf(press) }),
+        ...(trustedWithFeuds(press, feuds) === undefined
+          ? {}
+          : { trusted: trustedWithFeuds(press, feuds)! }),
         facts,
       })
       if (written === 'end') return 'end'
@@ -1404,6 +1470,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           [`By ${REPORTERS[reporterId].name}`, f.headline, f.dek, featureBody(f, f)].join('\n\n'),
         criticizedForReview: (f) => f.criticized,
         takesForReview: mine,
+        ...(feuds.length === 0 ? {} : { trusted: { gmNotes: feudTrusted(feuds), answers: [] } }),
         facts,
       })
       if (written === 'end') return 'end'

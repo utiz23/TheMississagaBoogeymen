@@ -1,5 +1,6 @@
 import { interviewSlugKey, type ReporterId } from '@eanhl/db/news'
 import type { InterviewDetail } from '@eanhl/db/queries'
+import { crudeHitOutsideNames } from '../news/crude.ts'
 import { articleSlug } from '../news/messages.ts'
 import { NEWS_RULES_VERSION } from '../news/rules-version.ts'
 import type { PressConfig } from './config.ts'
@@ -220,8 +221,9 @@ async function writeArticle(
   const res = await deps.fetchFacts('night', iv.night)
   const person = res.facts.people.find((p) => p.playerId === iv.playerId)
   if (person === undefined) return skip('player not on the sheet')
+  // Rule C (T5): a crude answer is never printed, whatever its label says.
   const offered: OfferedAnswer[] = answers.flatMap((a) =>
-    a.usability === 'unusable'
+    a.usability === 'unusable' || crudeHitOutsideNames(a.answer, res.facts)
       ? []
       : [{ question: a.question, answer: a.answer, usability: a.usability }],
   )
