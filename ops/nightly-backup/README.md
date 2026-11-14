@@ -15,11 +15,11 @@ that day. A whole run takes about 30 seconds and doesn't interrupt the site.
 
 ## Where the copies are
 
-| Where | What is kept |
-|---|---|
-| `K:\eanhl-backups\daily\` | last 14 nights |
-| `K:\eanhl-backups\weekly\` | last 8 weekly copies (one per week) |
-| `K:\eanhl-backups\monthly\` | last 12 monthly copies (one per month) |
+| Where                                       | What is kept                                                                                |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `K:\eanhl-backups\daily\`                   | last 14 nights                                                                              |
+| `K:\eanhl-backups\weekly\`                  | last 8 weekly copies (one per week)                                                         |
+| `K:\eanhl-backups\monthly\`                 | last 12 monthly copies (one per month)                                                      |
 | Backblaze B2 bucket, folder `eanhl/<year>/` | 90 days (Backblaze's own lifecycle rule hides older copies, then deletes them 7 days later) |
 
 **Weekly and monthly copies.** The first successful run of each week (weeks
@@ -111,13 +111,13 @@ if EA still lists them (EA keeps roughly the last 5 games).
 ## Setup (one time per machine — already done on the main PC)
 
 1. **Backblaze B2** (backblaze.com, free tier): create a **private** bucket
-   with encryption enabled; under *Lifecycle Settings* use custom rules —
-   days till hide `90`, days till delete `7`. Under *Application Keys* add a
+   with encryption enabled; under _Lifecycle Settings_ use custom rules —
+   days till hide `90`, days till delete `7`. Under _Application Keys_ add a
    key limited to that bucket with access type **Write Only**, and copy both
    values (the application key is shown only once). Note: Backblaze's "Write
    Only" preset can still delete files in that bucket; it can't touch anything
    else in the account.
-2. **Healthchecks.io**: create a check with schedule *Cron* `0 3 * * *`,
+2. **Healthchecks.io**: create a check with schedule _Cron_ `0 3 * * *`,
    time zone `America/Edmonton`, grace time 2 hours. Copy its ping URL.
 3. **`.env`** in the project folder (never committed):
    ```
