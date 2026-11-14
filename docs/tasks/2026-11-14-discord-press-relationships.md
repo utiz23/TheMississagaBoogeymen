@@ -27,6 +27,11 @@ A teammate asked for bots that "glaze" the players. Operator: the natural opposi
   Box L4 makes it editable): scales the up and down steps and the starting lean (e.g. Rico Vale +2
   glazes easily; Gord Pettibone −2 almost never). Defaults set by the Lead from each reporter's voice;
   listed in the Report.
+- **Per-reporter range** (operator 2026-11-14: "some bots are more prone to conflict than others;
+  Father Rink should never engage in feuds"): besides the disposition, each reporter has a floor and a
+  ceiling on the scale (in the reporter definitions; L4 makes them editable). **Father Rink: floor =
+  neutral, never on the feud side (hard rule, tested).** Lead defaults for the others from their voice
+  (e.g. Pettibone and Mercer reach open war easily; Vale reaches glazing easily), listed in the Report.
 - **Effects:** warm/fan/glazing = warmer questions, more interviews and features for that player,
   over-the-top praise in that reporter's posts, recaps and columns ("Bergstrom has been on the Stick
   Menace bandwagon all month"); feud side as T5. Facts only from the sheet: glazing is tone, never
@@ -65,3 +70,5 @@ All checks pass and the tests pin the rules above.
 - 2026-11-14 Lead: written from the operator's request and approval.
 
 ## Report
+
+- 2026-11-14 operator: some reporters are more prone to conflict; Father Rink never feuds → per-reporter range added.
