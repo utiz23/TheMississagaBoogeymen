@@ -1,6 +1,6 @@
 # Task: L2 — Press Box: player dossiers and AI profiles
 
-- **State:** Running (since 2026-11-14 14:04; task agent of `Lead2`; Opus: AI text about players +
+- **State:** Verify (since 2026-11-14 14:36; task agent of `Lead2`; Opus: AI text about players +
   migration) (operator 2026-11-14 14:04: "start L2")
 - **Lane:** Web, Queries, Database (one migration), Discord (profile writer)
 - **Risk:** medium (AI text about players; actions on players' press)
@@ -66,3 +66,27 @@ All checks pass; screenshots match the mock-up.
 Resume: web pages (`/admin/press-box/players`, `/players/[id]`), dossier actions, tab link, tests, screenshots.
 
 ## Report
+
+**What changed.** Migration 0081 (table `news_player_profiles`; request kinds `profile` and `interview` with target, reporter and topic columns). Db: `press-box-dossiers.ts` (index, dossier read, audited actions, request queue, profile store). Press service: `news/profile.ts` (profile writer) and `press/box-requests-profile.ts` (profile and interview handlers, dispatched from `box-requests.ts`). Web: `/admin/press-box/players` (index) and `/players/[id]` (dossier); the Dossiers tab points there.
+
+**Decisions to know.**
+
+- "One call" = one click makes ONE write and ONE review through `writeChecked` (`maxWrites` 1, no rewrite loop). That is 2 model requests, both recorded in `news_ai_usage`; the stored profile cost is their sum. A failed check stores nothing and the click can be repeated. If the Lead wants a literal single request (no review), say so.
+- Profile rules: hockey only, no digits or number words, no quotation marks and no 4-word copy of an answer, only the person and reporters named, clean language (writer's crude check). Go easy: no-criticism rule in system prompt, person line and review; critical takes and feud levels are not offered. Leave me out: refused before any read of their words or any model call, in the press service, the db material query and the page (identity only, no profile shown even if one was stored earlier).
+- The press 80% extras stop applies to profiles.
+- GM note from the web: refused for Go easy (needs the Discord criticism check) and for Leave me out, and when the text names a Leave me out player. Note is for tonight's night, `critical` false, no model analysis. The audit line holds the note id, not its text.
+- Press level can be set for a player by the admin, including out -> full or easy (logged "set for the player by the admin"; the line says when the player had set it). The operator may want to forbid raising a player's own Leave me out.
+- Bench people and coach: listed in the index and have a read-only dossier (quotes, interviews, scrums) plus profile and interview requests; no press level, nicknames, notes or relationships. Live has none yet.
+- Takes/stances shown read only (L3 edits). Stance rows are matched to the player by the id inside the thread key.
+- Unusable answers: counts only. The quote SQL selects text only for usable/joke, the count SQL has no text column, `splitAnswers` drops text of unusable rows, no field in the dossier type can carry it.
+
+**Checks (all in the worktree, after rebase on main).** db typecheck, web typecheck, discord typecheck clean. db new tests 11 pass, press-box tests 15 pass; web unit 719 pass, 0 fail (32 in press-box); discord 864 pass, 0 fail (new: 9 in `news/profile.test.ts`, 7 in `box-requests.test.ts`). `pnpm format:check`: my files clean; the 2 code warnings (`apps/worker/src/__tests__/health-endpoint.test.ts`, `packages/db/src/queries/archive-season-detail.ts`) and the docs/research warnings are on main already. db full `dist/**` run: 3 fails in `action-tracker-provenance`, `match-lineups-cpu`, `run-quality` (not touched by this task; they need a database).
+**Not run:** migration 0081 itself (no Postgres on this PC; hand-checked against 0080, idempotent, rollback in header); worker integration tests; `pnpm lint` (red repo-wide); any real model call.
+
+**Screenshots** (live DB, read-only tunnel; live has no relationships and no Go easy/Leave me out players, so those states are covered by tests, not pictures): `/tmp/claude-1000/-home-michal-projects-eanhl-team-website/a2a7873b-2807-4e71-85a1-f9e79d57ba31/scratchpad/shots-l2/index.png`, `dossier-silky.png` (matches mock: 48 goals, 106 assists, 110 GP, "2 goals from 50"), `dossier-silky-phone.png` (390 px), `dossier-erb.png`. Live lacks migration 0081, so the pages degrade (profile "not written yet").
+
+**Paths outside "May edit":** none. (`packages/db/src/queries/index.ts` got one export line: it is under `queries/`.)
+
+**Deploy order:** migration 0081 on live (operator OK, backup first) -> press service (needs `packages/db` rebuilt) -> web. Never web before press: the old press service runs every request as a test scrum. Discord `news` desk is unchanged.
+
+**Not done:** editing takes (L3); bench-person profile has no live test data; no screenshot of a written profile (cannot write to live).
