@@ -200,6 +200,9 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       PRESS_MODE: ${PRESS_MODE:-}
       PRESS_POLL_INTERVAL_MS: ${PRESS_POLL_INTERVAL_MS:-15000}
+      # Typed answers in scrum threads: only 1 turns on Barlow's Message Content intent
+      # (the portal switch must be on first, or Discord refuses Barlow's login).
+      PRESS_TYPED_ANSWERS: ${PRESS_TYPED_ANSWERS:-}
       PRESS_TOKEN_BARLOW: ${PRESS_TOKEN_BARLOW:-}
       PRESS_TOKEN_VOSS: ${PRESS_TOKEN_VOSS:-}
       PRESS_TOKEN_MERCER: ${PRESS_TOKEN_MERCER:-}

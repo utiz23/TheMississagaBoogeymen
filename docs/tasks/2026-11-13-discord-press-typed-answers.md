@@ -1,6 +1,6 @@
 # Task: T1 — typed scrum answers, 15-minute accept, softer answer judge
 
-- **State:** Verify (task agent done 2026-11-13; the Lead repeats the checks)
+- **State:** Merged (task agent done 2026-11-13; the Lead repeats the checks)
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** medium (live bots in the team channel; reads messages in scrum threads)
 - **Slug:** press-typed-answers (branch `work/press-typed-answers`, worktree
@@ -149,3 +149,9 @@ model gave a valid usable/joke verdict and only the reply text failed, keep the 
 - No live check of the new prompt on real answers; the rule text is tested, the model's verdicts are not.
 - Deploy: `press` only (shared code under `apps/discord/src/news/` not changed; `packages/db` changed, so
   the image must be rebuilt anyway).
+- 2026-11-13 Lead review: diff read (typed path reuses `onAnswerSubmit`; ignores bots, edits, non-thread
+  and non-asked users; intents only with the flag). Added `PRESS_TYPED_ANSWERS` to the `press` service
+  in `docker-compose.yml` (outside the agent's paths). Re-ran: typecheck db/discord/web pass; discord
+  583/583; news-press 39/39. Known: two quick messages → only the first counts. Not changed: a fine
+  verdict is still lost when the reporter's reply line fails review (ruling 10); the new log lines will
+  show how often. MCI confirmed ON for Wade Barlow (application flags).
