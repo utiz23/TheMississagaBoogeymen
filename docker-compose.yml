@@ -86,9 +86,9 @@ services:
       # Shown on /admin/news ("spent of limit"); the news service has its own copy.
       NEWS_MONTHLY_LIMIT_USD: ${NEWS_MONTHLY_LIMIT_USD:-20}
       # Live events (E1): POST /api/internal/live-events. Unset or short = the
-      # route refuses everyone (503). The route reaches the main PC through
-      # `tailscale serve` on the host (forwards to loopback port 3000); Docker
-      # publishes no extra port. docs/operations/runbooks/live-events.md
+      # route refuses everyone (503). A sender on the main PC reaches it through
+      # `tailscale serve` on the host (tailnet port 3100 -> loopback port 3000);
+      # Docker publishes no extra port. docs/operations/runbooks/live-events.md
       LIVE_EVENTS_TOKEN: ${LIVE_EVENTS_TOKEN:-}
       LIVE_EVENTS_HMAC_KEY: ${LIVE_EVENTS_HMAC_KEY:-}
     ports:
