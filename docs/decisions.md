@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 15:36 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 15:37 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -55,6 +55,8 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 15:37 · "blank fact sheets for everyone. Start from scratch, throw those 55 answers out" → no
+  camrazz import (replaces D13 b); every player starts with no facts; the question bank stays.
 - 2026-11-14 15:35 · Club Finals: "club finals page not approved. This can just be a component on the home
   page" → CF1 reworked (no page, no nav link). "The rest are approved" → CF1 badges; B1 screenshots, typed
   facts confirmed at once, camrazz's 55 answers imported as proposed facts (B2). B1 merged.
