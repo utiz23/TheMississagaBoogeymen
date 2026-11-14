@@ -1,14 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 15:43 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 15:45 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                                                                        | My advice | Waiting costs            |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------ |
+| D16 | Club Finals CF1, reworked: the Club Finals component at the top of the home page (sent). OK = I merge; the deploy (backup, 0083, worker, web) is a separate OK. | Yes       | CF2 and CF3 wait for CF1 |
 
 ## 2. Right now
 
@@ -21,7 +21,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights. |
 | Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                              |
 | Player background B1                            | LIVE since 15:41: a Background section on every dossier; 352 questions, every fact sheet blank. B2 (bots ask) running.  |
-| Club Finals (playoffs) CF1                      | verified; being changed: no separate page, a Club Finals component on the home page instead. Badges approved.           |
+| Club Finals (playoffs) CF1                      | reworked as a home-page component (no page, no nav link); checks pass; waits for your OK (D16)                          |
 | News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                        |
 | Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                               |
 
