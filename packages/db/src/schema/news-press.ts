@@ -294,11 +294,18 @@ export const newsPressSettings = pgTable(
     /** Trial mirror: only items with a larger id are copied (history is never mirrored). */
     mirrorFromItemId: bigint('mirror_from_item_id', { mode: 'number' }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Press Box (migration 0080): the press service writes its mode and the time on every pass. */
+    pressMode: text('press_mode').$type<'trial' | 'live'>(),
+    pressSeenAt: timestamp('press_seen_at', { withTimezone: true }),
   },
   (table) => [
     check('news_press_settings_single_row_check', sql`${table.id} = 1`),
     check('news_press_settings_heat_check', sql`${table.heat} IN ('cool', 'normal', 'hot')`),
     check('news_press_settings_heat_scope_check', sql`${table.heatScope} IN ('next', 'night')`),
+    check(
+      'news_press_settings_press_mode_check',
+      sql`${table.pressMode} IS NULL OR ${table.pressMode} IN ('trial', 'live')`,
+    ),
   ],
 )
 

@@ -66,6 +66,7 @@ import { relationshipDbStore } from './relationship-db.ts'
 import { interviewDbStore } from './interview-db.ts'
 import { repliesDbStore } from './replies-db.ts'
 import { testScrumDbStore } from './test-scrum-db.ts'
+import { boxRequestDbStore } from './box-requests-db.ts'
 import type { PressStore } from './pass.ts'
 
 /** The press store on the database (the `@eanhl/db` queries). */
@@ -76,6 +77,8 @@ export const pressDbStore: PressStore = {
   ...repliesDbStore,
   // The test scrum methods (test-scrum-store.ts): found by `testScrumStoreOf`.
   ...testScrumDbStore,
+  // Press Box requests from the admin page (migration 0080).
+  ...boxRequestDbStore,
   // The relationship methods (relationship-store.ts): found by `relationshipStoreOf`.
   ...relationshipDbStore,
   getPressSettings,

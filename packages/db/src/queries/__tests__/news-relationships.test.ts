@@ -19,6 +19,7 @@ void test('schema: one row per player and reporter; points only, no message text
   const cfg = getTableConfig(newsPressRelationships)
   assert.equal(cfg.name, 'news_press_relationships')
   assert.deepEqual(cfg.checks.map((c) => c.name).sort(), [
+    'news_press_relationships_override_level_check',
     'news_press_relationships_points_check',
     'news_press_relationships_reporter_check',
   ])
@@ -30,7 +31,18 @@ void test('schema: one row per player and reporter; points only, no message text
     ['player_id', 'reporter'],
   )
   const cols = cfg.columns.map((c) => c.name).sort()
-  assert.deepEqual(cols, ['id', 'last_event_at', 'player_id', 'points', 'reporter', 'updated_at'])
+  // 0080 (Press Box) adds frozen, override_level and override_reason: still no message text.
+  assert.deepEqual(cols, [
+    'frozen',
+    'id',
+    'last_event_at',
+    'override_level',
+    'override_reason',
+    'player_id',
+    'points',
+    'reporter',
+    'updated_at',
+  ])
 })
 
 void test('migration 0078: renames T5 table, maps points to negative, signed check, idempotent, rollback in the header', () => {
@@ -81,6 +93,8 @@ void test('addRelationshipPoints: one signed upsert that fades toward zero, adds
     f,
     /greatest\(-\$\d+::numeric, least\(\$\d+::numeric, news_press_relationships\.points/,
   )
+  // Press Box (0080): a frozen pair takes no new points.
+  assert.match(f, /where news_press_relationships\.frozen = false/)
   assert.ok(params.includes(4))
   assert.ok(params.includes('mercer'))
   assert.ok(params.includes(-2))

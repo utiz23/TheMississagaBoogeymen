@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import {
   bigserial,
+  boolean,
   check,
   integer,
   numeric,
@@ -11,6 +12,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { players } from './players.js'
 import type { NewsReporterId } from './news.js'
+import type { RelLevel } from '../news/relationships.js'
 
 /**
  * The relationship between a player and a reporter (T9, migration 0078; the
@@ -35,11 +37,21 @@ export const newsPressRelationships = pgTable(
     points: numeric('points', { precision: 6, scale: 2, mode: 'number' }).notNull(),
     lastEventAt: timestamp('last_event_at', { withTimezone: true }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Press Box (migration 0080): the points neither change nor fade while true. */
+    frozen: boolean('frozen').notNull().default(false),
+    /** Press Box (migration 0080): the level the GM pinned; the writers see this, not the points' level. */
+    overrideLevel: text('override_level').$type<RelLevel>(),
+    /** Why the GM pinned it (shown in the Press Box only). */
+    overrideReason: text('override_reason'),
   },
   (table) => [
     unique('news_press_relationships_player_reporter_uniq').on(table.playerId, table.reporter),
     check('news_press_relationships_reporter_check', sql.raw(`"reporter" IN (${REPORTER_LIST})`)),
     check('news_press_relationships_points_check', sql`${table.points} between -12 and 12`),
+    check(
+      'news_press_relationships_override_level_check',
+      sql`${table.overrideLevel} IS NULL OR ${table.overrideLevel} IN ('war', 'feud', 'simmering', 'neutral', 'warm', 'fan', 'glazing')`,
+    ),
   ],
 )
 

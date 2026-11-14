@@ -32,6 +32,7 @@ import { fallbackLine } from './fallbacks.ts'
 import type { MessageScreen } from './hard-lines.ts'
 import type { PressConfig } from './config.ts'
 import { runInterviewPass } from './interview-pass.ts'
+import { runBoxRequests } from './box-requests.ts'
 import { latestPlayerMessage } from './player-latest.ts'
 import { threadLine } from './question.ts'
 import { isTestScrum } from './test-scrum-rules.ts'
@@ -558,6 +559,11 @@ export async function runPressPass(
   // ── 7. Interviews (interview-pass.ts): offers, expiry, automatic offer, articles ──
   await step('interviews', async () => {
     await runInterviewPass(deps, config)
+  })
+
+  // ── 8. Press Box (box-requests.ts): report the mode, do requests from the admin page ──
+  await step('box requests', async () => {
+    await runBoxRequests(deps, config)
   })
 
   return summary

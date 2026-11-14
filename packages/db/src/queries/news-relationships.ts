@@ -1,12 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../client.js'
-import {
-  REL_HALF_LIFE_DAYS,
-  REL_MAX_POINTS,
-  decayedPoints,
-  relLevelAt,
-  type RelLevel,
-} from '../news/relationships.js'
+import { REL_HALF_LIFE_DAYS, REL_MAX_POINTS, type RelLevel } from '../news/relationships.js'
+import { effectiveLevel, shownPoints } from './press-box.js'
 import type { NewsReporterId } from '../schema/index.js'
 
 // Reporter relationship queries (T9, migration 0078; T5's feud queries, signed). `addRelationshipPointsSql`
@@ -42,7 +37,8 @@ export function addRelationshipPointsSql(args: {
           greatest(0, extract(epoch from (${at}::timestamptz - news_press_relationships.last_event_at)))::numeric
             / (${REL_HALF_LIFE_DAYS}::numeric * 86400)) + ${args.points}::numeric)),
       last_event_at = ${at}::timestamptz,
-      updated_at = ${at}::timestamptz`
+      updated_at = ${at}::timestamptz
+    where news_press_relationships.frozen = false`
 }
 
 /** Adds signed points (a step toward favour is positive, toward feud negative). Nothing for 0. */
@@ -76,11 +72,13 @@ export function listRelationshipRowsSql(now: Date, playerIds: readonly number[] 
           sql`, `,
         )})`
   return sql`
-    select f.player_id, ${DISPLAY_NAME} as name, f.reporter, f.points, f.last_event_at
+    select f.player_id, ${DISPLAY_NAME} as name, f.reporter, f.points, f.last_event_at,
+      f.frozen, f.override_level, f.override_reason
     from news_press_relationships f
     join players p on p.id = f.player_id
     left join player_profiles pp on pp.player_id = f.player_id
-    where f.last_event_at > ${now.toISOString()}::timestamptz - make_interval(days => ${REL_READ_DAYS})
+    where (f.last_event_at > ${now.toISOString()}::timestamptz - make_interval(days => ${REL_READ_DAYS})
+      or f.frozen or f.override_level is not null)
       ${only}
     order by f.player_id, f.reporter`
 }
@@ -101,16 +99,27 @@ export async function listRelationships(args: {
     reporter: NewsReporterId
     points: string | number
     last_event_at: Date | string
+    frozen: boolean
+    override_level: RelLevel | null
+    override_reason: string | null
   }>(listRelationshipRowsSql(args.now, ids))
   return rows
     .map((r): RelationshipRow => {
       const lastEventAt = new Date(r.last_event_at)
+      // Press Box (0080): a frozen pair does not fade; a pinned level is the level the writers see.
+      const state = {
+        points: num(r.points),
+        lastEventAt,
+        frozen: r.frozen,
+        overrideLevel: r.override_level,
+        overrideReason: r.override_reason,
+      }
       return {
         playerId: num(r.player_id),
         name: r.name,
         reporter: r.reporter,
-        points: decayedPoints(num(r.points), lastEventAt, args.now),
-        level: relLevelAt({ points: num(r.points), lastEventAt }, r.reporter, args.now),
+        points: shownPoints(state, args.now),
+        level: effectiveLevel(state, r.reporter, args.now),
         lastEventAt,
       }
     })

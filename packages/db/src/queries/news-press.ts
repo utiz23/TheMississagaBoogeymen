@@ -1267,6 +1267,8 @@ const DEFAULT_PRESS_SETTINGS: NewsPressSettingsRow = {
   heatNight: null,
   mirrorFromItemId: null,
   updatedAt: new Date(0),
+  pressMode: null,
+  pressSeenAt: null,
 }
 
 /** The settings row; defaults when the migration's seed row is missing. */

@@ -127,6 +127,8 @@ export class FakeStore implements PressStore {
     heatNight: null,
     mirrorFromItemId: null,
     updatedAt: new Date(0),
+    pressMode: null,
+    pressSeenAt: null,
   }
   items: NewsItemRow[] = []
   mirrors: { itemId: number; channelId: string; messageId: string; deletedAt: Date | null }[] = []

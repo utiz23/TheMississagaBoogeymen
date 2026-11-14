@@ -55,7 +55,12 @@ All checks pass; screenshots match the mock-up's layout; every action is admin-o
   adds `packages/db/src/schema/live-events.ts` + an export in the schema index): if both edit the same
   schema index line, whoever merges second rebases. Only the live database's mode stays read-only in the
   preview. Running beside E1 and backup hardening.
+- 2026-11-14 03:31 Task agent: branch `work/press-box-l1`, worktree `.claude/worktrees/press-box-l1`. Read design and mock-up.
+  Built migration 0080 (audit, frozen/override columns, press requests, press mode), schema, `queries/press-box.ts`
+  (rules + audit in one transaction), freeze/override read by `listRelationships`, press-side reader
+  `box-requests.ts` (the web page cannot post to Discord, so the test-scrum button queues a request that the
+  press pass runs; needs a `press` deploy). db tests 20/20, discord box tests 5/5.
 
-Resume: task agent makes the branch and worktree, reads the design §3.1/§3.3 and the mock-up, then builds.
+Resume: build the web pages (`/admin/press-box` shell, overview, relationships board, actions + tests), then screenshots, checks, rebase, Report.
 
 ## Report
