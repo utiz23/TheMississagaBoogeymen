@@ -104,3 +104,12 @@ as EA lists the game (often about 1 minute after the end) instead of waiting for
 2. **Order:** approved — E1–E3 now (website first; the OBS sender after OBS-EC, with an engine card and
    the operator's OK for his match sorter); E4–E5 when the engine is live.
 3. **Big moments:** the list in E5 is right; adjust later.
+4. **EA load at the horn** (operator, 2026-11-14 03:18, "lets go with your advice"): E1 checks only
+   the EA match lists, at once and at +1, +2, +4, +8 min (worst case ~15 extra EA calls per game), not
+   a full pass every 30 s. The normal 5-minute pass is unchanged.
+5. **Goal ticker = template, no AI** (operator, 2026-11-14 03:27, "agreed"): E5's live goal line is a
+   fixed template from the `goal` event (score, scorer, assists, time, period), posted at once, so it
+   is fast, exact, free, and works when the Claude service is down or the cap is reached. AI is used
+   only around it: a reporter's one-line comment on big moments, intermission interviews, and the
+   recap after the game. The ticker is marked as a live reading; the EA game post stays the final
+   word. Open for E5: correct or delete a wrong or overturned goal line.

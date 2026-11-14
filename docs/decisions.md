@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 03:22 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 03:27 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -49,6 +49,8 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 · Live goal ticker: "agreed" → a fixed template line, no AI; AI only for big-moment
+  comments, intermission interviews and the recap. EA's game post stays the final word.
 - 2026-11-14 · "Proceed with both" → Press Box L1 and backup hardening started (3 task agents with E1).
 - 2026-11-14 · Task agents at once: "I typically run 3 tasks at once, but you can petition me for more
   or less" → limit 3 (was 2); the Lead may ask for more or fewer.
