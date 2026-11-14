@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-13** (Lead). All tasks: `docs/board.md`.
+Last update: **2026-11-13, press bots** (Lead). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -13,17 +13,19 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 ## 2. Your to-dos (only you can do these)
 
 - **Name the Lead chat tab** (for example `website-lead`) and tell the Lead, so task chats can find it.
-- **Anthropic workspace limit:** set it to $60 a month to match the news desk cap (you said yes on
-  11-09). November so far: $15.17.
+- **Press bots:** 9 bots made, tokens and IDs set on Hotel-Echo (11-14), `#bot-test` ready. Left:
+  1. Optional but advised: a Codex second opinion on `work/press-bots` before release.
+  2. Your OK to release (see the Lead's plan): backup → new tables (0072) → deploy → trial night.
+- **Anthropic workspace limit:** set it to $100 a month to match the news desk cap ($100 on
+  Hotel-Echo since 11-13; scrums stop at $80). November so far: $15.17.
 
 ## 3. Can start when you say so
 
-| Item                                             | Size  | Note                                                                                            |
-| ------------------------------------------------ | ----- | ----------------------------------------------------------------------------------------------- |
-| Press bots, release 1 (scrums, quotes, GM notes) | large | Built on `feat/news-desk-bots` (30 commits). First step: you read and approve the privacy text. |
-| Backup hardening (Codex review, 10-09)           | small | Weekly/monthly copies after a missed Sunday/1st; a lock for manual + scheduled runs.            |
-| Remove the merged `feat/news-desk` worktree      | tiny  | Clean-up only.                                                                                  |
-| Contribution Wheel hydration warning             | small | Old warning in the browser console; no visible fault.                                           |
+| Item                                        | Size  | Note                                                                                 |
+| ------------------------------------------- | ----- | ------------------------------------------------------------------------------------ |
+| Backup hardening (Codex review, 10-09)      | small | Weekly/monthly copies after a missed Sunday/1st; a lock for manual + scheduled runs. |
+| Remove the merged `feat/news-desk` worktree | tiny  | Clean-up only.                                                                       |
+| Contribution Wheel hydration warning        | small | Old warning in the browser console; no visible fault.                                |
 
 ## 4. Watch (no action now)
 
