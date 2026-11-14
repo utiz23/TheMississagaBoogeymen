@@ -34,6 +34,7 @@ import type { PressConfig } from './config.ts'
 import { runInterviewPass } from './interview-pass.ts'
 import { latestPlayerMessage } from './player-latest.ts'
 import { threadLine } from './question.ts'
+import { isTestScrum } from './test-scrum-rules.ts'
 import { replyingTo } from './reply-ref.ts'
 import {
   PRESS_ACCEPT_MS,
@@ -485,7 +486,11 @@ export async function runPressPass(
         const target = p.discordUserId
         const text = `<@${target}> — ${reporterName(scrum.reporter)} has a question for you about tonight's game.`
         const messageId = await discord.send(scrum.reporter, scrum.channelId, {
-          content: scrum.isTest ? `(trial) ${text}` : text,
+          content: isTestScrum(scrum)
+            ? `(test scrum) ${text}`
+            : scrum.isTest
+              ? `(trial) ${text}`
+              : text,
           allowed_mentions: { parse: [], users: [target] },
           components: [{ type: 1, components: [acceptButton(p.id)] }],
           message_reference: { message_id: scrum.messageId, fail_if_not_exists: false },

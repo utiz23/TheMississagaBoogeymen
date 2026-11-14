@@ -7,6 +7,7 @@ import { onInterviewAnswerSubmit } from './interview.ts'
 import { interviewStoreOf } from './interview-store.ts'
 import { onAnswerSubmit, type Reply } from './interactions.ts'
 import type { PressDeps } from './pass.ts'
+import { testScrumStoreOf } from './test-scrum-store.ts'
 
 export { replyingTo } from './reply-ref.ts'
 
@@ -96,6 +97,9 @@ async function insultFromThread(
   try {
     const hit = codeInsult(msg.text)
     if (hit === null) return
+    // T8: a test scrum's thread gives no feud points.
+    const test = testScrumStoreOf(deps.store)
+    if (test !== null && (await test.isTestScrumThread(msg.threadId))) return
     // Only a press thread (a scrum or an interview): not any other thread of the guild.
     const feuds = feudStoreOf(deps.store)
     // T6: a player's own scrum thread counts too (the owner's message only reaches here).

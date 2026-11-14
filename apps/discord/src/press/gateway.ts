@@ -42,6 +42,7 @@ import {
 } from './interactions.ts'
 import type { PressDeps, PressDiscordOps } from './pass.ts'
 import { onReaction } from './reactions.ts'
+import { onGmTestScrum } from './test-scrum.ts'
 import { messageFromRaw } from './replies-raw.ts'
 import { onThreadMessage, type ReferencedMessage, type ThreadMessage } from './replies.ts'
 import { joinOpenThreads, joinThread, withBarlowJoin } from './thread-join.ts'
@@ -210,6 +211,29 @@ export function commandDefinitions(): RESTPostAPIChatInputApplicationCommandsJSO
             },
           ],
         },
+        {
+          type: ApplicationCommandOptionType.Subcommand,
+          name: 'testscrum',
+          description: 'A free test scrum in the bot test channel (no AI)',
+          options: [
+            {
+              type: ApplicationCommandOptionType.Integer,
+              name: 'game',
+              description: 'The match id (default: the latest game)',
+              min_value: 1,
+            },
+            ...['player', 'player2', 'player3', 'player4'].map((name) => ({
+              type: ApplicationCommandOptionType.User as const,
+              name,
+              description: name === 'player' ? 'Who the press pings (default: you)' : 'Another one',
+            })),
+            {
+              type: ApplicationCommandOptionType.User,
+              name: 'bench',
+              description: 'Someone to treat as watching from the call',
+            },
+          ],
+        },
       ],
     },
   ]
@@ -251,6 +275,8 @@ export type InteractionInput =
       subcommand: string | null
       userId: string
       options: Record<string, string | number | boolean>
+      /** The guild the command ran in (null: a DM). Absent: not known (only `/gm testscrum` needs it). */
+      guildId?: string | null
     }
 
 /** The responses the router uses. Every reply is private (ephemeral). */
@@ -276,6 +302,7 @@ export interface PressHandlers {
   onGmNoteCorrect: typeof onGmNoteCorrect
   onGmNoteCancel: typeof onGmNoteCancel
   onGmHeat: typeof onGmHeat
+  onGmTestScrum: typeof onGmTestScrum
 }
 
 const HANDLERS: PressHandlers = {
@@ -289,6 +316,7 @@ const HANDLERS: PressHandlers = {
   onGmNoteCorrect,
   onGmNoteCancel,
   onGmHeat,
+  onGmTestScrum,
 }
 
 /** How the first response is made: a private defer, an update defer, or none (Answer). */
@@ -393,6 +421,22 @@ export function createRouter(args: {
             if (heat === undefined || sc === undefined) throw new Error('bad heat option')
             return h.onGmHeat(deps, config, u, heat, sc)
           },
+        }
+      }
+      if (input.name === 'gm' && input.subcommand === 'testscrum') {
+        return {
+          kind: 'gm testscrum',
+          open: 'reply',
+          run: () =>
+            h.onGmTestScrum(deps, config, u, {
+              // Fail closed: only a command known to run in the press guild counts.
+              inGuild: input.guildId === config.guildId,
+              game: option<number>(o, 'game', 'number'),
+              players: ['player', 'player2', 'player3', 'player4']
+                .map((name) => option<string>(o, name, 'string'))
+                .filter((v): v is string => v !== null),
+              bench: option<string>(o, 'bench', 'string'),
+            }),
         }
       }
       return null
@@ -659,6 +703,7 @@ function adapt(i: Interaction): { input: InteractionInput; port: InteractionPort
       subcommand: i.options.getSubcommand(false),
       userId,
       options: flatOptions(i.options.data),
+      guildId: i.guildId,
     }
   }
 

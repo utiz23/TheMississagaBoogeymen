@@ -10,7 +10,7 @@ import type { BenchRole } from './bench.ts'
  * scrum thread (while the pool lasts, per `owner`).
  */
 
-export type FallbackKind = 'question' | 'closing' | 'ack'
+export type FallbackKind = 'question' | 'closing' | 'ack' | 'followup'
 
 /** A question fallback: the asked player's name goes in. */
 type QuestionLine = (name: string) => string
@@ -208,6 +208,67 @@ const ACKS: Record<ReporterId, readonly string[]> = {
 }
 
 /**
+ * T8: the follow-up of a test scrum (no model writes one there). Neutral: it asks for more of
+ * the last answer and names nothing, no number and no play.
+ */
+const FOLLOWUPS: Record<ReporterId, readonly string[]> = {
+  barlow: [
+    'Stay with that for a second. What did you see?',
+    'Give me a little more on that.',
+    'Take me through that part again.',
+    'And what did that look like from where you stood?',
+  ],
+  voss: [
+    'How did that sit with you afterwards?',
+    'Say a little more about how that felt.',
+    'What was going through your mind there?',
+    'Did that change the mood for you?',
+  ],
+  mercer: [
+    'Is that all you have? Say it plainly.',
+    'That dodged half of it. Try again.',
+    'Come on, give me the real answer.',
+    'And whose fault was that, honestly?',
+  ],
+  halberd: [
+    'What is the detail behind that?',
+    'Walk me through the reasoning there.',
+    'What would you adjust to make that work?',
+    'Where exactly did that start?',
+  ],
+  vale: [
+    'Ooh, say more! What happened next?',
+    'Wait, back up. Give me the good part!',
+    'And then? Do not leave us hanging!',
+    'Hold on, that is a story. Tell it!',
+  ],
+  quill: [
+    'Can you put that more precisely?',
+    'What is the one detail that explains it?',
+    'Which part of that matters most?',
+    'And what does that mean for the next game?',
+  ],
+  rink: [
+    'What does the ice say about that?',
+    'Go on. The rink is listening.',
+    'And what stays with you from it?',
+    'Say more. The boards remember.',
+  ],
+  pettibone: [
+    'That is thin. What else?',
+    'Give me something I can actually print.',
+    'Is that the full story, or the polite one?',
+    'Try that again, with feeling.',
+  ],
+  bergstrom: [
+    'And what does that ask of the team?',
+    'How do you answer that next time?',
+    'What would the best version of that look like?',
+    'Tell me more about the effort in that moment.',
+  ],
+}
+
+/**
  * T6: the line a reporter posts under the recap when a player steps up to the mic ("Talk to the
  * press", `/scrum`): the player's own scrum thread starts from it. `who` is the player's mention.
  * No numbers, no other name.
@@ -239,6 +300,7 @@ export function fallbackPool(
 ): string[] {
   if (kind === 'question' && bench !== undefined) return BENCH_QUESTIONS[bench].map((q) => q(name))
   if (kind === 'question') return QUESTIONS[reporter].map((q) => q(name))
+  if (kind === 'followup') return [...FOLLOWUPS[reporter]]
   return [...(kind === 'closing' ? CLOSINGS : ACKS)[reporter]]
 }
 

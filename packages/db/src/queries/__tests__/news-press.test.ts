@@ -69,6 +69,10 @@ const {
   gmAsksForMatchQuery,
   gmAskForPlayerQuery,
   gmAskForUserQuery,
+  TEST_SCRUM_BUZZ,
+  testScrumThreadSql,
+  insertTestRecapItemQuery,
+  deleteTestRecapItemQuery,
 } = await import('../news-press.js')
 const { nightCriticizedSql } = await import('../news.js')
 const dialect = new PgDialect()
@@ -841,4 +845,49 @@ void test('migration 0073: idempotent, additive, header with how to apply and th
     sqlText,
     /'barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom'/,
   )
+})
+
+// ── T8: the test scrum (`/gm testscrum`) ────────────────────────────────────
+
+void test('test scrum: the marker is left out of the night recap, its wait and /scrum', () => {
+  assert.equal(TEST_SCRUM_BUZZ, 'testscrum')
+  // The marker is a literal in the SQL (the params stay as they were).
+  const material = dialect.sqlToQuery(nightPressMaterialSql('2026-10-25', true))
+  assert.match(flat(material.sql), /and sc\.buzz_level <> 'testscrum'/)
+  assert.deepEqual(material.params, ['2026-10-25', true])
+  const wait = dialect.sqlToQuery(nightHasActiveScrumSql('2026-10-25', true))
+  assert.match(flat(wait.sql), /and s\.buzz_level <> 'testscrum'/)
+  assert.deepEqual(wait.params, ['2026-10-25', true])
+  const since = new Date('2026-10-25T14:00:00Z')
+  const latest = dialect.sqlToQuery(latestScrumItemSql({ playerId: null, since, isTest: true }))
+  assert.match(flat(latest.sql), /and s\.buzz_level <> 'testscrum'/)
+  assert.deepEqual(latest.params, [true, since.toISOString()])
+})
+
+void test('test scrum thread: a thread of a test scrum, by its shared or a person thread', () => {
+  const q = dialect.sqlToQuery(testScrumThreadSql('thread-9'))
+  const s = flat(q.sql)
+  assert.match(s, /s\.buzz_level = 'testscrum'/)
+  assert.match(s, /\(s\.thread_id = \$1 or p\.ping_message_id = \$2\)/)
+  assert.deepEqual(q.params, ['thread-9', 'thread-9'])
+})
+
+void test('test recap item: a hidden test row (soft-deleted, not a recap, never posted by the desk)', () => {
+  const q = insertTestRecapItemQuery({ reporter: 'barlow', body: '(test scrum) hello' }).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /insert into "news_items"/)
+  assert.ok(q.params.includes('barlow'))
+  assert.ok(q.params.includes('(test scrum) hello'))
+  assert.ok(q.params.includes('skipped'))
+  assert.ok(q.params.includes('bot'))
+  // is_test true, is_game_recap false, deleted_at now().
+  assert.ok(q.params.includes(true))
+  assert.match(s, /now\(\)/)
+  const d = deleteTestRecapItemQuery(5).toSQL()
+  const ds = flat(d.sql)
+  assert.match(ds, /delete from "news_items"/)
+  assert.match(ds, /"is_test" = \$2/)
+  assert.match(ds, /"is_game_recap" = \$3/)
+  assert.match(ds, /"deleted_at" is not null/)
+  assert.deepEqual(d.params, [5, true, false])
 })

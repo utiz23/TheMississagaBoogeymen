@@ -13,10 +13,11 @@ import { containsName } from '../news/fact-check.ts'
 import { FALLBACK_CLOSING, judgeAnswer, type FollowUpMode, type Usability } from './asker.ts'
 import { fallbackLine } from './fallbacks.ts'
 import { feudLevel, recordInsult } from './feuds.ts'
-import { OFFLIMITS_LOG, screenMessage } from './hard-lines.ts'
+import { CODE_ONLY_SCREEN, OFFLIMITS_LOG, screenMessage, screenText } from './hard-lines.ts'
 import { rememberPlayerMessage } from './player-latest.ts'
 import { replyingTo } from './reply-ref.ts'
 import { subjectOf } from './subject.ts'
+import { isTestScrum } from './test-scrum-rules.ts'
 import type { PressConfig } from './config.ts'
 import { SCRUM_SOURCE_WINDOW_MS, type PressDeps } from './pass.ts'
 import {
@@ -188,9 +189,12 @@ export async function onTalk(
   userId: string,
 ): Promise<Reply> {
   const { store } = deps
-  if (await pressOff(deps, config)) return say(TEXT.pressOff)
-  const me = await store.getPlayerForDiscordUser(userId)
   const scrum = await store.scrumByRecapItem(itemId)
+  // T8: a test scrum is free (no model), so a spent extras budget does not stop it.
+  if (!(scrum !== null && isTestScrum(scrum)) && (await pressOff(deps, config))) {
+    return say(TEXT.pressOff)
+  }
+  const me = await store.getPlayerForDiscordUser(userId)
   if (scrum === null) return say(me === null ? TEXT.link : TEXT.notYet)
   const now = deps.now()
   if (now >= scrum.openUntil) return say(me === null ? TEXT.link : TEXT.left)
@@ -240,8 +244,11 @@ export async function onAccept(
   userId: string,
 ): Promise<Reply> {
   const { store } = deps
-  if (await pressOff(deps, config)) return say(TEXT.pressOff)
   const person = await store.getScrumPerson(personId)
+  // T8: a test scrum is free (no model), so a spent extras budget does not stop it.
+  if (!(person !== null && isTestScrum(person.scrum)) && (await pressOff(deps, config))) {
+    return say(TEXT.pressOff)
+  }
   if (person === null) return say(TEXT.tooLate)
   const refusal = actorRefusal(person, userId)
   if (refusal !== null) return refusal
@@ -361,6 +368,47 @@ async function loadSheet(
 }
 
 /**
+ * T8, the judge of a test scrum: non-empty (checked before) and not off-limits by code (checked
+ * before) means usable. An answer that names a forbidden person is unusable, like the real judge
+ * (the round goes on). A follow-up comes from the fixed pool, only when the round's plan says
+ * every chance is needed (`must`): no model, no feud points, nothing for a story.
+ */
+function testVerdict(
+  deps: PressDeps,
+  person: ScrumPersonDetail,
+  res: NewsFactsResponse | null,
+  answer?: string,
+): Verdict {
+  const base: Verdict = {
+    usability: 'usable',
+    followUp: null,
+    closing: '',
+    end: false,
+    byCode: true,
+    replyFailed: false,
+    offLimits: false,
+  }
+  if (
+    answer !== undefined &&
+    res !== null &&
+    res.forbiddenNames.some((n) => containsName(answer, n))
+  ) {
+    return { ...base, usability: 'unusable' }
+  }
+  const rule = followUpRule(person)
+  if (rule.allowed && rule.mode === 'must') {
+    base.followUp = fallbackLine(deps, {
+      scrumId: person.scrum.id,
+      kind: 'followup',
+      reporter: askerOf(person),
+      name: person.name,
+      seed: personSeed(person.scrum.id, person.id) + person.questionsAsked + person.followupsAsked,
+    })
+  }
+  return base
+}
+
+/**
  * Judge the answer. Fails closed to unusable + the fixed line + end when the
  * extras budget is spent, the person is off the sheet, or anything throws. An
  * answer that names a forbidden person ("Leave me out", a guest) is unusable
@@ -387,6 +435,8 @@ async function judge(
     offLimits: false,
   }
   const scrum = person.scrum
+  // T8, a test scrum: a fixed rule, no model. The code layer already screened the answer (slurs).
+  if (isTestScrum(scrum)) return testVerdict(deps, person, res, answer)
   // Why an answer is stored unusable without the model's verdict: a log line, never the answer.
   const why = (what: string): void =>
     deps.log(
@@ -484,7 +534,11 @@ export async function onAnswerSubmit(
 
   // T5, hard lines: before any reaction, any claim and any echo. An off-limits message gets
   // nothing (no reply, no echo, no store, no feud points) and the question stays open.
-  const screened = await screenMessage(deps, config, answer, asker)
+  // T8: a test scrum screens by code only (the slur list): no model call, never silence.
+  const testScrum = isTestScrum(person.scrum)
+  const screened = testScrum
+    ? await screenText(CODE_ONLY_SCREEN, answer, asker)
+    : await screenMessage(deps, config, answer, asker)
   if (screened.offLimits) {
     log(`[press] answer: person ${String(personId)}: ${OFFLIMITS_LOG} (${screened.why})`)
     return { kind: 'ack', offLimits: true }
@@ -544,7 +598,7 @@ export async function onAnswerSubmit(
   // T6: the player's latest message in their thread; the "no answer" closing replies to it.
   rememberPlayerMessage(deps, threadId, person.discordUserId, answerRef)
   // T5, feuds: an insult at a reporter (not off-limits) adds points; "Leave me out" adds none.
-  if (!refused && screened.reporter !== null) {
+  if (!testScrum && !refused && screened.reporter !== null) {
     await recordInsult(deps, {
       playerId: person.playerId,
       reporter: screened.reporter,

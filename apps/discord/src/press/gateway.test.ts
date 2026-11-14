@@ -195,6 +195,7 @@ function harness(overrides: Partial<PressHandlers> = {}) {
     onGmNoteCorrect: record('gmfix', say('fixed')),
     onGmNoteCancel: record('gmcancel', say('cancelled')),
     onGmHeat: record('gmheat', say('heat set')),
+    onGmTestScrum: record('gmtestscrum', say('test scrum made')),
     ...overrides,
   }
   const route = createRouter({
@@ -639,4 +640,63 @@ test('router: /gm ask passes player, question, reporter, exact and game (null wh
     [USER, { player: '123', question: 'Why?', reporter: null, exact: null, game: null }],
   ])
   assert.deepEqual(h.calls.slice(0, 2), [['deferReply'], ['editReply', { content: 'Got it.' }]])
+})
+
+test('commandDefinitions: /gm testscrum has the game, up to four players and the bench (all optional)', () => {
+  const gm = commandDefinitions().find((d) => d.name === 'gm')!
+  assert.equal(gm.default_member_permissions, '0')
+  const sub = gm.options?.find((o) => o.name === 'testscrum') as unknown as {
+    type: number
+    options: { name: string; type: number; required?: boolean; min_value?: number }[]
+  }
+  assert.equal(sub.type, 1)
+  assert.deepEqual(
+    sub.options.map((o) => [o.name, o.type, o.required ?? false]),
+    [
+      ['game', 4, false],
+      ['player', 6, false],
+      ['player2', 6, false],
+      ['player3', 6, false],
+      ['player4', 6, false],
+      ['bench', 6, false],
+    ],
+  )
+  assert.equal(sub.options[0]!.min_value, 1)
+})
+
+test('router: /gm testscrum passes the options and whether it ran in the guild (fail closed)', async () => {
+  const seen: unknown[] = []
+  const h = harness({
+    onGmTestScrum: async (_d, _c, userId, args) => {
+      seen.push([userId, args])
+      return say('made')
+    },
+  })
+  const guild = config('live').guildId
+  await h.run({
+    type: 'command',
+    name: 'gm',
+    subcommand: 'testscrum',
+    userId: USER,
+    options: { game: 4, player: 'u1', player3: 'u3', bench: 'b1' },
+    guildId: guild,
+  })
+  // No guild known, or a DM, or another server: not in the guild.
+  await h.run({ type: 'command', name: 'gm', subcommand: 'testscrum', userId: USER, options: {} })
+  await h.run({
+    type: 'command',
+    name: 'gm',
+    subcommand: 'testscrum',
+    userId: USER,
+    options: {},
+    guildId: null,
+  })
+  assert.deepEqual(seen, [
+    [USER, { inGuild: true, game: 4, players: ['u1', 'u3'], bench: 'b1' }],
+    [USER, { inGuild: false, game: null, players: [], bench: null }],
+    [USER, { inGuild: false, game: null, players: [], bench: null }],
+  ])
+  // The private defer comes first, then the reply is edited in.
+  assert.equal(h.calls[0]![0], 'deferReply')
+  assert.equal(h.calls[1]![0], 'editReply')
 })

@@ -739,6 +739,39 @@ export class FakeStore implements PressStore {
     this.triggers.push(args)
     return Promise.resolve(args.itemId)
   }
+  /** T8: the test scrum methods (`TestScrumStore`): the hidden recap item and the thread check. */
+  insertTestRecapItem = (args: { reporter: ReporterId; body: string }) => {
+    const id = Math.max(100, ...this.items.map((i) => i.id)) + 1
+    this.items.push(
+      itemRow({
+        id,
+        reporter: args.reporter,
+        body: args.body,
+        matchId: null,
+        night: null,
+        isTest: true,
+        isGameRecap: false,
+        discordStatus: 'skipped',
+        discordMessageId: null,
+        discordChannelId: null,
+        deletedAt: NOW,
+      }),
+    )
+    return Promise.resolve(id)
+  }
+  deleteTestRecapItem = (id: number) => {
+    this.items = this.items.filter((i) => i.id !== id)
+    return Promise.resolve()
+  }
+  isTestScrumThread = (threadId: string) =>
+    Promise.resolve(
+      this.scrums.some(
+        (s) =>
+          s.buzzLevel === 'testscrum' &&
+          (s.threadId === threadId ||
+            this.people.some((p) => p.scrumId === s.id && p.pingMessageId === threadId)),
+      ),
+    )
   /** T5: feud rows in memory (the same fade, add and cap as the SQL upsert). */
   feudRows: { playerId: number; reporter: ReporterId; points: number; lastEventAt: Date }[] = []
   failFeudWrites = false

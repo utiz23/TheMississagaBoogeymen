@@ -14,6 +14,7 @@ import { feudLevel, feudsFor, panelFeudReporters, type PressLevelNow } from './f
 import type { PressDeps, PressStore } from './pass.ts'
 import { subjectOf, type Subject } from './subject.ts'
 import { replyingTo } from './reply-ref.ts'
+import { isTestScrum } from './test-scrum-rules.ts'
 import { choosePanel, effectiveHeat, extrasBudgetLeft, panelSize, targetTotalFor } from './rules.ts'
 
 /**
@@ -415,7 +416,8 @@ export async function startScrumQuestion(
     }
   }
 
-  if (scrum.matchId !== null) {
+  // T8: a test scrum never calls the model: its questions come from the reporter's fixed pool.
+  if (scrum.matchId !== null && !isTestScrum(scrum)) {
     try {
       const out = await writeQuestion(scrum.matchId)
       if (out === 'off-sheet') {

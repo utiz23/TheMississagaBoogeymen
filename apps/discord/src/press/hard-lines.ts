@@ -182,6 +182,13 @@ export async function screenText(
 }
 
 /**
+ * T8, a test scrum: no model check at all. The code layer only (`screenText` runs the slur list
+ * first); everything else passes with no insult, and it never fails closed to silence.
+ */
+export const CODE_ONLY_SCREEN: MessageScreen = () =>
+  Promise.resolve({ offLimits: false, insult: 'none', target: null })
+
+/**
  * Screen one player message for the handlers: the check is `deps.screen`, or
  * (the process, which wires none) the default one on the deps' model call and
  * store. Never throws; fails closed.

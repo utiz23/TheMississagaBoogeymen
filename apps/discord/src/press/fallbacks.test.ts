@@ -4,7 +4,7 @@ import { REPORTER_IDS } from '@eanhl/db/news'
 import { fallbackLine, fallbackPool, type FallbackKind } from './fallbacks.ts'
 import { safeWhy } from './question.ts'
 
-const KINDS: FallbackKind[] = ['question', 'closing', 'ack']
+const KINDS: FallbackKind[] = ['question', 'closing', 'ack', 'followup']
 
 void test('every reporter has a pool of 4 for each kind: no numbers, and no name but the player', () => {
   for (const id of REPORTER_IDS) {

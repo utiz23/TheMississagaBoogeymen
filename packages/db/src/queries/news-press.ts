@@ -60,6 +60,15 @@ export const PRESS_ACCEPT_WINDOW_MS = 15 * 60_000
 export const PRESS_ANSWER_WINDOW_MS = 15 * 60_000
 
 const MAX = sql.raw(String(NEWS_MAX_ATTEMPTS))
+
+/**
+ * T8: the `buzz_level` of a test scrum (`/gm testscrum`). A test scrum is a free scrum for the GM's
+ * tests (no model call, no story material): it is `is_test` and carries this marker. Every query
+ * that feeds a story, the night recap's wait or `/scrum` leaves it out. The press code keeps a
+ * copy of this value (`apps/discord/src/press/test-scrum-rules.ts`); the process checks they match.
+ */
+export const TEST_SCRUM_BUZZ = 'testscrum'
+const TEST_SCRUM_BUZZ_SQL = sql.raw(`'${TEST_SCRUM_BUZZ}'`)
 /** Player display name: the profile's name when set, else the gamertag. `p` = players, `pp` = player_profiles. */
 const DISPLAY_NAME = sql.raw(`coalesce(nullif(btrim(pp.player_name), ''), p.gamertag)`)
 
@@ -538,6 +547,75 @@ export async function scrumThreadOwner(threadId: string): Promise<string | null>
   return rows[0]?.discord_user_id ?? null
 }
 
+/**
+ * T8: is this thread a player's own thread (or the shared thread) of a test scrum? The feud check
+ * leaves such a thread alone: a test scrum gives no feud points.
+ */
+export function testScrumThreadSql(threadId: string): SQL {
+  return sql`
+    select exists (
+      select 1
+      from news_scrums s
+      left join news_scrum_people p on p.scrum_id = s.id
+      where s.buzz_level = ${TEST_SCRUM_BUZZ_SQL}
+        and (s.thread_id = ${threadId} or p.ping_message_id = ${threadId})
+    ) as yes`
+}
+
+export async function isTestScrumThread(threadId: string): Promise<boolean> {
+  const rows = await db.execute<{ yes: boolean }>(testScrumThreadSql(threadId))
+  return rows[0]?.yes === true
+}
+
+/**
+ * T8: the recap item a test scrum hangs on (the scrum row needs one). It is a hidden row: a test
+ * item, not a game recap, soft-deleted and never posted by the desk, so no feed, mirror, reaction,
+ * wire reply or story looks at it. Its Talk button carries the id.
+ */
+export function insertTestRecapItemQuery(args: { reporter: NewsReporterId; body: string }) {
+  return db
+    .insert(newsItems)
+    .values({
+      kind: 'post',
+      reporter: args.reporter,
+      body: args.body,
+      isGameRecap: false,
+      isTest: true,
+      discordStatus: 'skipped',
+      discordVia: 'bot',
+      deletedAt: sql`now()`,
+    })
+    .returning({ id: newsItems.id })
+}
+
+export async function insertTestRecapItem(args: {
+  reporter: NewsReporterId
+  body: string
+}): Promise<number> {
+  const row = (await insertTestRecapItemQuery(args))[0]
+  if (!row) throw new Error('insertTestRecapItem: no row returned')
+  return row.id
+}
+
+/** Removes a hidden test item (a failed post). Only such a row: a test, soft-deleted, not a recap. */
+export function deleteTestRecapItemQuery(id: number) {
+  return db
+    .delete(newsItems)
+    .where(
+      and(
+        eq(newsItems.id, id),
+        eq(newsItems.isTest, true),
+        eq(newsItems.isGameRecap, false),
+        isNotNull(newsItems.deletedAt),
+      ),
+    )
+    .returning({ id: newsItems.id })
+}
+
+export async function deleteTestRecapItem(id: number): Promise<void> {
+  await deleteTestRecapItemQuery(id)
+}
+
 export function listScrumAnswersQuery(personId: number) {
   return db
     .select({
@@ -795,6 +873,7 @@ export function latestScrumItemSql(args: {
     join news_items n on n.id = s.recap_item_id
     where s.is_test = ${args.isTest} and n.deleted_at is null
       and n.created_at > ${args.since.toISOString()}::timestamptz
+      and s.buzz_level <> ${TEST_SCRUM_BUZZ_SQL}
       ${played}
     order by n.created_at desc, s.id desc
     limit 1`
@@ -855,6 +934,7 @@ export function nightHasActiveScrumSql(night: string, includeTest: boolean): SQL
       join news_scrums s on s.id = p.scrum_id
       where s.night = ${night}::date
         and (s.is_test = false or ${includeTest})
+        and s.buzz_level <> ${TEST_SCRUM_BUZZ_SQL}
         and (p.status = 'asking'
           or (p.status = 'pinged' and p.pinged_at > now() - interval '15 minutes'))
     ) as active`
@@ -915,6 +995,7 @@ export function nightPressMaterialSql(night: string, includeTest: boolean): SQL 
       and a.usability in ('usable', 'joke')
       and coalesce(pp.press_level, 'full') <> 'out'
       and (a.is_test = false or ${includeTest})
+      and sc.buzz_level <> ${TEST_SCRUM_BUZZ_SQL}
     order by a.id asc`
 }
 

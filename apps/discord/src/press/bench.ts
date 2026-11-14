@@ -210,7 +210,7 @@ const isCoach = (config: Pick<PressConfig, 'coachUserIds'>, userId: string): boo
   (config.coachUserIds ?? []).includes(userId)
 
 /** A person's name and press level; null when the person must not be asked (a "Leave me out" player). */
-async function describe(
+export async function describe(
   store: BenchStore,
   config: Pick<PressConfig, 'coachUserIds'>,
   roster: readonly PressRosterEntry[],

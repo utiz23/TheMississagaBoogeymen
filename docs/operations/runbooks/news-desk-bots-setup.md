@@ -592,3 +592,31 @@ rows made for bench people and the coach, then restores the old shape).
 - **To check after the deploy:** join the team's voice channel with a second account that has the Chel
   role during or after a game, run `/gm ask` on that account: the reply should list it under "In the
   call, not playing".
+
+## `/gm testscrum`: a free test scrum (task T8, 2026-11-14)
+
+Deploy `press` only. No migration, no new switch. `PRESS_TEST_CHANNEL_ID` must be set in live mode too
+(the compose file already passes it). Without it the command says "No test channel is set".
+
+- **What it is:** a scrum that costs nothing and posts only in the bot test channel, also while
+  `PRESS_MODE=live`. Use it to try the scrum steps (own threads, no Answer button, reporter replies,
+  other users ignored, volunteers, bench people) without waiting for a game.
+- **How:** `/gm testscrum [game] [player] [player2] [player3] [player4] [bench]`. Only the GM, only in the
+  server (it is hidden from everyone else). `game` is a match id (default: the latest game, any age).
+  `player..player4` are the people to ping (default: you). `bench` is one person to treat as watching
+  from the call. The reply says what was made and where.
+- **What happens:** a reporter posts a made-up recap line marked "(test scrum)" in the test channel,
+  with the "Talk to the press" button. The scrum is open for 60 minutes. Each named person gets a ping
+  there ("(test scrum) ... has a question for you") within one pass (15 seconds) and then their own
+  thread. A named person who did not play, and the `bench` person, get the bench questions. The call
+  is not checked in a test.
+- **No AI at all:** questions, follow-ups, acknowledgements and closings are fixed lines from the
+  reporters' own pools (never the same line twice in a thread). The hard-line check is the slur list
+  only. Every usable answer is kept as a test row. No feud points, no articles, no quotes: the db
+  queries for the night recap, its wait and `/scrum` leave test scrums out. The extras budget does not
+  stop it. The model is never called (a test proves it with a model that throws).
+- **Hidden item:** the scrum needs a news item to hang on. It is a hidden test row (soft-deleted, not a
+  recap, never sent by the desk, no message id), so no feed, mirror, reaction or wire reply sees it.
+  `deleteTestNewsItems` removes it with the rest of the test rows.
+- **Not covered:** fan reactions and wire replies on the test recap do nothing (by design: they would
+  call the model). Interviews are not part of it.

@@ -64,6 +64,7 @@ import {
 import { feudDbStore } from './feud-db.ts'
 import { interviewDbStore } from './interview-db.ts'
 import { repliesDbStore } from './replies-db.ts'
+import { testScrumDbStore } from './test-scrum-db.ts'
 import type { PressStore } from './pass.ts'
 
 /** The press store on the database (the `@eanhl/db` queries). */
@@ -72,6 +73,8 @@ export const pressDbStore: PressStore = {
   ...interviewDbStore,
   // The wire-reply methods (replies-store.ts): found by `replyStoreOf`.
   ...repliesDbStore,
+  // The test scrum methods (test-scrum-store.ts): found by `testScrumStoreOf`.
+  ...testScrumDbStore,
   // The feud methods (feud-store.ts): found by `feudStoreOf`.
   ...feudDbStore,
   getPressSettings,

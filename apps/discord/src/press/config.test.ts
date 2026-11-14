@@ -103,6 +103,22 @@ void test('trial does not need the live channel; live does not need the test cha
   if (!r.ok) assert.deepEqual(r.problems, ['PRESS_LIVE_CHANNEL_ID is unset or not a Discord ID'])
 })
 
+void test('T8: the test channel is known in trial (the press channel) and in live (PRESS_TEST_CHANNEL_ID)', () => {
+  const trial = loadPressDiscord(DISCORD_ENV)
+  assert.ok(trial.ok)
+  assert.equal(trial.value.testChannelId, TEST_CH)
+  const live = loadPressDiscord({ ...DISCORD_ENV, PRESS_MODE: 'live' })
+  assert.ok(live.ok)
+  assert.equal(live.value.channelId, LIVE_CH)
+  assert.equal(live.value.testChannelId, TEST_CH)
+  // Live without a usable test channel still loads: there is just no test scrum.
+  for (const v of [undefined, '', 'not-an-id']) {
+    const r = loadPressDiscord({ ...DISCORD_ENV, PRESS_MODE: 'live', PRESS_TEST_CHANNEL_ID: v })
+    assert.ok(r.ok)
+    assert.equal(r.value.testChannelId, undefined)
+  }
+})
+
 void test('loadPressConfig: defaults applied, API key not stored', () => {
   const r = loadPressConfig(FULL_ENV)
   assert.ok(r.ok)

@@ -10,6 +10,11 @@ export interface PressDiscord {
   /** The test channel in trial, #chel in live. */
   channelId: string
   gmUserId: string
+  /**
+   * T8: the bot test channel (`PRESS_TEST_CHANNEL_ID`). `/gm testscrum` posts only here, also in
+   * live mode. In trial it is the press channel itself. Optional: live without it has no test scrum.
+   */
+  testChannelId?: string
 }
 
 export interface PressConfig extends PressDiscord {
@@ -101,7 +106,20 @@ export function loadPressDiscord(
   const channelId = snowflake(mode === 'live' ? 'PRESS_LIVE_CHANNEL_ID' : 'PRESS_TEST_CHANNEL_ID')
 
   if (problems.length > 0) return { ok: false, problems }
-  return { ok: true, value: { mode, tokens, guildId, channelId, gmUserId } }
+  // T8: the test channel for `/gm testscrum`. Live does not need it (a bad value is dropped).
+  const testRaw = env['PRESS_TEST_CHANNEL_ID']?.trim() ?? ''
+  const testChannelId = mode === 'trial' ? channelId : DISCORD_ID_RE.test(testRaw) ? testRaw : ''
+  return {
+    ok: true,
+    value: {
+      mode,
+      tokens,
+      guildId,
+      channelId,
+      gmUserId,
+      ...(testChannelId === '' ? {} : { testChannelId }),
+    },
+  }
 }
 
 /**
