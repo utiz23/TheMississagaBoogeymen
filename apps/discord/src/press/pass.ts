@@ -29,6 +29,7 @@ import { payloadForItem, toBotMessage } from '../news/messages.ts'
 import type { ModelCall } from '../news/writer.ts'
 import { fallbackLine } from './fallbacks.ts'
 import type { PressConfig } from './config.ts'
+import { runInterviewPass } from './interview-pass.ts'
 import { threadLine } from './question.ts'
 import {
   PRESS_ACCEPT_MS,
@@ -486,6 +487,11 @@ export async function runPressPass(
         log(`[press] expired answers: person ${String(p.id)}: ${reason(err)}`)
       }
     }
+  })
+
+  // ── 7. Interviews (interview-pass.ts): offers, expiry, automatic offer, articles ──
+  await step('interviews', async () => {
+    await runInterviewPass(deps, config)
   })
 
   return summary

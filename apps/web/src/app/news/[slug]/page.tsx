@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getNewsArticle } from '@eanhl/db/queries'
-import { REPORTERS } from '@eanhl/db/news'
+import { REPORTERS, isInterviewSlug } from '@eanhl/db/news'
 import {
   articleKicker,
   dayKeyLabelWithWeekday,
@@ -11,6 +11,7 @@ import {
   scoreChips,
   splitParagraphs,
 } from '@/lib/news/display'
+import { InterviewBody } from '@/components/news/interview-body'
 import { Kicker } from '@/components/news/kicker'
 import { NewsText } from '@/components/news/news-text'
 import { ReporterAvatar } from '@/components/news/reporter-avatar'
@@ -45,6 +46,8 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ sl
   const paragraphs = splitParagraphs(article.body)
   const when = article.night !== null ? ` · ${dayKeyLabelWithWeekday(article.night)}` : ''
   const kicker = articleKicker(article)
+  // A press interview: the intro, then the questions and answers.
+  const interview = isInterviewSlug(article.slug)
 
   return (
     <MemberLinks>
@@ -81,11 +84,20 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ sl
         </div>
         <ScoreChips chips={scoreChips(article.facts)} />
         <div className="space-y-4 border-t border-border-subtle pt-4 text-fg-2">
-          {paragraphs.map((p, i) => (
-            <p key={i} className="break-words leading-relaxed">
-              <NewsText text={p} mentions={article.mentions} />
-            </p>
-          ))}
+          {interview ? (
+            <InterviewBody
+              paragraphs={paragraphs}
+              reporterName={reporter.name}
+              playerName={article.mentions[0]?.name ?? 'Player'}
+              mentions={article.mentions}
+            />
+          ) : (
+            paragraphs.map((p, i) => (
+              <p key={i} className="break-words leading-relaxed">
+                <NewsText text={p} mentions={article.mentions} />
+              </p>
+            ))
+          )}
         </div>
         <p className="border-t border-border-subtle pt-3 text-xs text-fg-5">
           {reporter.name} is made up. The scores and stats come from the real games.

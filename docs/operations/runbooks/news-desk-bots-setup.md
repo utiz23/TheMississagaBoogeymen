@@ -344,3 +344,57 @@ are refused in private.
 Pop-up answers are shown in the thread as soon as they are sent. The one exception is an
 answer that names a "Leave me out" or forbidden person. An unusable answer is acknowledged
 with a short line and is never quoted later.
+
+## Interviews (task T3, 2026-11-13)
+
+An interview is a long question round: one reporter asks one player about 7
+questions in a thread. Then the reporter writes a Q&A article for `/news`. Its
+teaser goes to the channel like other articles. Task file:
+`docs/tasks/2026-11-13-discord-press-interviews.md`.
+
+How an interview starts:
+
+- **`/gm interview player:<user> reporter:<optional> topic:<optional>`**: the GM
+  only. The reporter posts an offer with an Accept button within 15 seconds.
+- **`/interview`**: a player starts their own. No Accept: the first question
+  comes at once. At most one per player in 7 days.
+- **Automatic**: after a night recap, when a player reached a milestone or
+  played a "Historic" game. At most one offer for the club in 7 days.
+
+Rules in the code:
+
+- The player has 30 minutes to accept. No answer is a no. No reminder.
+- 30 minutes for each answer. A typed answer in the thread counts when
+  `PRESS_TYPED_ANSWERS=1`; the Answer button always works.
+- A short "I'm done" or "that's it" ends the interview politely. No answer in
+  30 minutes ends it too.
+- The article is written only with 3 or more usable or joke answers. Answers
+  are only shortened (each cut is marked "…"). The quote check and the review
+  apply.
+- Never for "Leave me out" players, guests or AI goalies. "Go easy" players get
+  no criticism. Interviews stop at 80% of the monthly money limit.
+- Trial (`PRESS_MODE` not `live`): everything is test. The article is a test
+  item. Only the trial mirror posts its teaser in the test channel.
+
+Deploy (operator's OK first):
+
+1. Take a fresh database backup (step 2 of the release checklist, file name
+   `~/eanhl-pre-interviews-<date>.dump`). Check that it is not empty.
+2. Apply migration 0074. It adds two new tables only. It is safe to run twice.
+
+   ```
+   docker exec -i -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=30s" \
+     eanhl-team-website-db-1 psql -U eanhl -d eanhl -v ON_ERROR_STOP=1 -f - \
+     < packages/db/migrations/0074_press_interviews.sql
+   ```
+
+3. Tag rollback images for `web`, `news` and `press`. Then rebuild and restart
+   the three services (`docker compose --profile news --profile press build web
+news press`, then `up -d --no-deps web news press`). The press service puts
+   `/interview` and `/gm interview` on the server when it starts. Look for
+   `[press] commands registered` in its log.
+
+Rollback: put the old `press` image back and restart `press`. The commands go
+away at the next start. Articles already written stay as normal news items. The
+tables do no harm. To remove them, use the rollback SQL in the header of
+`packages/db/migrations/0074_press_interviews.sql`.

@@ -392,7 +392,7 @@ export const MAX_NUMBERS_PER_SENTENCE = 3
 export const MAX_ARTICLE_CLOCKS = 2
 
 /** Always blocked (spec §12.18-5): strong words and slurs, for every reporter. */
-const STRONG_WORDS =
+export const STRONG_WORDS =
   /\b(fuck\w*|shit\w*|bullshit|bitch\w*|bastard\w*|asshole\w*|dickhead\w*|cunt\w*|goddamn\w*|motherf\w*|twat\w*|wank\w*|prick\w*|pissed|retard\w*|f[a@]g\w*)\b/i
 /** Mild words: only Mercer, Pettibone and Vale, at most one per piece. */
 const MILD_WORDS = /\b(hell|damn|damned|crap|crappy)\b/gi

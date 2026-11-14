@@ -89,6 +89,9 @@ test('articleKicker: night recap, feature kinds, none for posts (rev 2, A6)', ()
   // The kicker follows the piece, not the reporter.
   assert.equal(a({ night: '2026-10-12' }), a({ night: '2026-10-13' }))
   assert.equal(a(), null)
+  // A press interview (slug `interview-…`).
+  assert.equal(a({ slug: 'interview-3-skater-a-talks' }), 'Interview')
+  assert.equal(a({ night: '2026-10-12', slug: '2026-10-12-night-story' }), 'Night recap')
   // Posts (game recaps, reactions) have no kicker.
   assert.equal(
     articleKicker({ kind: 'post', night: '2026-10-12', weekStart: null, featureKind: null }),

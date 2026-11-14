@@ -1,4 +1,4 @@
-import type { FeatureKind } from '@eanhl/db/news'
+import { isInterviewSlug, type FeatureKind } from '@eanhl/db/news'
 import { formatMatchDate, formatMatchTime } from '../format.ts'
 
 /** The small label above a weekly feature's headline, by feature kind (revision 2). */
@@ -14,6 +14,7 @@ export const FEATURE_KICKERS: Readonly<Record<FeatureKind, string>> = {
  * The small label above an article's headline: it names the kind of piece,
  * not the reporter. Posts (game recaps and reactions) have none. A weekly
  * piece from before revision 2 has no feature kind and reads "Week in review".
+ * A press interview reads "Interview".
  */
 export function articleKicker(item: {
   kind: 'post' | 'article'
@@ -22,8 +23,11 @@ export function articleKicker(item: {
   featureKind: FeatureKind | null
   /** C3a: a big game's article has its match (and no week). */
   matchId?: number | null
+  /** Press interviews: an interview's slug starts with `interview-`. */
+  slug?: string | null
 }): string | null {
   if (item.kind !== 'article') return null
+  if (isInterviewSlug(item.slug)) return 'Interview'
   if (item.weekStart === null && item.matchId !== undefined && item.matchId !== null) {
     // A big game's article (C3a.7): the game story, a spotlight, or a column.
     if (item.featureKind === 'spotlight') return 'Spotlight'

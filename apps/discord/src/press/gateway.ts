@@ -30,6 +30,7 @@ import {
   onGmNoteCancel,
   onGmNoteCorrect,
 } from './gm.ts'
+import { interviewPlan, onPressThreadMessage, withInterviewCommands } from './interview-gateway.ts'
 import {
   onAccept,
   onAnswerButton,
@@ -331,6 +332,9 @@ export function createRouter(args: {
   const ignored = new Set<string>()
 
   function plan(input: InteractionInput): Plan | null {
+    // Interviews (interview-gateway.ts) first: their commands and custom ids are their own.
+    const interview = interviewPlan(input, deps, config)
+    if (interview !== null) return interview
     const u = input.userId
     if (input.type === 'command') {
       const o = input.options
@@ -545,7 +549,7 @@ export function createMessageRouter(args: {
   log: (m: string) => void
   handler?: typeof onTypedAnswer
 }): (input: MessageInput) => Promise<void> {
-  const { deps, config, log, handler = onTypedAnswer } = args
+  const { deps, config, log, handler = onPressThreadMessage } = args
   return async (m) => {
     if (m.userIsBot || !m.isPlain || !m.inThread) return
     if (m.guildId !== config.guildId || m.text.trim() === '') return
@@ -806,7 +810,7 @@ export async function startClients(
  */
 export function registerCommands(barlow: Client, guildId: string, log: (m: string) => void): void {
   const put = (c: Client<true>) => {
-    c.application.commands.set(commandDefinitions(), guildId).then(
+    c.application.commands.set(withInterviewCommands(commandDefinitions()), guildId).then(
       (set) => log(`[press] commands registered (${String(set.size)})`),
       (err: unknown) => log(`[press] command registration failed: ${reason(err)}`),
     )
