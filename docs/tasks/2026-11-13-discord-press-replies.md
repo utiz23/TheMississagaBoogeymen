@@ -1,6 +1,6 @@
 # Task: T4 — Discord replies (answers, reporter replies, replies to wire posts)
 
-- **State:** Ready (operator 2026-11-13: all three items; privacy paragraph approved as written; run in
+- **State:** Verify (operator 2026-11-13: all three items; privacy paragraph approved as written; run in
   parallel with T3 in the operator's chat)
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Web (privacy text),
   Database only if item 3 needs a small table
@@ -78,5 +78,93 @@ answers, and a reply to a wire post gets an in-character answer within the limit
 
 - 2026-11-13 Lead: written from the operator's choice (all three).
 - 2026-11-13 operator: privacy paragraph approved as written.
+- 2026-11-13 agent: Running. Branch work/press-replies from main 089bc1fe (T3 already merged).
+- 2026-11-13 agent: typed answers, cause found in code (not proven live): discord.js drops a
+  messageCreate when the thread is not in Barlow's channel cache (no Partials.Channel). Discord
+  docs: bots get thread messages of public threads they can see without joining, but the thread
+  object reaches Barlow only by THREAD_CREATE/GUILD_CREATE. Fix: read raw MESSAGE_CREATE (no
+  cache needed) and Barlow joins every press thread (at creation and at start-up).
+- 2026-11-13 Lead (message): T3 merged (f3f4bda0); rebased on main 089bc1fe before any change;
+  interview threads included in the join fix.
+- 2026-11-13 agent: thread join (thread-join.ts): Barlow joins each thread a reporter starts
+  (restDiscordOps) and every active thread under the press channel at start-up (startClients).
+- 2026-11-13 agent: Barlow's messages from the raw MESSAGE_CREATE (replies-raw.ts); one log line per
+  considered thread message (replies.ts), never the text.
+- 2026-11-13 agent: item 1 (reply = answer to that exact question) and item 2 (reporter follow-up,
+  acknowledgement and closing reply to the answer) for scrums and interviews.
+- 2026-11-13 agent: item 3 (wire-replies.ts), table news_wire_replies, migration 0075 (not
+  applied), queries in news-press.ts, flag PRESS_WIRE_REPLIES (default off).
+- 2026-11-13 agent: privacy paragraph in privacy.tsx and data-collection.tsx; runbook section.
+- 2026-11-13 agent: checks green (Report); State = Verify.
 
 ## Report
+
+Branch `work/press-replies`, rebased on main 089bc1fe (T3 merged; no conflicts: T3 was in main before
+my first change). Not merged, not pushed, not deployed, migration not applied.
+
+**Typed answers did not work live: what I found.** Discord docs (Context7, threads.mdx): an app gets
+the messages of public threads it can see without joining. A thread reaches the app by THREAD_CREATE,
+GUILD_CREATE or a join. discord.js 14.27 source (`MessageCreateAction`): a message whose channel is not
+in the client's cache is dropped without a word unless `Partials.Channel` is on. Barlow had no
+Channel partial. So the likely cause is: the thread that the asking reporter started was not in
+Barlow's cache, and the typed message was dropped. Not proven live (no logs read, no ssh). Fix, both
+sides:
+
+- Barlow reads the raw gateway MESSAGE_CREATE (`replies-raw.ts`, `attachMessages`): no cache needed.
+- Barlow joins every thread a reporter starts (`withBarlowJoin` in `restDiscordOps`) and, at
+  start-up, every active thread under the press channel (`joinOpenThreads`, log line
+  `[press] thread join: Barlow is in N of M open threads`). Scrum and interview threads both.
+- One log line per considered thread message: `[press] thread message: thread <id> user <id>:
+person <n>: taken` / `not taken (<why>)`. Never the text.
+
+**1. Reply to a question.** In scrum and interview threads a Discord Reply counts only when its target
+is the asking player's current question message: it has that player's Answer button
+(`press:answer:<person>` / `press:ianswer:<interview>`) and its text is the current question line. No
+new column: the button and the posted text identify the question. A reply to an earlier question, to
+someone else's question, to any other message, or to a deleted message is ignored (logged). A plain
+message still answers (T1).
+
+**2. Reporter lines reply to answers.** The follow-up, the acknowledgement of an unusable answer and
+the closing line carry `message_reference` to the typed message, or to the bots' echo of a pop-up
+answer. Never to a refused answer (names a forbidden person). The next planned question is a new
+question and does not reply (my reading of "follow-up, acknowledgement or next line about an
+answer").
+
+**3. Replies to wire posts** (`wire-replies.ts`). Rules as in the task. Stored in a small new table
+`news_wire_replies` (migration 0075, no dependency on 0073/0074). Why a table, not a news item: an
+answer is not a news piece (it must not show on `/news` or feed the desk), and "one per person per
+post" needs a unique key that is claimed before the AI call (safe after a crash). The reply text is
+fenced untrusted data in the prompt, never stored, never logged, and not shown to the review.
+Answer check: at most 280 characters, numbers only from the sheet and the post, only the member
+named, no 4 words in a row from the reply. One write plus one rewrite (cost bound); a failure means
+no answer.
+
+**My choices for the operator to confirm:**
+
+- `PRESS_WIRE_REPLIES=1` turns item 3 on (default off, needs `PRESS_TYPED_ANSWERS=1`). Turning it on
+  is a High step at deploy.
+- No answer to a correction, to a post older than 24 hours (as the fan reactions), or to a post
+  without a night (weekly pieces). The answer pings nobody. Trial answers are test rows.
+- The seeded half is per post and person: replying again never re-rolls.
+
+**Privacy text:** added word for word to `privacy.tsx` and `data-collection.tsx` (screenshots taken
+from a dev server in the worktree, pages render in the existing style). `lastUpdated` of both is
+already 2026-11-13; set it to the release day if later (runbook step 3).
+
+**Checks** (2026-11-13, in the worktree):
+
+- `pnpm --filter @eanhl/db build`: pass.
+- typecheck db, web, discord, worker: pass (each filter matched its package).
+- discord tests: 724/724 pass (40 new: thread-join 7, replies-raw 6, replies 12, wire-replies 15,
+  config 1 more).
+- db query tests by name (news-wire-replies, news-press, news-interviews, news): 120/120 pass;
+  `pnpm --filter @eanhl/db test`: 233/233 pass.
+- web `test:unit`: 672/672 pass.
+- prettier: all changed files pass. `pnpm format:check` is red on 37 files that are unchanged from
+  main (not this task).
+- Not run: anything with Docker (verification database), the migration on a database, a live game
+  night.
+
+**Done when:** the code part is done and tested with fakes. "On a game night …" needs the deploy
+(migration 0075, `press`, `news`, `web`, and `PRESS_WIRE_REPLIES=1` for item 3): the operator's OK.
+Then watch the `press` log for `thread join`, `thread message … taken` and `wire reply` lines.
