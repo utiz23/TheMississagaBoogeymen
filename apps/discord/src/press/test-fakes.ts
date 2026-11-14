@@ -234,7 +234,10 @@ export class FakeStore implements PressStore {
       id,
       matchId: v.matchId ?? null,
       night: v.night,
-      playerId: v.playerId,
+      playerId: v.playerId ?? null,
+      discordUserId: v.discordUserId ?? null,
+      personRole: v.personRole ?? 'player',
+      displayName: v.displayName ?? null,
       question: v.question,
       exact: v.exact ?? true,
       reporter: v.reporter ?? null,
@@ -251,6 +254,18 @@ export class FakeStore implements PressStore {
       this.askRows.filter(
         (a) => a.matchId === matchId && a.status === 'active' && (!a.isTest || includeTest),
       ),
+    )
+  gmAskForUser = (matchId: number, discordUserId: string, includeTest: boolean) =>
+    Promise.resolve(
+      [...this.askRows]
+        .reverse()
+        .find(
+          (a) =>
+            a.matchId === matchId &&
+            a.discordUserId === discordUserId &&
+            a.status === 'active' &&
+            (!a.isTest || includeTest),
+        ) ?? null,
     )
   gmAskForPlayer = (matchId: number, playerId: number, includeTest: boolean) =>
     Promise.resolve(
@@ -295,15 +310,27 @@ export class FakeStore implements PressStore {
     return Promise.resolve(id)
   }
   insertScrumPerson = (v: NewNewsScrumPerson) => {
-    if (this.people.some((p) => p.scrumId === v.scrumId && p.playerId === v.playerId)) {
+    // The unique (scrum, player) and, for a person with no player row, (scrum, Discord user).
+    const playerId = v.playerId ?? null
+    if (
+      this.people.some(
+        (p) =>
+          p.scrumId === v.scrumId &&
+          (playerId === null
+            ? p.playerId === null && p.discordUserId === v.discordUserId
+            : p.playerId === playerId),
+      )
+    ) {
       return Promise.resolve(null)
     }
     const id = this.people.length + 1
     this.people.push({
       id,
       scrumId: v.scrumId,
-      playerId: v.playerId,
+      playerId,
       discordUserId: v.discordUserId,
+      personRole: v.personRole ?? 'player',
+      displayName: v.displayName ?? null,
       role: v.role,
       requestedBy: v.requestedBy,
       requestedByUserId: v.requestedByUserId ?? null,
@@ -344,7 +371,9 @@ export class FakeStore implements PressStore {
     Promise.resolve(this.discordIds.get(playerId) ?? null)
   private detail = (p: NewsScrumPersonRow) => ({
     ...p,
-    name: NAMES.get(p.playerId) ?? `Player ${String(p.playerId)}`,
+    name:
+      p.displayName ??
+      (p.playerId === null ? 'Guest' : (NAMES.get(p.playerId) ?? `Player ${String(p.playerId)}`)),
     scrum: this.scrumOf(p),
   })
   listPeopleToPing = () =>
@@ -551,7 +580,26 @@ export class FakeStore implements PressStore {
     })
     return Promise.resolve(hits.at(-1)?.recapItemId ?? null)
   }
-  nightPressMaterial = () => Promise.resolve({ quotes: [], gmNotes: this.gmNotes })
+  /** Usable and joke answers as the night's quotes (T7: the person row names the speaker and the role). */
+  nightPressMaterial = () =>
+    Promise.resolve({
+      quotes: this.answerRows
+        .filter((a) => a.usability !== 'unusable')
+        .map((a, i) => {
+          const p = this.people.find((x) => x.id === a.personId)
+          return {
+            answerId: i + 1,
+            playerId: a.playerId ?? null,
+            name: p === undefined ? 'Guest' : this.detail(p).name,
+            personRole: p?.personRole ?? ('player' as const),
+            question: a.question,
+            answer: a.answer,
+            usability: a.usability as 'usable' | 'joke',
+            reporter: a.reporter ?? ('voss' as const),
+          }
+        }),
+      gmNotes: this.gmNotes,
+    })
   monthNewsSpendUsd = () => Promise.resolve(this.spend)
   recordNewsUsage = (row: NewNewsUsage) => {
     this.usage.push(row)

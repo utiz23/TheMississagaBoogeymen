@@ -1,6 +1,13 @@
-import { REPORTERS, mulberry32, type NewsFactsResponse, type ReporterId } from '@eanhl/db/news'
+import {
+  REPORTERS,
+  mulberry32,
+  type NewsFactsResponse,
+  type NewsGameFacts,
+  type ReporterId,
+} from '@eanhl/db/news'
 import type { NewsScrumRow, ScrumPersonDetail } from '@eanhl/db/queries'
 import { answerButton } from '../bot-rest.ts'
+import { benchForGame, benchGameOf, personColumns, type BenchResult } from './bench.ts'
 import { escapeMarkdown } from '../message.ts'
 import { containsName } from '../news/fact-check.ts'
 import { FALLBACK_CLOSING, judgeAnswer, type FollowUpMode, type Usability } from './asker.ts'
@@ -9,6 +16,7 @@ import { feudLevel, recordInsult } from './feuds.ts'
 import { OFFLIMITS_LOG, screenMessage } from './hard-lines.ts'
 import { rememberPlayerMessage } from './player-latest.ts'
 import { replyingTo } from './reply-ref.ts'
+import { subjectOf } from './subject.ts'
 import type { PressConfig } from './config.ts'
 import { SCRUM_SOURCE_WINDOW_MS, type PressDeps } from './pass.ts'
 import {
@@ -124,8 +132,12 @@ function openQuestionRefusal(person: ScrumPersonDetail, now: Date): Reply | null
 async function gameCandidates(
   deps: PressDeps,
   scrum: NewsScrumRow,
-): Promise<{ candidates: Candidate[]; topFacts: Parameters<typeof pickScrumPlayer>[1] }> {
-  const none = { candidates: [], topFacts: [] }
+): Promise<{
+  candidates: Candidate[]
+  topFacts: Parameters<typeof pickScrumPlayer>[1]
+  game: NewsGameFacts | null
+}> {
+  const none = { candidates: [], topFacts: [], game: null }
   if (scrum.matchId === null) return none
   const matchId = scrum.matchId
   const res = await deps.fetchFacts('game', String(matchId))
@@ -136,7 +148,17 @@ async function gameCandidates(
     const id = await deps.store.getPlayerDiscordUserId(line.playerId)
     if (id !== null) ids.set(line.playerId, id)
   }
-  return { candidates: scrumCandidates(game, res.facts, ids), topFacts: res.facts.topFacts }
+  return { candidates: scrumCandidates(game, res.facts, ids), topFacts: res.facts.topFacts, game }
+}
+
+/** T7: the bench of the scrum's game (people who watched from the call and did not play). */
+async function scrumBench(
+  deps: PressDeps,
+  config: PressConfig,
+  game: NewsGameFacts | null,
+): Promise<BenchResult> {
+  if (game === null) return { available: false, people: [] }
+  return benchForGame(deps, config, await benchGameOf(deps.store, game))
 }
 
 /**
@@ -168,15 +190,32 @@ export async function onTalk(
   const { store } = deps
   if (await pressOff(deps, config)) return say(TEXT.pressOff)
   const me = await store.getPlayerForDiscordUser(userId)
-  if (me === null) return say(TEXT.link)
   const scrum = await store.scrumByRecapItem(itemId)
-  if (scrum === null) return say(TEXT.notYet)
+  if (scrum === null) return say(me === null ? TEXT.link : TEXT.notYet)
   const now = deps.now()
-  if (now >= scrum.openUntil) return say(TEXT.left)
+  if (now >= scrum.openUntil) return say(me === null ? TEXT.link : TEXT.left)
 
-  const { candidates } = await gameCandidates(deps, scrum)
-  const player = candidates.find((c) => c.playerId === me.playerId) ?? null
-  if (player === null || player.discordUserId === null) return say(TEXT.notInGame)
+  const { candidates, game } = await gameCandidates(deps, scrum)
+  const player = me === null ? null : (candidates.find((c) => c.playerId === me.playerId) ?? null)
+  if (player === null || player.discordUserId === null) {
+    // T7: not a player of this game. Someone who watched from the team's call may step up as
+    // the bench (the coach too, when in the call): the volunteer round.
+    const bench = (await scrumBench(deps, config, game)).people.find((p) => p.userId === userId)
+    if (bench === undefined) return say(me === null ? TEXT.link : TEXT.notInGame)
+    const benchId = await store.insertScrumPerson({
+      scrumId: scrum.id,
+      playerId: bench.playerId,
+      discordUserId: userId,
+      ...personColumns(bench),
+      role: 'volunteer',
+      requestedBy: 'self',
+      requestedByUserId: userId,
+      status: 'asking',
+      lastAskedAt: now,
+    })
+    if (benchId === null) return say(TEXT.already)
+    return askNow(deps, config, benchId)
+  }
 
   const personId = await store.insertScrumPerson({
     scrumId: scrum.id,
@@ -362,7 +401,7 @@ async function judge(
       why('extras budget spent')
       return closed
     }
-    const onSheet = res.facts.people.find((p) => p.playerId === person.playerId)
+    const onSheet = await subjectOf(deps, res, person)
     // A guest, or "Leave me out" since the question: nothing about them goes anywhere.
     if (onSheet === undefined) {
       why('off the sheet')
@@ -459,7 +498,7 @@ export async function onAnswerSubmit(
   const mention = person.discordUserId
 
   const sheet = await loadSheet(deps, person)
-  const onSheet = sheet?.facts.people.find((p) => p.playerId === person.playerId)
+  const onSheet = sheet === null ? undefined : await subjectOf(deps, sheet, person)
   // The code refuses an answer that names a forbidden person ("Leave me out", a guest), and
   // any answer when the sheet is not known: such an answer is never shown anywhere.
   const refused =
@@ -644,21 +683,33 @@ export async function onScrumCommand(
   const trial = config.mode === 'trial'
   if (await pressOff(deps, config)) return say(TEXT.pressOff)
   const me = await store.getPlayerForDiscordUser(userId)
-  if (me === null) return say(TEXT.link)
   const now = deps.now()
-  const itemId = await store.latestScrumItem({
-    playerId: me.playerId,
-    since: new Date(now.getTime() - SCRUM_SOURCE_WINDOW_MS),
-    isTest: trial,
-  })
-  if (itemId === null) return say(TEXT.noGame)
-
+  const since = new Date(now.getTime() - SCRUM_SOURCE_WINDOW_MS)
+  let itemId =
+    me === null
+      ? null
+      : await store.latestScrumItem({ playerId: me.playerId, since, isTest: trial })
   // `/scrum @self` is `/scrum`: the user volunteers, no command use.
-  if ((opts.player === null && !opts.random) || opts.player === userId) {
+  const volunteer = (opts.player === null && !opts.random) || opts.player === userId
+  let viaBench = false
+  if (itemId === null && volunteer) {
+    // T7: no game of their own: someone who watched from the call may step up for the latest
+    // game (`onTalk` checks the bench).
+    itemId = await store.latestScrumItem({ playerId: null, since, isTest: trial })
+    viaBench = itemId !== null
+  }
+  if (itemId === null) return say(me === null ? TEXT.link : TEXT.noGame)
+
+  if (volunteer) {
     const reply = await onTalk(deps, config, itemId, userId)
+    // Not on the bench either: for them there is no game with the press.
+    if (viaBench && reply.kind === 'ephemeral' && reply.text === TEXT.notInGame) {
+      return say(TEXT.noGame)
+    }
     // A command has no message to update: confirm in private once the question is posted.
     return reply.kind === 'ack' ? say(TEXT.inThread) : reply
   }
+  if (me === null) return say(TEXT.link)
 
   const scrum = await store.scrumByRecapItem(itemId)
   if (scrum === null) return say(TEXT.noGame)

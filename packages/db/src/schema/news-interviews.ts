@@ -14,6 +14,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { players } from './players.js'
 import { newsItems, type NewsReporterId } from './news.js'
+import type { PressPersonRole } from './news-press.js'
 
 /**
  * In-depth interviews (migration 0074): one reporter asks one player about 7
@@ -58,10 +59,12 @@ export const newsInterviews = pgTable(
   'news_interviews',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
-    playerId: integer('player_id')
-      .notNull()
-      .references(() => players.id, { onDelete: 'cascade' }),
+    /** Null for a bench person or a coach with no player row (migration 0077). */
+    playerId: integer('player_id').references(() => players.id, { onDelete: 'cascade' }),
     discordUserId: text('discord_user_id').notNull(),
+    /** `player` (default), `bench` or `coach`; `display_name` names a person with no player row. */
+    personRole: text('person_role').$type<PressPersonRole>().notNull().default('player'),
+    displayName: text('display_name'),
     reporter: text('reporter').$type<NewsReporterId>().notNull(),
     trigger: text('trigger').$type<InterviewTrigger>().notNull(),
     /** The Discord user who asked for it (the GM or the player); null for an automatic offer. */
@@ -100,6 +103,18 @@ export const newsInterviews = pgTable(
     uniqueIndex('news_interviews_open_player_uniq')
       .on(table.playerId)
       .where(sql`status IN ('offered', 'active')`),
+    // One open interview per Discord user with no player row (a null player id never conflicts above).
+    uniqueIndex('news_interviews_open_nonplayer_uniq')
+      .on(table.discordUserId)
+      .where(sql`player_id IS NULL AND status IN ('offered', 'active')`),
+    check(
+      'news_interviews_person_role_check',
+      sql`${table.personRole} IN ('player', 'bench', 'coach')`,
+    ),
+    check(
+      'news_interviews_person_named_check',
+      sql`${table.playerId} IS NOT NULL OR ${table.displayName} IS NOT NULL`,
+    ),
     // One automatic offer per night and mode: a second pass inserts nothing.
     uniqueIndex('news_interviews_auto_night_uniq')
       .on(table.night, table.isTest)
@@ -127,9 +142,8 @@ export const newsInterviewAnswers = pgTable(
     interviewId: bigint('interview_id', { mode: 'number' })
       .notNull()
       .references(() => newsInterviews.id, { onDelete: 'cascade' }),
-    playerId: integer('player_id')
-      .notNull()
-      .references(() => players.id, { onDelete: 'cascade' }),
+    /** Null for a person with no player row (migration 0077): the interview row names them. */
+    playerId: integer('player_id').references(() => players.id, { onDelete: 'cascade' }),
     /** The reporter who asked (always the interview's reporter; kept per answer like T2's scrum answers). */
     reporter: text('reporter').$type<NewsReporterId>().notNull(),
     /** 1-based position in the interview (questions and follow-ups together). */

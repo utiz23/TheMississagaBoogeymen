@@ -175,16 +175,32 @@ export function articleAllowed(
 }
 
 /** A planned question when the writer fails or the budget is spent: hockey only, by position. */
-export function fallbackInterviewQuestion(position: number, name: string): string {
-  const list = [
-    `Thanks for sitting down, ${name}. How do you feel about your game lately?`,
-    `What has been working for you on the ice this season, ${name}?`,
-    `What part of your game do you want to sharpen next?`,
-    `Which recent game stands out for you, and why?`,
-    `How would you describe your role on this team, ${name}?`,
-    `What does this club need to do better as a group?`,
-    `Last one, ${name}: what are you chasing for the rest of the season?`,
-  ]
+export function fallbackInterviewQuestion(
+  position: number,
+  name: string,
+  /** T7: a person who did not play is asked about the team, never about "your game". */
+  bench?: 'bench' | 'coach',
+): string {
+  const list =
+    bench !== undefined
+      ? [
+          `Thanks for sitting down, ${name}. How did the team look to you tonight?`,
+          `What stood out about the way the team played, ${name}?`,
+          `Which stretch of the game worked best for the team, ${name}?`,
+          `What would you change in the team's plan, ${name}?`,
+          `How would you describe the mood of the team, ${name}?`,
+          `What does this club need to do better as a group?`,
+          `Last one, ${name}: what should the team chase for the rest of the season?`,
+        ]
+      : [
+          `Thanks for sitting down, ${name}. How do you feel about your game lately?`,
+          `What has been working for you on the ice this season, ${name}?`,
+          `What part of your game do you want to sharpen next?`,
+          `Which recent game stands out for you, and why?`,
+          `How would you describe your role on this team, ${name}?`,
+          `What does this club need to do better as a group?`,
+          `Last one, ${name}: what are you chasing for the rest of the season?`,
+        ]
   return list[Math.min(Math.max(position, 1), list.length) - 1]!
 }
 

@@ -27,6 +27,8 @@ void test('schema: two new tables; one open interview per player; one auto offer
   assert.equal(cfg.name, 'news_interviews')
   assert.deepEqual(cfg.checks.map((c) => c.name).sort(), [
     'news_interviews_article_status_check',
+    'news_interviews_person_named_check',
+    'news_interviews_person_role_check',
     'news_interviews_reporter_check',
     'news_interviews_status_check',
     'news_interviews_trigger_check',
@@ -40,6 +42,19 @@ void test('schema: two new tables; one open interview per player; one auto offer
   assert.match(
     flat(dialect.sqlToQuery(open.config.where!).sql),
     /status IN \('offered', 'active'\)/,
+  )
+  // T7 (migration 0077): a person with no player row has one open interview per Discord user.
+  const nonPlayer = cfg.indexes.find(
+    (i) => i.config.name === 'news_interviews_open_nonplayer_uniq',
+  )!
+  assert.equal(nonPlayer.config.unique, true)
+  assert.deepEqual(
+    nonPlayer.config.columns.map((c) => (c as { name: string }).name),
+    ['discord_user_id'],
+  )
+  assert.match(
+    flat(dialect.sqlToQuery(nonPlayer.config.where!).sql),
+    /player_id IS NULL AND status IN \('offered', 'active'\)/,
   )
   const auto = cfg.indexes.find((i) => i.config.name === 'news_interviews_auto_night_uniq')!
   assert.equal(auto.config.unique, true)
@@ -96,10 +111,12 @@ void test('detail lists: to offer, expired offers, expired questions, articles w
     toOffer,
     /"news_interviews"\."status" = \$\d+ and "news_interviews"\."offered_at" is null/,
   )
+  // T7: a person with no player row is named by display_name (left join: no player row needed).
   assert.match(
     toOffer,
-    /coalesce\(nullif\(btrim\("player_profiles"\."player_name"\), ''\), "players"\."gamertag"\)/,
+    /coalesce\("news_interviews"\."display_name", nullif\(btrim\("player_profiles"\."player_name"\), ''\), "players"\."gamertag"\)/,
   )
+  assert.match(toOffer, /left join "players" on "players"\."id" = "news_interviews"\."player_id"/)
   const offers = q.interviewDetailQuery({ expiredOffers: AT }).toSQL()
   assert.match(
     flat(offers.sql),
@@ -213,4 +230,49 @@ void test('article format: slug marker and Q/A paragraphs round-trip', () => {
     { kind: 'question', text: 'Why?' },
     { kind: 'answer', text: 'Because.' },
   ])
+})
+
+void test('migration 0077: player_id nullable, roles and names, idempotent, rolled back in the header', () => {
+  const sqlText = readFileSync(
+    new URL('../../../migrations/0077_press_bench.sql', import.meta.url),
+    'utf8',
+  )
+  const body = sqlText
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('--'))
+    .join('\n')
+  for (const t of [
+    'news_scrum_people',
+    'news_scrum_answers',
+    'news_gm_asks',
+    'news_interviews',
+    'news_interview_answers',
+  ]) {
+    assert.match(body, new RegExp(`ALTER TABLE "${t}" ALTER COLUMN "player_id" DROP NOT NULL`), t)
+  }
+  for (const t of ['news_scrum_people', 'news_gm_asks', 'news_interviews']) {
+    assert.match(
+      body,
+      new RegExp(
+        `ALTER TABLE "${t}" ADD COLUMN IF NOT EXISTS "person_role" text DEFAULT 'player' NOT NULL`,
+      ),
+      t,
+    )
+    assert.match(
+      body,
+      new RegExp(`ALTER TABLE "${t}" ADD COLUMN IF NOT EXISTS "display_name" text`),
+      t,
+    )
+  }
+  assert.match(body, /ALTER TABLE "news_gm_asks" ADD COLUMN IF NOT EXISTS "discord_user_id" text/)
+  assert.match(
+    body,
+    /CREATE UNIQUE INDEX IF NOT EXISTS "news_scrum_people_scrum_user_nonplayer_uniq"/,
+  )
+  assert.match(body, /CREATE UNIQUE INDEX IF NOT EXISTS "news_interviews_open_nonplayer_uniq"/)
+  // No table is dropped and no existing row changes (the defaults keep every row a player).
+  assert.doesNotMatch(body, /\bDROP TABLE\b|\bDELETE FROM\b|\bUPDATE\b/)
+  // The rollback is in the header, as comments.
+  assert.match(sqlText, /-- ROLLBACK/)
+  assert.match(sqlText, /--   ALTER TABLE news_scrum_people ALTER COLUMN player_id SET NOT NULL;/)
 })

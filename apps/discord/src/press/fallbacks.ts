@@ -1,4 +1,5 @@
 import type { ReporterId } from '@eanhl/db/news'
+import type { BenchRole } from './bench.ts'
 
 /**
  * Fixed lines for the moments the model could not write one (a failed code
@@ -68,6 +69,25 @@ const QUESTIONS: Record<ReporterId, readonly QuestionLine[]> = {
     (n) => `What did the game ask of you, ${n}, and did you answer it?`,
     (n) => `${n}, what is the lesson you take from this one?`,
     (n) => `Tell me about the effort, ${n}. Was it there?`,
+  ],
+}
+
+/**
+ * T7: question fallbacks for a person who did not play (a bench person, the coach). They never
+ * presume a play, a stat or a position: only what someone watching could answer.
+ */
+const BENCH_QUESTIONS: Record<BenchRole, readonly QuestionLine[]> = {
+  bench: [
+    (n) => `${n}, how did the team look from where you watched?`,
+    (n) => `What stood out to you from the call tonight, ${n}?`,
+    (n) => `${n}, was there a stretch where the team's plan worked best?`,
+    (n) => `What would you tell the team to change first, ${n}?`,
+  ],
+  coach: [
+    (n) => `${n}, how did the plan hold up tonight?`,
+    (n) => `What did you want to see more of from the team, ${n}?`,
+    (n) => `${n}, which adjustment mattered most tonight?`,
+    (n) => `What is the first thing the team should work on, ${n}?`,
   ],
 }
 
@@ -211,7 +231,13 @@ export function stepUpLine(reporter: ReporterId, who: string, seed: number): str
 }
 
 /** Every line of a kind for a reporter, as text (the name filled in for questions). */
-export function fallbackPool(kind: FallbackKind, reporter: ReporterId, name = 'Player'): string[] {
+export function fallbackPool(
+  kind: FallbackKind,
+  reporter: ReporterId,
+  name = 'Player',
+  bench?: BenchRole,
+): string[] {
+  if (kind === 'question' && bench !== undefined) return BENCH_QUESTIONS[bench].map((q) => q(name))
   if (kind === 'question') return QUESTIONS[reporter].map((q) => q(name))
   return [...(kind === 'closing' ? CLOSINGS : ACKS)[reporter]]
 }
@@ -235,11 +261,13 @@ export function fallbackLine(
     name: string
     seed: number
     alsoUsed?: readonly string[]
+    /** T7: a person who did not play gets bench questions (never "your game"). */
+    bench?: BenchRole
   },
 ): string {
   let used = usedBy.get(owner)
   if (used === undefined) usedBy.set(owner, (used = new Map()))
-  const pool = fallbackPool(args.kind, args.reporter, args.name)
+  const pool = fallbackPool(args.kind, args.reporter, args.name, args.bench)
   let seen = used.get(args.scrumId)
   if (seen === undefined) {
     seen = new Set()

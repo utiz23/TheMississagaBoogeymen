@@ -34,7 +34,7 @@ import type {
 } from '@eanhl/db/queries'
 // rules.ts imports only '@eanhl/db/news' (no discord.js), so the news container may use it.
 import { PRESS_NIGHT_WAIT_MS, extrasBudgetLeft } from '../press/rules.ts'
-import { pressForSheet } from './press-material.ts'
+import { pressForSheet, quoteSpeaker } from './press-material.ts'
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
   assignFeature,
@@ -341,7 +341,7 @@ function trustedOf(press: {
       n.playerName === null ? n.note : `About ${n.playerName}: ${n.note}`,
     ),
     answers: press.quotes.map((q) => ({
-      player: q.name,
+      player: quoteSpeaker(q),
       question: q.question,
       answer: q.answer,
       usability: q.usability,

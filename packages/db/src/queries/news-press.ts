@@ -43,6 +43,7 @@ import {
   type PressHeat,
   type PressHeatScope,
   type PressLevel,
+  type PressPersonRole,
 } from '../schema/index.js'
 import { MEMBER_CONDITION } from './club-members.js'
 import { NEWS_MAX_ATTEMPTS, nightKeySql } from './news.js'
@@ -192,6 +193,34 @@ export async function gmAskForPlayer(
   return (await gmAskForPlayerQuery(matchId, playerId, includeTest))[0] ?? null
 }
 
+/**
+ * T7: the newest active GM ask for a person with no player row (a coach, a bench person) on this
+ * match, found by Discord user id. Null when none.
+ */
+export function gmAskForUserQuery(matchId: number, discordUserId: string, includeTest: boolean) {
+  return db
+    .select()
+    .from(newsGmAsks)
+    .where(
+      and(
+        eq(newsGmAsks.matchId, matchId),
+        eq(newsGmAsks.discordUserId, discordUserId),
+        eq(newsGmAsks.status, 'active'),
+        sql`(${newsGmAsks.isTest} = false or ${includeTest})`,
+      ),
+    )
+    .orderBy(desc(newsGmAsks.id))
+    .limit(1)
+}
+
+export async function gmAskForUser(
+  matchId: number,
+  discordUserId: string,
+  includeTest: boolean,
+): Promise<NewsGmAskRow | null> {
+  return (await gmAskForUserQuery(matchId, discordUserId, includeTest))[0] ?? null
+}
+
 /** The match's newest scrum: test scrums when `isTest` (the trial), real ones otherwise. */
 export function scrumForMatchQuery(matchId: number, isTest: boolean) {
   return db
@@ -284,14 +313,18 @@ export async function listRecapItemsWithoutScrum(args: {
 // ── Scrum people ────────────────────────────────────────────────────────────
 
 export function insertScrumPersonQuery(values: NewNewsScrumPerson) {
-  return db
-    .insert(newsScrumPeople)
-    .values(values)
-    .onConflictDoNothing({ target: [newsScrumPeople.scrumId, newsScrumPeople.playerId] })
-    .returning({ id: newsScrumPeople.id })
+  return (
+    db
+      .insert(newsScrumPeople)
+      .values(values)
+      // No target: the unique (scrum, player) and, for a person with no player row, the partial
+      // unique (scrum, Discord user) both count (migration 0077).
+      .onConflictDoNothing()
+      .returning({ id: newsScrumPeople.id })
+  )
 }
 
-/** The new person id; null when this player is already in the scrum. */
+/** The new person id; null when this player (or Discord user) is already in the scrum. */
 export async function insertScrumPerson(values: NewNewsScrumPerson): Promise<number | null> {
   const rows = await insertScrumPersonQuery(values)
   return rows[0]?.id ?? null
@@ -315,7 +348,8 @@ export async function claimPing(personId: number): Promise<boolean> {
 export interface ScrumPersonWithScrum {
   id: number
   scrumId: number
-  playerId: number
+  /** Null for a bench person or a coach with no player row. */
+  playerId: number | null
   discordUserId: string
   pingMessageId: string | null
   currentQuestion: string | null
@@ -335,7 +369,7 @@ export interface ScrumPersonWithScrum {
 type RawPersonWithScrum = {
   id: string | number
   scrum_id: string | number
-  player_id: string | number
+  player_id: string | number | null
   discord_user_id: string
   ping_message_id: string | null
   current_question: string | null
@@ -359,7 +393,7 @@ function rowToPersonWithScrum(r: RawPersonWithScrum): ScrumPersonWithScrum {
   return {
     id: num(r.id),
     scrumId: num(r.scrum_id),
-    playerId: num(r.player_id),
+    playerId: r.player_id === null ? null : num(r.player_id),
     discordUserId: r.discord_user_id,
     pingMessageId: r.ping_message_id,
     currentQuestion: r.current_question,
@@ -428,11 +462,12 @@ export function scrumPersonDetailQuery(by: { id: number } | { toPing: true }) {
     .select({
       person: newsScrumPeople,
       scrum: newsScrums,
-      name: sql<string>`coalesce(nullif(btrim(${playerProfiles.playerName}), ''), ${players.gamertag})`,
+      // A person with no player row (a bench person, the coach) is named by `display_name`.
+      name: sql<string>`coalesce(${newsScrumPeople.displayName}, nullif(btrim(${playerProfiles.playerName}), ''), ${players.gamertag})`,
     })
     .from(newsScrumPeople)
     .innerJoin(newsScrums, eq(newsScrums.id, newsScrumPeople.scrumId))
-    .innerJoin(players, eq(players.id, newsScrumPeople.playerId))
+    .leftJoin(players, eq(players.id, newsScrumPeople.playerId))
     .leftJoin(playerProfiles, eq(playerProfiles.playerId, newsScrumPeople.playerId))
     .where(
       'id' in by
@@ -834,8 +869,14 @@ export async function nightHasActiveScrum(night: string, includeTest: boolean): 
 
 export interface PressQuote {
   answerId: number
-  playerId: number
+  /** Null for a bench person or the coach with no player row. */
+  playerId: number | null
   name: string
+  /**
+   * T7: in what capacity the person spoke: `player` played the game; `bench` watched from the
+   * team's voice call; `coach` is the coach. Bench and coach did not play.
+   */
+  personRole?: PressPersonRole
   question: string
   answer: string
   usability: 'usable' | 'joke'
@@ -854,14 +895,21 @@ export interface PressNote {
   critical: boolean
 }
 
-/** Usable or joke answers of the night, oldest first, never from players whose press level is `out`. */
+/**
+ * Usable or joke answers of the night, oldest first, never from players whose press level is `out`.
+ * T7: the person row names an answer's speaker (a bench person or the coach may have no player
+ * row) and says in what capacity they spoke (`person_role`).
+ */
 export function nightPressMaterialSql(night: string, includeTest: boolean): SQL {
   return sql`
-    select a.id as answer_id, a.player_id, ${DISPLAY_NAME} as name, a.question, a.answer, a.usability,
+    select a.id as answer_id, a.player_id,
+      coalesce(sp.display_name, ${DISPLAY_NAME}) as name, sp.person_role as person_role,
+      a.question, a.answer, a.usability,
       coalesce(a.reporter, sc.reporter) as reporter
     from news_scrum_answers a
     join news_scrums sc on sc.id = a.scrum_id
-    join players p on p.id = a.player_id
+    join news_scrum_people sp on sp.id = a.person_id
+    left join players p on p.id = a.player_id
     left join player_profiles pp on pp.player_id = a.player_id
     where a.night = ${night}::date
       and a.usability in ('usable', 'joke')
@@ -889,8 +937,9 @@ export async function nightPressMaterial(
 ): Promise<{ quotes: PressQuote[]; gmNotes: PressNote[] }> {
   const quotes = await db.execute<{
     answer_id: string | number
-    player_id: string | number
+    player_id: string | number | null
     name: string
+    person_role: PressPersonRole
     question: string
     answer: string
     usability: 'usable' | 'joke'
@@ -907,8 +956,9 @@ export async function nightPressMaterial(
   return {
     quotes: quotes.map((r) => ({
       answerId: num(r.answer_id),
-      playerId: num(r.player_id),
+      playerId: r.player_id === null ? null : num(r.player_id),
       name: r.name,
+      personRole: r.person_role,
       question: r.question,
       answer: r.answer,
       usability: r.usability,
@@ -1432,6 +1482,7 @@ export type {
   NewNewsGmAsk,
   NewsGmAskRow,
   NewsPressSettingsRow,
+  PressPersonRole,
 } from '../schema/index.js'
 
 // ── Replies to wire posts (T4, migration 0075) ──────────────────────────────

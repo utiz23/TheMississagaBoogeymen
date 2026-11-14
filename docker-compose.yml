@@ -205,6 +205,8 @@ services:
       PRESS_TYPED_ANSWERS: ${PRESS_TYPED_ANSWERS:-}
       # Replies to reporters' wire posts get an in-character answer (needs PRESS_TYPED_ANSWERS=1).
       PRESS_WIRE_REPLIES: ${PRESS_WIRE_REPLIES:-}
+      # The coach's Discord user id(s), a comma list: named "Coach <nickname>" (T7, the bench).
+      PRESS_COACH_USER_IDS: ${PRESS_COACH_USER_IDS:-}
       PRESS_TOKEN_BARLOW: ${PRESS_TOKEN_BARLOW:-}
       PRESS_TOKEN_VOSS: ${PRESS_TOKEN_VOSS:-}
       PRESS_TOKEN_MERCER: ${PRESS_TOKEN_MERCER:-}

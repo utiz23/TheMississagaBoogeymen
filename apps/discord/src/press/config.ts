@@ -31,6 +31,28 @@ export interface PressConfig extends PressDiscord {
    * intents). Fail-closed default: off. Optional so older fakes stay valid.
    */
   wireReplies?: boolean
+  /**
+   * T7: Discord user ids of the coach (`PRESS_COACH_USER_IDS`, a comma list). A coach is named
+   * "Coach <server nickname>" and asked as the coach. Empty = no coach. Optional so older fakes
+   * stay valid.
+   */
+  coachUserIds?: string[]
+  /** T7: the role a bench person needs (the "Chel" role; default `CHEL_ROLE_ID`). */
+  benchRoleId?: string
+}
+
+/** The 🏒 Chel role of the guild (the people who may be on the bench). */
+export const CHEL_ROLE_ID = '1423500221148696659'
+
+/**
+ * The coach ids of a comma list. A value that is not a Discord ID is dropped (never a guess); the
+ * names only the problems use, never an ID in a log.
+ */
+export function parseUserIdList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => DISCORD_ID_RE.test(v))
 }
 
 type Env = Record<string, string | undefined>
@@ -115,6 +137,10 @@ export function loadPressConfig(
       // On only for exactly `1`, and only with typed answers (Barlow must read messages).
       wireReplies:
         env['PRESS_TYPED_ANSWERS']?.trim() === '1' && env['PRESS_WIRE_REPLIES']?.trim() === '1',
+      coachUserIds: parseUserIdList(env['PRESS_COACH_USER_IDS']),
+      benchRoleId: DISCORD_ID_RE.test(env['PRESS_BENCH_ROLE_ID']?.trim() ?? '')
+        ? env['PRESS_BENCH_ROLE_ID']!.trim()
+        : CHEL_ROLE_ID,
     },
   }
 }

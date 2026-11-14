@@ -18,6 +18,7 @@ import type { InterviewStore } from './interview-store.ts'
 import { closeExpired, interviewStore, offerMessage } from './interview.ts'
 import type { PressDeps, PressStore } from './pass.ts'
 import { pressRecorder } from './question.ts'
+import { subjectOf } from './subject.ts'
 import { extrasBudgetLeft } from './rules.ts'
 
 /**
@@ -219,7 +220,8 @@ async function writeArticle(
     return skip('extras budget spent')
   }
   const res = await deps.fetchFacts('night', iv.night)
-  const person = res.facts.people.find((p) => p.playerId === iv.playerId)
+  // T7: a bench person or the coach is never on the sheet; a player must be.
+  const person = await subjectOf(deps, res, iv)
   if (person === undefined) return skip('player not on the sheet')
   // Rule C (T5): a crude answer is never printed, whatever its label says.
   const offered: OfferedAnswer[] = answers.flatMap((a) =>
@@ -234,7 +236,11 @@ async function writeArticle(
       forbiddenNames: res.forbiddenNames,
       takes: res.takes,
       reporter: iv.reporter,
-      player: { name: person.name, pressLevel: person.pressLevel },
+      player: {
+        name: person.name,
+        pressLevel: person.pressLevel,
+        ...(person.bench === undefined ? {} : { bench: person.bench }),
+      },
       topic: iv.topic,
     },
     offered,
@@ -254,7 +260,11 @@ async function writeArticle(
     dek: a.dek,
     body: articleBody(a, offered),
     summary: a.dek,
-    mentions: [{ name: person.name, playerId: person.playerId }],
+    // A bench person or the coach did not play: they are no person of the night's sheet.
+    mentions:
+      iv.playerId === null || person.bench !== undefined
+        ? []
+        : [{ name: person.name, playerId: iv.playerId }],
     facts: res.facts,
     rulesVersion: NEWS_RULES_VERSION,
     isTest: iv.isTest,

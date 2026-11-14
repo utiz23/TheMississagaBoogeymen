@@ -2,7 +2,7 @@ import {
   REPORTERS,
   REPORTER_IDS,
   type NewsFactsResponse,
-  type NewsPerson,
+  type NewsGameFacts,
   type ReporterId,
 } from '@eanhl/db/news'
 import type { InterviewAnswer, InterviewDetail } from '@eanhl/db/queries'
@@ -12,6 +12,15 @@ import { crudeHit } from '../news/crude.ts'
 import { containsName } from '../news/fact-check.ts'
 import { FALLBACK_ACK, judgeAnswer, type ScrumHistoryEntry, type Usability } from './asker.ts'
 import type { PressConfig } from './config.ts'
+import {
+  benchForGame,
+  benchGameOf,
+  benchPortOf,
+  callLine,
+  nameBench,
+  personColumns,
+  type BenchPerson,
+} from './bench.ts'
 import { feudLevel, recordInsult } from './feuds.ts'
 import { OFFLIMITS_LOG, screenMessage } from './hard-lines.ts'
 import { askInterviewQuestion } from './interview-asker.ts'
@@ -31,11 +40,12 @@ import {
 } from './interview-rules.ts'
 import { interviewStoreOf, type InterviewStore } from './interview-store.ts'
 import { ANSWER_MAX_CHARS, TEXT, type Reply } from './interactions.ts'
-import type { PressDeps, PressStore } from './pass.ts'
+import { SCRUM_SOURCE_WINDOW_MS, type PressDeps, type PressStore } from './pass.ts'
 import { latestPlayerMessage, rememberPlayerMessage } from './player-latest.ts'
 import { answerComponents, pressRecorder, safeWhy, threadLine } from './question.ts'
 import { replyingTo } from './reply-ref.ts'
 import { extrasBudgetLeft } from './rules.ts'
+import { subjectOf, type Subject } from './subject.ts'
 
 /**
  * Interviews (task T3): one reporter asks one player about 7 questions in a
@@ -56,6 +66,7 @@ export const INTERVIEW_TEXT = {
   allOff: 'Every reporter is switched off.',
   off: 'Interviews are not running right now.',
   inThread: 'Your interview is in the thread.',
+  noGame: 'No game with the press in the last 6 hours.',
 } as const
 
 const say = (text: string): Reply => ({ kind: 'ephemeral', text })
@@ -104,14 +115,18 @@ export function interviewHistory(answers: readonly InterviewAnswer[]): ScrumHist
   )
 }
 
-/** The night sheet and the player on it; `person` undefined = not on the sheet (Leave me out, a guest). */
+/**
+ * The night sheet and the person on it; `person` undefined = not allowed (a player off the sheet:
+ * Leave me out, a guest; T7: a bench person who is "Leave me out" or whose name is forbidden).
+ * A bench person or the coach did not play: they are not on the sheet, and `person.bench` says so.
+ */
 async function sheetFor(
   deps: PressDeps,
   night: string,
-  playerId: number,
-): Promise<{ res: NewsFactsResponse; person: NewsPerson | undefined }> {
+  who: { playerId: number | null; personRole: 'player' | 'bench' | 'coach'; name: string },
+): Promise<{ res: NewsFactsResponse; person: Subject | undefined }> {
   const res = await deps.fetchFacts('night', night)
-  return { res, person: res.facts.people.find((p) => p.playerId === playerId) }
+  return { res, person: await subjectOf(deps, res, who) }
 }
 
 // ── Starting ────────────────────────────────────────────────────────────────
@@ -121,6 +136,8 @@ interface Prepared {
   name: string
   discordUserId: string
   reporter: ReporterId
+  /** T7: set when the person did not play (a bench person, the coach). */
+  bench?: BenchPerson
 }
 
 /**
@@ -141,7 +158,11 @@ export async function prepareInterview(
     new Date(now.getTime() - INTERVIEW_NIGHT_LOOKBACK_MS),
   )
   if (night === null) return `${name} has no game in the last 30 days.`
-  const { res, person } = await sheetFor(deps, night, args.playerId)
+  const { res, person } = await sheetFor(deps, night, {
+    playerId: args.playerId,
+    personRole: 'player',
+    name: args.name,
+  })
   if (person === undefined) return `${name} can't be interviewed.`
   const discordUserId = await st.getPlayerDiscordUserId(args.playerId)
   if (discordUserId === null) return INTERVIEW_TEXT.notLinked
@@ -163,7 +184,54 @@ export async function prepareInterview(
   return { night, name: person.name, discordUserId, reporter }
 }
 
-/** `/gm interview`: the GM offers an interview to a player (posted by the timer pass). */
+/** The night's last game and the bench person the GM named for it (T7), or a refusal text. */
+async function prepareBenchInterview(
+  deps: PressDeps,
+  config: PressConfig,
+  st: PressStore & InterviewStore,
+  args: { userId: string; reporter: ReporterId | null; seed: number },
+): Promise<Prepared | string> {
+  const night = await st.latestPressNight(new Date(deps.now().getTime() - SCRUM_SOURCE_WINDOW_MS))
+  if (night === null) return INTERVIEW_TEXT.noGame
+  const res = await deps.fetchFacts('night', night)
+  const game: NewsGameFacts | undefined = [...res.facts.games]
+    .sort((a, b) => a.playedAt.localeCompare(b.playedAt) || a.matchId - b.matchId)
+    .at(-1)
+  if (game === undefined) return INTERVIEW_TEXT.noGame
+  const named = await nameBench(deps, config, await benchGameOf(st, game), args.userId)
+  if (!named.ok) {
+    return named.why === 'cannot be found on the server'
+      ? INTERVIEW_TEXT.notLinked
+      : `That person cannot be interviewed: ${named.why}.`
+  }
+  const disabled = await st.listDisabledReporters()
+  let reporter: ReporterId | null = args.reporter
+  if (reporter !== null) {
+    if (disabled.includes(reporter)) return `${reporterName(reporter)} is switched off.`
+  } else {
+    reporter = chooseInterviewReporter({
+      seed: args.seed,
+      disabled,
+      lastReporter: await st.lastInterviewReporter(),
+      takeReporters: [],
+    })
+    if (reporter === null) return INTERVIEW_TEXT.allOff
+  }
+  return {
+    night,
+    name: named.person.name,
+    discordUserId: args.userId,
+    reporter,
+    bench: named.person,
+  }
+}
+
+/**
+ * `/gm interview`: the GM offers an interview to a player (posted by the timer pass). T7: a
+ * Discord user who did not play (the coach, or someone who watched from the call) can be
+ * interviewed about the night, asked as someone who did not play; the reply lists who was in the
+ * call.
+ */
 export async function onGmInterview(
   deps: PressDeps,
   config: PressConfig,
@@ -176,20 +244,42 @@ export async function onGmInterview(
   if (await pressOff(deps, config)) return say(TEXT.pressOff)
   if (opts.player === null) return say(INTERVIEW_TEXT.noPlayer)
   const target = await st.getPlayerForDiscordUser(opts.player)
-  if (target === null) return say(INTERVIEW_TEXT.notLinked)
   const asked = REPORTER_IDS.find((id) => id === opts.reporter) ?? null
   const now = deps.now()
-  const prepared = await prepareInterview(deps, st, {
-    playerId: target.playerId,
-    name: target.name,
-    reporter: asked,
-    seed: now.getTime() ^ target.playerId,
-  })
-  if (typeof prepared === 'string') return say(prepared)
+  const lookback = new Date(now.getTime() - INTERVIEW_NIGHT_LOOKBACK_MS)
+  // A known player with a game in the last 30 days is interviewed as a player; anyone else (the
+  // coach, a bench person, a player with no recent game) as the bench, if the GM named a person
+  // who may be on it.
+  const asPlayer =
+    target !== null && (await st.latestPlayerNight(target.playerId, lookback)) !== null
+  const prepared = asPlayer
+    ? await prepareInterview(deps, st, {
+        playerId: target.playerId,
+        name: target.name,
+        reporter: asked,
+        seed: now.getTime() ^ target.playerId,
+      })
+    : await prepareBenchInterview(deps, config, st, {
+        userId: opts.player,
+        reporter: asked,
+        seed: now.getTime() ^ Number(BigInt(opts.player) % 1_000_000n),
+      })
+  if (typeof prepared === 'string') {
+    // A known player with no game and no bench claim keeps the old refusal.
+    return say(
+      !asPlayer &&
+        target !== null &&
+        (prepared === INTERVIEW_TEXT.notLinked || prepared.includes('played that game'))
+        ? `${escapeMarkdown(target.name)} has no game in the last 30 days.`
+        : prepared,
+    )
+  }
   const topicText = opts.topic === null ? '' : cut(opts.topic.trim(), INTERVIEW_TOPIC_MAX_CHARS)
+  const bench = prepared.bench
   const id = await st.insertInterview({
-    playerId: target.playerId,
+    playerId: bench === undefined ? target!.playerId : bench.playerId,
     discordUserId: prepared.discordUserId,
+    ...(bench === undefined ? {} : personColumns(bench)),
     reporter: prepared.reporter,
     trigger: 'gm',
     requestedByUserId: userId,
@@ -201,9 +291,23 @@ export async function onGmInterview(
   })
   const name = escapeMarkdown(prepared.name)
   if (id === null) return say(`${name} ${INTERVIEW_TEXT.open}`)
-  deps.log(`[press] interview ${String(id)}: GM offer for player ${String(target.playerId)}`)
+  deps.log(
+    `[press] interview ${String(id)}: GM offer for ${
+      bench === undefined ? `player ${String(target!.playerId)}` : `a ${bench.role} person`
+    }`,
+  )
+  let call = ''
+  if (benchPortOf(deps) !== undefined) {
+    const res = await deps.fetchFacts('night', prepared.night)
+    const game = [...res.facts.games]
+      .sort((a, b) => a.playedAt.localeCompare(b.playedAt) || a.matchId - b.matchId)
+      .at(-1)
+    if (game !== undefined) {
+      call = `\n${callLine(await benchForGame(deps, config, await benchGameOf(st, game)))}`
+    }
+  }
   return say(
-    `Got it: ${reporterName(prepared.reporter)} will offer ${name} an interview (open for 30 minutes).`,
+    `Got it: ${reporterName(prepared.reporter)} will offer ${name} an interview (open for 30 minutes).${call}`,
   )
 }
 
@@ -405,7 +509,7 @@ export async function askNext(
   let question: string | null = null
   let name = iv.name
   try {
-    const { res, person } = await sheetFor(deps, iv.night, iv.playerId)
+    const { res, person } = await sheetFor(deps, iv.night, iv)
     if (person === undefined) {
       // "Leave me out" since the start: nothing more is asked, nothing is posted.
       await st.endInterview({ id, from: 'active', to: 'stopped', cutoff: null, at: deps.now() })
@@ -421,7 +525,11 @@ export async function askNext(
         forbiddenNames: res.forbiddenNames,
         takes: res.takes,
         reporter: iv.reporter,
-        player: { name: person.name, pressLevel: person.pressLevel },
+        player: {
+          name: person.name,
+          pressLevel: person.pressLevel,
+          ...(person.bench === undefined ? {} : { bench: person.bench }),
+        },
         topic: iv.topic,
         history: interviewHistory(await st.listInterviewAnswers(id)),
         position,
@@ -432,7 +540,13 @@ export async function askNext(
   } catch (err: unknown) {
     deps.log(`[press] interview ${String(id)}: question: ${reason(err)}`)
   }
-  const text = question ?? fallbackInterviewQuestion(iv.questionsAsked + 1, name)
+  const text =
+    question ??
+    fallbackInterviewQuestion(
+      iv.questionsAsked + 1,
+      name,
+      iv.personRole === 'player' ? undefined : iv.personRole,
+    )
   const threadId = await threadFor(deps, st, iv)
   const claimed = await st.claimInterviewQuestion({
     id,
@@ -508,9 +622,9 @@ interface Verdict {
 async function answerSheet(
   deps: PressDeps,
   iv: InterviewDetail,
-): Promise<{ res: NewsFactsResponse; person: NewsPerson | undefined } | null> {
+): Promise<{ res: NewsFactsResponse; person: Subject | undefined } | null> {
   try {
-    return await sheetFor(deps, iv.night, iv.playerId)
+    return await sheetFor(deps, iv.night, iv)
   } catch (err: unknown) {
     deps.log(`[press] interview ${String(iv.id)}: sheet: ${reason(err)}`)
     return null
@@ -533,7 +647,7 @@ async function judge(
   iv: InterviewDetail,
   question: string,
   answer: string,
-  sheet: { res: NewsFactsResponse; person: NewsPerson | undefined } | null,
+  sheet: { res: NewsFactsResponse; person: Subject | undefined } | null,
 ): Promise<Verdict> {
   const closed: Verdict = {
     usability: 'unusable',
@@ -571,7 +685,11 @@ async function judge(
         forbiddenNames: res.forbiddenNames,
         reporter: iv.reporter,
         heat: 'normal',
-        player: { name: person.name, pressLevel: person.pressLevel },
+        player: {
+          name: person.name,
+          pressLevel: person.pressLevel,
+          ...(person.bench === undefined ? {} : { bench: person.bench }),
+        },
         gmNotes: [],
         takes: res.takes,
         history,

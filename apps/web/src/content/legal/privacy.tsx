@@ -342,6 +342,12 @@ export const sections: LegalPageSection[] = [
           reporter can answer you. We store the answer and the message IDs, not the text of your
           reply.
         </P>
+        <P>
+          <Strong>Who is in the team's voice call.</Strong> On game nights the bots check who is in
+          the team's voice channel, only so people who watched but did not play can be invited to,
+          or step up to, talk to the press. We do not store who was in the call. If you answer, the
+          rules for answers to reporters apply.
+        </P>
       </>
     ),
   },

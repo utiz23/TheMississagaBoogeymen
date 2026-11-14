@@ -503,7 +503,12 @@ test('reaction router: one reaction at a time; an error is logged and never thro
 
 test('clientIntents: the message intents only on Barlow and only with the flag', () => {
   const content = [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
-  const base = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessageReactions]
+  // T7: Barlow also reads the voice states (not privileged): the bench, in memory only.
+  const base = [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildVoiceStates,
+  ]
   assert.deepEqual(clientIntents('barlow', false), base)
   assert.deepEqual(clientIntents('barlow', true), [...base, ...content])
   for (const id of REPORTER_IDS.filter((r) => r !== 'barlow')) {

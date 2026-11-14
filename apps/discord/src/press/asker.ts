@@ -26,6 +26,7 @@ import {
 } from '../news/prompts.ts'
 import { redactTakes } from '../news/redact.ts'
 import { writeChecked, type ModelCall } from '../news/writer.ts'
+import type { BenchRole } from './bench.ts'
 import type { Heat } from './rules.ts'
 
 /**
@@ -49,7 +50,7 @@ export interface AskContext {
   forbiddenNames: string[]
   reporter: ReporterId
   heat: Heat
-  player: { name: string; pressLevel: 'full' | 'easy' }
+  player: { name: string; pressLevel: 'full' | 'easy'; bench?: BenchRole }
   /** GM notes on the game: true events the desk saw. */
   gmNotes: string[]
   takes: NewsTake[]
@@ -183,6 +184,23 @@ const HEAT_RULE: Record<Heat, string> = {
   cool: 'Start from what went well.',
 }
 
+/**
+ * T7: the request's lines for a person who did not play (a bench person who watched from the team's
+ * voice call, or the coach). Empty for a player. Also used by the interview writer. The facts
+ * about such a person come only from the sheet: never as if they played.
+ */
+export function benchLines(name: string, bench: BenchRole | undefined): string[] {
+  if (bench === undefined) return []
+  const who =
+    bench === 'coach'
+      ? `${name} is the club's coach. ${name} did not play in this game.`
+      : `${name} did not play in this game: they watched it from the team's voice call.`
+  return [
+    who,
+    `Never say or suggest that ${name} played, never credit ${name} with a goal, an assist, a save, a hit or any other stat or play from the sheet, and never give ${name} a position. Ask only what a ${bench === 'coach' ? 'coach' : 'person watching'} could answer: how the team played, the plan and the tactics, the goalie and the lines as a whole, what ${bench === 'coach' ? 'the coach saw from the bench' : 'they saw from the call'}. Do not name any player: name only ${name}. The rules above about a player's own games and stats do not apply to ${name}.`,
+  ]
+}
+
 /** One system prompt for asking and judging (the same reporter's two calls share the cache). */
 function systemPrompt(reporter: ReporterId): string {
   return [
@@ -258,6 +276,7 @@ function contextLines(ctx: AskContext, history: AskContext['history']): string[]
     ctx.player.pressLevel === 'easy'
       ? `${name} is at press level "easy": no criticism at any heat.`
       : `${name} is at press level "full".`,
+    ...benchLines(name, ctx.player.bench),
     // A "Go easy" player never gets feud content, whatever the caller passed.
     ...(ctx.player.pressLevel === 'easy' ? [] : feudLine(ctx.feud, name)),
   )

@@ -8,6 +8,15 @@ import {
 } from '@eanhl/db/news'
 import type { NewNewsGmNote, NewsGmNoteRow, PressRosterEntry } from '@eanhl/db/queries'
 import { escapeMarkdown } from '../message.ts'
+import {
+  benchForGame,
+  benchGameOf,
+  benchPortOf,
+  callLine,
+  nameBench,
+  personColumns,
+  type BenchPerson,
+} from './bench.ts'
 import { containsName } from '../news/fact-check.ts'
 import { fencedAnswer } from '../news/prompts.ts'
 import type { PressConfig } from './config.ts'
@@ -349,7 +358,14 @@ async function joinScrum(
   const candidate = scrumCandidates(game, facts, new Map([[playerId, discordUserId]])).find(
     (c) => c.playerId === playerId,
   )
-  if (candidate === undefined) return 'not in that game'
+  // T7: a player who did not play may still be asked as the bench (in the call, or the GM's word
+  // when the call cannot be checked).
+  let bench: BenchPerson | null = null
+  if (candidate === undefined) {
+    const named = await nameBench(deps, config, await benchGameOf(store, game), discordUserId)
+    if (!named.ok) return 'not in that game'
+    bench = named.person
+  }
   const scrum = await store.scrumForMatch(game.matchId, config.mode === 'trial')
   if (scrum === null) return null
   if (deps.now() >= scrum.openUntil) return 'the scrum has closed'
@@ -357,6 +373,7 @@ async function joinScrum(
     scrumId: scrum.id,
     playerId,
     discordUserId,
+    ...(bench === null ? {} : personColumns(bench)),
     role: 'picked',
     requestedBy: 'gm',
     requestedByUserId: userId,
@@ -491,12 +508,19 @@ export async function onGmNote(
     noAsk,
     pings,
   })
+  const call =
+    benchPortOf(deps) === undefined ? '' : `\n${callLine(await benchOfGame(deps, config, game))}`
   return {
     kind: 'ephemeral',
-    text: noAi === null ? line : `${line} ${noAi}`,
+    text: `${noAi === null ? line : `${line} ${noAi}`}${call}`,
     noteId,
     choices: choicesOf(res.facts),
   }
+}
+
+/** T7: who was in the call and did not play, for one game. */
+async function benchOfGame(deps: PressDeps, config: PressConfig, game: NewsGameFacts) {
+  return benchForGame(deps, config, await benchGameOf(deps.store, game))
 }
 
 /** The reporters `/gm ask` may name: the 8 scrum reporters (never Father Rink). */
@@ -559,17 +583,39 @@ export async function onGmAsk(
   const number = args.game ?? games.length
   const game = games[number - 1]!
   const me = await store.getPlayerForDiscordUser(args.player)
-  if (me === null) return say(ASK_TEXT.noPlayer)
   const roster = await store.listPressRoster()
-  const entry = roster.find((r) => r.playerId === me.playerId)
-  if (entry === undefined) return say(TEXT.notOnRoster)
   const isTest = config.mode === 'trial'
-  const name = entry.name
+  const benchGame = await benchGameOf(store, game)
+
+  // T7: a Discord user who did not play (or who has no player row, like the coach) may be asked
+  // as the bench: in the call, or the coach, or the GM's word when the call cannot be checked.
+  let bench: BenchPerson | null = null
+  let benchWhy: string | null = null
+  if (me === null || !benchGame.playerUserIds.has(args.player)) {
+    const named = await nameBench(deps, config, benchGame, args.player)
+    if (named.ok) bench = named.person
+    else benchWhy = named.why
+  }
+  if (bench === null && me === null) {
+    return say(
+      benchWhy === 'cannot be found on the server'
+        ? ASK_TEXT.noPlayer
+        : `That person cannot be asked: ${benchWhy ?? 'unknown'}.`,
+    )
+  }
+  const entry = me === null ? undefined : roster.find((r) => r.playerId === me.playerId)
+  if (bench === null && entry === undefined) return say(TEXT.notOnRoster)
+  const name = bench?.name ?? entry!.name
+  const pressLevel = bench?.pressLevel ?? entry!.pressLevel
 
   const base = {
     matchId: game.matchId,
     night,
-    playerId: entry.playerId,
+    playerId: bench === null ? entry!.playerId : bench.playerId,
+    discordUserId: args.player,
+    ...(bench === null ? {} : personColumns(bench)),
+    // A person with no player row must have a name (the table check).
+    ...(bench === null && entry === undefined ? { displayName: name } : {}),
     question,
     exact,
     reporter: reporterId,
@@ -583,14 +629,14 @@ export async function onGmAsk(
   }
 
   // Fairness first, before any AI call or any ask stored as active.
-  if (entry.pressLevel === 'out') return refuse(outText(name))
+  if (pressLevel === 'out') return refuse(outText(name))
   const named = outPlayerNamed(question, roster)
   if (named !== null) return refuse(outText(named.name))
   if (res.forbiddenNames.some((n) => containsName(question, n))) return refuse(ASK_TEXT.named)
   if (!extrasBudgetLeft(await store.monthNewsSpendUsd(deps.now()), config.monthlyLimitUsd)) {
     return refuse(`${escapeMarkdown(name)} cannot be asked: ${ASK_TEXT.budget}.`)
   }
-  if (entry.pressLevel === 'easy') {
+  if (pressLevel === 'easy') {
     // "Go easy": the note's criticism check, and no AI check = no question (fails closed).
     const { parsed } = await analyseNote(deps, config, question, games, roster)
     if (parsed === null) return refuse(easyNoAiText(name))
@@ -600,23 +646,32 @@ export async function onGmAsk(
     return refuse(`${REPORTERS[reporterId].name} is off — pick another reporter.`)
   }
 
-  const discordUserId = await store.getPlayerDiscordUserId(entry.playerId)
+  // A player has a linked Discord (the player row); a bench person is the user named.
+  const discordUserId =
+    bench === null ? await store.getPlayerDiscordUserId(entry!.playerId) : args.player
   if (discordUserId === null)
     return refuse(`${escapeMarkdown(name)} cannot be asked: no linked Discord.`)
-  const candidate = scrumCandidates(
-    game,
-    res.facts,
-    new Map([[entry.playerId, discordUserId]]),
-  ).find((c) => c.playerId === entry.playerId)
-  if (candidate === undefined) {
-    return refuse(`${escapeMarkdown(name)} cannot be asked: not in game ${String(number)}.`)
+  if (bench === null) {
+    const candidate = scrumCandidates(
+      game,
+      res.facts,
+      new Map([[entry!.playerId, discordUserId]]),
+    ).find((c) => c.playerId === entry!.playerId)
+    if (candidate === undefined) {
+      return refuse(
+        `${escapeMarkdown(name)} cannot be asked: not in game ${String(number)}${
+          benchWhy === null ? '' : `, and ${benchWhy}`
+        }.`,
+      )
+    }
   }
   const scrum = await store.scrumForMatch(game.matchId, isTest)
   if (scrum !== null) {
     if (deps.now() >= scrum.openUntil) {
       return refuse(`${escapeMarkdown(name)} cannot be asked: the scrum has closed.`)
     }
-    const there = await store.findScrumPerson(scrum.id, entry.playerId)
+    const there =
+      base.playerId === null ? null : await store.findScrumPerson(scrum.id, base.playerId)
     // Already in, but not asked yet: the GM's question still comes first.
     if (there !== null && (there.status !== 'pinged' || there.questionsAsked > 0)) {
       return refuse(`${escapeMarkdown(name)} is already in this scrum.`)
@@ -627,8 +682,10 @@ export async function onGmAsk(
   if (scrum !== null) {
     await store.insertScrumPerson({
       scrumId: scrum.id,
-      playerId: entry.playerId,
+      playerId: base.playerId,
       discordUserId,
+      ...(bench === null ? {} : personColumns(bench)),
+      ...(bench === null && entry === undefined ? { displayName: name } : {}),
       role: 'picked',
       requestedBy: 'gm',
       requestedByUserId: userId,
@@ -642,8 +699,10 @@ export async function onGmAsk(
         : 'the first reporter on their panel'
   const how = exact ? '' : ' (as a topic, in their own words)'
   const wait = scrum === null ? ' The scrum is not open yet: they are pinged when it opens.' : ''
+  const call =
+    benchPortOf(deps) === undefined ? '' : `\n${callLine(await benchOfGame(deps, config, game))}`
   return say(
-    `Got it: ${who} will ask ${escapeMarkdown(name)}: ${escapeMarkdown(question)}${how}${wait}`,
+    `Got it: ${who} will ask ${escapeMarkdown(name)}: ${escapeMarkdown(question)}${how}${wait}${call}`,
   )
 }
 

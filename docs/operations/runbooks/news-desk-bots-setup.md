@@ -562,3 +562,33 @@ No migration. Deploy `press` only.
 - To check after the deploy: accept one ping and confirm that the thread is named
   `<Player> — press scrum`, that the question has no button, and that the reporter's
   next line replies to your message.
+
+## The bench: people in the call who did not play (task T7, 2026-11-14)
+
+Migration 0077. Deploy `press`, `news` (shared recap code) and `web` (privacy text). The migration
+is hand-applied with psql, before the code. It is idempotent: it makes `player_id` optional on the
+five press tables and adds `person_role` / `display_name`. Rollback is in its header (it deletes the
+rows made for bench people and the coach, then restores the old shape).
+
+- **Who is "bench" for a game:** a Discord user who was in the same voice channel as the game's
+  players from 20 minutes before to 30 minutes after the game's end, has the Chel role, did not play,
+  is not a bot, and (a known player) is not on "Leave me out". The bot reads the guild's voice states
+  (`GuildVoiceStates`, not privileged, no portal switch) and keeps them in memory only for 12 hours.
+  Nothing about the call is stored. The privacy pages say so.
+- **The coach:** set `PRESS_COACH_USER_IDS` in `.env` (a comma list; the coach is Discord user
+  `431630903048011777`). The coach is named "Coach <server nickname>" and asked as the coach. The GM can
+  ask or interview the coach any time; the coach steps up on their own only when in the call.
+  `PRESS_BENCH_ROLE_ID` is optional (default: the Chel role `1423500221148696659`).
+- **GM:** `/gm ask`, `/gm note` (a known player) and `/gm interview` accept a bench person. The
+  private reply ends with "In the call, not playing: ...". "Call check unavailable" means the bot has
+  no voice data yet (a restart): the GM may still name a known player or the coach.
+- **Volunteers:** a bench person presses "Talk to the press" on the game's recap, or types `/scrum`.
+  They get the volunteer round (2 reporters, no follow-up).
+- **How they are asked:** the reporters are told the person did not play and ask about the team, the
+  plan and what they saw. The night recap may quote them as "said Joey, watching from the call" or
+  "said Coach Mike".
+- **Log lines:** `[press] scrums: item N: GM ask for a bench person not used (<why>)`. Never a user id
+  list of the call.
+- **To check after the deploy:** join the team's voice channel with a second account that has the Chel
+  role during or after a game, run `/gm ask` on that account: the reply should list it under "In the
+  call, not playing".

@@ -14,6 +14,7 @@ import {
   onGmNoteCorrect,
 } from './gm.ts'
 import { runPressPass } from './pass.ts'
+import { benchPort } from './bench-fakes.ts'
 import { GM, NIGHT, NOW, USER_A, USER_B, config, itemRow, setup } from './test-fakes.ts'
 
 const GM_ONLY = 'Only the GM can do that.'
@@ -333,10 +334,12 @@ void test('an asking note that cannot add a scrum person says why: Ask: no — <
   }
   const model = noteModel(parse({ nickname: 'Skater A', asksPlayer: true }))
   const out = setup({ response: res, model: model.call })
+  // The call can be checked and nobody was in it: a player who did not play is not on the bench.
+  out.deps.bench = benchPort({ stays: [] })
   scrumOn(out)
   assert.equal(
     text(await onGmNote(out.deps, config('live'), GM, 'Skater A, ask him', null)),
-    'Got it: Skater A — game 2 vs WestKent Creamers. Ask: no — not in that game.',
+    'Got it: Skater A — game 2 vs WestKent Creamers. Ask: no — not in that game.\nIn the call, not playing: nobody.',
   )
   for (const t of [closed, unlinked, out]) assert.equal(t.store.people.length, 0)
 })
@@ -953,9 +956,11 @@ void test('/gm ask: a reporter who is off, Father Rink, an unlinked user and a p
     aliases: [],
   })
   t.store.discordIds.set(5, '200000000000000005')
+  // The call can be checked and Bob was not in it: not on the bench either.
+  t.deps.bench = benchPort({ stays: [] })
   assert.deepEqual(
     await ask(t, { player: '200000000000000005' }),
-    ephemeral('Bench Bob cannot be asked: not in game 2.'),
+    ephemeral('Bench Bob cannot be asked: not in game 2, and was not in the call.'),
   )
   assert.equal(t.store.people.length, 0)
   assert.equal((await t.store.gmAsksForMatch(90002, false)).length, 0)

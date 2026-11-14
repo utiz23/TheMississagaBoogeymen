@@ -68,6 +68,7 @@ const {
   findScrumPersonQuery,
   gmAsksForMatchQuery,
   gmAskForPlayerQuery,
+  gmAskForUserQuery,
 } = await import('../news-press.js')
 const { nightCriticizedSql } = await import('../news.js')
 const dialect = new PgDialect()
@@ -101,11 +102,26 @@ void test('scrum people: unique (scrum_id, player_id); status, role, requested_b
   const names = cfg.checks.map((c) => c.name).sort()
   assert.deepEqual(names, [
     'news_scrum_people_panel_check',
+    'news_scrum_people_person_named_check',
+    'news_scrum_people_person_role_check',
     'news_scrum_people_requested_by_check',
     'news_scrum_people_role_check',
     'news_scrum_people_status_check',
     'news_scrum_people_target_total_check',
   ])
+  // T7 (migration 0077): a person with no player row counts once per scrum and Discord user.
+  const nonPlayer = cfg.indexes.find(
+    (i) => i.config.name === 'news_scrum_people_scrum_user_nonplayer_uniq',
+  )!
+  assert.equal(nonPlayer.config.unique, true)
+  assert.deepEqual(
+    nonPlayer.config.columns.map((c) => (c as { name: string }).name),
+    ['scrum_id', 'discord_user_id'],
+  )
+  assert.match(flat(dialect.sqlToQuery(nonPlayer.config.where!).sql), /player_id IS NULL/)
+  const role = cfg.columns.find((c) => c.name === 'person_role')!
+  assert.equal(role.default, 'player')
+  assert.equal(cfg.columns.find((c) => c.name === 'player_id')!.notNull, false)
   const status = cfg.checks.find((c) => c.name === 'news_scrum_people_status_check')
   const text = flat(dialect.sqlToQuery(status!.value).sql)
   for (const s of ['pinged', 'asking', 'done', 'expired']) assert.ok(text.includes(`'${s}'`), s)
@@ -162,7 +178,9 @@ void test('inserts: scrum conflicts on recap_item_id, person on (scrum_id, playe
       requestedBy: 'auto',
     }).toSQL().sql,
   )
-  assert.match(person, /on conflict \("scrum_id","player_id"\) do nothing/)
+  // No conflict target: the unique (scrum, player) and the partial unique (scrum, Discord user)
+  // of a person with no player row (T7) both count.
+  assert.match(person, /on conflict do nothing returning "id"/)
   assert.match(flat(insertReactionVoteQuery(1, 'u').toSQL().sql), /on conflict do nothing/)
   assert.match(
     flat(insertReactionTriggerQuery({ itemId: 1, night: '2026-10-25', isTest: false }).toSQL().sql),
@@ -241,6 +259,11 @@ void test('night press material: usable or joke answers only, never from players
   // Every quote names the reporter who asked: the answer's own, else the scrum's (an old round).
   assert.match(s, /coalesce\(a\.reporter, sc\.reporter\) as reporter/)
   assert.match(s, /join news_scrums sc on sc\.id = a\.scrum_id/)
+  // T7: the person row names the speaker (the coach has no players row) and says in what capacity.
+  assert.match(s, /join news_scrum_people sp on sp\.id = a\.person_id/)
+  assert.match(s, /left join players p on p\.id = a\.player_id/)
+  assert.match(s, /coalesce\(sp\.display_name, coalesce\(nullif\(btrim\(pp\.player_name\)/)
+  assert.match(s, /sp\.person_role as person_role/)
   assert.deepEqual(q.params, ['2026-10-25', false])
 })
 
@@ -409,14 +432,15 @@ void test('scrum person detail: person, scrum and display name; by id or the peo
     s,
     /from "news_scrum_people" inner join "news_scrums" on "news_scrums"."id" = "news_scrum_people"."scrum_id"/,
   )
-  assert.match(s, /inner join "players" on "players"."id" = "news_scrum_people"."player_id"/)
+  // T7: a person with no player row (the coach) has no players row: left join.
+  assert.match(s, /left join "players" on "players"."id" = "news_scrum_people"."player_id"/)
   assert.match(
     s,
     /left join "player_profiles" on "player_profiles"."player_id" = "news_scrum_people"."player_id"/,
   )
   assert.match(
     s,
-    /coalesce\(nullif\(btrim\("player_profiles"."player_name"\), ''\), "players"."gamertag"\)/,
+    /coalesce\("news_scrum_people"."display_name", nullif\(btrim\("player_profiles"."player_name"\), ''\), "players"."gamertag"\)/,
   )
   assert.match(s, /where "news_scrum_people"."id" = \$1/)
   assert.ok(byId.params.includes(9))
@@ -666,11 +690,14 @@ void test('GM asks: their own table (a note reaches the writers as a true event)
   const names = cfg.columns.map((c) => c.name).sort()
   assert.deepEqual(names, [
     'created_at',
+    'discord_user_id',
+    'display_name',
     'exact',
     'id',
     'is_test',
     'match_id',
     'night',
+    'person_role',
     'player_id',
     'question',
     'refusal',
@@ -679,6 +706,8 @@ void test('GM asks: their own table (a note reaches the writers as a true event)
     'status',
   ])
   assert.deepEqual(cfg.checks.map((c) => c.name).sort(), [
+    'news_gm_asks_person_named_check',
+    'news_gm_asks_person_role_check',
     'news_gm_asks_reporter_check',
     'news_gm_asks_status_check',
   ])
@@ -740,6 +769,15 @@ void test("the GM ask for a player: the newest active one on that match is the f
   assert.match(s, /\("news_gm_asks"."is_test" = false or \$4\)/)
   assert.match(s, /order by "news_gm_asks"."id" desc limit/)
   assert.deepEqual(q.params.slice(0, 4), [90001, 3, 'active', true])
+})
+
+void test('the GM ask for a person with no player row is found by Discord user id (T7)', () => {
+  const q = gmAskForUserQuery(90001, '431630903048011777', true).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /"news_gm_asks"."match_id" = \$1 and "news_gm_asks"."discord_user_id" = \$2/)
+  assert.match(s, /"news_gm_asks"."status" = \$3/)
+  assert.match(s, /\("news_gm_asks"."is_test" = false or \$4\)/)
+  assert.deepEqual(q.params.slice(0, 4), [90001, '431630903048011777', 'active', true])
 })
 
 void test('migration 0073: idempotent, additive, header with how to apply and the rollback', async () => {

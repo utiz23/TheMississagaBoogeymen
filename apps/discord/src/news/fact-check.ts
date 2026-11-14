@@ -1038,7 +1038,9 @@ function quoteProblems(
       )
       continue
     }
-    if (!facts.people.some((p) => p.playerId === answer.playerId)) {
+    // A bench person or the coach did not play: they are never on the sheet (T7).
+    const benchSpeaker = answer.personRole !== undefined && answer.personRole !== 'player'
+    if (!benchSpeaker && !facts.people.some((p) => p.playerId === answer.playerId)) {
       problems.push(`Quote ${id} is from a player who is not on the fact sheet.`)
       continue
     }

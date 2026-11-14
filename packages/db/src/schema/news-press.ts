@@ -12,6 +12,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { matches } from './matches.js'
 import { players } from './players.js'
@@ -24,6 +25,15 @@ export type PressHeat = (typeof PRESS_HEATS)[number]
 /** How long a heat setting lasts: for the next scrum only, or for tonight. */
 export const PRESS_HEAT_SCOPES = ['next', 'night'] as const
 export type PressHeatScope = (typeof PRESS_HEAT_SCOPES)[number]
+
+/**
+ * Who a press person is (migration 0077): `player` played the game; `bench` is a Discord user who
+ * watched from the team's voice call and did not play; `coach` is a configured coach user. A
+ * bench person or a coach may have no `players` row (`player_id` null): then `display_name`
+ * names them.
+ */
+export const PRESS_PERSON_ROLES = ['player', 'bench', 'coach'] as const
+export type PressPersonRole = (typeof PRESS_PERSON_ROLES)[number]
 
 export const SCRUM_PERSON_ROLES = ['picked', 'volunteer'] as const
 export type ScrumPersonRole = (typeof SCRUM_PERSON_ROLES)[number]
@@ -84,10 +94,12 @@ export const newsScrumPeople = pgTable(
     scrumId: bigint('scrum_id', { mode: 'number' })
       .notNull()
       .references(() => newsScrums.id, { onDelete: 'cascade' }),
-    playerId: integer('player_id')
-      .notNull()
-      .references(() => players.id),
+    /** Null for a bench person or a coach with no player row (migration 0077). */
+    playerId: integer('player_id').references(() => players.id),
     discordUserId: text('discord_user_id').notNull(),
+    /** `player` (default), `bench` or `coach`; `display_name` names a person with no player row. */
+    personRole: text('person_role').$type<PressPersonRole>().notNull().default('player'),
+    displayName: text('display_name'),
     role: text('role').$type<ScrumPersonRole>().notNull(),
     requestedBy: text('requested_by').$type<ScrumRequestedBy>().notNull(),
     requestedByUserId: text('requested_by_user_id'),
@@ -116,6 +128,18 @@ export const newsScrumPeople = pgTable(
   },
   (table) => [
     unique('news_scrum_people_scrum_player_uniq').on(table.scrumId, table.playerId),
+    // One person with no player row per Discord user and scrum (a null player id never conflicts above).
+    uniqueIndex('news_scrum_people_scrum_user_nonplayer_uniq')
+      .on(table.scrumId, table.discordUserId)
+      .where(sql`player_id IS NULL`),
+    check(
+      'news_scrum_people_person_role_check',
+      sql`${table.personRole} IN ('player', 'bench', 'coach')`,
+    ),
+    check(
+      'news_scrum_people_person_named_check',
+      sql`${table.playerId} IS NOT NULL OR ${table.displayName} IS NOT NULL`,
+    ),
     index('news_scrum_people_status_idx').on(table.status),
     check('news_scrum_people_role_check', sql`${table.role} IN ('picked', 'volunteer')`),
     check('news_scrum_people_panel_check', sql.raw(`"panel" <@ ARRAY[${REPORTER_LIST}]::text[]`)),
@@ -145,9 +169,8 @@ export const newsScrumAnswers = pgTable(
     scrumId: bigint('scrum_id', { mode: 'number' })
       .notNull()
       .references(() => newsScrums.id, { onDelete: 'cascade' }),
-    playerId: integer('player_id')
-      .notNull()
-      .references(() => players.id),
+    /** Null for a person with no player row (migration 0077): the person row names them. */
+    playerId: integer('player_id').references(() => players.id),
     night: date('night', { mode: 'string' }).notNull(),
     question: text('question').notNull(),
     answer: text('answer').notNull(),
@@ -211,9 +234,11 @@ export const newsGmAsks = pgTable(
       onDelete: 'set null',
     }),
     night: date('night', { mode: 'string' }).notNull(),
-    playerId: integer('player_id')
-      .notNull()
-      .references(() => players.id),
+    /** Null for a bench person or a coach with no player row (migration 0077): `discord_user_id` names them. */
+    playerId: integer('player_id').references(() => players.id),
+    discordUserId: text('discord_user_id'),
+    personRole: text('person_role').$type<PressPersonRole>().notNull().default('player'),
+    displayName: text('display_name'),
     question: text('question').notNull(),
     exact: boolean('exact').notNull().default(true),
     reporter: text('reporter').$type<NewsReporterId>(),
@@ -226,6 +251,15 @@ export const newsGmAsks = pgTable(
   (table) => [
     index('news_gm_asks_match_player_idx').on(table.matchId, table.playerId),
     index('news_gm_asks_night_idx').on(table.night),
+    index('news_gm_asks_match_user_idx').on(table.matchId, table.discordUserId),
+    check(
+      'news_gm_asks_person_role_check',
+      sql`${table.personRole} IN ('player', 'bench', 'coach')`,
+    ),
+    check(
+      'news_gm_asks_person_named_check',
+      sql`${table.playerId} IS NOT NULL OR (${table.discordUserId} IS NOT NULL AND ${table.displayName} IS NOT NULL)`,
+    ),
     check('news_gm_asks_status_check', sql`${table.status} IN ('active', 'refused', 'cancelled')`),
     check(
       'news_gm_asks_reporter_check',

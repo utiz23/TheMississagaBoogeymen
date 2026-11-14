@@ -30,10 +30,12 @@ import {
   ASK_MAX_WRITES,
   FEUD_RULE,
   SCRUM_RULES,
+  benchLines,
   feudLine,
   type Recorder,
   type ScrumHistoryEntry,
 } from './asker.ts'
+import type { BenchRole } from './bench.ts'
 import { INTERVIEW_ARTICLE_MIN_ANSWERS, INTERVIEW_QUESTIONS } from './interview-rules.ts'
 
 /**
@@ -55,7 +57,7 @@ export interface InterviewContext {
   forbiddenNames: string[]
   takes: NewsTake[]
   reporter: ReporterId
-  player: { name: string; pressLevel: 'full' | 'easy' }
+  player: { name: string; pressLevel: 'full' | 'easy'; bench?: BenchRole }
   /** The GM's topic; null when none. */
   topic: string | null
   /** The interview so far, oldest first (an unusable answer is `null`). */
@@ -155,6 +157,12 @@ function questionPrompt(ctx: InterviewContext): string {
     ctx.player.pressLevel === 'easy'
       ? `${name} is at press level "easy": no criticism at all.`
       : `${name} is at press level "full".`,
+    ...benchLines(name, ctx.player.bench),
+    ...(ctx.player.bench === undefined
+      ? []
+      : [
+          `For this interview the questions are about the team and the night, seen from outside: ignore the guidance about ${name}'s own games, season totals, streaks and milestones.`,
+        ]),
     ...(ctx.player.pressLevel === 'easy' ? [] : feudLine(ctx.feud, name)),
     '',
     `Task: ask question ${String(ctx.position)} of about ${String(INTERVIEW_QUESTIONS)}. Put the one question in "question", at most ${String(INTERVIEW_QUESTION_MAX_CHARS)} characters.`,
@@ -386,6 +394,12 @@ function articlePrompt(
     ctx.player.pressLevel === 'easy'
       ? `${name} is at press level "easy": no criticism at all.`
       : `${name} is at press level "full".`,
+    ...benchLines(name, ctx.player.bench),
+    ...(ctx.player.bench === undefined
+      ? []
+      : [
+          `In the intro, say plainly that ${name} ${ctx.player.bench === 'coach' ? 'is the coach' : 'watched from the call'} and did not play.`,
+        ]),
     '',
     'Task: write the Q&A article. Put the headline in "headline", the dek in "dek", the intro paragraphs in "intro" and the answers to print in "answers" ({"n": its number above, "text": the words to print}).',
   ].join('\n')

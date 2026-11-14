@@ -34,14 +34,25 @@ export class InterviewFakeStore extends FakeStore implements InterviewStore {
 
   private ivDetail = (r: NewsInterviewRow): InterviewDetail => ({
     ...r,
-    name: NAMES.get(r.playerId) ?? `Player ${String(r.playerId)}`,
+    name:
+      r.displayName ??
+      (r.playerId === null ? 'Guest' : (NAMES.get(r.playerId) ?? `Player ${String(r.playerId)}`)),
   })
   private iv = (id: number) => this.interviews.find((r) => r.id === id)
   private last = (r: NewsInterviewRow) => r.lastAskedAt ?? r.acceptedAt ?? r.createdAt
 
   insertInterview = (v: NewNewsInterview) => {
     const open = (r: NewsInterviewRow) => r.status === 'offered' || r.status === 'active'
-    if (this.interviews.some((r) => r.playerId === v.playerId && open(r))) {
+    const playerId = v.playerId ?? null
+    if (
+      this.interviews.some(
+        (r) =>
+          open(r) &&
+          (playerId === null
+            ? r.playerId === null && r.discordUserId === v.discordUserId
+            : r.playerId === playerId),
+      )
+    ) {
       return Promise.resolve(null)
     }
     const isTest = v.isTest ?? false
@@ -56,8 +67,10 @@ export class InterviewFakeStore extends FakeStore implements InterviewStore {
     const id = this.interviews.length + 1
     this.interviews.push({
       id,
-      playerId: v.playerId,
+      playerId,
       discordUserId: v.discordUserId,
+      personRole: v.personRole ?? 'player',
+      displayName: v.displayName ?? null,
       reporter: v.reporter,
       trigger: v.trigger,
       requestedByUserId: v.requestedByUserId ?? null,

@@ -25,6 +25,7 @@ import type {
   ScrumPersonWithScrum,
 } from '@eanhl/db/queries'
 import { acceptButton, type BotMessage } from '../bot-rest.ts'
+import { benchGameOf, nameBench, personColumns, type BenchPort } from './bench.ts'
 import { payloadForItem, toBotMessage } from '../news/messages.ts'
 import type { ModelCall } from '../news/writer.ts'
 import { fallbackLine } from './fallbacks.ts'
@@ -80,6 +81,12 @@ export interface PressStore {
   gmAskForPlayer(
     matchId: number,
     playerId: number,
+    includeTest: boolean,
+  ): Promise<NewsGmAskRow | null>
+  /** T7: the newest active `/gm ask` for a person with no player row (found by Discord user id). */
+  gmAskForUser(
+    matchId: number,
+    discordUserId: string,
     includeTest: boolean,
   ): Promise<NewsGmAskRow | null>
   insertGmAsk(values: NewNewsGmAsk): Promise<number>
@@ -192,6 +199,11 @@ export interface PressDeps {
    * process): the default check on `call` and the store (`makeMessageScreen`); tests inject one.
    */
   screen?: MessageScreen
+  /**
+   * T7: the bench (who watched from the team's voice call). Absent: the call cannot be checked,
+   * so only the GM can name a bench person. In memory only (bench.ts).
+   */
+  bench?: BenchPort
   log: (m: string) => void
   now: () => Date
 }
@@ -374,8 +386,33 @@ export async function runPressPass(
     // The pick below may be one of them: the unique (scrum, player) joins them once.
     const candidates = scrumCandidates(game, res.facts, discordIds)
     for (const ask of asks) {
-      if (pick !== null && ask.playerId === pick.playerId) continue
-      const c = candidates.find((x) => x.playerId === ask.playerId)
+      if (pick !== null && ask.playerId !== null && ask.playerId === pick.playerId) continue
+      const c =
+        ask.playerId === null ? undefined : candidates.find((x) => x.playerId === ask.playerId)
+      if (c === undefined && ask.discordUserId !== null && ask.personRole !== 'player') {
+        // T7: the GM asked someone who did not play (the coach, or a bench person): checked
+        // again now (the call is read from memory), then joined like a player.
+        const named = await nameBench(
+          deps,
+          config,
+          await benchGameOf(store, game),
+          ask.discordUserId,
+        )
+        if (named.ok) {
+          await store.insertScrumPerson({
+            scrumId,
+            playerId: named.person.playerId,
+            discordUserId: ask.discordUserId,
+            ...personColumns(named.person),
+            role: 'picked',
+            requestedBy: 'gm',
+            requestedByUserId: ask.requestedByUserId,
+          })
+        } else {
+          log(`[press] scrums: ${tag}: GM ask for a bench person not used (${named.why})`)
+        }
+        continue
+      }
       if (c === undefined || c.discordUserId === null) continue
       await store.insertScrumPerson({
         scrumId,

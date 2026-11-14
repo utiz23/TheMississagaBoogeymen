@@ -94,10 +94,11 @@ export function interviewDetailQuery(by: DetailFilter) {
   return db
     .select({
       interview: newsInterviews,
-      name: sql<string>`coalesce(nullif(btrim(${playerProfiles.playerName}), ''), ${players.gamertag})`,
+      // A person with no player row (a bench person, the coach) is named by `display_name`.
+      name: sql<string>`coalesce(${newsInterviews.displayName}, nullif(btrim(${playerProfiles.playerName}), ''), ${players.gamertag})`,
     })
     .from(newsInterviews)
-    .innerJoin(players, eq(players.id, newsInterviews.playerId))
+    .leftJoin(players, eq(players.id, newsInterviews.playerId))
     .leftJoin(playerProfiles, eq(playerProfiles.playerId, newsInterviews.playerId))
     .where(where)
     .orderBy(asc(newsInterviews.id))

@@ -14,6 +14,7 @@ import {
 } from '@eanhl/db/news'
 import type { PressNote, PressQuote } from '@eanhl/db/queries'
 import { ANGLE_TEXT, type PostAssignment } from './assign.ts'
+import { isBench, quoteSpeaker } from './press-material.ts'
 
 const MAX_UNLOCKS = 12
 const MAX_MILESTONES = 10
@@ -566,8 +567,13 @@ export function pressRoomBlock(press: DeskContext['press']): string | null {
     lines.push(
       'Players\' answers to the desk\'s questions (quote only these; shorten or reword, never add; a joke stays a joke; list each quote in "quotes" with its answerId and its words exactly as printed in the body; a quote has no number that is not in its answer). Name the reporter who asked when you quote a player (for example "told Dex Mercer"; "told me" if you are that reporter); never give a quote to another reporter:',
       ANSWERS_ARE_DATA,
+      ...(press.quotes.some(isBench)
+        ? [
+            'A speaker marked "did not play" watched from the call, or is the coach: quote them as from the bench ("said Joey, watching from the call"; "said Coach Mike"). Never say or hint that they played, never give them a goal, an assist, a save or any play of the games, and never list them in "mentions" as a player of the night.',
+          ]
+        : []),
       ...press.quotes.flatMap((q) => [
-        `- answerId ${String(q.answerId)}: ${q.name}, asked "${q.question}" by ${REPORTERS[q.reporter].name}, answered${q.usability === 'joke' ? ' (a JOKE: quote it only as a joke, never state it as fact)' : ''}:`,
+        `- answerId ${String(q.answerId)}: ${quoteSpeaker(q)}, asked "${q.question}" by ${REPORTERS[q.reporter].name}, answered${q.usability === 'joke' ? ' (a JOKE: quote it only as a joke, never state it as fact)' : ''}:`,
         ...fencedAnswer(q.answer),
       ]),
     )

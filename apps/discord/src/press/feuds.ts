@@ -31,7 +31,8 @@ export type PressLevelNow = 'full' | 'easy' | 'out'
 export async function recordInsult(
   deps: PressDeps,
   args: {
-    playerId: number
+    /** Null for a bench person or a coach with no player row: no feud points (T7). */
+    playerId: number | null
     reporter: ReporterId
     insult: Insult
     pressLevel: PressLevelNow
@@ -39,7 +40,7 @@ export async function recordInsult(
     where: string
   },
 ): Promise<void> {
-  if (args.insult === 'none' || args.pressLevel === 'out') return
+  if (args.insult === 'none' || args.pressLevel === 'out' || args.playerId === null) return
   const st = feudStoreOf(deps.store)
   if (st === null) return
   const points = INSULT_POINTS[args.insult]
@@ -65,10 +66,11 @@ export async function recordInsult(
  */
 export async function feudsFor(
   deps: PressDeps,
-  playerId: number,
+  playerId: number | null,
   pressLevel: PressLevelNow,
 ): Promise<{ reporter: ReporterId; level: Exclude<FeudLevel, 'none'> }[]> {
-  if (pressLevel !== 'full') return []
+  // A person with no player row has no feuds (T7).
+  if (pressLevel !== 'full' || playerId === null) return []
   const st = feudStoreOf(deps.store)
   if (st === null) return []
   try {
@@ -86,7 +88,7 @@ export async function feudsFor(
 /** The level between one player and one reporter ("none" when there is none to use). */
 export async function feudLevel(
   deps: PressDeps,
-  playerId: number,
+  playerId: number | null,
   reporter: ReporterId,
   pressLevel: PressLevelNow,
 ): Promise<FeudLevel> {

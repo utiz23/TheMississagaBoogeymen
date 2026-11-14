@@ -18,6 +18,8 @@ import {
   sendDirectMessage,
   startThread,
 } from '../bot-rest.ts'
+import { attachVoice, fetchGuildMember } from './bench-gateway.ts'
+import { VoiceTracker, createBenchPort, memberDirectory, setProcessBench } from './bench.ts'
 import type { PressConfig } from './config.ts'
 import {
   ASK_MAX_CHARS,
@@ -737,7 +739,7 @@ export function attachReactions(
 
 /**
  * The gateway intents of one reporter's client: Guilds for all; on Barlow also
- * the reactions, and, only with `typedAnswers`, the guild messages and the
+ * the reactions, the voice states (T7, the bench; not privileged) and, only with `typedAnswers`, the guild messages and the
  * Message Content intent (privileged: the portal switch must be on, or Discord
  * refuses the login).
  */
@@ -746,6 +748,8 @@ export function clientIntents(id: ReporterId, typedAnswers: boolean): GatewayInt
   return [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessageReactions,
+    // T7: who is in the team's voice channels (not privileged; kept in memory only).
+    GatewayIntentBits.GuildVoiceStates,
     ...(typedAnswers ? [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] : []),
   ]
 }
@@ -785,6 +789,17 @@ export async function startClients(
 ): Promise<Map<ReporterId, Client>> {
   const clients = new Map<ReporterId, Client>()
   const first: Promise<void>[] = []
+  // T7: who is in the team's voice call (in memory only), read from Barlow's gateway events; the
+  // guild members (roles, nickname) are read over REST with Barlow's token.
+  const tracker = new VoiceTracker()
+  setProcessBench(
+    createBenchPort(
+      tracker,
+      memberDirectory({
+        fetchMember: (userId) => fetchGuildMember(config.tokens.barlow, config.guildId, userId),
+      }),
+    ),
+  )
   for (const id of REPORTER_IDS) {
     const barlow = id === 'barlow'
     const client = new Client({
@@ -799,6 +814,7 @@ export async function startClients(
     )
     client.on(Events.ShardResume, () => log(`[press] ${name}: reconnected`))
     clients.set(id, client)
+    if (barlow) attachVoice(client, tracker, config.guildId)
 
     // One clear line when the portal switch for typed answers is off.
     const loginFailed = (err: unknown): void => {

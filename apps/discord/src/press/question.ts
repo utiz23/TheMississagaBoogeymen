@@ -1,11 +1,5 @@
-import {
-  REPORTERS,
-  type FeudLevel,
-  type NewsFactsResponse,
-  type NewsPerson,
-  type ReporterId,
-} from '@eanhl/db/news'
-import type { NewsScrumRow, ScrumPersonDetail } from '@eanhl/db/queries'
+import { REPORTERS, type FeudLevel, type NewsFactsResponse, type ReporterId } from '@eanhl/db/news'
+import type { NewsGmAskRow, NewsScrumRow, ScrumPersonDetail } from '@eanhl/db/queries'
 import { crudeHit } from '../news/crude.ts'
 import { containsName } from '../news/fact-check.ts'
 import { answerButton, type BotMessage } from '../bot-rest.ts'
@@ -18,6 +12,7 @@ import type { PressConfig } from './config.ts'
 import { fallbackLine, stepUpLine } from './fallbacks.ts'
 import { feudLevel, feudsFor, panelFeudReporters, type PressLevelNow } from './feuds.ts'
 import type { PressDeps, PressStore } from './pass.ts'
+import { subjectOf, type Subject } from './subject.ts'
 import { replyingTo } from './reply-ref.ts'
 import { choosePanel, effectiveHeat, extrasBudgetLeft, panelSize, targetTotalFor } from './rules.ts'
 
@@ -59,6 +54,21 @@ export function personThreadId(
   person: Pick<ScrumPersonDetail, 'scrum' | 'pingMessageId'>,
 ): string | null {
   return person.scrum.threadId ?? person.pingMessageId
+}
+
+/**
+ * The GM's active `/gm ask` for this person on the match: by player id, or (a person with no
+ * player row, T7) by Discord user id. The question of a person's first item.
+ */
+export async function gmAskOfPerson(
+  store: Pick<PressStore, 'gmAskForPlayer' | 'gmAskForUser'>,
+  person: Pick<ScrumPersonDetail, 'playerId' | 'discordUserId'>,
+  matchId: number,
+  isTest: boolean,
+): Promise<NewsGmAskRow | null> {
+  return person.playerId === null
+    ? store.gmAskForUser(matchId, person.discordUserId, isTest)
+    : store.gmAskForPlayer(matchId, person.playerId, isTest)
 }
 
 /**
@@ -129,12 +139,14 @@ export async function ensurePanel(
     if (scrum.matchId !== null) {
       try {
         const res = await deps.fetchFacts('game', String(scrum.matchId))
-        pressLevel =
-          res.facts.people.find((p) => p.playerId === person.playerId)?.pressLevel ?? 'full'
+        pressLevel = (await subjectOf(deps, res, person))?.pressLevel ?? 'full'
         feudLevelNow = pressLevel
-        takeReporters = res.takes
-          .filter((t) => t.playerId === person.playerId)
-          .flatMap((t) => [t.reporter, ...t.critics])
+        takeReporters =
+          person.playerId === null
+            ? []
+            : res.takes
+                .filter((t) => t.playerId === person.playerId)
+                .flatMap((t) => [t.reporter, ...t.critics])
       } catch (err: unknown) {
         deps.log(`[press] panel: person ${String(person.id)}: no takes (${reason(err)})`)
       }
@@ -142,7 +154,7 @@ export async function ensurePanel(
     const ask =
       scrum.matchId === null
         ? null
-        : await store.gmAskForPlayer(scrum.matchId, person.playerId, scrum.isTest)
+        : await gmAskOfPerson(store, person, scrum.matchId, scrum.isTest)
     const seed = personSeed(scrum.id, person.id)
     const feudReporters = panelFeudReporters(await feudsFor(deps, person.playerId, feudLevelNow))
     panel = choosePanel({
@@ -205,7 +217,7 @@ export async function scrumAskContext(
   store: PressStore,
   scrum: NewsScrumRow,
   res: NewsFactsResponse,
-  onSheet: NewsPerson,
+  onSheet: Subject,
   history: ScrumHistoryEntry[],
   questionNumber: number,
   /** The asking reporter (default: the scrum's own), the scrum's other questions and the GM's topic. */
@@ -224,7 +236,11 @@ export async function scrumAskContext(
     forbiddenNames: res.forbiddenNames,
     reporter: opts.reporter ?? scrum.reporter,
     heat: effectiveHeat(scrum.heat, onSheet.pressLevel).heat,
-    player: { name: onSheet.name, pressLevel: onSheet.pressLevel },
+    player: {
+      name: onSheet.name,
+      pressLevel: onSheet.pressLevel,
+      ...(onSheet.bench === undefined ? {} : { bench: onSheet.bench }),
+    },
     // "Go easy" means no criticism: a critical note is never used for them.
     gmNotes: pressForSheet(material, res.facts)
       .gmNotes.filter((n) => n.matchId === scrum.matchId && !(easy && n.critical))
@@ -284,14 +300,14 @@ export async function startScrumQuestion(
 
   async function writeQuestion(matchId: number): Promise<string | null | 'off-sheet'> {
     const res = await deps.fetchFacts('game', String(matchId))
-    const onSheet = res.facts.people.find((p) => p.playerId === person!.playerId)
+    const onSheet = await subjectOf(deps, res, person!)
     // A guest, or "Leave me out" since the ping: nothing about them goes anywhere.
     if (onSheet === undefined) return 'off-sheet'
     name = onSheet.name
     // The GM's question comes first (a person's first question only).
     const ask =
       person!.questionsAsked === 0
-        ? await store.gmAskForPlayer(matchId, person!.playerId, scrum.isTest)
+        ? await gmAskOfPerson(store, person!, matchId, scrum.isTest)
         : null
     if (ask !== null && res.forbiddenNames.some((n) => containsName(ask.question, n))) {
       log(
@@ -357,6 +373,7 @@ export async function startScrumQuestion(
       name,
       seed: personSeed(scrum.id, personId) + person!.questionsAsked,
       alsoUsed: had,
+      ...(person!.personRole === 'player' ? {} : { bench: person!.personRole }),
     })
   }
 

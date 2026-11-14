@@ -2,6 +2,22 @@ import type { NewsFacts } from '@eanhl/db/news'
 import type { PressNote, PressQuote } from '@eanhl/db/queries'
 import { crudeHitOutsideNames } from './crude.ts'
 
+/** True for a quote of a person who did not play (a bench person, the coach). */
+export const isBench = (q: Pick<PressQuote, 'personRole'>): boolean =>
+  q.personRole !== undefined && q.personRole !== 'player'
+
+/**
+ * The name of a quote's speaker as the desk's writer and the review see it: a bench person or
+ * the coach did not play, and the quote says in what capacity they spoke ("watching from the
+ * call", "the coach").
+ */
+export function quoteSpeaker(q: Pick<PressQuote, 'name' | 'personRole'>): string {
+  if (q.personRole === 'bench')
+    return `${q.name} (did not play; watched from the team's voice call)`
+  if (q.personRole === 'coach') return `${q.name} (the coach; did not play)`
+  return q.name
+}
+
 /**
  * The night's press material as a sheet may use it (news desk bots): answers
  * only from players on the sheet's people (never `out`, never a guest); GM notes
@@ -18,7 +34,11 @@ export function pressForSheet(
   const people = new Map(facts.people.map((p) => [p.playerId, p]))
   return {
     quotes: material.quotes.filter(
-      (q) => people.has(q.playerId) && !crudeHitOutsideNames(q.answer, facts),
+      (q) =>
+        // T7: a bench person or the coach did not play, so they are never on the sheet; their
+        // answers are offered as such (the quote says so). A player is on the sheet or out.
+        (isBench(q) || (q.playerId !== null && people.has(q.playerId))) &&
+        !crudeHitOutsideNames(q.answer, facts),
     ),
     gmNotes: material.gmNotes.filter((n) => {
       if (n.playerId === null) return true
