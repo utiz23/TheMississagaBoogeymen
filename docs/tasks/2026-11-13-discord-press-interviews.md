@@ -1,6 +1,6 @@
 # Task: T3 — in-depth interviews (one reporter, ~7 questions, Q&A article)
 
-- **State:** Ready (operator 2026-11-13: run in parallel with T2)
+- **State:** Running (operator 2026-11-13: run in parallel with T2)
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Database (one migration),
   Queries, Web (`/news` interview article)
 - **Risk:** medium (live bots, a new public article type, a migration)
