@@ -4,7 +4,16 @@ import { REPORTERS, REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
 import { oct12Response } from '../news/test-fixtures.ts'
 import type { ModelCall } from '../news/writer.ts'
 import { JUDGEMENT_SCHEMA } from './asker.ts'
-import { codeInsult, feudLevel, feudsFor, panelFeudReporters, recordInsult } from './feuds.ts'
+import {
+  codeInsult,
+  codePraise,
+  panelFavourReporters,
+  panelFeudReporters,
+  recordMessageSignals,
+  recordRelationship,
+  relationshipLevel,
+  relationshipsFor,
+} from './relationships.ts'
 import {
   OFFLIMITS_LOG,
   SCREEN_SCHEMA,
@@ -22,7 +31,7 @@ import { onInterviewAnswerSubmit } from './interview.ts'
 import { onAnswerSubmit, onTypedAnswer } from './interactions.ts'
 import { onThreadMessage } from './replies.ts'
 import { withReplyStore } from './replies-fakes.ts'
-import { FEUD_PANEL_WEIGHT, choosePanel } from './rules.ts'
+import { FAVOUR_PANEL_WEIGHT, FEUD_PANEL_WEIGHT, choosePanel } from './rules.ts'
 import { NOW, USER_A, USER_B, config, itemRow, scrumWithPerson, setup } from './test-fakes.ts'
 import { WIRE_REPLY_SCHEMA, onWireReply, wireReplyChosen } from './wire-replies.ts'
 
@@ -33,11 +42,18 @@ import { WIRE_REPLY_SCHEMA, onWireReply, wireReplyChosen } from './wire-replies.
  * "Leave me out" keep their promises.
  */
 
-const OK: ScreenVerdict = { offLimits: false, insult: 'none', target: null }
-const OFF: ScreenVerdict = { offLimits: true, insult: 'none', target: null }
+const OK: ScreenVerdict = { offLimits: false, insult: 'none', praise: 'none', target: null }
+const OFF: ScreenVerdict = { offLimits: true, insult: 'none', praise: 'none', target: null }
 const strong = (target: ReporterId | null = null): ScreenVerdict => ({
   offLimits: false,
   insult: 'strong',
+  praise: 'none',
+  target,
+})
+const kind = (praise: 'nice' | 'glowing', target: ReporterId | null = null): ScreenVerdict => ({
+  offLimits: false,
+  insult: 'none',
+  praise,
   target,
 })
 
@@ -118,20 +134,36 @@ const submit = (
 // ── The check itself ────────────────────────────────────────────────────────
 
 void test('parseScreen: a closed shape; an off-limits message carries no insult', () => {
-  assert.deepEqual(parseScreen({ offLimits: false, insult: 'strong', target: 'quill' }), {
-    offLimits: false,
-    insult: 'strong',
-    target: 'quill',
-  })
-  assert.deepEqual(parseScreen({ offLimits: true, insult: 'strong', target: 'quill' }), OFF)
-  assert.deepEqual(parseScreen({ offLimits: false, insult: 'none', target: 'quill' }).target, null)
+  assert.deepEqual(
+    parseScreen({ offLimits: false, insult: 'strong', praise: 'none', target: 'quill' }),
+    { offLimits: false, insult: 'strong', praise: 'none', target: 'quill' },
+  )
+  assert.deepEqual(
+    parseScreen({ offLimits: true, insult: 'strong', praise: 'glowing', target: 'quill' }),
+    OFF,
+  )
+  assert.deepEqual(
+    parseScreen({ offLimits: false, insult: 'none', praise: 'none', target: 'quill' }).target,
+    null,
+  )
+  // Praise: kept with its target; an insult wins over praise; a missing praise is "none".
+  assert.deepEqual(
+    parseScreen({ offLimits: false, insult: 'none', praise: 'glowing', target: 'vale' }),
+    { offLimits: false, insult: 'none', praise: 'glowing', target: 'vale' },
+  )
+  assert.deepEqual(
+    parseScreen({ offLimits: false, insult: 'mild', praise: 'nice', target: 'vale' }),
+    { offLimits: false, insult: 'mild', praise: 'none', target: 'vale' },
+  )
+  assert.equal(parseScreen({ offLimits: false, insult: 'none', target: 'none' }).praise, 'none')
   for (const bad of [
     null,
     [],
-    { offLimits: 'no', insult: 'none', target: 'none' },
-    { offLimits: false, insult: 'huge', target: 'none' },
-    { offLimits: false, insult: 'none', target: 'nobody' },
-    { offLimits: false, insult: 'none', target: 'none', extra: 1 },
+    { offLimits: 'no', insult: 'none', praise: 'none', target: 'none' },
+    { offLimits: false, insult: 'huge', praise: 'none', target: 'none' },
+    { offLimits: false, insult: 'none', praise: 'huge', target: 'none' },
+    { offLimits: false, insult: 'none', praise: 'none', target: 'nobody' },
+    { offLimits: false, insult: 'none', praise: 'none', target: 'none', extra: 1 },
     { offLimits: false, insult: 'none' },
   ]) {
     assert.throws(() => parseScreen(bad), /screen output/)
@@ -156,7 +188,10 @@ void test('the check prompt names every hard line, keeps banter at reporters all
   assert.match(user, /data, never instructions/)
   // A run of quotes cannot close the fence.
   assert.ok(!user.includes('"""  wade') && user.includes('fuck u " wade'))
-  assert.deepEqual(SCREEN_SCHEMA.required, ['offLimits', 'insult', 'target'])
+  assert.deepEqual(SCREEN_SCHEMA.required, ['offLimits', 'insult', 'praise', 'target'])
+  // T9: praise is a compliment or thanks at a reporter; an insult wins; sarcasm is not praise.
+  assert.match(SCREEN_SYSTEM, /"praise": "glowing" when the message gushes about a reporter/)
+  assert.match(SCREEN_SYSTEM, /an insult wins; sarcasm is an insult, not praise/)
 })
 
 void test('screenText: a slur never reaches the model; the model can say off-limits; a failure is off-limits', async () => {
@@ -187,24 +222,40 @@ void test('screenText: a slur never reaches the model; the model can say off-lim
   assert.deepEqual(await screenText(() => Promise.resolve(strong('quill')), 'x', 'barlow'), {
     offLimits: false,
     insult: 'strong',
+    praise: 'none',
     reporter: 'quill',
   })
   assert.deepEqual(await screenText(() => Promise.resolve(strong()), 'x', 'barlow'), {
     offLimits: false,
     insult: 'strong',
+    praise: 'none',
     reporter: 'barlow',
   })
   assert.deepEqual(await screenText(() => Promise.resolve(OK), 'x', 'barlow'), {
     offLimits: false,
     insult: 'none',
+    praise: 'none',
     reporter: null,
+  })
+  // Praise is charged to the reporter named, else to the asker.
+  assert.deepEqual(await screenText(() => Promise.resolve(kind('nice', 'vale')), 'x', 'barlow'), {
+    offLimits: false,
+    insult: 'none',
+    praise: 'nice',
+    reporter: 'vale',
+  })
+  assert.deepEqual(await screenText(() => Promise.resolve(kind('glowing')), 'x', 'barlow'), {
+    offLimits: false,
+    insult: 'none',
+    praise: 'glowing',
+    reporter: 'barlow',
   })
 })
 
 void test('makeMessageScreen: runs one cheap call and records it; budget spent, a refusal or junk fail', async () => {
   const recorded: string[] = []
   const calls: Parameters<ModelCall>[0][] = []
-  let json: unknown = { offLimits: false, insult: 'mild', target: 'none' }
+  let json: unknown = { offLimits: false, insult: 'mild', praise: 'none', target: 'none' }
   let refused = false
   let spend = 0
   const call: ModelCall = (req) => {
@@ -229,6 +280,7 @@ void test('makeMessageScreen: runs one cheap call and records it; budget spent, 
   assert.deepEqual(await screen('hello', 'barlow'), {
     offLimits: false,
     insult: 'mild',
+    praise: 'none',
     target: null,
   })
   assert.equal(calls[0]!.purpose, 'review')
@@ -250,7 +302,7 @@ void test('makeMessageScreen: runs one cheap call and records it; budget spent, 
 
 void test("screenMessage: the process wires no screen, so the default check runs on the deps' model call and fails closed", async () => {
   const seen: Parameters<ModelCall>[0][] = []
-  let json: unknown = { offLimits: false, insult: 'strong', target: 'quill' }
+  let json: unknown = { offLimits: false, insult: 'strong', praise: 'none', target: 'quill' }
   const t = setup({
     model: (req) => {
       seen.push(req)
@@ -268,6 +320,7 @@ void test("screenMessage: the process wires no screen, so the default check runs
   assert.deepEqual(await screenMessage(t.deps, cfg, 'mara quill is trash', 'barlow'), {
     offLimits: false,
     insult: 'strong',
+    praise: 'none',
     reporter: 'quill',
   })
   assert.equal(seen[0]!.schema, SCREEN_SCHEMA)
@@ -304,7 +357,7 @@ void test('each off-limits kind (pop-up): no reply, no echo, nothing stored, the
     assert.equal(p.status, 'asking', kind)
     assert.equal(p.currentQuestion, 'Why?', kind)
     assert.equal(p.questionsAsked, 2, kind)
-    assert.equal(t.store.feudRows.length, 0, kind)
+    assert.equal(t.store.relRows.length, 0, kind)
     // Logged as off-limits, never the text.
     assert.ok(
       t.logs.some((l) => l.includes(OFFLIMITS_LOG)),
@@ -425,90 +478,219 @@ void test("the judge's second line: an 'offlimits' verdict takes the echo down, 
   assert.equal(p.status, 'asking')
   assert.equal(p.currentQuestion, 'Why?')
   assert.equal(p.lastAskedAt?.getTime(), NOW.getTime())
-  assert.equal(t.store.feudRows.length, 0)
+  assert.equal(t.store.relRows.length, 0)
   assert.equal(m.reqs.filter((r) => r.purpose === 'review').length, 0)
   assert.ok(t.logs.some((l) => l.includes(OFFLIMITS_LOG) && l.includes('judge')))
 })
 
-// ── Feuds from scrum answers ────────────────────────────────────────────────
+// ── Relationships from scrum answers ───────────────────────────────────────
 
-void test('an insult adds feud points to the reporter named, else the asker; the answer still counts', async () => {
+void test('an insult adds feud points to the reporter named, else the asker; the answer still counts; the disposition scales the step', async () => {
   const m = pressModel([usable, usable])
   const t = setup({ model: m.call, screen: () => Promise.resolve(strong('quill')) })
   const a = await asked(t)
   await submit(t, a.personId, a.userId, 'mara quill has no clue')
+  // Quill is a critic (-1): a strong insult (-2) lands as -2.5, on the NEGATIVE side.
   assert.deepEqual(
-    t.store.feudRows.map((r) => [r.playerId, r.reporter, r.points]),
-    [[1, 'quill', 2]],
+    t.store.relRows.map((r) => [r.playerId, r.reporter, r.points]),
+    [[1, 'quill', -2.5]],
   )
   assert.equal(t.store.answerRows.length, 1)
 
   const t2 = setup({ model: pressModel([usable]).call, screen: () => Promise.resolve(strong()) })
   const b = await asked(t2)
   await submit(t2, b.personId, b.userId, 'whatever you say, press')
-  const asker = t2.store.feudRows[0]!.reporter
+  const asker = t2.store.relRows[0]!.reporter
   assert.equal(asker, t2.store.people[0]!.panel[0] ?? t2.store.scrums[0]!.reporter)
 })
 
-void test('a mild insult is 1 point; a message that insults nobody adds none', async () => {
-  const mild: ScreenVerdict = { offLimits: false, insult: 'mild', target: 'barlow' }
+void test('a mild insult is -1 point (disposition 0); a message that insults nobody adds none', async () => {
+  const mild: ScreenVerdict = { offLimits: false, insult: 'mild', praise: 'none', target: 'barlow' }
   const t = setup({ model: pressModel([usable]).call, screen: () => Promise.resolve(mild) })
   const a = await asked(t)
   await submit(t, a.personId, a.userId, 'keep your nose out of it')
   assert.deepEqual(
-    t.store.feudRows.map((r) => r.points),
-    [1],
+    t.store.relRows.map((r) => r.points),
+    [-1],
   )
   const t2 = setup({ model: pressModel([usable]).call })
   const b = await asked(t2)
   await submit(t2, b.personId, b.userId, 'a plain answer')
-  assert.equal(t2.store.feudRows.length, 0)
+  assert.equal(t2.store.relRows.length, 0)
 })
 
-void test('"Go easy" (Skater B): points are stored, but the feud is never used in the prompt', async () => {
+void test('a compliment or thanks adds favour points to the reporter named, scaled by disposition; a glowing one is worth more', async () => {
+  const run = async (praise: 'nice' | 'glowing', target: ReporterId) => {
+    const t = setup({
+      model: pressModel([usable]).call,
+      screen: () => Promise.resolve(kind(praise, target)),
+    })
+    const a = await asked(t)
+    await submit(t, a.personId, a.userId, 'thanks, great question')
+    return t
+  }
+  // Barlow (disposition 0): nice +1, glowing +2. Vale (+2): +1.5. Pettibone (-2): +0.5.
+  assert.deepEqual(
+    (await run('nice', 'barlow')).store.relRows.map((r) => r.points),
+    [1],
+  )
+  assert.deepEqual(
+    (await run('glowing', 'barlow')).store.relRows.map((r) => r.points),
+    [2],
+  )
+  assert.deepEqual(
+    (await run('nice', 'vale')).store.relRows.map((r) => r.points),
+    [1.5],
+  )
+  assert.deepEqual(
+    (await run('nice', 'pettibone')).store.relRows.map((r) => r.points),
+    [0.5],
+  )
+  // The answer still counts.
+  assert.equal((await run('nice', 'barlow')).store.answerRows.length, 1)
+})
+
+void test('a feud and a glaze are one number: an insult after praise cancels it', async () => {
+  const t = setup()
+  const at = (days: number) => ({
+    ...t.deps,
+    now: () => new Date(NOW.getTime() + days * 86_400_000),
+  })
+  const rec = (event: 'insultStrong' | 'praiseGlowing') =>
+    recordRelationship(t.deps, {
+      playerId: 1,
+      reporter: 'barlow',
+      event,
+      pressLevel: 'full',
+      where: 't',
+    })
+  await rec('praiseGlowing')
+  await rec('praiseGlowing')
+  await rec('praiseGlowing') // +6: fan
+  assert.equal(await relationshipLevel(t.deps, 1, 'barlow', 'full'), 'fan')
+  await rec('insultStrong')
+  await rec('insultStrong')
+  await rec('insultStrong') // 0
+  assert.equal(await relationshipLevel(t.deps, 1, 'barlow', 'full'), 'neutral')
+  assert.equal(t.store.relRows.length, 1)
+  assert.equal(await relationshipLevel(at(0), 1, 'barlow', 'full'), 'neutral')
+})
+
+void test('Father Rink never goes below neutral: no insult moves him, a stored negative reads neutral, praise works', async () => {
+  const t = setup()
+  await recordRelationship(t.deps, {
+    playerId: 1,
+    reporter: 'rink',
+    event: 'insultStrong',
+    pressLevel: 'full',
+    where: 'test',
+  })
+  await recordMessageSignals(t.deps, {
+    playerId: 1,
+    reporter: 'rink',
+    insult: 'strong',
+    praise: 'none',
+    pressLevel: 'full',
+    where: 'test',
+  })
+  assert.equal(t.store.relRows.length, 0)
+  // T5 data mapped to the negative side for Rink: kept, but read as neutral.
+  t.store.relRows.push({ playerId: 1, reporter: 'rink', points: -12, lastEventAt: NOW })
+  assert.equal(await relationshipLevel(t.deps, 1, 'rink', 'full'), 'neutral')
+  assert.deepEqual(await relationshipsFor(t.deps, 1, 'full'), [])
+  // He can warm up.
+  for (let i = 0; i < 5; i++) {
+    await recordRelationship(t.deps, {
+      playerId: 2,
+      reporter: 'rink',
+      event: 'praiseGlowing',
+      pressLevel: 'easy',
+      where: 'test',
+    })
+  }
+  assert.equal(await relationshipLevel(t.deps, 2, 'rink', 'easy'), 'glazing')
+})
+
+void test('a reporter whose range stops short is clamped: Pettibone cannot glaze, Vale cannot go to open war', async () => {
+  const t = setup()
+  t.store.relRows.push({ playerId: 1, reporter: 'pettibone', points: 12, lastEventAt: NOW })
+  t.store.relRows.push({ playerId: 1, reporter: 'vale', points: -12, lastEventAt: NOW })
+  t.store.relRows.push({ playerId: 1, reporter: 'mercer', points: -12, lastEventAt: NOW })
+  assert.equal(await relationshipLevel(t.deps, 1, 'pettibone', 'full'), 'warm')
+  assert.equal(await relationshipLevel(t.deps, 1, 'vale', 'full'), 'feud')
+  assert.equal(await relationshipLevel(t.deps, 1, 'mercer', 'full'), 'war')
+})
+
+void test('"Go easy" (Skater B): negative points are stored, never used; the favour side is used', async () => {
   const m = pressModel([usable])
   const t = setup({ model: m.call, screen: () => Promise.resolve(strong('barlow')) })
   const { personId, userId } = await asked(t, 2)
   // A war with every other reporter is already stored.
   for (const r of REPORTER_IDS.filter((x) => x !== 'barlow')) {
-    t.store.feudRows.push({ playerId: 2, reporter: r, points: 12, lastEventAt: NOW })
+    t.store.relRows.push({ playerId: 2, reporter: r, points: -12, lastEventAt: NOW })
   }
   await submit(t, personId, userId, 'barlow is useless')
-  assert.equal(t.store.feudRows.find((r) => r.reporter === 'barlow')!.points, 2)
+  assert.equal(t.store.relRows.find((r) => r.reporter === 'barlow')!.points, -2)
   const judge = m.reqs.find((r) => r.schema === JUDGEMENT_SCHEMA)!
   assert.doesNotMatch(judge.user, /feud|friction|open war/)
-  assert.deepEqual(await feudsFor(t.deps, 2, 'easy'), [])
-  assert.equal(await feudLevel(t.deps, 2, 'barlow', 'easy'), 'none')
+  assert.deepEqual(await relationshipsFor(t.deps, 2, 'easy'), [])
+  assert.equal(await relationshipLevel(t.deps, 2, 'barlow', 'easy'), 'neutral')
+  // Glazed by Vale: used for Go easy.
+  t.store.relRows.push({ playerId: 2, reporter: 'vale', points: 11, lastEventAt: NOW })
+  assert.equal(await relationshipLevel(t.deps, 2, 'vale', 'easy'), 'glazing')
 })
 
-void test('"Leave me out": nothing at all, not even points; a store without feuds changes nothing', async () => {
+void test('"Leave me out": nothing at all, not even points; a store without relationships changes nothing', async () => {
   const t = setup()
-  await recordInsult(t.deps, {
+  await recordRelationship(t.deps, {
     playerId: 4,
     reporter: 'quill',
-    insult: 'strong',
+    event: 'insultStrong',
     pressLevel: 'out',
     where: 'test',
   })
-  assert.equal(t.store.feudRows.length, 0)
-  assert.deepEqual(await feudsFor(t.deps, 4, 'out'), [])
-  // A store that lacks the feud methods (an old fake): no points, level none, no throw.
-  const bare = { ...t.deps, store: { ...t.store, addFeudPoints: undefined, listFeuds: undefined } }
-  await recordInsult(bare as never, {
+  await recordRelationship(t.deps, {
+    playerId: 4,
+    reporter: 'quill',
+    event: 'praiseGlowing',
+    pressLevel: 'out',
+    where: 'test',
+  })
+  assert.equal(t.store.relRows.length, 0)
+  assert.deepEqual(await relationshipsFor(t.deps, 4, 'out'), [])
+  // A store that lacks the relationship methods (an old fake): no points, level neutral, no throw.
+  const bare = {
+    ...t.deps,
+    store: { ...t.store, addRelationshipPoints: undefined, listRelationships: undefined },
+  }
+  await recordRelationship(bare as never, {
     playerId: 1,
     reporter: 'quill',
-    insult: 'strong',
+    event: 'insultStrong',
     pressLevel: 'full',
     where: 'test',
   })
-  assert.equal(t.store.feudRows.length, 0)
-  assert.equal(await feudLevel(bare as never, 1, 'quill', 'full'), 'none')
+  assert.equal(t.store.relRows.length, 0)
+  assert.equal(await relationshipLevel(bare as never, 1, 'quill', 'full'), 'neutral')
 })
 
-void test('a failing feud write is logged and never breaks the answer', async () => {
+void test('a person with no player row (a bench voice) has no relationship rows', async () => {
+  const t = setup()
+  await recordRelationship(t.deps, {
+    playerId: null,
+    reporter: 'quill',
+    event: 'praiseGlowing',
+    pressLevel: 'full',
+    where: 'test',
+  })
+  assert.equal(t.store.relRows.length, 0)
+  assert.deepEqual(await relationshipsFor(t.deps, null, 'full'), [])
+})
+
+void test('a failing relationship write is logged and never breaks the answer', async () => {
   const m = pressModel([usable])
   const t = setup({ model: m.call, screen: () => Promise.resolve(strong('barlow')) })
-  t.store.failFeudWrites = true
+  t.store.failRelationshipWrites = true
   const { personId, userId } = await asked(t)
   const reply = await submit(t, personId, userId, 'barlow is useless')
   assert.equal(reply.kind, 'ack')
@@ -516,61 +698,139 @@ void test('a failing feud write is logged and never breaks the answer', async ()
   assert.ok(t.logs.some((l) => l.includes('points not saved')))
 })
 
-void test('feud levels follow the points: add, fade, thresholds; the reporter prompt shows only the level', async () => {
+void test('a strong answer moves the asking reporter up a little; ok, joke and unusable answers do not', async () => {
+  const run = async (judged: Record<string, unknown>) => {
+    const t = setup({ model: pressModel([judged]).call })
+    const a = await asked(t)
+    await submit(t, a.personId, a.userId, 'We lost the neutral zone, I should have backchecked.')
+    return t
+  }
+  const t = await run({ ...usable, quality: 'strong' })
+  assert.equal(t.store.relRows.length, 1)
+  assert.ok(t.store.relRows[0]!.points > 0)
+  assert.equal((await run({ ...usable, quality: 'ok' })).store.relRows.length, 0)
+  assert.equal((await run({ ...usable })).store.relRows.length, 0)
+  assert.equal(
+    (
+      await run({
+        usability: 'joke',
+        chase: 'none',
+        quality: 'strong',
+        followUp: '',
+        closing: 'Ha.',
+      })
+    ).store.relRows.length,
+    0,
+  )
+  assert.equal(
+    (
+      await run({
+        usability: 'unusable',
+        chase: 'none',
+        quality: 'strong',
+        followUp: '',
+        closing: 'Noted. Moving on.',
+      })
+    ).store.relRows.length,
+    0,
+  )
+})
+
+void test('the scale follows the points both ways: add, fade, thresholds; the reporter prompt shows only the level', async () => {
   const t = setup()
-  const add = (n: number) =>
-    recordInsult(t.deps, {
+  // Barlow: disposition 0 (steps of 1 and 2 as written), range feud..fan.
+  const add = (event: 'insultMild' | 'insultStrong' | 'praiseNice' | 'praiseGlowing') =>
+    recordRelationship(t.deps, {
       playerId: 1,
-      reporter: 'mercer',
-      insult: n === 1 ? 'mild' : 'strong',
+      reporter: 'barlow',
+      event,
       pressLevel: 'full',
       where: 'test',
     })
-  assert.equal(await feudLevel(t.deps, 1, 'mercer', 'full'), 'none')
-  await add(1) // 1
-  assert.equal(await feudLevel(t.deps, 1, 'mercer', 'full'), 'none')
-  await add(2) // 3
-  assert.equal(await feudLevel(t.deps, 1, 'mercer', 'full'), 'simmering')
-  await add(2) // 5
-  assert.equal(await feudLevel(t.deps, 1, 'mercer', 'full'), 'feud')
-  await add(2)
-  await add(2) // 9
-  await add(2) // 11
-  assert.equal(await feudLevel(t.deps, 1, 'mercer', 'full'), 'war')
-  // Two weeks later (two half-lives): 11 -> 2.75, a simmer.
+  const level = () => relationshipLevel(t.deps, 1, 'barlow', 'full')
+  assert.equal(await level(), 'neutral')
+  await add('insultMild') // -1
+  assert.equal(await level(), 'neutral')
+  await add('insultStrong') // -3
+  assert.equal(await level(), 'simmering')
+  await add('insultStrong') // -5
+  assert.equal(await level(), 'feud')
+  await add('insultStrong')
+  await add('insultStrong')
+  await add('insultStrong') // -11, but Barlow's floor is feud
+  assert.equal(await level(), 'feud')
+  // Two weeks later (two half-lives): -11 -> -2.75: simmering.
   const later = { ...t.deps, now: () => new Date(NOW.getTime() + 14 * 86_400_000) }
-  assert.equal(await feudLevel(later, 1, 'mercer', 'full'), 'simmering')
+  assert.equal(await relationshipLevel(later, 1, 'barlow', 'full'), 'simmering')
   const muchLater = { ...t.deps, now: () => new Date(NOW.getTime() + 60 * 86_400_000) }
-  assert.equal(await feudLevel(muchLater, 1, 'mercer', 'full'), 'none')
-  assert.deepEqual(panelFeudReporters(await feudsFor(t.deps, 1, 'full')), ['mercer'])
-  assert.deepEqual(panelFeudReporters(await feudsFor(later, 1, 'full')), [])
+  assert.equal(await relationshipLevel(muchLater, 1, 'barlow', 'full'), 'neutral')
+  assert.deepEqual(panelFeudReporters(await relationshipsFor(t.deps, 1, 'full')), ['barlow'])
+  assert.deepEqual(panelFeudReporters(await relationshipsFor(later, 1, 'full')), [])
+  // And the favour side climbs the same way from a fresh pair (Vale: homer, +2 steps x1.5).
+  for (let i = 0; i < 4; i++) {
+    await recordRelationship(t.deps, {
+      playerId: 2,
+      reporter: 'vale',
+      event: 'praiseGlowing',
+      pressLevel: 'full',
+      where: 'test',
+    })
+  }
+  // 4 x 3 = 12 (cap), lean +1: glazing.
+  assert.equal(await relationshipLevel(t.deps, 2, 'vale', 'full'), 'glazing')
+  assert.deepEqual(panelFavourReporters(await relationshipsFor(t.deps, 2, 'full')), ['vale'])
 })
 
-void test('a feud shows in the next question and judgement of that reporter only', async () => {
-  const m = pressModel([usable])
-  const t = setup({ model: m.call })
-  const { personId, p, userId } = await asked(t)
-  const asker = p.panel[0] ?? t.store.scrums[0]!.reporter
-  t.store.feudRows.push({ playerId: 1, reporter: asker, points: 6, lastEventAt: NOW })
-  await submit(t, personId, userId, 'We got outworked in the third.')
-  const judge = m.reqs.find((r) => r.schema === JUDGEMENT_SCHEMA)!
-  assert.match(judge.user, /in a feud: be cool and pointed/)
-  assert.match(judge.system, /never profanity, never a slur/)
-  assert.match(judge.system, /professional and hockey only/)
+void test('a relationship shows in the next question and judgement of that reporter only', async () => {
+  for (const [points, re] of [
+    [-6, /in a feud: be cool and pointed/],
+    [6, /You are a fan of Skater A: be warm and eager/],
+    [11, /You are glazing Skater A: over-the-top praise/],
+  ] as const) {
+    const m = pressModel([usable])
+    const t = setup({ model: m.call })
+    const { personId, p, userId } = await asked(t)
+    const asker = p.panel[0] ?? t.store.scrums[0]!.reporter
+    // A reporter with the full range (the starting lean of the disposition is only +-1).
+    t.store.relRows.push({ playerId: 1, reporter: asker, points, lastEventAt: NOW })
+    await submit(t, personId, userId, 'We got outworked in the third.')
+    const judge = m.reqs.find((r) => r.schema === JUDGEMENT_SCHEMA)!
+    if (asker === 'rink') continue
+    // The level reads through the reporter's range and lean: Quill and Pettibone never reach glazing.
+    if (points === 11 && (asker === 'quill' || asker === 'pettibone')) continue
+    if (points === 6 && (asker === 'quill' || asker === 'pettibone')) continue
+    assert.match(judge.user, re, asker)
+    assert.match(judge.system, /never profanity, never a slur/)
+    assert.match(judge.system, /professional and hockey only/)
+  }
 })
 
-void test('feud reporters are likelier on the panel at feud level and above', () => {
+void test('feud and favour reporters are likelier on the panel', () => {
   const base = { size: 3, heat: 'normal' as const, disabled: [], first: null, takeReporters: [] }
   let withFeud = 0
+  let withFavour = 0
   let without = 0
   for (let seed = 1; seed <= 600; seed++) {
     if (choosePanel({ ...base, seed, feudReporters: ['pettibone'] }).includes('pettibone')) {
       withFeud++
     }
+    if (choosePanel({ ...base, seed, favourReporters: ['pettibone'] }).includes('pettibone')) {
+      withFavour++
+    }
     if (choosePanel({ ...base, seed }).includes('pettibone')) without++
   }
-  assert.ok(FEUD_PANEL_WEIGHT > 1)
+  assert.ok(FEUD_PANEL_WEIGHT > 1 && FAVOUR_PANEL_WEIGHT > 1)
   assert.ok(withFeud > without * 1.2, `${String(withFeud)} vs ${String(without)}`)
+  assert.ok(withFavour > without * 1.1, `${String(withFavour)} vs ${String(without)}`)
+})
+
+void test('code check for typed messages: a compliment at a named reporter is nice; rude or crude wins; no name, no hit', () => {
+  assert.deepEqual(codePraise('thanks Wade, good question'), { reporter: 'barlow', praise: 'nice' })
+  assert.deepEqual(codePraise('mara quill is a legend'), { reporter: 'quill', praise: 'nice' })
+  assert.equal(codePraise('thanks everyone'), null)
+  assert.equal(codePraise('wade you are useless, thanks for nothing'), null)
+  assert.equal(codePraise('thanks wade, you absolute fucking legend'), null)
+  assert.equal(codeInsult('thanks Wade, good question'), null)
 })
 
 // ── Interviews ──────────────────────────────────────────────────────────────
@@ -620,7 +880,7 @@ void test('interview: an off-limits answer gets no reaction and the question sta
   assert.equal(m.reqs.length, 0)
   assert.ok(t.logs.some((l) => l.includes(OFFLIMITS_LOG)))
   assert.ok(!t.logs.some((l) => l.includes('senator line')))
-  assert.equal(t.store.feudRows.length, 0)
+  assert.equal(t.store.relRows.length, 0)
 
   // A slur: no screen call, same silence.
   const slurReply = await onInterviewAnswerSubmit(
@@ -645,8 +905,8 @@ void test('interview: an off-limits answer gets no reaction and the question sta
   assert.equal(ok.kind, 'ack')
   assert.equal(t.store.ivAnswers.length, 1)
   assert.deepEqual(
-    t.store.feudRows.map((r) => [r.playerId, r.reporter, r.points]),
-    [[1, 'barlow', 2]],
+    t.store.relRows.map((r) => [r.playerId, r.reporter, r.points]),
+    [[1, 'barlow', -2]],
   )
 })
 
@@ -730,7 +990,7 @@ void test('wire reply: an off-limits reply gets no answer, no claim, no model wr
   assert.equal(w3.rows.length, 0)
 })
 
-void test('wire reply: an insult counts for the feud even when the reply is not chosen; a chosen one is answered', async () => {
+void test('wire reply: an insult counts for the relationship even when the reply is not chosen; a chosen one is answered', async () => {
   const w = wireWorld(() => Promise.resolve(strong()))
   const notChosen = postFor(USER_A, false)
   await onWireReply(w.t.deps, w.cfg, {
@@ -741,8 +1001,9 @@ void test('wire reply: an insult counts for the feud even when the reply is not 
   })
   assert.equal(w.t.sent.length, 0)
   assert.deepEqual(
-    w.t.store.feudRows.map((r) => [r.playerId, r.reporter, r.points]),
-    [[1, 'mercer', 2]],
+    w.t.store.relRows.map((r) => [r.playerId, r.reporter, r.points]),
+    // Mercer is a critic (-1): a strong insult (-2) lands as -2.5.
+    [[1, 'mercer', -2.5]],
   )
   const chosen = postFor(USER_A, true)
   await onWireReply(w.t.deps, w.cfg, {
@@ -752,13 +1013,13 @@ void test('wire reply: an insult counts for the feud even when the reply is not 
     text: 'mercer is trash again',
   })
   assert.equal(w.t.sent.length, 1)
-  assert.equal(w.t.store.feudRows[0]!.points, 4)
+  assert.equal(w.t.store.relRows[0]!.points, -5)
 })
 
-void test('wire reply: the feud level reaches the writer; "Go easy" and "Leave me out" never get it', async () => {
+void test('wire reply: the relationship level reaches the writer; "Go easy" never gets the feud side; "Leave me out" nothing', async () => {
   const w = wireWorld(() => Promise.resolve(OK))
-  w.t.store.feudRows.push({ playerId: 1, reporter: 'mercer', points: 12, lastEventAt: NOW })
-  w.t.store.feudRows.push({ playerId: 2, reporter: 'mercer', points: 12, lastEventAt: NOW })
+  w.t.store.relRows.push({ playerId: 1, reporter: 'mercer', points: -12, lastEventAt: NOW })
+  w.t.store.relRows.push({ playerId: 2, reporter: 'mercer', points: -12, lastEventAt: NOW })
   await onWireReply(w.t.deps, w.cfg, {
     userId: USER_A,
     messageId: 'm1',
@@ -767,7 +1028,7 @@ void test('wire reply: the feud level reaches the writer; "Go easy" and "Leave m
   })
   const write = w.reqs.find((r) => r.schema === WIRE_REPLY_SCHEMA)!
   assert.match(write.user, /at open war: be cold and sharp/)
-  assert.match(write.system, /11\. Feuds: only when the request says/)
+  assert.match(write.system, /11\. Relationships: only when the request says/)
   assert.match(write.system, /never profanity, never a slur/)
 
   // Skater B is "Go easy": same war on file, no feud text.
@@ -781,14 +1042,29 @@ void test('wire reply: the feud level reaches the writer; "Go easy" and "Leave m
   assert.doesNotMatch(writes.at(-1)!.user, /open war|feud|friction/)
 
   // "Leave me out" (Hank): no answer, no screen, no points.
-  const before = w.t.store.feudRows.length
+  const before = w.t.store.relRows.length
   await onWireReply(w.t.deps, w.cfg, {
     userId: '200000000000000004',
     messageId: 'm3',
     targetMessageId: wirePost(w.t, postFor('200000000000000004')),
     text: 'mercer is trash',
   })
-  assert.equal(w.t.store.feudRows.length, before)
+  assert.equal(w.t.store.relRows.length, before)
+})
+
+void test('wire reply: "Go easy" may be a fan of a reporter, and the reporter writes warmer', async () => {
+  const w = wireWorld(() => Promise.resolve(OK))
+  w.t.store.relRows.push({ playerId: 2, reporter: 'mercer', points: 12, lastEventAt: NOW })
+  await onWireReply(w.t.deps, w.cfg, {
+    userId: USER_B,
+    messageId: 'm1',
+    targetMessageId: wirePost(w.t, postFor(USER_B)),
+    text: 'a fair reply',
+  })
+  const write = w.reqs.find((r) => r.schema === WIRE_REPLY_SCHEMA)!
+  // Mercer's ceiling is "fan".
+  assert.match(write.user, /You are a fan of Skater B/)
+  assert.doesNotMatch(write.user, /glazing/)
 })
 
 // ── Messages in a press thread that are not answers ─────────────────────────
@@ -804,7 +1080,7 @@ void test('codeInsult: a reporter named plus a rude or crude word; never a slur,
   assert.equal(codeInsult('I love june in the playoffs, great month'), null)
 })
 
-void test('a non-answer message in a press thread adds feud points; in any other thread, nothing', async () => {
+void test('a non-answer message in a press thread moves the scale (insult down, thanks up); in any other thread, nothing', async () => {
   const t = setup()
   await scrumWithPerson(t, 1)
   t.store.scrums[0]!.threadId = 'thread-1'
@@ -816,8 +1092,9 @@ void test('a non-answer message in a press thread adds feud points; in any other
     text: 'gord ur an asshole',
   })
   assert.deepEqual(
-    t.store.feudRows.map((r) => [r.playerId, r.reporter, r.points]),
-    [[1, 'pettibone', 2]],
+    t.store.relRows.map((r) => [r.playerId, r.reporter, r.points]),
+    // Pettibone is a critic (-2): a strong insult (-2) lands as -3.
+    [[1, 'pettibone', -3]],
   )
   assert.equal(t.sent.length, 0)
   assert.equal(t.modelCalls.length, 0)
@@ -827,14 +1104,14 @@ void test('a non-answer message in a press thread adds feud points; in any other
     userId: USER_A,
     text: 'gord ur an asshole',
   })
-  assert.equal(t.store.feudRows[0]!.points, 2)
+  assert.equal(t.store.relRows[0]!.points, -3)
   // A slur: no reaction, no points.
   await onThreadMessage(t.deps, cfg, {
     threadId: 'thread-1',
     userId: USER_A,
     text: 'gord you n1gger',
   })
-  assert.equal(t.store.feudRows[0]!.points, 2)
+  assert.equal(t.store.relRows[0]!.points, -3)
   // "Leave me out" (Hank) and an unlinked user: none.
   t.store.discordIds.set(4, '200000000000000004')
   await onThreadMessage(t.deps, cfg, {
@@ -847,10 +1124,17 @@ void test('a non-answer message in a press thread adds feud points; in any other
     userId: '200000000000000009',
     text: 'fuck u wade',
   })
-  assert.equal(t.store.feudRows.length, 1)
+  assert.equal(t.store.relRows.length, 1)
   // "Go easy" (Skater B): points may be stored.
   await onThreadMessage(t.deps, cfg, { threadId: 'thread-1', userId: USER_B, text: 'fuck u wade' })
-  assert.deepEqual(t.store.feudRows.map((r) => r.playerId).sort(), [1, 2])
+  assert.deepEqual([...new Set(t.store.relRows.map((r) => r.playerId))].sort(), [1, 2])
+  // Thanks to a named reporter lifts the scale (Barlow, disposition 0: +1).
+  await onThreadMessage(t.deps, cfg, {
+    threadId: 'thread-1',
+    userId: USER_A,
+    text: 'thanks wade, good question',
+  })
+  assert.equal(t.store.relRows.find((x) => x.reporter === 'barlow' && x.playerId === 1)!.points, 1)
   // Never answered, stored as an answer or logged with the text.
   assert.equal(t.store.answerRows.length, 0)
   assert.ok(!t.logs.some((l) => l.includes('asshole')))

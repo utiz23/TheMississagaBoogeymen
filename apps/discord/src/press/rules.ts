@@ -143,6 +143,8 @@ export function chooseScrumReporter(args: {
 
 /** T5: a reporter in a feud with the player is this many times likelier on the panel (like a take). */
 export const FEUD_PANEL_WEIGHT = 3
+/** T9: a reporter who is a fan of the player ("fan" or "glazing") is this many times likelier (like a take). */
+export const FAVOUR_PANEL_WEIGHT = 2
 
 /** Reporters who ask one person: 3 for a picked player (or a GM request), 2 for a volunteer. */
 export const PANEL_SIZE = { picked: 3, volunteer: 2 } as const
@@ -192,6 +194,8 @@ export function choosePanel(args: {
   takeReporters: readonly ReporterId[]
   /** T5: reporters in a feud (level "feud" or above) with the player: likelier on the panel. */
   feudReporters?: readonly ReporterId[]
+  /** T9: reporters who are a fan of the player ("fan" or above): likelier on the panel. */
+  favourReporters?: readonly ReporterId[]
 }): ReporterId[] {
   const allowed = REPORTER_IDS.filter((id) => id !== 'rink' && !args.disabled.includes(id))
   const panel: ReporterId[] = []
@@ -206,6 +210,7 @@ export function choosePanel(args: {
       if (heatSet.includes(id)) weight *= 3
       if (args.takeReporters.includes(id)) weight *= 2
       if (args.feudReporters?.includes(id) === true) weight *= FEUD_PANEL_WEIGHT
+      if (args.favourReporters?.includes(id) === true) weight *= FAVOUR_PANEL_WEIGHT
       return [id, weight]
     })
     panel.push(weightedPick(choices, rand))

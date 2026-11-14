@@ -12,7 +12,7 @@ import { escapeMarkdown } from '../message.ts'
 import { containsName } from '../news/fact-check.ts'
 import { FALLBACK_CLOSING, judgeAnswer, type FollowUpMode, type Usability } from './asker.ts'
 import { fallbackLine } from './fallbacks.ts'
-import { feudLevel, recordInsult } from './feuds.ts'
+import { recordMessageSignals, recordRelationship, relationshipLevel } from './relationships.ts'
 import { CODE_ONLY_SCREEN, OFFLIMITS_LOG, screenMessage, screenText } from './hard-lines.ts'
 import { rememberPlayerMessage } from './player-latest.ts'
 import { replyingTo } from './reply-ref.ts'
@@ -351,6 +351,8 @@ interface Verdict {
   replyFailed: boolean
   /** T5: the judge says the answer is off-limits: no reaction at all, nothing stored. */
   offLimits: boolean
+  /** T9: the judge rated a usable answer strong (absent = no). */
+  strong?: boolean
 }
 
 /**
@@ -502,10 +504,10 @@ async function judge(
       ...scrumHistory(earlier, scrum.reporter),
       { question, answer: null, by: asker },
     ]
-    const feud = await feudLevel(deps, person.playerId, asker, onSheet.pressLevel)
+    const relationship = await relationshipLevel(deps, person.playerId, asker, onSheet.pressLevel)
     const ctx = await scrumAskContext(store, scrum, res, onSheet, history, person.questionsAsked, {
       reporter: asker,
-      feud,
+      relationship,
     })
     // One follow-up per reporter, and only as many as the round's target needs.
     const rule = followUpRule(person)
@@ -631,12 +633,24 @@ export async function onAnswerSubmit(
   }
   // T6: the player's latest message in their thread; the "no answer" closing replies to it.
   rememberPlayerMessage(deps, threadId, person.discordUserId, answerRef)
-  // T5, feuds: an insult at a reporter (not off-limits) adds points; "Leave me out" adds none.
+  // T5, T9: an insult at a reporter (down) or a compliment or thanks (up), not off-limits, moves the
+  // scale; "Leave me out" adds none; a test scrum changes nothing.
   if (!testScrum && !refused && screened.reporter !== null) {
-    await recordInsult(deps, {
+    await recordMessageSignals(deps, {
       playerId: person.playerId,
       reporter: screened.reporter,
       insult: screened.insult,
+      praise: screened.praise,
+      pressLevel: onSheet.pressLevel,
+      where: `person ${String(personId)}`,
+    })
+  }
+  // T9: a usable answer the judge rates strong moves the scale up a little, for the asking reporter.
+  if (!testScrum && !refused && verdict.strong === true) {
+    await recordRelationship(deps, {
+      playerId: person.playerId,
+      reporter: asker,
+      event: 'strongAnswer',
       pressLevel: onSheet.pressLevel,
       where: `person ${String(personId)}`,
     })

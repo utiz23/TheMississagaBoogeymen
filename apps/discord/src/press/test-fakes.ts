@@ -1,7 +1,7 @@
 import {
-  FEUD_MAX_POINTS,
+  REL_MAX_POINTS,
   decayedPoints,
-  feudLevelOf,
+  relLevelAt,
   type NewsFactsResponse,
   type ReporterId,
 } from '@eanhl/db/news'
@@ -778,49 +778,51 @@ export class FakeStore implements PressStore {
             this.people.some((p) => p.scrumId === s.id && p.pingMessageId === threadId)),
       ),
     )
-  /** T5: feud rows in memory (the same fade, add and cap as the SQL upsert). */
-  feudRows: { playerId: number; reporter: ReporterId; points: number; lastEventAt: Date }[] = []
-  failFeudWrites = false
+  /** T5, T9: relationship rows in memory (the same fade, add and signed cap as the SQL upsert). */
+  relRows: { playerId: number; reporter: ReporterId; points: number; lastEventAt: Date }[] = []
+  failRelationshipWrites = false
   /** Thread ids of press threads for `isPressThread` (default: the scrums' and nothing else). */
   isPressThread = (threadId: string) =>
     Promise.resolve(this.scrums.some((x) => x.threadId === threadId || x.messageId === threadId))
-  addFeudPoints = (args: { playerId: number; reporter: ReporterId; points: number; at: Date }) => {
-    if (this.failFeudWrites) return Promise.reject(new Error('feud table missing'))
-    const row = this.feudRows.find(
+  addRelationshipPoints = (args: {
+    playerId: number
+    reporter: ReporterId
+    points: number
+    at: Date
+  }) => {
+    if (this.failRelationshipWrites) {
+      return Promise.reject(new Error('relationship table missing'))
+    }
+    const cap = (n: number): number => Math.max(-REL_MAX_POINTS, Math.min(REL_MAX_POINTS, n))
+    const row = this.relRows.find(
       (r) => r.playerId === args.playerId && r.reporter === args.reporter,
     )
     if (row === undefined) {
-      this.feudRows.push({
+      this.relRows.push({
         playerId: args.playerId,
         reporter: args.reporter,
-        points: Math.min(FEUD_MAX_POINTS, args.points),
+        points: cap(args.points),
         lastEventAt: args.at,
       })
     } else {
-      row.points = Math.min(
-        FEUD_MAX_POINTS,
-        decayedPoints(row.points, row.lastEventAt, args.at) + args.points,
-      )
+      row.points = cap(decayedPoints(row.points, row.lastEventAt, args.at) + args.points)
       row.lastEventAt = args.at
     }
     return Promise.resolve()
   }
-  listFeuds = (args: { now: Date; playerIds?: readonly number[] | null }) =>
+  listRelationships = (args: { now: Date; playerIds?: readonly number[] | null }) =>
     Promise.resolve(
-      this.feudRows
+      this.relRows
         .filter((r) => args.playerIds == null || args.playerIds.includes(r.playerId))
-        .map((r) => {
-          const points = decayedPoints(r.points, r.lastEventAt, args.now)
-          return {
-            playerId: r.playerId,
-            name: NAMES.get(r.playerId) ?? `Player ${String(r.playerId)}`,
-            reporter: r.reporter,
-            points,
-            level: feudLevelOf(points),
-            lastEventAt: r.lastEventAt,
-          }
-        })
-        .filter((r) => r.level !== 'none'),
+        .map((r) => ({
+          playerId: r.playerId,
+          name: NAMES.get(r.playerId) ?? `Player ${String(r.playerId)}`,
+          reporter: r.reporter,
+          points: decayedPoints(r.points, r.lastEventAt, args.now),
+          level: relLevelAt(r, r.reporter, args.now),
+          lastEventAt: r.lastEventAt,
+        }))
+        .filter((r) => r.level !== 'neutral'),
     )
   setHeat = (heat: 'cool' | 'normal' | 'hot', scope: 'next' | 'night', night: string | null) => {
     this.heatCalls.push({ heat, scope, night })

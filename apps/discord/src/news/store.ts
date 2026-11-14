@@ -31,7 +31,8 @@ import {
   nightPressMaterial,
   listReactionTriggersWithoutJob,
   getReactionItem,
-  listFeuds,
+  listRelationships,
+  addRelationshipPoints,
 } from '@eanhl/db/queries'
 import { REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
 import type { NewsStore } from './cycle.ts'
@@ -93,6 +94,7 @@ export const newsDbStore: NewsStore = {
   nightPressMaterial,
   listReactionTriggersWithoutJob,
   getReactionItem,
-  // T5: reporter feuds (migration 0076); a missing table is caught by the caller.
-  listFeuds: (args) => listFeuds({ now: args.now, playerIds: args.playerIds }),
+  // T5, T9: reporter relationships (migration 0078); a missing table is caught by the caller.
+  listRelationships: (args) => listRelationships({ now: args.now, playerIds: args.playerIds }),
+  addRelationshipPoints,
 }

@@ -7,7 +7,7 @@ import {
   listAdminTakes,
   listAliases,
   listDisabledReporters,
-  listFeuds,
+  listRelationships,
   listQualityItems,
   listMemberPressLevels,
   listPressRoster,
@@ -33,7 +33,7 @@ import {
 import { qualityReport } from '@/lib/news/quality'
 import { PRESS_LEVEL_OPTIONS } from '@/lib/profile-edit'
 import { AliasesSection } from './aliases-section'
-import { FeudsSection } from './feuds-section'
+import { RelationshipsSection } from './relationships-section'
 import { QualitySection } from './quality-section'
 import { TakesSection } from './takes-section'
 import {
@@ -69,7 +69,7 @@ export default async function AdminNewsPage({
     takes,
     aliases,
     roster,
-    feuds,
+    relationships,
   ] = await Promise.all([
     getNewsEnabled(),
     monthNewsSpendUsd(now),
@@ -81,7 +81,7 @@ export default async function AdminNewsPage({
     listAliases(),
     listPressRoster(),
     // Migration 0076 may not be applied yet: the page still renders.
-    listFeuds({ now }).catch(() => null),
+    listRelationships({ now }).catch(() => null),
   ])
   const quality = qualityReport(qualityItems, new Map(takes.map((t) => [t.id, t.playerName])))
   const limit = monthlyLimitUsd(process.env['NEWS_MONTHLY_LIMIT_USD'])
@@ -261,7 +261,7 @@ export default async function AdminNewsPage({
       <TakesSection takes={takes} saveFailed={takeError} />
 
       <AliasesSection aliases={aliases} roster={roster} />
-      <FeudsSection feuds={feuds} />
+      <RelationshipsSection rows={relationships} />
 
       <AdminSection
         title="Press levels"

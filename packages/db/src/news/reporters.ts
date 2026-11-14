@@ -6,6 +6,8 @@
  * a Claude system prompt, so it has no markdown headings.
  */
 
+import type { Disposition, RelRange, TasteRule } from './relationships.js'
+
 export const REPORTER_IDS = [
   'barlow',
   'voss',
@@ -41,6 +43,18 @@ export interface Reporter {
   language: 'mild' | 'clean'
   /** What the reporter thinks of the game modes (spec §12.18-2); null = neutral. */
   modeOpinion: string | null
+  /**
+   * T9: homer (+2) to critic (-2). Scales this reporter's up and down steps on the relationship
+   * scale and sets the starting lean (`relationships.ts`). Code default until the Press Box adds an override.
+   */
+  disposition: Disposition
+  /**
+   * T9: the reporter's floor and ceiling on the relationship scale. The level is clamped to it, and a
+   * step outside it is not stored. Father Rink's floor is neutral (hard rule: he never feuds).
+   */
+  range: RelRange
+  /** T9: what counts as a big night for this reporter (any rule matching one game line is a hit). */
+  taste: readonly TasteRule[]
   /** Character brief for the system prompt: vibe, style, words, article format, tone, red line. */
   voice: string
 }
@@ -146,6 +160,92 @@ const MODE_OPINION: Record<ReporterId, string | null> = {
   bergstrom: 'He thinks 6s is real hockey and 3s is shinny, so a 6s result weighs more with him.',
 }
 
+/**
+ * T9 defaults, from each reporter's voice. Disposition: +2 glazes easily .. -2 almost never. Range: how far
+ * down (floor) and up (ceiling) the scale the reporter can go. Father Rink: floor neutral, never a feud.
+ * Taste: a big night this reporter notices (one stat at or above the minimum in one game).
+ */
+const RELATIONSHIP_PROFILE: Record<
+  ReporterId,
+  { disposition: Disposition; range: RelRange; taste: readonly TasteRule[] }
+> = {
+  // Fair, workmanlike: respects effort, hates swagger.
+  barlow: {
+    disposition: 0,
+    range: { floor: 'feud', ceiling: 'fan' },
+    taste: [
+      { stat: 'hits', min: 6 },
+      { stat: 'assists', min: 3 },
+    ],
+  },
+  // Human, warm: stories about people; slow to hold a grudge.
+  voss: {
+    disposition: 1,
+    range: { floor: 'simmering', ceiling: 'glazing' },
+    taste: [
+      { stat: 'assists', min: 3 },
+      { stat: 'points', min: 4 },
+    ],
+  },
+  // Provocateur: reaches open war easily, rarely gushes.
+  mercer: {
+    disposition: -1,
+    range: { floor: 'war', ceiling: 'fan' },
+    taste: [{ stat: 'goals', min: 3 }],
+  },
+  // Calm analyst: neither extreme.
+  halberd: {
+    disposition: 0,
+    range: { floor: 'feud', ceiling: 'fan' },
+    taste: [
+      { stat: 'assists', min: 3 },
+      { stat: 'shots', min: 8 },
+    ],
+  },
+  // Hot-mic showman: glazes easily, loud feuds but not a war.
+  vale: {
+    disposition: 2,
+    range: { floor: 'feud', ceiling: 'glazing' },
+    taste: [
+      { stat: 'goals', min: 3 },
+      { stat: 'points', min: 4 },
+    ],
+  },
+  // Dry numbers columnist: cool, cannot be glazed.
+  quill: {
+    disposition: -1,
+    range: { floor: 'feud', ceiling: 'warm' },
+    taste: [
+      { stat: 'shots', min: 8 },
+      { stat: 'points', min: 4 },
+    ],
+  },
+  // Mythic: blesses, never feuds (hard rule).
+  rink: {
+    disposition: 1,
+    range: { floor: 'neutral', ceiling: 'glazing' },
+    taste: [
+      { stat: 'saves', min: 30 },
+      { stat: 'goals', min: 3 },
+    ],
+  },
+  // Tabloid loudmouth: reaches open war easily, almost never warm.
+  pettibone: {
+    disposition: -2,
+    range: { floor: 'war', ceiling: 'warm' },
+    taste: [{ stat: 'points', min: 5 }],
+  },
+  // Old-school and fair: loves compete and volume.
+  bergstrom: {
+    disposition: 1,
+    range: { floor: 'feud', ceiling: 'glazing' },
+    taste: [
+      { stat: 'shots', min: 8 },
+      { stat: 'hits', min: 6 },
+    ],
+  },
+}
+
 const MILD: readonly ReporterId[] = ['mercer', 'pettibone', 'vale']
 
 function base(id: ReporterId) {
@@ -154,6 +254,7 @@ function base(id: ReporterId) {
     typicalWords: typical(id),
     language: MILD.includes(id) ? ('mild' as const) : ('clean' as const),
     modeOpinion: MODE_OPINION[id],
+    ...RELATIONSHIP_PROFILE[id],
   }
 }
 

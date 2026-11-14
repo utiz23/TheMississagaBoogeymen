@@ -154,7 +154,7 @@ void test("in a player's thread another user's message is ignored: no answer, no
   assert.equal(t.sent.length, before)
   assert.equal(t.store.answerRows.length, 0)
   assert.equal(t.screened.length, 0)
-  assert.equal(t.store.feudRows.length, 0)
+  assert.equal(t.store.relRows.length, 0)
   assert.equal(t.store.people[0]!.status, 'asking')
   assert.deepEqual(
     t.logs.filter((l) => l.startsWith('[press] thread message:')),
@@ -185,7 +185,7 @@ void test("the player's own insult in their thread (no open question) still coun
     text: 'gord ur an asshole',
     messageId: 'm',
   })
-  assert.ok(t.store.feudRows.length > 0)
+  assert.ok(t.store.relRows.length > 0)
 })
 
 // ── Reporters reply to the player ───────────────────────────────────────────

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type {
-  FeudRow,
+  RelationshipRow,
   NewNewsItem,
   NewNewsStance,
   NewNewsUsage,
@@ -22,6 +22,7 @@ import {
   NEWS_GAME_WINDOW_MS,
   NEWS_POST_SPACING_MS,
   runNewsCycle,
+  tasteHitsFor,
   type NewsCycleOptions,
   type NewsDeps,
   type NewsOutgoing,
@@ -31,11 +32,11 @@ import {
 } from './cycle.ts'
 import { assignGamePosts, type ActivityKind } from './assign.ts'
 import { pressForSheet } from './press-material.ts'
-import { PRESS_ROOM_START, SYSTEM_RULES, feudsBlock } from './prompts.ts'
+import { PRESS_ROOM_START, SYSTEM_RULES, relationshipsBlock } from './prompts.ts'
 import { classifyGame } from './situation.ts'
 import type { NewsWebhookPayload } from './messages.ts'
 import { ARTICLE_SCHEMA, FEATURE_SCHEMA, GAME_POSTS_SCHEMA, REVIEW_SCHEMA } from './outputs.ts'
-import { oct12Response } from './test-fixtures.ts'
+import { oct12Facts, oct12Response } from './test-fixtures.ts'
 import { itemRow } from '../press/test-fakes.ts'
 import { NEWS_RULES_VERSION } from './rules-version.ts'
 import { NewsJobError, NewsRetryableError, NewsStopError, type ModelCall } from './writer.ts'
@@ -2494,79 +2495,109 @@ void test('reactions: the pass runs after the night articles', async () => {
   assert.ok(night >= 0 && reaction > night)
 })
 
-// ── T5: feuds in the night recap and the weekly column ──────────────────────
+// ── T5, T9: relationships in the night recap and the weekly column ─────────
 
-const feudRow = (
-  playerId: number,
-  reporter: ReporterId,
-  level: 'simmering' | 'feud' | 'war',
-): FeudRow => ({
+type StoryLevel = 'simmering' | 'feud' | 'war' | 'warm' | 'fan' | 'glazing'
+const relRow = (playerId: number, reporter: ReporterId, level: StoryLevel): RelationshipRow => ({
   playerId,
   name: `Player ${String(playerId)}`,
   reporter,
-  points: level === 'war' ? 11 : level === 'feud' ? 6 : 3,
+  points:
+    level === 'war'
+      ? -11
+      : level === 'feud'
+        ? -6
+        : level === 'simmering'
+          ? -3
+          : level === 'glazing'
+            ? 11
+            : level === 'fan'
+              ? 6
+              : 3,
   level,
   lastEventAt: NOW,
 })
-const everyReporter = (playerId: number, level: 'simmering' | 'feud' | 'war'): FeudRow[] =>
-  Object.keys(REPORTERS).map((r) => feudRow(playerId, r as ReporterId, level))
+const everyReporter = (playerId: number, level: StoryLevel): RelationshipRow[] =>
+  Object.keys(REPORTERS).map((r) => relRow(playerId, r as ReporterId, level))
 
-void test("feuds: the night recap gets the writing reporter's feud only at feud level; a simmer, Go easy and other reporters add nothing", async () => {
-  const run = async (rows: FeudRow[]) => {
-    const prompts: string[] = []
-    const reviews: string[] = []
-    const asked: unknown[] = []
-    const h = harness({
-      store: {
-        listFeuds: async (args) => {
-          asked.push(args)
-          return rows
-        },
+async function relationshipRun(rows: RelationshipRow[]) {
+  const prompts: string[] = []
+  const reviews: string[] = []
+  const asked: unknown[] = []
+  const h = harness({
+    store: {
+      listRelationships: async (args) => {
+        asked.push(args)
+        return rows
       },
-      deps: {
-        writer: async (req) => {
-          if (req.purpose === 'write') prompts.push(req.user)
-          else reviews.push(req.user)
-          return goodWriter(req)
-        },
+    },
+    deps: {
+      writer: async (req) => {
+        if (req.purpose === 'write') prompts.push(req.user)
+        else reviews.push(req.user)
+        return goodWriter(req)
       },
-    })
-    pressNight(h)
-    await runNewsCycle(h.deps, h.opts)
-    assert.equal(h.jobs.get(`night:${PRESS_NIGHT}`)?.status, 'done')
-    return { prompts, reviews, asked, reporter: h.items.get(1)!.reporter }
-  }
+    },
+  })
+  pressNight(h)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get(`night:${PRESS_NIGHT}`)?.status, 'done')
+  return { prompts, reviews, asked, reporter: h.items.get(1)!.reporter }
+}
 
-  const feud = await run(everyReporter(1, 'feud'))
+void test("relationships: the night recap gets the writing reporter's feud only at feud level; a simmer, Go easy and other reporters add nothing", async () => {
+  const feud = await relationshipRun(everyReporter(1, 'feud'))
   const name = REPORTERS[feud.reporter].name
   assert.match(feud.prompts[0]!, new RegExp(`${name} and Skater A are not on speaking terms`))
   // Only the writing reporter's own feud: one line, not nine.
   assert.equal((feud.prompts[0]!.match(/not on speaking terms/g) ?? []).length, 1)
   // The review sees it as the reporter's own view, not as a fact.
   assert.match(feud.reviews[0]!, /own view; the text may say so as that view/)
-  // Only players at press level "full" are asked about: Skater B (easy) never is.
-  const asked = feud.asked[0] as { playerIds: number[] }
-  assert.ok(asked.playerIds.includes(1) && !asked.playerIds.includes(2))
 
-  const war = await run(everyReporter(1, 'war'))
+  const war = await relationshipRun(everyReporter(1, 'war'))
   assert.match(war.prompts[0]!, /at open war/)
 
-  const simmer = await run(everyReporter(1, 'simmering'))
-  assert.doesNotMatch(simmer.prompts[0]!, /speaking terms|open war|Feuds \(/)
+  const simmer = await relationshipRun(everyReporter(1, 'simmering'))
+  assert.doesNotMatch(simmer.prompts[0]!, /speaking terms|open war|Relationships \(/)
+  const warm = await relationshipRun(everyReporter(1, 'warm'))
+  assert.doesNotMatch(warm.prompts[0]!, /bandwagon|glazing|Relationships \(/)
 
-  // "Go easy" (Skater B): stored feud, never used.
-  const easy = await run(everyReporter(2, 'war'))
-  assert.doesNotMatch(easy.prompts[0]!, /speaking terms|open war|Feuds \(/)
-  // Nothing about a feud when the table cannot be read.
-  const none = await run([])
-  assert.doesNotMatch(none.prompts[0]!, /Feuds \(/)
+  // "Go easy" (Skater B): a stored feud is never used.
+  const easy = await relationshipRun(everyReporter(2, 'war'))
+  assert.doesNotMatch(easy.prompts[0]!, /speaking terms|open war|Relationships \(/)
+  // Nothing about a relationship when there is none.
+  const none = await relationshipRun([])
+  assert.doesNotMatch(none.prompts[0]!, /Relationships \(/)
 })
 
-void test('feuds: a feud read that throws never stops the recap', async () => {
+void test('relationships: a fan or glazing storyline reaches the recap as the reporter\'s view, tone only; "Go easy" may be glazed', async () => {
+  const fan = await relationshipRun(everyReporter(1, 'fan'))
+  const name = REPORTERS[fan.reporter].name
+  assert.match(
+    fan.prompts[0]!,
+    new RegExp(`${name} is a fan of Skater A and on Skater A's bandwagon`),
+  )
+  assert.equal((fan.prompts[0]!.match(/bandwagon/g) ?? []).length, 1)
+  assert.match(fan.prompts[0]!, /praise is tone only, no new or bigger number/)
+  assert.match(fan.reviews[0]!, /own view; the text may say so as that view/)
+  assert.match(fan.reviews[0]!, /no new or bigger number/)
+
+  const glaze = await relationshipRun(everyReporter(1, 'glazing'))
+  assert.match(glaze.prompts[0]!, /is glazing Skater A: nothing Skater A does is wrong/)
+
+  // Skater B is "Go easy": the favour side is used, the feud side is not.
+  const easyGlaze = await relationshipRun(everyReporter(2, 'glazing'))
+  assert.match(easyGlaze.prompts[0]!, /is glazing Skater B/)
+  // Every player on the sheet is read (Go easy included): the favour side needs them.
+  const asked = easyGlaze.asked[0] as { playerIds: number[] }
+  assert.ok(asked.playerIds.includes(1) && asked.playerIds.includes(2))
+})
+
+void test('relationships: a read that throws never stops the recap', async () => {
   const h = harness({
     store: {
-      listFeuds: async () => {
-        throw new Error('relation "news_press_feuds" does not exist')
+      listRelationships: async () => {
+        throw new Error('relation "news_press_relationships" does not exist')
       },
     },
   })
@@ -2575,35 +2606,127 @@ void test('feuds: a feud read that throws never stops the recap', async () => {
   assert.equal(h.jobs.get(`night:${PRESS_NIGHT}`)?.status, 'done')
 })
 
-void test('feuds: the weekly column gets the feud storyline at feud level too', async () => {
-  const prompts: string[] = []
-  const h = harness({
-    store: { listFeuds: async () => everyReporter(1, 'feud') },
-    deps: {
-      now: () => MONDAY_1201,
-      writer: async (req) => {
-        if (req.purpose === 'write') prompts.push(req.user)
-        return goodWriter(req)
+void test('relationships: the weekly column gets the storyline at feud level and at fan level', async () => {
+  for (const [level, text] of [
+    ['feud', /are not on speaking terms/],
+    ['fan', /is a fan of Skater A/],
+  ] as const) {
+    const prompts: string[] = []
+    const h = harness({
+      store: { listRelationships: async () => everyReporter(1, level) },
+      deps: {
+        now: () => MONDAY_1201,
+        writer: async (req) => {
+          if (req.purpose === 'write') prompts.push(req.user)
+          return goodWriter(req)
+        },
       },
-    },
-  })
-  h.state.nightGames['2026-10-22'] = 3
-  await runNewsCycle(h.deps, h.opts)
-  const name = REPORTERS[h.items.get(1)!.reporter].name
-  assert.match(prompts[0]!, new RegExp(`${name} and Skater A are not on speaking terms`))
+    })
+    h.state.nightGames['2026-10-22'] = 3
+    await runNewsCycle(h.deps, h.opts)
+    const name = REPORTERS[h.items.get(1)!.reporter].name
+    assert.match(prompts[0]!, new RegExp(name))
+    assert.match(prompts[0]!, text)
+  }
 })
 
-void test('feuds and crude lines: the writing rules say it, and the rules version moved', () => {
+// ── T9: a big night in a reporter's taste ──────────────────────────────────
+
+/** The night sheet with one big night for Skater A (3 goals, 4 points, 9 shots, 7 hits). */
+function bigNightFetch(lineOver: Record<string, number | null>) {
+  return async (kind: 'game' | 'night' | 'week', key: string) => {
+    const r = oct12Response(kind)
+    const games = r.facts.games.map((g, i) =>
+      i === 0
+        ? {
+            ...g,
+            players: g.players.map((p) => (p.playerId === 1 ? { ...p, ...lineOver } : p)),
+          }
+        : g,
+    )
+    return { ...r, facts: { ...r.facts, key, games } }
+  }
+}
+
+void test('taste: a big night adds one scaled point per reporter whose taste it matches, once per recap, never in a dry run', async () => {
+  const run = async (dryRun: boolean, lineOver: Record<string, number | null>) => {
+    const added: { playerId: number; reporter: ReporterId; points: number }[] = []
+    const h = harness({
+      store: {
+        addRelationshipPoints: async (a) => {
+          added.push({ playerId: a.playerId, reporter: a.reporter, points: a.points })
+        },
+      },
+      deps: { fetchFacts: bigNightFetch(lineOver) },
+    })
+    pressNight(h)
+    h.opts.dryRun = dryRun
+    await runNewsCycle(h.deps, h.opts)
+    return added
+  }
+  const big = { goals: 3, points: 4, shots: 9, hits: 7 }
+  const added = await run(false, big)
+  // Vale (goals 3+, points 4+), Bergstrom (shots 8+, hits 6+): one point each, scaled by disposition.
+  const byReporter = new Map(added.map((a) => [a.reporter, a.points]))
+  assert.equal(byReporter.get('vale'), 1.5)
+  assert.equal(byReporter.get('bergstrom'), 1.25)
+  assert.equal(byReporter.get('barlow'), 1)
+  assert.equal(byReporter.get('pettibone'), undefined) // points 5+ needed
+  assert.equal(added.filter((a) => a.reporter === 'vale').length, 1)
+  assert.ok(added.every((a) => a.playerId === 1))
+  // A quiet night, and a dry run, add nothing.
+  assert.deepEqual(await run(false, { goals: 0, points: 0, shots: 1, hits: 0, assists: 0 }), [])
+  assert.deepEqual(await run(true, big), [])
+})
+
+void test('taste: a write that fails never stops the recap; Father Rink glazes, never goes below neutral', async () => {
+  const h = harness({
+    store: {
+      addRelationshipPoints: async () => {
+        throw new Error('relation "news_press_relationships" does not exist')
+      },
+    },
+    deps: { fetchFacts: bigNightFetch({ goals: 3, points: 4, shots: 9, hits: 7 }) },
+  })
+  pressNight(h)
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get(`night:${PRESS_NIGHT}`)?.status, 'done')
+  assert.ok(h.items.size > 0)
+  // Pure: Rink's taste matches a 31-save night and the step is positive.
+  const hits = tasteHitsFor(
+    {
+      ...oct12Facts('night'),
+      games: [
+        {
+          ...oct12Facts('night').games[0]!,
+          players: oct12Facts('night').games[0]!.players.map((p) =>
+            p.playerId === 3 ? { ...p, saves: 31 } : p,
+          ),
+        },
+      ],
+    },
+    ['rink'],
+  )
+  assert.deepEqual(hits, [{ playerId: 3, reporter: 'rink' }])
+})
+
+void test('relationships and crude lines: the writing rules say it, and the rules version moved', () => {
   const all = SYSTEM_RULES.join('\n')
   assert.match(all, /Never quote, paraphrase or hint at profanity, a slur, or a crude/)
   assert.match(all, /The reporters never use profanity themselves/)
-  assert.match(all, /A feud stays professional and about hockey/)
+  assert.match(all, /A relationship stays professional and about hockey/)
   assert.match(all, /never as a fact about the player/)
-  assert.match(all, /A request without a feud has none/)
-  assert.ok(NEWS_RULES_VERSION >= '2026-11-13.4', NEWS_RULES_VERSION)
+  assert.match(all, /A request without a relationship has none/)
+  // T9: praise is tone, never invention.
+  assert.match(
+    all,
+    /the praise is tone only: every number, stat and play still comes from the fact sheet/,
+  )
+  assert.match(all, /never invent or inflate one/)
+  assert.ok(NEWS_RULES_VERSION >= '2026-11-14.2', NEWS_RULES_VERSION)
   // The block is empty for a reporter who is not in the request.
   assert.equal(
-    feudsBlock([{ reporter: 'quill', player: 'Skater A', level: 'feud' }], ['voss']),
+    relationshipsBlock([{ reporter: 'quill', player: 'Skater A', level: 'feud' }], ['voss']),
     null,
   )
 })

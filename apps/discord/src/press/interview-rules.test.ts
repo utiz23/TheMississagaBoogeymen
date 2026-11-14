@@ -166,3 +166,14 @@ void test('fallback questions: one per position, hockey only, no numbers', () =>
     assert.doesNotMatch(q, /\d/)
   }
 })
+
+void test('reporter: a fan of the player is likelier to interview them (T9)', () => {
+  let fan = 0
+  let plain = 0
+  for (let seed = 1; seed <= 3000; seed++) {
+    const base = { seed, disabled: [], lastReporter: null, takeReporters: [] }
+    if (chooseInterviewReporter({ ...base, favourReporters: ['halberd'] }) === 'halberd') fan++
+    if (chooseInterviewReporter(base) === 'halberd') plain++
+  }
+  assert.ok(fan > plain * 1.4, `${String(fan)} vs ${String(plain)}`)
+})

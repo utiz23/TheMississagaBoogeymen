@@ -62,7 +62,7 @@ import {
   updateScrumPerson,
   upsertAlias,
 } from '@eanhl/db/queries'
-import { feudDbStore } from './feud-db.ts'
+import { relationshipDbStore } from './relationship-db.ts'
 import { interviewDbStore } from './interview-db.ts'
 import { repliesDbStore } from './replies-db.ts'
 import { testScrumDbStore } from './test-scrum-db.ts'
@@ -76,8 +76,8 @@ export const pressDbStore: PressStore = {
   ...repliesDbStore,
   // The test scrum methods (test-scrum-store.ts): found by `testScrumStoreOf`.
   ...testScrumDbStore,
-  // The feud methods (feud-store.ts): found by `feudStoreOf`.
-  ...feudDbStore,
+  // The relationship methods (relationship-store.ts): found by `relationshipStoreOf`.
+  ...relationshipDbStore,
   getPressSettings,
   setMirrorFrom,
   newestNewsItemId: async () => (await listAdminNewsItems(1))[0]?.id ?? null,

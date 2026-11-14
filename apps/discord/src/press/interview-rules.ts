@@ -38,11 +38,13 @@ export const INTERVIEW_AUTO_SOURCE_MS = 30 * 60_000
 export const INTERVIEW_ARTICLE_MIN_ANSWERS = 3
 /** Father Rink's weight in the rotation (every other reporter has 1): rare. */
 export const INTERVIEW_RINK_WEIGHT = 0.2
+/** T9: a reporter who is a fan of the player is this many times likelier to be the interviewer. */
+export const INTERVIEW_FAVOUR_WEIGHT = 2
 
 /**
  * The interviewer. Never a disabled reporter; never the last interview's
  * reporter unless that is the only one left. Weights: 1 each, Father Rink
- * `INTERVIEW_RINK_WEIGHT`; x2 for a reporter with a take on the player.
+ * `INTERVIEW_RINK_WEIGHT`; x2 for a reporter with a take on the player; x2 for a reporter who is a fan of the player (T9).
  * Seeded: the same seed gives the same reporter. Null when every reporter is off.
  */
 export function chooseInterviewReporter(args: {
@@ -50,6 +52,8 @@ export function chooseInterviewReporter(args: {
   disabled: readonly ReporterId[]
   lastReporter: ReporterId | null
   takeReporters: readonly ReporterId[]
+  /** T9: reporters who are a fan of the player ("fan" or above): x2 each, like a take. */
+  favourReporters?: readonly ReporterId[]
 }): ReporterId | null {
   const allowed = REPORTER_IDS.filter((id) => !args.disabled.includes(id))
   const fresh = allowed.filter((id) => id !== args.lastReporter)
@@ -58,6 +62,7 @@ export function chooseInterviewReporter(args: {
   const choices = pool.map((id): [ReporterId, number] => {
     let weight = id === 'rink' ? INTERVIEW_RINK_WEIGHT : 1
     if (args.takeReporters.includes(id)) weight *= 2
+    if (args.favourReporters?.includes(id) === true) weight *= INTERVIEW_FAVOUR_WEIGHT
     return [id, weight]
   })
   return weightedPick(choices, mulberry32(args.seed >>> 0))

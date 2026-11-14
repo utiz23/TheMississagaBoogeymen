@@ -1,7 +1,8 @@
 import {
   REPORTERS,
   interviewBody,
-  type FeudLevel,
+  levelForPress,
+  type RelLevel,
   type NewsFacts,
   type NewsTake,
   type ReporterId,
@@ -28,10 +29,10 @@ import {
 import { MAX_WRITES, writeChecked, type ModelCall } from '../news/writer.ts'
 import {
   ASK_MAX_WRITES,
-  FEUD_RULE,
+  RELATIONSHIP_RULE,
   SCRUM_RULES,
   benchLines,
-  feudLine,
+  relationshipLine,
   type Recorder,
   type ScrumHistoryEntry,
 } from './asker.ts'
@@ -64,8 +65,8 @@ export interface InterviewContext {
   history: ScrumHistoryEntry[]
   /** The 1-based number of the item about to be asked. */
   position: number
-  /** T5: the feud between this reporter and the player (absent = none; never set for "Go easy"). */
-  feud?: FeudLevel
+  /** T5, T9: where this reporter stands with the player (absent = neutral; the feud side is dropped for "Go easy"). */
+  relationship?: RelLevel
 }
 
 /** A question: as many writes as a scrum question (`ASK_MAX_WRITES`, raised by the Lead on 2026-11-13). */
@@ -95,7 +96,7 @@ function systemPrompt(reporter: ReporterId): string {
     'INTERVIEW RULES',
     ...INTERVIEW_RULES,
     ...SCRUM_RULES.slice(2),
-    FEUD_RULE,
+    RELATIONSHIP_RULE,
     'YOUR VOICE',
     reporterVoice(REPORTERS[reporter]),
   ].join('\n\n')
@@ -163,7 +164,12 @@ function questionPrompt(ctx: InterviewContext): string {
       : [
           `For this interview the questions are about the team and the night, seen from outside: ignore the guidance about ${name}'s own games, season totals, streaks and milestones.`,
         ]),
-    ...(ctx.player.pressLevel === 'easy' ? [] : feudLine(ctx.feud, name)),
+    ...relationshipLine(
+      ctx.relationship === undefined
+        ? undefined
+        : levelForPress(ctx.relationship, ctx.player.pressLevel),
+      name,
+    ),
     '',
     `Task: ask question ${String(ctx.position)} of about ${String(INTERVIEW_QUESTIONS)}. Put the one question in "question", at most ${String(INTERVIEW_QUESTION_MAX_CHARS)} characters.`,
   )
@@ -360,7 +366,7 @@ function articleSystemPrompt(reporter: ReporterId): string {
     'ARTICLE RULES',
     ...ARTICLE_RULES,
     ...SCRUM_RULES.slice(2),
-    FEUD_RULE,
+    RELATIONSHIP_RULE,
     'YOUR VOICE',
     reporterVoice(REPORTERS[reporter]),
   ].join('\n\n')

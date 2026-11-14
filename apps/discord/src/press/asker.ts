@@ -1,6 +1,7 @@
 import {
   REPORTERS,
-  type FeudLevel,
+  levelForPress,
+  type RelLevel,
   type NewsFacts,
   type NewsTake,
   type ReporterId,
@@ -68,10 +69,11 @@ export interface AskContext {
   /** The GM's topic for the first question: the writer asks about it in its own voice. */
   gmTopic?: string
   /**
-   * T5: the feud between the asking reporter and this player (absent or `none` = no feud).
-   * Never set for a "Go easy" or "Leave me out" player.
+   * T5, T9: where the asking reporter stands with this player on the relationship scale (absent or
+   * `neutral` = nowhere special). Never set for a "Leave me out" player; for a "Go easy" player the
+   * feud side is dropped here again (they may be glazed, never feuded).
    */
-  feud?: FeudLevel
+  relationship?: RelLevel
 }
 
 /**
@@ -106,6 +108,9 @@ export const ASK_MAX_CHARS = 280
  */
 const JUDGED = ['usable', 'joke', 'unusable', 'offlimits'] as const
 const CHASE: readonly Chase[] = ['none', 'some', 'strong']
+/** T9: how good a usable answer is. `strong` moves the relationship up a little (once per answer). */
+const QUALITY = ['ok', 'strong'] as const
+export type AnswerQuality = (typeof QUALITY)[number]
 
 export const QUESTION_SCHEMA = {
   type: 'object',
@@ -119,10 +124,11 @@ export const JUDGEMENT_SCHEMA = {
   properties: {
     usability: { type: 'string', enum: [...JUDGED] },
     chase: { type: 'string', enum: [...CHASE] },
+    quality: { type: 'string', enum: [...QUALITY] },
     followUp: { type: 'string' },
     closing: { type: 'string' },
   },
-  required: ['usability', 'chase', 'followUp', 'closing'],
+  required: ['usability', 'chase', 'quality', 'followUp', 'closing'],
   additionalProperties: false,
 } as const
 
@@ -149,17 +155,18 @@ export const JUDGE_RULES: readonly string[] = [
   '12. A joke answer: react in character. Dex Mercer and Gord Pettibone are annoyed, Rico Vale plays along, the others stay dry. Banter aimed at you is a bit: answer it in your own voice and move on. Never state a joke as fact.',
   '13. An "offlimits" answer: write "followUp" and "closing" as "". The desk says and does nothing. An unusable answer: move on. Ask no follow-up, and never repeat or quote the answer. Still write "closing" so the player sees the answer arrived: one short line in your voice that acknowledges it without repeating any of its words (for example, say you will leave that one there), and moves on.',
   '14. "chase" says how much the answer leaves to chase: "strong" (a clear opening: a dodge, a claim, a number or a moment worth pressing), "some" (a small opening) or "none". "followUp" is one follow-up question on the answer, or "" for none. Write "" when the request says no follow-up is allowed or the answer is "offlimits". "closing" is one short line that ends your part of the scrum. Quote the player only with words from the answer; never add to them or change their meaning.',
+  '15. "quality" rates a usable answer: "strong" only for a specific, thoughtful hockey answer that owns the moment (a clear read of the game, a real number or a moment from the sheet, no dodge); "ok" for every other answer, and always "ok" for a joke, an unusable or an offlimits answer. When in doubt, "ok".',
 ]
 
 /**
- * T5, feuds: stable text for every reporter; a request says whether a feud
- * exists with the player. Also used by the interview writer.
+ * T5 feuds and T9 favour, in one rule: stable text for every reporter; a request says where the
+ * relationship with the player stands. Also used by the interview writer and the wire replies.
  */
-export const FEUD_RULE =
-  '15. Feuds: only when the request says you and the player are in a feud, let it show in your voice: cooler, sharper, more pointed about the hockey (this game, the numbers). It stays professional and hockey only: never profanity, never a slur, never real life, looks, family, work or the person. Never mention an insult, never say what the player said or did to you, and never call it a feud. Without such a line, there is no feud and you write as usual.'
+export const RELATIONSHIP_RULE =
+  '16. Relationships: only when the request says where you stand with the player, let it show in your voice, as tone and never as facts. Feud side (some friction, a feud, open war): cooler, sharper, more pointed about the hockey (this game, the numbers). Favour side (warm, a fan, glazing): warmer, more generous, more eager; at the top, over-the-top praise in your own style, always about hockey. Both stay professional and hockey only: never profanity, never a slur, never real life, looks, family, work or the person. Praise is tone, never invention: every number, stat, play and fact still comes from the fact sheet, the desk\'s notes or the player\'s answer, and you never inflate a number or call a play better than the sheet shows. Never mention an insult or a compliment, never say what the player said or did to you, and never name the level ("feud", "fan", "glazing"). Without such a line, you write as usual.'
 
-/** The request's line for a feud level (none: no line at all). */
-export function feudLine(level: FeudLevel | undefined, name: string): string[] {
+/** The request's line for a level (neutral: no line at all). */
+export function relationshipLine(level: RelLevel | undefined, name: string): string[] {
   switch (level) {
     case 'simmering':
       return [
@@ -172,6 +179,18 @@ export function feudLine(level: FeudLevel | undefined, name: string): string[] {
     case 'war':
       return [
         `You and ${name} are at open war: be cold and sharp, press hard on the numbers, never childish, never personal.`,
+      ]
+    case 'warm':
+      return [
+        `You like ${name}'s game: be a little warmer and more generous than usual, fair and still honest.`,
+      ]
+    case 'fan':
+      return [
+        `You are a fan of ${name}: be warm and eager, lead with what went well, keep the facts straight.`,
+      ]
+    case 'glazing':
+      return [
+        `You are glazing ${name}: over-the-top praise in your own style, as if ${name} can do no wrong. It is tone only: take every number and fact from the fact sheet and never invent or inflate one.`,
       ]
     default:
       return []
@@ -209,7 +228,7 @@ function systemPrompt(reporter: ReporterId): string {
     ...SCRUM_RULES,
     'JUDGING AN ANSWER',
     ...JUDGE_RULES,
-    FEUD_RULE,
+    RELATIONSHIP_RULE,
     'YOUR VOICE',
     reporterVoice(REPORTERS[reporter]),
   ].join('\n\n')
@@ -277,8 +296,13 @@ function contextLines(ctx: AskContext, history: AskContext['history']): string[]
       ? `${name} is at press level "easy": no criticism at any heat.`
       : `${name} is at press level "full".`,
     ...benchLines(name, ctx.player.bench),
-    // A "Go easy" player never gets feud content, whatever the caller passed.
-    ...(ctx.player.pressLevel === 'easy' ? [] : feudLine(ctx.feud, name)),
+    // A "Go easy" player never gets feud content, whatever the caller passed; they may be glazed.
+    ...relationshipLine(
+      ctx.relationship === undefined
+        ? undefined
+        : levelForPress(ctx.relationship, ctx.player.pressLevel),
+      name,
+    ),
   )
   return lines
 }
@@ -371,28 +395,34 @@ function parseQuestion(v: unknown): { question: string } {
 interface Judgement {
   usability: Usability | 'offlimits'
   chase: Chase
+  quality: AnswerQuality
   followUp: string
   closing: string
 }
 
 function parseJudgement(v: unknown): Judgement {
-  // `chase` may be missing (an old-style reply): it then counts as "some".
-  const o = closed(
-    v,
-    typeof v === 'object' && v !== null && 'chase' in v
-      ? ['usability', 'chase', 'followUp', 'closing']
-      : ['usability', 'followUp', 'closing'],
-  )
+  // `chase` and `quality` may be missing (an old-style reply): they count as "some" and "ok".
+  const has = (k: string): boolean => typeof v === 'object' && v !== null && k in v
+  const o = closed(v, [
+    'usability',
+    ...(has('chase') ? ['chase'] : []),
+    ...(has('quality') ? ['quality'] : []),
+    'followUp',
+    'closing',
+  ])
   const usability = o['usability']
   if (!(JUDGED as readonly unknown[]).includes(usability)) {
     fail('usability', 'is not usable, joke, unusable or offlimits')
   }
   const chase = 'chase' in o ? o['chase'] : 'some'
   if (!(CHASE as readonly unknown[]).includes(chase)) fail('chase', 'is not none, some or strong')
+  const quality = 'quality' in o ? o['quality'] : 'ok'
+  if (!(QUALITY as readonly unknown[]).includes(quality)) fail('quality', 'is not ok or strong')
   if (typeof o['followUp'] !== 'string') fail('followUp', 'is not a string')
   return {
     usability: usability as Judgement['usability'],
     chase: chase as Chase,
+    quality: quality as AnswerQuality,
     followUp: o['followUp'].trim(),
     // An off-limits answer gets no line at all.
     closing:
@@ -614,10 +644,15 @@ export async function judgeAnswer(
   closedFail: boolean
   /**
    * T5: the judge says the answer is off-limits (hard lines). The caller reacts to nothing:
-   * no line, no store, no feud points; the question stays open. Then `usability` is `unusable`
+   * no line, no store, no relationship points; the question stays open. Then `usability` is `unusable`
    * only to satisfy the type, `closing` is "" and `followUp` is null.
    */
   offLimits: boolean
+  /**
+   * T9: the judge rates a USABLE answer strong (a specific, thoughtful hockey answer). Never for a
+   * joke, an unusable or an off-limits answer, nor when the verdict failed.
+   */
+  strong: boolean
 }> {
   // Fails closed: an answer the desk could not judge is never quoted later.
   const fallback = {
@@ -627,6 +662,7 @@ export async function judgeAnswer(
     replyFailed: false,
     closedFail: true,
     offLimits: false,
+    strong: false,
   }
   const offLimitsResult = {
     usability: 'unusable' as const,
@@ -635,6 +671,7 @@ export async function judgeAnswer(
     replyFailed: false,
     closedFail: false,
     offLimits: true,
+    strong: false,
   }
   // The judge's "offlimits" stops everything: no code check, no review, no second write.
   const guarded: ModelCall = async (req) => {
@@ -731,6 +768,8 @@ export async function judgeAnswer(
           replyFailed: true,
           closedFail: false,
           offLimits: false,
+          // The model's verdict is kept, so is its rating (a usable answer only).
+          strong: kept.usability === 'usable' && kept.quality === 'strong',
         }
       }
       onFailClosed(r.reason, false)
@@ -743,6 +782,7 @@ export async function judgeAnswer(
       replyFailed: false,
       closedFail: false,
       offLimits: false,
+      strong: r.out.usability === 'usable' && r.out.quality === 'strong',
     }
   } catch (err: unknown) {
     if (err instanceof OffLimitsSignal) return offLimitsResult

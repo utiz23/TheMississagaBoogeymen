@@ -548,8 +548,8 @@ export async function scrumThreadOwner(threadId: string): Promise<string | null>
 }
 
 /**
- * T8: is this thread a player's own thread (or the shared thread) of a test scrum? The feud check
- * leaves such a thread alone: a test scrum gives no feud points.
+ * T8: is this thread a player's own thread (or the shared thread) of a test scrum? The relationship check
+ * leaves such a thread alone: a test scrum gives no relationship points.
  */
 export function testScrumThreadSql(threadId: string): SQL {
   return sql`

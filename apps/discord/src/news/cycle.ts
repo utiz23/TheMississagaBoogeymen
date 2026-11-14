@@ -5,7 +5,8 @@ import {
   weightedPick,
   TAKE_REUSE_DAYS,
   dueTakes,
-  feudAtLeast,
+  eventPoints,
+  matchesTaste,
   nightsOfWeek,
   planBuzz,
   REPORTER_IDS,
@@ -18,9 +19,10 @@ import {
   type FeatureKind,
   type NewsGameFacts,
   type ReporterId,
+  type RelLevel,
 } from '@eanhl/db/news'
 import type {
-  FeudRow,
+  RelationshipRow,
   NewNewsItem,
   NewNewsStance,
   NewNewsUsage,
@@ -88,7 +90,8 @@ import {
   buildSystemPrompt,
   reactionItemText,
   type DeskContext,
-  type FeudStory,
+  type RelationshipStory,
+  relationshipSentence,
   type NightPost,
   type OwnPiece,
   type TrustedMaterial,
@@ -214,10 +217,20 @@ export interface NewsStore {
   /** A not deleted item as its fan follow-up needs it, or null. */
   getReactionItem(id: number): Promise<ReactionItem | null>
   /**
-   * T5: the reporter feuds of these players above "none" now. Optional: a store without it (or
-   * a database that has no feud table yet) means no feud storylines.
+   * T5, T9: the relationships of these players off neutral now. Optional: a store without it (or
+   * a database that has no relationship table yet) means no storylines.
    */
-  listFeuds?(args: { now: Date; playerIds: readonly number[] }): Promise<FeudRow[]>
+  listRelationships?(args: { now: Date; playerIds: readonly number[] }): Promise<RelationshipRow[]>
+  /**
+   * T9: adds signed relationship points (a big night in a reporter's taste). Optional like the read;
+   * a failure is logged and never stops the recap.
+   */
+  addRelationshipPoints?(args: {
+    playerId: number
+    reporter: ReporterId
+    points: number
+    at: Date
+  }): Promise<void>
 }
 
 /** One stored item on its way to Discord. */
@@ -351,47 +364,77 @@ function trustedOf(press: {
 }
 
 /**
- * T5: the feuds the recap or the column may use as a storyline: the writing reporter's feuds at
- * "feud" level or above with players on the sheet who are at press level "full" ("Go easy" and
- * "Leave me out" players never show up: nothing about a feud is used for them). At most 2.
+ * T5, T9: the relationships the recap or the column may use as a storyline: the writing reporter's
+ * feuds ("feud" and "open war") and favour ("fan" and "glazing") with players on the sheet. A "Go easy"
+ * player never gets the feud side (nothing about a feud is used for them) but may be a fan or glazed;
+ * "Leave me out" players are never on the sheet. The simmering and warm levels are tone in questions
+ * only, never a storyline. At most 2.
  */
-export function feudStoriesFor(
-  rows: readonly FeudRow[],
+export function relationshipStoriesFor(
+  rows: readonly RelationshipRow[],
   facts: NewsFacts,
   reporter: ReporterId,
-): FeudStory[] {
-  const full = new Map(
-    facts.people.filter((p) => p.pressLevel === 'full').map((p) => [p.playerId, p]),
-  )
+): RelationshipStory[] {
+  const people = new Map(facts.people.map((p) => [p.playerId, p]))
+  const storyLevel = (level: RelLevel): RelationshipStory['level'] | null =>
+    level === 'feud' || level === 'war' || level === 'fan' || level === 'glazing' ? level : null
   return rows
-    .filter((r) => r.reporter === reporter && feudAtLeast(r.level, 'feud') && full.has(r.playerId))
+    .filter((r) => r.reporter === reporter && people.has(r.playerId))
+    .flatMap((r) => {
+      const person = people.get(r.playerId)!
+      const level = storyLevel(r.level)
+      if (level === null) return []
+      if ((level === 'feud' || level === 'war') && person.pressLevel !== 'full') return []
+      return [{ reporter, player: person.name, level }]
+    })
     .slice(0, 2)
-    .map((r) => ({
-      reporter,
-      player: full.get(r.playerId)!.name,
-      level: r.level === 'war' ? ('war' as const) : ('feud' as const),
-    }))
 }
 
-/** The review's view of a feud storyline: the reporter's own view, not a fact about the player. */
-function feudTrusted(feuds: readonly FeudStory[]): TrustedMaterial['gmNotes'] {
-  return feuds.map(
+/** The review's view of a relationship storyline: the reporter's own view, not a fact about the player. */
+function relationshipTrusted(rels: readonly RelationshipStory[]): TrustedMaterial['gmNotes'] {
+  return rels.map(
     (f) =>
-      `About ${f.player}: ${REPORTERS[f.reporter].name} and ${f.player} are ${f.level === 'war' ? 'at open war' : 'not on speaking terms'} (${REPORTERS[f.reporter].name}'s own view; the text may say so as that view, in one short line, with no detail of what was said)`,
+      `About ${f.player}: ${relationshipSentence(f)} (${REPORTERS[f.reporter].name}'s own view; the text may say so as that view, in one short line, with no detail of what was said and no new or bigger number)`,
   )
 }
 
-/** The recap's trusted material for the review: the press material, plus the feud storylines. */
-function trustedWithFeuds(
+/** The recap's trusted material for the review: the press material, plus the relationship storylines. */
+function trustedWithRelationships(
   press: { quotes: readonly PressQuote[]; gmNotes: readonly PressNote[] } | undefined,
-  feuds: readonly FeudStory[],
+  rels: readonly RelationshipStory[],
 ): TrustedMaterial | undefined {
-  if (press === undefined && feuds.length === 0) return undefined
+  if (press === undefined && rels.length === 0) return undefined
   const base: TrustedMaterial =
     press === undefined ? { gmNotes: [], answers: [] } : trustedOf(press)
-  return feuds.length === 0
+  return rels.length === 0
     ? base
-    : { gmNotes: [...base.gmNotes, ...feudTrusted(feuds)], answers: base.answers }
+    : { gmNotes: [...base.gmNotes, ...relationshipTrusted(rels)], answers: base.answers }
+}
+
+/**
+ * T9: the players of a night sheet who had a big night in a reporter's taste, per reporter: one hit
+ * per player and reporter however many games of the night match. Only people on the sheet (members,
+ * "Go easy" included: a hit is favour, never a feud). Pure; the caller writes the points.
+ */
+export function tasteHitsFor(
+  facts: NewsFacts,
+  reporters: readonly ReporterId[],
+): { playerId: number; reporter: ReporterId }[] {
+  const people = new Set(facts.people.map((p) => p.playerId))
+  const out: { playerId: number; reporter: ReporterId }[] = []
+  for (const reporter of reporters) {
+    const hit = new Set<number>()
+    for (const g of facts.games) {
+      for (const line of g.players) {
+        if (!people.has(line.playerId) || hit.has(line.playerId)) continue
+        if (matchesTaste(reporter, line)) {
+          hit.add(line.playerId)
+          out.push({ playerId: line.playerId, reporter })
+        }
+      }
+    }
+  }
+  return out
 }
 
 /** The people an item names, as stored: sheet names only, one entry per player. */
@@ -1091,6 +1134,35 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     }
   }
 
+  /**
+   * T9: the taste hits of a night sheet become relationship points (one per player and reporter, scaled by
+   * the reporter's disposition and clamped by the range through `eventPoints`). A side record: a missing
+   * method or a failed write is logged and never fails the recap. Disabled reporters take no part.
+   */
+  async function recordTasteHits(facts: NewsFacts, tag: string): Promise<void> {
+    if (store.addRelationshipPoints === undefined) return
+    const at = deps.now()
+    const hits = tasteHitsFor(
+      facts,
+      REPORTER_IDS.filter((r) => !disabled.includes(r)),
+    )
+    for (const hit of hits) {
+      const points = eventPoints(hit.reporter, 'taste')
+      if (points === 0) continue
+      try {
+        await store.addRelationshipPoints({
+          playerId: hit.playerId,
+          reporter: hit.reporter,
+          points,
+          at,
+        })
+      } catch (err: unknown) {
+        log(`${tag}: relationship points not stored (${message(err)})`)
+        return
+      }
+    }
+  }
+
   async function markDone(jobId: number, tag: string): Promise<void> {
     try {
       await store.markNewsJob(jobId, 'done', null)
@@ -1367,8 +1439,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     let feature: { kind: FeatureKind; previousPrediction: string | null } | null = null
     /** Night recaps: the press material for the sheet's people (news desk bots). */
     let press: { quotes: PressQuote[]; gmNotes: PressNote[] } | undefined
-    /** T5: the writing reporter's feuds (feud level and above) with players on the sheet. */
-    let feuds: FeudStory[] = []
+    /** T5, T9: the writing reporter's relationship storylines (feud, open war, fan, glazing). */
+    let rels: RelationshipStory[] = []
     try {
       const activity = await loadActivity(now)
       let zero = { tonight: [] as string[], previous: [] as string[] }
@@ -1390,13 +1462,17 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         reporterId = next.reporter
         feature = { kind: next.kind, previousPrediction: predictionToJudge(key, last) }
       }
-      // A feud is flavour: when it cannot be read, the piece is written without it.
-      if (store.listFeuds !== undefined) {
+      // A relationship is flavour: when it cannot be read, the piece is written without it.
+      if (store.listRelationships !== undefined) {
         try {
-          const ids = facts.people.filter((p) => p.pressLevel === 'full').map((p) => p.playerId)
-          feuds = feudStoriesFor(await store.listFeuds({ now, playerIds: ids }), facts, reporterId)
+          const ids = facts.people.map((p) => p.playerId)
+          rels = relationshipStoriesFor(
+            await store.listRelationships({ now, playerIds: ids }),
+            facts,
+            reporterId,
+          )
         } catch (err: unknown) {
-          log(`${tag}: feuds not read, none used (${message(err)})`)
+          log(`${tag}: relationships not read, none used (${message(err)})`)
         }
       }
       ctx = {
@@ -1406,7 +1482,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         ownRecent: await ownRecentOf([reporterId]),
         ...(nightPosts === undefined ? {} : { nightPosts }),
         ...(press === undefined ? {} : { press }),
-        ...(feuds.length === 0 ? {} : { feuds }),
+        ...(rels.length === 0 ? {} : { relationships: rels }),
       }
       const who = reporterId
       mine = (await takesDue(res, now)).filter((t) => takeCritics(t).includes(who))
@@ -1441,9 +1517,9 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           [`By ${REPORTERS[reporterId].name}`, x.headline, x.dek, ...x.paragraphs].join('\n\n'),
         criticizedForReview: (x) => x.criticized,
         takesForReview: mine,
-        ...(trustedWithFeuds(press, feuds) === undefined
+        ...(trustedWithRelationships(press, rels) === undefined
           ? {}
-          : { trusted: trustedWithFeuds(press, feuds)! }),
+          : { trusted: trustedWithRelationships(press, rels)! }),
         facts,
       })
       if (written === 'end') return 'end'
@@ -1470,7 +1546,9 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           [`By ${REPORTERS[reporterId].name}`, f.headline, f.dek, featureBody(f, f)].join('\n\n'),
         criticizedForReview: (f) => f.criticized,
         takesForReview: mine,
-        ...(feuds.length === 0 ? {} : { trusted: { gmNotes: feudTrusted(feuds), answers: [] } }),
+        ...(rels.length === 0
+          ? {}
+          : { trusted: { gmNotes: relationshipTrusted(rels), answers: [] } }),
         facts,
       })
       if (written === 'end') return 'end'
@@ -1514,6 +1592,9 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       return 'go'
     }
     await saveStances(stancesToStore(a.stances, facts, reporterId, night, id), tag)
+    // T9: a big night in a reporter's taste moves that reporter up with the player, once per night
+    // recap (the job is claimed once). A test run (dry run) changes nothing.
+    if (kind === 'night' && !opts.dryRun) await recordTasteHits(facts, tag)
     noteWritten(reporterId, night, kind === 'night' ? 'night' : 'feature')
     if (opts.dryRun && feature !== null && closing !== null) {
       state.testLastFeature = { kind: feature.kind, prediction: closing.prediction, weekStart: key }

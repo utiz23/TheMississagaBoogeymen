@@ -1,7 +1,8 @@
 import {
   REPORTERS,
   mulberry32,
-  type FeudLevel,
+  levelForPress,
+  type RelLevel,
   type NewsFacts,
   type ReporterId,
 } from '@eanhl/db/news'
@@ -26,9 +27,9 @@ import {
 } from '../news/prompts.ts'
 import { writeChecked, type ModelCall } from '../news/writer.ts'
 import { escapeMarkdown } from '../message.ts'
-import { FEUD_RULE, feudLine, type Recorder } from './asker.ts'
+import { RELATIONSHIP_RULE, relationshipLine, type Recorder } from './asker.ts'
 import type { PressConfig } from './config.ts'
-import { feudLevel, recordInsult } from './feuds.ts'
+import { recordMessageSignals, relationshipLevel } from './relationships.ts'
 import { OFFLIMITS_LOG, screenMessage } from './hard-lines.ts'
 import type { PressDeps } from './pass.ts'
 import { pressRecorder } from './question.ts'
@@ -101,8 +102,8 @@ export interface WireReplyContext {
   member: { name: string; pressLevel: 'full' | 'easy' }
   /** Untrusted. */
   reply: string
-  /** T5: the feud between this reporter and the member (absent = none; never set for "Go easy"). */
-  feud?: FeudLevel
+  /** T5, T9: where this reporter stands with the member (absent = neutral; the feud side is dropped for "Go easy"). */
+  relationship?: RelLevel
 }
 
 export const WIRE_REPLY_SCHEMA = {
@@ -129,7 +130,7 @@ export const WIRE_REPLY_RULES: readonly string[] = [
   '8. Language: mild swearing (hell, damn, crap) only for Dex Mercer, Gord Pettibone and Rico Vale, at most once. Everyone else writes clean. Never a slur, never swearing aimed at a person.',
   `9. Plain text, at most ${String(WIRE_REPLY_MAX_CHARS)} characters. No @ mentions, no links, no hashtags, no emoji, no markdown.`,
   '10. Never repeat or paraphrase a crude word, a slur or a crude line of the teammate. Never a stronger word than hell, damn or crap yourself.',
-  FEUD_RULE.replace(/^15\./, '11.'),
+  RELATIONSHIP_RULE.replace(/^16\./, '11.'),
 ]
 
 function systemPrompt(reporter: ReporterId): string {
@@ -161,7 +162,12 @@ export function wireReplyPrompt(ctx: WireReplyContext): string {
     ctx.member.pressLevel === 'easy'
       ? `${name} is at press level "easy": no criticism at all.`
       : `${name} is at press level "full".`,
-    ...(ctx.member.pressLevel === 'easy' ? [] : feudLine(ctx.feud, name)),
+    ...relationshipLine(
+      ctx.relationship === undefined
+        ? undefined
+        : levelForPress(ctx.relationship, ctx.member.pressLevel),
+      name,
+    ),
     '',
     `Task: answer ${name} in "text" (at most ${String(WIRE_REPLY_MAX_CHARS)} characters), or set "answer" to false and "text" to "" (rule 7).`,
   ].join('\n')
@@ -370,14 +376,15 @@ async function handleWireReply(
   }
 
   // T5, hard lines: every reply is checked before any reaction, also one that would not be
-  // chosen (an insult still counts for the feud). Off-limits: no answer, no claim, no feud points.
+  // chosen (an insult or a compliment still counts). Off-limits: no answer, no claim, no points.
   const screened = await screenMessage(deps, config, input.text, item.reporter)
   if (screened.offLimits) return deps.log(`${tag}: ${OFFLIMITS_LOG} (${screened.why})`)
   if (screened.reporter !== null) {
-    await recordInsult(deps, {
+    await recordMessageSignals(deps, {
       playerId: member.playerId,
       reporter: screened.reporter,
       insult: screened.insult,
+      praise: screened.praise,
       pressLevel: member.pressLevel,
       where: `wire reply ${String(item.id)}`,
     })
@@ -409,7 +416,12 @@ async function handleWireReply(
       post: reactionItemText(item),
       member: { name: member.name, pressLevel },
       reply: input.text,
-      feud: await feudLevel(deps, member.playerId, item.reporter, member.pressLevel),
+      relationship: await relationshipLevel(
+        deps,
+        member.playerId,
+        item.reporter,
+        member.pressLevel,
+      ),
     },
     pressRecorder(st),
     (why) => deps.log(`${tag}: write failed (${why.slice(0, 200)})`),

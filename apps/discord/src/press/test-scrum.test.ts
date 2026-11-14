@@ -250,7 +250,7 @@ void test('a full round with typed answers: canned lines only, varied, no Answer
   assert.ok(t.store.answerRows.every((r) => r.isTest === true && r.usability === 'usable'))
   assert.deepEqual(t.calls(), { model: 0, screen: 0 })
   assert.equal(t.store.usage.length, 0)
-  assert.equal(t.store.feudRows.length, 0)
+  assert.equal(t.store.relRows.length, 0)
   assert.equal(t.modelCalls.length, 0)
 })
 
@@ -305,11 +305,11 @@ void test('the screen is the code layer only: a slur gets no reaction, a rude wo
     messageId: 'm2',
   })
   assert.equal(t.store.answerRows.length, 1)
-  assert.equal(t.store.feudRows.length, 0)
+  assert.equal(t.store.relRows.length, 0)
   assert.deepEqual(t.calls(), { model: 0, screen: 0 })
 })
 
-void test("another user's message and a non-answer insult in a test thread: ignored, no feud points", async () => {
+void test("another user's message and a non-answer insult or thanks in a test thread: ignored, no relationship points", async () => {
   const t = freeSetup()
   await made(t, { game: 90001, players: [USER_A] })
   const a = t.store.people[0]!
@@ -330,9 +330,16 @@ void test("another user's message and a non-answer insult in a test thread: igno
     text: 'gord ur an asshole',
     messageId: 'h2',
   })
+  // Thanks to a reporter: a test scrum moves nothing up either.
+  await onThreadMessage(t.deps, live, {
+    threadId: thread,
+    userId: USER_A,
+    text: 'thanks wade, good question',
+    messageId: 'h3',
+  })
   assert.equal(t.sent.length, before)
   assert.equal(t.store.answerRows.length, 0)
-  assert.equal(t.store.feudRows.length, 0)
+  assert.equal(t.store.relRows.length, 0)
 })
 
 void test('Talk to the press on the test recap: a volunteer round, free; a closed or no-game user is refused as usual', async () => {

@@ -21,7 +21,13 @@ import {
   personColumns,
   type BenchPerson,
 } from './bench.ts'
-import { feudLevel, recordInsult } from './feuds.ts'
+import {
+  panelFavourReporters,
+  recordMessageSignals,
+  recordRelationship,
+  relationshipLevel,
+  relationshipsFor,
+} from './relationships.ts'
 import { OFFLIMITS_LOG, screenMessage } from './hard-lines.ts'
 import { askInterviewQuestion } from './interview-asker.ts'
 import {
@@ -178,6 +184,9 @@ export async function prepareInterview(
       takeReporters: res.takes
         .filter((t) => t.playerId === args.playerId)
         .flatMap((t) => [t.reporter, ...t.critics]),
+      favourReporters: panelFavourReporters(
+        await relationshipsFor(deps, args.playerId, person.pressLevel),
+      ),
     })
     if (reporter === null) return INTERVIEW_TEXT.allOff
   }
@@ -517,7 +526,7 @@ export async function askNext(
       return false
     }
     name = person.name
-    const feud = await feudLevel(deps, iv.playerId, iv.reporter, person.pressLevel)
+    const relationship = await relationshipLevel(deps, iv.playerId, iv.reporter, person.pressLevel)
     question = await askInterviewQuestion(
       deps.call,
       {
@@ -533,7 +542,7 @@ export async function askNext(
         topic: iv.topic,
         history: interviewHistory(await st.listInterviewAnswers(id)),
         position,
-        feud,
+        relationship,
       },
       pressRecorder(st),
     )
@@ -616,6 +625,8 @@ interface Verdict {
   fixed: boolean
   /** T5: the judge says the answer is off-limits: no reaction at all, nothing stored. */
   offLimits: boolean
+  /** T9: the judge rated a usable answer strong (absent = no). */
+  strong?: boolean
 }
 
 /** The night sheet for an answer, or null when it cannot be read. */
@@ -677,7 +688,7 @@ async function judge(
     }
     const earlier = await st.listInterviewAnswers(iv.id)
     const history = [...interviewHistory(earlier), { question, answer: null }]
-    const feud = await feudLevel(deps, iv.playerId, iv.reporter, person.pressLevel)
+    const relationship = await relationshipLevel(deps, iv.playerId, iv.reporter, person.pressLevel)
     const out = await judgeAnswer(
       deps.call,
       {
@@ -697,7 +708,7 @@ async function judge(
         answer,
         followUpAllowed: interviewFollowUpAllowed(iv),
         followUpMode: 'chased',
-        feud,
+        relationship,
       },
       pressRecorder(st),
       (text, verdictKept) => {
@@ -716,6 +727,7 @@ async function judge(
       end: false,
       fixed: out.replyFailed || out.closedFail,
       offLimits: out.offLimits,
+      strong: out.strong,
     }
   } catch (err: unknown) {
     deps.log(`[press] interview ${String(iv.id)}: judge: ${reason(err)}`)
@@ -764,7 +776,7 @@ export async function onInterviewAnswerSubmit(
   // T5, hard lines: before any reaction, any claim and any echo; the question stays open. A
   // plain "I'm done" cannot be off-limits and costs no check.
   const screened = saysItIsOver(answer)
-    ? ({ offLimits: false, insult: 'none', reporter: null } as const)
+    ? ({ offLimits: false, insult: 'none', praise: 'none', reporter: null } as const)
     : await screenMessage(deps, config, answer, iv.reporter)
   if (screened.offLimits) {
     deps.log(`[press] interview ${String(id)}: ${OFFLIMITS_LOG} (${screened.why})`)
@@ -830,12 +842,24 @@ export async function onInterviewAnswerSubmit(
   }
   // T6: the player's latest message in their thread; the "no answer" closing replies to it.
   rememberPlayerMessage(deps, target, iv.discordUserId, answerRef)
-  // T5, feuds: an insult at a reporter (not off-limits) adds points; "Leave me out" adds none.
+  // T5, T9: an insult at a reporter (down) or a compliment or thanks (up), not off-limits, moves the
+  // scale; "Leave me out" adds none.
   if (!refused && screened.reporter !== null && sheet?.person !== undefined) {
-    await recordInsult(deps, {
+    await recordMessageSignals(deps, {
       playerId: iv.playerId,
       reporter: screened.reporter,
       insult: screened.insult,
+      praise: screened.praise,
+      pressLevel: sheet.person.pressLevel,
+      where: `interview ${String(id)}`,
+    })
+  }
+  // T9: a usable answer the judge rates strong moves the scale up a little.
+  if (!refused && verdict.strong === true && sheet?.person !== undefined) {
+    await recordRelationship(deps, {
+      playerId: iv.playerId,
+      reporter: iv.reporter,
+      event: 'strongAnswer',
       pressLevel: sheet.person.pressLevel,
       where: `interview ${String(id)}`,
     })

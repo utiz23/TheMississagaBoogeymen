@@ -126,9 +126,9 @@ export const SYSTEM_RULES: readonly string[] = [
   '35. Plain text only. No @ mentions, no links, no hashtags, no emoji, no markdown. Do not write "@everyone" or "@here".',
   '36. Put every person you name in "mentions" and every opponent club you name in "clubs", spelled exactly as in the sheet. Reporter names may be listed in "mentions". Use empty lists when you name nobody.',
   '37. Write as the reporter you are told to write as. Keep the voice of the reporter.',
-  'CRUDE LINES AND FEUDS',
+  'CRUDE LINES AND RELATIONSHIPS',
   '38. Never quote, paraphrase or hint at profanity, a slur, or a crude, offensive or sexual line from a player or a fan, also not as a joke; a clean joke may be quoted as a joke. When a PRESS ROOM answer is crude, leave it out. The reporters never use profanity themselves: only the mild words of rule 26, only for the three reporters named there.',
-  '39. Feuds: a request may list a feud between a reporter and a player. Only that reporter may mention it, in one short line, as the reporter\'s own view ("Mercer and Erb are not on speaking terms"), never as a fact about the player. Never say what was said or done, never name an insult, never quote or paraphrase it. A feud stays professional and about hockey: the numbers on the sheet, never real life, looks, family, work or the person, never profanity. At most one feud line per piece. A request without a feud has none: invent no feud, rivalry or bad blood.',
+  '39. Relationships: a request may list where a reporter stands with a player: a feud (the reporter is cool and sharp about the player) or favour (the reporter is a fan, or glazing the player). Only that reporter may mention it, in one short line, as the reporter\'s own view ("Mercer and Erb are not on speaking terms", "Bergstrom is on the Erb bandwagon"), never as a fact about the player. A fan or glazing reporter may praise the player over the top in tone, but the praise is tone only: every number, stat and play still comes from the fact sheet, and you never invent or inflate one, never call a play better than the sheet shows, never give the player a stat the sheet does not. Never say what was said or done, never name an insult or a compliment, never quote or paraphrase it. A relationship stays professional and about hockey: the numbers on the sheet, never real life, looks, family, work or the person, never profanity. At most one relationship line per piece. A request without a relationship has none: invent no feud, rivalry, bad blood, fandom or bandwagon.',
 ]
 
 /** One reporter's voice as the system prompt shows it (also the scrum asker's). */
@@ -192,32 +192,48 @@ export interface DeskContext {
    */
   press?: { quotes: readonly PressQuote[]; gmNotes: readonly PressNote[] }
   /**
-   * T5: feuds at "feud" level or above between a reporter of the request and a
-   * player on the sheet (never a "Go easy" player). The night recap and the
-   * weekly column may mention one as the reporter's view.
+   * T5, T9: relationships off the middle of the scale between a reporter of the request and a player
+   * on the sheet: a feud or open war, or a fan or glazing (never a feud for a "Go easy" player; a "Leave
+   * me out" player is never on the sheet). The night recap and the weekly column may mention one as the
+   * reporter's view.
    */
-  feuds?: readonly FeudStory[]
+  relationships?: readonly RelationshipStory[]
 }
 
-/** One feud as a storyline: the reporter's view of a player. */
-export interface FeudStory {
+/** One relationship as a storyline: the reporter's view of a player. */
+export interface RelationshipStory {
   reporter: ReporterId
   player: string
-  level: 'feud' | 'war'
+  level: 'feud' | 'war' | 'fan' | 'glazing'
 }
 
-/** The feud storylines of the request's reporters, or null when none. */
-export function feudsBlock(
-  feuds: readonly FeudStory[],
+/** The storyline line of one relationship (the reporter's view; the text may say it in one short line). */
+export function relationshipSentence(f: RelationshipStory): string {
+  const name = REPORTERS[f.reporter].name
+  switch (f.level) {
+    case 'war':
+      return `${name} and ${f.player} are at open war`
+    case 'feud':
+      return `${name} and ${f.player} are not on speaking terms`
+    case 'fan':
+      return `${name} is a fan of ${f.player} and on ${f.player}'s bandwagon`
+    case 'glazing':
+      return `${name} is glazing ${f.player}: nothing ${f.player} does is wrong in ${name}'s eyes`
+  }
+}
+
+/** The relationship storylines of the request's reporters, or null when none. */
+export function relationshipsBlock(
+  rels: readonly RelationshipStory[],
   reporters: readonly ReporterId[],
 ): string | null {
-  const mine = feuds.filter((f) => reporters.includes(f.reporter))
+  const mine = rels.filter((f) => reporters.includes(f.reporter))
   if (mine.length === 0) return null
   return [
-    "Feuds (storylines of the desk; the reporter's own view, never a fact about the player; rule 39):",
+    "Relationships (storylines of the desk; the reporter's own view, never a fact about the player; praise is tone only, no new or bigger number; rule 39):",
     ...mine.map(
       (f) =>
-        `- ${REPORTERS[f.reporter].name} and ${f.player} are ${f.level === 'war' ? 'at open war' : 'not on speaking terms'}. Only ${REPORTERS[f.reporter].name} may say so, in one short line.`,
+        `- ${relationshipSentence(f)}. Only ${REPORTERS[f.reporter].name} may say so, in one short line.`,
     ),
   ].join('\n')
 }
@@ -285,8 +301,8 @@ export function deskContextBlock(ctx: DeskContext, reporters: readonly ReporterI
   }
   const takes = takesBlock(ctx.takes ?? [], reporters)
   if (takes !== null) lines.push(takes)
-  const feuds = feudsBlock(ctx.feuds ?? [], reporters)
-  if (feuds !== null) lines.push(feuds)
+  const rels = relationshipsBlock(ctx.relationships ?? [], reporters)
+  if (rels !== null) lines.push(rels)
   lines.push(DESK_CONTEXT_END)
   return lines.join('\n')
 }

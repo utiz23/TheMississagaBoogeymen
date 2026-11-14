@@ -259,6 +259,7 @@ void test('judgeAnswer: followUpAllowed false drops a follow-up the model wrote'
     replyFailed: false,
     closedFail: false,
     offLimits: false,
+    strong: false,
   })
 })
 
@@ -299,6 +300,7 @@ void test('judgeAnswer: a joke answer is listed as a joke for the review', async
     replyFailed: false,
     closedFail: false,
     offLimits: false,
+    strong: false,
   })
   assert.ok(
     reqs[1]!.user.includes(
@@ -326,6 +328,7 @@ void test('judgeAnswer: an unusable answer is not repeated and is not a trusted 
     replyFailed: false,
     closedFail: false,
     offLimits: false,
+    strong: false,
   })
   assert.match(reqs[1]!.user, /repeats the player's answer/)
   assert.ok(!reqs[2]!.user.includes(answer))
@@ -340,6 +343,7 @@ void test('judgeAnswer: a stop error or no verdict at all gives the fallback (fa
     replyFailed: false,
     closedFail: true,
     offLimits: false,
+    strong: false,
   }
   const stop = fakeCall([new NewsStopError('bad key')])
   assert.deepEqual(
@@ -815,38 +819,97 @@ void test('judgeAnswer: the judge prompt names the offlimits class and a crude a
   )
 })
 
-void test('feud: the request shows the level to the reporter; none shows nothing; "Go easy" never', async () => {
+void test('relationship: the request shows the level to the reporter; neutral shows nothing; "Go easy" never gets the feud side', async () => {
   const none = fakeCall([
     { json: { question: 'Walk me through the third period, Skater A?' } },
     REVIEW_OK,
   ])
   await askQuestion(none.call, ctx(), recorder().record)
-  assert.doesNotMatch(none.reqs[0]!.user, /feud|friction|open war/)
+  assert.doesNotMatch(none.reqs[0]!.user, /feud|friction|open war|fan of|glazing|like Skater A/)
+  const neutral = fakeCall([
+    { json: { question: 'Walk me through the third period, Skater A?' } },
+    REVIEW_OK,
+  ])
+  await askQuestion(neutral.call, ctx({ relationship: 'neutral' }), recorder().record)
+  assert.doesNotMatch(neutral.reqs[0]!.user, /feud|friction|open war|fan of|glazing|like Skater A/)
 
   for (const [level, re] of [
     ['simmering', /some friction between you and Skater A/],
     ['feud', /in a feud: be cool and pointed/],
     ['war', /at open war: be cold and sharp/],
+    ['warm', /You like Skater A's game: be a little warmer/],
+    ['fan', /You are a fan of Skater A: be warm and eager/],
+    ['glazing', /You are glazing Skater A: over-the-top praise/],
   ] as const) {
     const m = fakeCall([
       { json: { question: 'Walk me through the third period, Skater A?' } },
       REVIEW_OK,
     ])
-    await askQuestion(m.call, ctx({ feud: level }), recorder().record)
+    await askQuestion(m.call, ctx({ relationship: level }), recorder().record)
     assert.match(m.reqs[0]!.user, re)
-    assert.match(m.reqs[0]!.system, /15\. Feuds: only when the request says/)
+    assert.match(m.reqs[0]!.system, /16\. Relationships: only when the request says/)
     assert.match(m.reqs[0]!.system, /never profanity, never a slur/)
     assert.match(m.reqs[0]!.system, /professional and hockey only/)
+    // Praise is tone, never invention.
+    assert.match(m.reqs[0]!.system, /Praise is tone, never invention/)
+    assert.match(m.reqs[0]!.system, /you never inflate a number/)
   }
 
+  // "Go easy": the feud side is dropped, the favour side stays.
+  const easyPlayer = { name: 'Skater A', pressLevel: 'easy' } as const
   const easy = fakeCall([
     { json: { question: 'Walk me through the third period, Skater A?' } },
     REVIEW_OK,
   ])
+  await askQuestion(easy.call, ctx({ relationship: 'war', player: easyPlayer }), recorder().record)
+  assert.doesNotMatch(easy.reqs[0]!.user, /feud|friction|open war/)
+  const easyGlaze = fakeCall([
+    { json: { question: 'Walk me through the third period, Skater A?' } },
+    REVIEW_OK,
+  ])
   await askQuestion(
-    easy.call,
-    ctx({ feud: 'war', player: { name: 'Skater A', pressLevel: 'easy' } }),
+    easyGlaze.call,
+    ctx({ relationship: 'glazing', player: easyPlayer }),
     recorder().record,
   )
-  assert.doesNotMatch(easy.reqs[0]!.user, /feud|friction|open war/)
+  assert.match(easyGlaze.reqs[0]!.user, /You are glazing Skater A/)
+})
+
+void test('judge: "quality" is rated; strong counts only for a usable answer; a missing quality is "ok"', async () => {
+  assert.deepEqual([...JUDGEMENT_SCHEMA.properties.quality.enum], ['ok', 'strong'])
+  assert.ok(JUDGEMENT_SCHEMA.required.includes('quality'))
+  const run = async (
+    usability: 'usable' | 'joke' | 'unusable',
+    quality: 'ok' | 'strong' | null,
+  ) => {
+    const { call, reqs } = fakeCall([
+      {
+        json: {
+          usability,
+          chase: 'none',
+          ...(quality === null ? {} : { quality }),
+          followUp: '',
+          closing: 'Fair enough. Next game.',
+        },
+      },
+      REVIEW_OK,
+    ])
+    const out = await judgeAnswer(
+      call,
+      {
+        ...ctx({ history: [{ question: 'Why?', answer: null }] }),
+        answer: 'x',
+        followUpAllowed: false,
+      },
+      recorder().record,
+    )
+    return { out, system: reqs[0]!.system }
+  }
+  const strong = await run('usable', 'strong')
+  assert.equal(strong.out.strong, true)
+  assert.match(strong.system, /15\. "quality" rates a usable answer/)
+  assert.equal((await run('usable', 'ok')).out.strong, false)
+  assert.equal((await run('usable', null)).out.strong, false)
+  assert.equal((await run('joke', 'strong')).out.strong, false)
+  assert.equal((await run('unusable', 'strong')).out.strong, false)
 })

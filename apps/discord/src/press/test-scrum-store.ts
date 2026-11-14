@@ -12,7 +12,7 @@ export interface TestScrumStore {
   insertTestRecapItem(args: { reporter: ReporterId; body: string }): Promise<number>
   /** Removes that item again when the post failed. */
   deleteTestRecapItem(id: number): Promise<void>
-  /** Is this thread (a person's own, or a shared one) a test scrum's? The feud check skips it. */
+  /** Is this thread (a person's own, or a shared one) a test scrum's? The relationship check skips it. */
   isTestScrumThread(threadId: string): Promise<boolean>
 }
 

@@ -1,7 +1,8 @@
+import type { RelEvent, ReporterId } from '@eanhl/db/news'
 import { escapeMarkdown } from '../message.ts'
 import type { PressConfig } from './config.ts'
-import { codeInsult, recordInsult, type PressLevelNow } from './feuds.ts'
-import { feudStoreOf } from './feud-store.ts'
+import { codeInsult, codePraise, recordRelationship, type PressLevelNow } from './relationships.ts'
+import { relationshipStoreOf } from './relationship-store.ts'
 import { OFFLIMITS_LOG } from './hard-lines.ts'
 import { onInterviewAnswerSubmit } from './interview.ts'
 import { interviewStoreOf } from './interview-store.ts'
@@ -83,42 +84,52 @@ function outcome(reply: Reply): string {
 }
 
 /**
- * T5, feuds: a message in a press thread that is NOT an answer (no open question, or a reply to
- * another message) may still insult a reporter ("gord ur an asshole"). Code only, no model call:
- * a reporter's name plus a rude or crude word (`codeInsult`). A slur or any other hard-line text
- * never counts and gets no reaction. Only a linked team member counts; "Leave me out" adds nothing.
+ * T5, T9, relationships: a message in a press thread that is NOT an answer (no open question, or a
+ * reply to another message) may still insult a reporter ("gord ur an asshole") or thank one. Code
+ * only, no model call: a reporter's name plus a rude or crude word (`codeInsult`), or a kind word
+ * (`codePraise`). A slur or any other hard-line text never counts and gets no reaction. Only a linked team member counts; "Leave me out" adds nothing.
  * The message is never answered, stored or logged. Never throws.
  */
-async function insultFromThread(
+async function signalFromThread(
   deps: PressDeps,
   msg: { threadId: string; userId: string; text: string },
   tag: string,
 ): Promise<void> {
   try {
-    const hit = codeInsult(msg.text)
-    if (hit === null) return
-    // T8: a test scrum's thread gives no feud points.
+    const insult = codeInsult(msg.text)
+    const praise = insult === null ? codePraise(msg.text) : null
+    if (insult === null && praise === null) return
+    // T8: a test scrum's thread gives no relationship points.
     const test = testScrumStoreOf(deps.store)
     if (test !== null && (await test.isTestScrumThread(msg.threadId))) return
     // Only a press thread (a scrum or an interview): not any other thread of the guild.
-    const feuds = feudStoreOf(deps.store)
+    const rels = relationshipStoreOf(deps.store)
     // T6: a player's own scrum thread counts too (the owner's message only reaches here).
-    if (feuds === null) return
+    if (rels === null) return
     const own = (await deps.store.scrumThreadOwner(msg.threadId)) === msg.userId
-    if (!own && !(await feuds.isPressThread(msg.threadId))) return
+    if (!own && !(await rels.isPressThread(msg.threadId))) return
     const me = await deps.store.getPlayerForDiscordUser(msg.userId)
     if (me === null) return
     const member = (await deps.store.listPressRoster()).find((p) => p.playerId === me.playerId)
     if (member === undefined) return
-    await recordInsult(deps, {
+    const hit: { reporter: ReporterId; event: RelEvent } =
+      insult !== null
+        ? {
+            reporter: insult.reporter,
+            event: insult.insult === 'strong' ? 'insultStrong' : 'insultMild',
+          }
+        : { reporter: praise!.reporter, event: 'praiseNice' }
+    await recordRelationship(deps, {
       playerId: me.playerId,
       reporter: hit.reporter,
-      insult: hit.insult,
+      event: hit.event,
       pressLevel: member.pressLevel as PressLevelNow,
       where: tag.replace('[press] ', ''),
     })
   } catch (err: unknown) {
-    deps.log(`${tag}: feud check failed (${err instanceof Error ? err.message : String(err)})`)
+    deps.log(
+      `${tag}: relationship check failed (${err instanceof Error ? err.message : String(err)})`,
+    )
   }
 }
 
@@ -135,7 +146,7 @@ export async function onThreadMessage(
 ): Promise<void> {
   const tag = `[press] thread message: thread ${msg.threadId} user ${msg.userId}`
   // T6: in a player's own scrum thread only that player's messages count. Anyone else's message
-  // is ignored entirely: no answer, no echo, no feud points, nothing stored.
+  // is ignored entirely: no answer, no echo, no relationship points, nothing stored.
   const owner = await deps.store.scrumThreadOwner(msg.threadId)
   if (owner !== null && owner !== msg.userId) {
     deps.log(`${tag}: not taken (a player's own thread: the message is not the player's)`)
@@ -160,7 +171,7 @@ export async function onThreadMessage(
     )
     if (problem !== null) {
       deps.log(`${tag}: not taken (interview ${String(interviewId)}: ${problem})`)
-      await insultFromThread(deps, msg, tag)
+      await signalFromThread(deps, msg, tag)
       return
     }
     const seen = { questionsAsked: iv.questionsAsked, followupsAsked: iv.followupsAsked }
@@ -180,7 +191,7 @@ export async function onThreadMessage(
   const personId = await deps.store.findOpenQuestionInThread(msg.threadId, msg.userId)
   if (personId === null) {
     deps.log(`${tag}: not taken (no open question for this user here)`)
-    await insultFromThread(deps, msg, tag)
+    await signalFromThread(deps, msg, tag)
     return
   }
   const person = await deps.store.getScrumPerson(personId)
@@ -196,7 +207,7 @@ export async function onThreadMessage(
   )
   if (problem !== null) {
     deps.log(`${tag}: not taken (person ${String(personId)}: ${problem})`)
-    await insultFromThread(deps, msg, tag)
+    await signalFromThread(deps, msg, tag)
     return
   }
   const seen = { questionsAsked: person.questionsAsked, followupsAsked: person.followupsAsked }

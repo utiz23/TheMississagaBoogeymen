@@ -17,6 +17,7 @@ import {
 import type { InterviewStore } from './interview-store.ts'
 import { closeExpired, interviewStore, offerMessage } from './interview.ts'
 import type { PressDeps, PressStore } from './pass.ts'
+import { panelFavourReporters, relationshipsFor } from './relationships.ts'
 import { pressRecorder } from './question.ts'
 import { subjectOf } from './subject.ts'
 import { extrasBudgetLeft } from './rules.ts'
@@ -109,6 +110,13 @@ export async function runInterviewPass(
       takeReporters: res.takes
         .filter((t) => t.playerId === story.playerId)
         .flatMap((t) => [t.reporter, ...t.critics]),
+      favourReporters: panelFavourReporters(
+        await relationshipsFor(
+          deps,
+          story.playerId,
+          res.facts.people.find((p) => p.playerId === story.playerId)?.pressLevel ?? 'out',
+        ),
+      ),
     })
     if (reporter === null) return
     const id = await st.insertInterview({

@@ -538,6 +538,40 @@ not need the table.
 Rollback: put the old `press` and `news` images back. The table does no harm;
 its rollback SQL is in the header of `packages/db/migrations/0076_press_feuds.sql`.
 
+## Relationships: from open war to glazing (task T9, 2026-11-14)
+
+Task file: `docs/tasks/2026-11-14-discord-press-relationships.md`. Replaces T5's feud-only
+points with one signed number per player and reporter. Needs a migration; deploy `press`,
+`news` and `web` after it.
+
+- Levels: open war (-10 or lower), feud (-5), simmering (-2), neutral, warm (+2), fan (+5),
+  glazing (+10). Top +-12. Half-life 7 days (toward zero).
+- Down: an insult (as T5). Up: thanks or a compliment to that reporter (the hard-line check
+  reads it), a usable answer the judge rates strong, a big night that matches the reporter's
+  taste (once per night recap). Off-limits never moves it. "Leave me out": nothing stored.
+  "Go easy": never the feud side, favour allowed. A test scrum changes nothing.
+- Each reporter has a disposition (homer +2 .. critic -2: scales the steps, small lean) and a
+  range (floor and ceiling). Father Rink never goes below neutral (hard rule). Values are in
+  `packages/db/src/news/reporters.ts` (code, no override until the Press Box L4).
+- Effects: warm, fan, glazing give warmer questions and replies (tone only, facts from the
+  sheet); fan and glazing reporters are likelier on the panel and as interviewer; the night
+  recap and the weekly column may tell feud, open war, fan and glazing as that reporter's view.
+- The GM sees it on `/admin/news` ("Press relationships (GM only)").
+- Log: `[press] relationship: <where>: <reporter> +1.5 (praiseNice)`.
+- Deploy (operator's OK first): backup, then apply `0078` (it renames `news_press_feuds`,
+  turns the T5 points negative and works also when 0076 was never applied; safe to re-run):
+
+  ```
+  docker exec -i -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=30s" \
+    eanhl-team-website-db-1 psql -U eanhl -d eanhl -v ON_ERROR_STOP=1 -f - \
+    < packages/db/migrations/0078_press_relationships.sql
+  ```
+
+  Then tag rollback images and rebuild `web`, `news`, `press`. Apply 0078 BEFORE the new code:
+  the old code reads `news_press_feuds`, which 0078 renames. `NEWS_RULES_VERSION` is `2026-11-14.2`.
+
+- Rollback: the SQL is in the header of the 0078 file (run it before putting the old images back).
+
 ## One thread per player (task T6, 2026-11-14)
 
 No migration. Deploy `press` only.

@@ -1,4 +1,4 @@
-import { REPORTERS, type FeudLevel, type NewsFactsResponse, type ReporterId } from '@eanhl/db/news'
+import { REPORTERS, type RelLevel, type NewsFactsResponse, type ReporterId } from '@eanhl/db/news'
 import type { NewsGmAskRow, NewsScrumRow, ScrumPersonDetail } from '@eanhl/db/queries'
 import { crudeHit } from '../news/crude.ts'
 import { containsName } from '../news/fact-check.ts'
@@ -10,7 +10,13 @@ import { askQuestion, type AskContext, type Recorder, type ScrumHistoryEntry } f
 import { redactTakes } from '../news/redact.ts'
 import type { PressConfig } from './config.ts'
 import { fallbackLine, stepUpLine } from './fallbacks.ts'
-import { feudLevel, feudsFor, panelFeudReporters, type PressLevelNow } from './feuds.ts'
+import {
+  panelFavourReporters,
+  panelFeudReporters,
+  relationshipLevel,
+  relationshipsFor,
+  type PressLevelNow,
+} from './relationships.ts'
 import type { PressDeps, PressStore } from './pass.ts'
 import { subjectOf, type Subject } from './subject.ts'
 import { replyingTo } from './reply-ref.ts'
@@ -134,14 +140,15 @@ export async function ensurePanel(
   } else {
     let takeReporters: ReporterId[] = []
     let pressLevel: 'full' | 'easy' = 'full'
-    // T5: a feud (level "feud" or above) makes that reporter likelier on the panel. Unknown press
-    // level (the sheet could not be read) = no feud content, like "Go easy".
-    let feudLevelNow: PressLevelNow = 'out'
+    // T5, T9: a feud (level "feud" or above) or a fan (level "fan" or above) makes that reporter
+    // likelier on the panel. Unknown press level (the sheet could not be read) = no relationship
+    // content at all ("out"); "Go easy" reads only the favour side.
+    let relLevelNow: PressLevelNow = 'out'
     if (scrum.matchId !== null) {
       try {
         const res = await deps.fetchFacts('game', String(scrum.matchId))
         pressLevel = (await subjectOf(deps, res, person))?.pressLevel ?? 'full'
-        feudLevelNow = pressLevel
+        relLevelNow = pressLevel
         takeReporters =
           person.playerId === null
             ? []
@@ -157,7 +164,9 @@ export async function ensurePanel(
         ? null
         : await gmAskOfPerson(store, person, scrum.matchId, scrum.isTest)
     const seed = personSeed(scrum.id, person.id)
-    const feudReporters = panelFeudReporters(await feudsFor(deps, person.playerId, feudLevelNow))
+    const rels = await relationshipsFor(deps, person.playerId, relLevelNow)
+    const feudReporters = panelFeudReporters(rels)
+    const favourReporters = panelFavourReporters(rels)
     panel = choosePanel({
       size: panelSize(person.role),
       heat: effectiveHeat(scrum.heat, pressLevel).heat,
@@ -166,6 +175,7 @@ export async function ensurePanel(
       first: ask?.reporter ?? scrum.reporter,
       takeReporters,
       feudReporters,
+      favourReporters,
     })
     if (panel.length === 0) panel = [scrum.reporter]
     // A short panel (reporters switched off) cannot take more than 2 items each.
@@ -226,8 +236,8 @@ export async function scrumAskContext(
     reporter?: ReporterId
     usedQuestions?: string[]
     gmTopic?: string
-    /** T5: the feud between the asking reporter and the player (never for "Go easy"). */
-    feud?: FeudLevel
+    /** T5, T9: where the asking reporter stands with the player (the asker drops the feud side for "Go easy"). */
+    relationship?: RelLevel
   } = {},
 ): Promise<AskContext> {
   const easy = onSheet.pressLevel === 'easy'
@@ -251,7 +261,7 @@ export async function scrumAskContext(
     questionNumber,
     ...(opts.usedQuestions === undefined ? {} : { usedQuestions: opts.usedQuestions }),
     ...(opts.gmTopic === undefined ? {} : { gmTopic: opts.gmTopic }),
-    ...(opts.feud === undefined || easy ? {} : { feud: opts.feud }),
+    ...(opts.relationship === undefined ? {} : { relationship: opts.relationship }),
   }
 }
 
@@ -329,14 +339,19 @@ export async function startScrumQuestion(
     const answers = await store.listScrumAnswers(personId)
     const history = scrumHistory(answers, scrum.reporter)
     const usedQuestions = await store.listScrumQuestions(scrum.id, personId)
-    const feud = await feudLevel(deps, person!.playerId, reporter, onSheet.pressLevel)
+    const relationship = await relationshipLevel(
+      deps,
+      person!.playerId,
+      reporter,
+      onSheet.pressLevel,
+    )
     let failed = false
     const written = await askQuestion(
       deps.call,
       await scrumAskContext(store, scrum, res, onSheet, history, person!.questionsAsked + 1, {
         reporter,
         usedQuestions,
-        feud,
+        relationship,
         ...(topic === undefined ? {} : { gmTopic: topic }),
       }),
       pressRecorder(store),
