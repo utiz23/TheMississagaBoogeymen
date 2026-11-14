@@ -3,7 +3,7 @@ import { db } from '../client.js'
 import type { LiveEventSource, LiveEventType } from '../schema/index.js'
 
 // Live events (E1, migration 0079). The web endpoint stores events; the worker reads the
-// fast-poll triggers, reads the latest club game, and deletes old rows. The SQL shapes are
+// quick-check triggers, reads the latest club game, and deletes old rows. The SQL shapes are
 // pinned by `__tests__/live-events.test.ts` (no database). Events never write match data.
 
 /** Rows older than this are deleted by the worker. */
@@ -39,12 +39,16 @@ export interface LiveEventCursor {
   id: string
 }
 
-/** A stored `period_end` or `game_end` event (the candidates for a fast EA poll). */
+/** A stored `period_end` or `game_end` event (the candidates for quick EA checks). */
 export interface LiveEventTriggerRow {
   id: string
   type: 'period_end' | 'game_end'
   /** `payload.period` when it is a number, else null. */
   period: number | null
+  /** `payload.game_title` (a title slug), else null. */
+  gameTitle: string | null
+  /** `payload.match_type` (the EA match type played), else null. */
+  matchType: string | null
   at: Date
   receivedAt: Date
 }
@@ -54,6 +58,7 @@ export function listLiveEventTriggersSql(cursor: LiveEventCursor, limit: number)
   return sql`
     select e.id, e.type,
       case when jsonb_typeof(e.payload->'period') = 'number' then (e.payload->>'period')::numeric end as period,
+      e.payload->>'game_title' as game_title, e.payload->>'match_type' as match_type,
       e.at, e.received_at
     from live_events e
     where (e.received_at, e.id) > (${cursor.receivedAt.toISOString()}::timestamptz, ${cursor.id})
@@ -70,6 +75,8 @@ export async function listLiveEventTriggers(
     id: string
     type: 'period_end' | 'game_end'
     period: string | number | null
+    game_title: string | null
+    match_type: string | null
     at: Date | string
     received_at: Date | string
   }>(listLiveEventTriggersSql(cursor, limit))
@@ -77,6 +84,8 @@ export async function listLiveEventTriggers(
     id: r.id,
     type: r.type,
     period: r.period === null ? null : Number(r.period),
+    gameTitle: r.game_title,
+    matchType: r.match_type,
     at: new Date(r.at),
     receivedAt: new Date(r.received_at),
   }))

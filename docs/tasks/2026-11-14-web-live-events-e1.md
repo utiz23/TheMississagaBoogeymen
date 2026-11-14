@@ -73,9 +73,17 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
 - 2026-11-14 03:14 agent: database step done: migration 0079_live_events.sql (table, checks, index;
   rollback in the header), schema `live-events.ts`, queries `live-events.ts`, SQL-shape test (6 pass).
 
-- 2026-11-14 03:31 agent: web endpoint done: `POST /api/internal/live-events` (route) + `lib/live-events/`
+- 2026-11-14 03:18 agent: web endpoint done: `POST /api/internal/live-events` (route) + `lib/live-events/`
   (auth, v1 validation, rate limit, handler); 15 tests pass; web typecheck clean.
 
-Resume: build the worker fast poll + 30-day cleanup and their tests.
+- 2026-11-14 03:26 agent: rebased on main (`ca2c4216`, item 4 changed); the 30 s / 15 min fast poll was
+  never committed and is replaced. Worker done: `live-checks.ts` (loop: normal pass every 5 min
+  unchanged; quick checks at 0/+1/+2/+4/+8 min; one series at a time; 30-day cleanup hourly),
+  `quick-check.ts` (match lists only + DB follow-ups + stamp), `ingest.ts` (`runQuickMatchCheck`;
+  `ingestMatchType` returns `matchesNew`), `index.ts` wiring. Added optional v1 field `match_type`
+  (so a check calls 1 match list, not 3) to the endpoint validation and the trigger query.
+  17 new worker tests pass.
+
+Resume: compose port (Tailscale address), `.env.example`, runbook, then the Report and State = Verify.
 
 ## Report

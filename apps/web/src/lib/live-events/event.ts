@@ -10,7 +10,9 @@ import {
  * Live event v1 validation (E1). Shape: docs/superpowers/specs/2026-11-14-live-events-interface.md §3.
  * Required: `v` (1), `id`, `type` (a known type), `source`, `at` (ISO time with a zone). Every other
  * field is optional (absent or null) and checked when present. Unknown fields are refused: v1 is a
- * fixed shape; a new field comes with a new `v`.
+ * fixed shape; a new field comes with a new `v`. `match_type` (optional: `gameType5` | `gameType10` |
+ * `club_private`) is an E1 addition to §3: when it is there the worker's quick check reads one EA
+ * match list instead of three.
  */
 
 export interface LiveEventV1 {
@@ -67,6 +69,8 @@ const OPTIONAL: Record<string, Check> = {
   assist_names: arrayOf(4, isStr(NAME_MAX)),
   assist_gamertags: arrayOf(4, (v) => v === null || isStr(NAME_MAX)(v)),
   strength: oneOf('ev', 'pp', 'sh'),
+  // The EA match type played (task E1 item 4: the quick check then calls 1 match list, not 3).
+  match_type: oneOf('gameType5', 'gameType10', 'club_private'),
   ea_match_id: (v) => isStr(32, /^\d+$/)(v) || isInt(0, Number.MAX_SAFE_INTEGER)(v),
   sure: (v) => typeof v === 'boolean',
 }

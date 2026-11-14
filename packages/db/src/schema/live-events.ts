@@ -6,7 +6,7 @@ import { check, index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-co
  * send to `POST /api/internal/live-events` during a game (the horn, the game's
  * end). Append only; kept 30 days (the worker deletes older rows). Never shown
  * directly and never written into match data: EA stays the truth. The worker
- * reads them to poll EA fast after the horn.
+ * reads them to check the EA match lists quickly after the horn.
  * Interface: docs/superpowers/specs/2026-11-14-live-events-interface.md (§3, v1).
  */
 

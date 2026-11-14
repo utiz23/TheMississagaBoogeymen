@@ -115,6 +115,8 @@ void test('triggers: period_end and game_end after the (received_at, id) cursor,
   assert.ok(text.includes(`e.type in ('period_end', 'game_end')`))
   // period is read only when it is a JSON number (never a failing cast).
   assert.ok(text.includes(`case when jsonb_typeof(e.payload->'period') = 'number'`))
+  assert.ok(text.includes(`e.payload->>'game_title' as game_title`))
+  assert.ok(text.includes(`e.payload->>'match_type' as match_type`))
   assert.match(text, /order by e\.received_at, e\.id limit \$3$/)
   assert.deepEqual(query.params, ['2026-11-14T03:00:00.000Z', 'x', 25])
 })

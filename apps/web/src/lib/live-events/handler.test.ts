@@ -227,6 +227,7 @@ void test('validation: required fields, known types and sources, v1, field types
     [{ ...EVENT, strength: 'so' }, /bad field: strength/],
     [{ ...EVENT, assist_names: ['A', 'B', 'C', 'D', 'E'] }, /bad field: assist_names/],
     [{ ...EVENT, sure: 'yes' }, /bad field: sure/],
+    [{ ...EVENT, match_type: 'gameType99' }, /bad field: match_type/],
     [{ ...EVENT, password: 'x' }, /unknown field: password/],
   ]
   for (const key of ['v', 'id', 'type', 'source', 'at']) {
@@ -278,7 +279,13 @@ void test('validation: required fields, known types and sources, v1, field types
     const e = { ...EVENT, id: `t-${type}`, type }
     assert.equal((await send(deps, signedRequest(JSON.stringify(e)))).status, 202, type)
   }
-  const withMatch = { ...EVENT, id: 'end-1', type: 'game_end', ea_match_id: '12345678901' }
+  const withMatch = {
+    ...EVENT,
+    id: 'end-1',
+    type: 'game_end',
+    ea_match_id: '12345678901',
+    match_type: 'gameType5',
+  }
   assert.equal((await send(deps, signedRequest(JSON.stringify(withMatch)))).status, 202)
 })
 

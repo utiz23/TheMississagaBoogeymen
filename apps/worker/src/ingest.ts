@@ -37,6 +37,7 @@ import { recomputeCardProgression } from './card-progression.js'
 import { fetchAndStoreMemberStats, fetchAndStoreSeasonalStats } from './ingest-members.js'
 import { fetchAndStoreOpponentClubs } from './ingest-opponents.js'
 import { fetchAndStoreSeasonRank } from './ingest-season-rank.js'
+import { runQuickCheck, type QuickCheckRequest, type QuickCheckResult } from './quick-check.js'
 
 type DbConn = Pick<typeof db, 'select' | 'insert' | 'update'>
 
@@ -160,6 +161,33 @@ async function runIngestionCycleSteps(): Promise<void> {
   }
 }
 
+/**
+ * Quick check (live events E1): the EA match lists only, then the database-only follow-ups for a
+ * new game and the `finished_at` stamp. Never called while a normal pass runs (one loop).
+ * See `quick-check.ts`.
+ */
+export function runQuickMatchCheck(request: QuickCheckRequest): Promise<QuickCheckResult> {
+  return runQuickCheck<GameTitle>(request, {
+    listActiveTitles: () => selectIngestionEligibleTitles(),
+    ingestMatchList: (title, matchType) => ingestMatchType(title, matchType),
+    throttle,
+    // Same order and non-fatal steps as the normal pass: AI goalies, then aggregates.
+    afterNewGames: async (title) => {
+      try {
+        await syncAiGoalies(title.id)
+      } catch (err) {
+        console.error(`[quick-check] AI goalie sync failed for ${title.slug}:`, err)
+      }
+      await recomputeAggregates(title.id)
+    },
+    afterAllNewGames: async () => {
+      await recomputeCardProgression({ dryRun: false })
+    },
+    markFinished: markCycleFinished,
+    log: (line) => console.error(line),
+  })
+}
+
 async function ingestGameTitle(title: GameTitle): Promise<void> {
   for (const matchType of MATCH_TYPE) {
     await ingestMatchType(title, matchType)
@@ -168,7 +196,10 @@ async function ingestGameTitle(title: GameTitle): Promise<void> {
   }
 }
 
-async function ingestMatchType(title: GameTitle, matchType: EaMatchType): Promise<void> {
+async function ingestMatchType(
+  title: GameTitle,
+  matchType: EaMatchType,
+): Promise<{ matchesNew: number }> {
   const startedAt = new Date()
 
   // Create the ingestion log row up front so we can link raw payloads to it.
@@ -294,6 +325,7 @@ async function ingestMatchType(title: GameTitle, matchType: EaMatchType): Promis
   console.log(
     `[ingest] ${title.slug}/${matchType}: found=${String(matchesFound)} new=${String(matchesNew)} failed=${String(transformsFailed)} status=${status}`,
   )
+  return { matchesNew }
 }
 
 // ─── Persist transform result ─────────────────────────────────────────────────
