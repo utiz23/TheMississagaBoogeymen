@@ -7,6 +7,7 @@ import type { Usage } from '../news/cost.ts'
 import {
   FALLBACK_CLOSING,
   FALLBACK_QUESTION,
+  JUDGE_RULES,
   askQuestion,
   judgeAnswer,
   type AskContext,
@@ -421,4 +422,48 @@ void test('judgeAnswer: a model "unusable" whose closing keeps failing still fal
     recorder().record,
   )
   assert.deepEqual(out, { usability: 'unusable', followUp: null, closing: FALLBACK_CLOSING })
+})
+
+void test('the judge rules: banter at the reporter is a joke, fair answers are usable, unusable is narrow', async () => {
+  const rule = JUDGE_RULES.join('\n')
+  assert.match(rule, /banter aimed at you, the fictional reporter/)
+  assert.match(rule, /banter at the reporter is a joke, never unusable/)
+  assert.match(rule, /even a short, blunt or sour one/)
+  assert.match(rule, /"unusable" only for: real life/)
+  assert.match(rule, /pick "usable" or "joke", not "unusable"/)
+  // The model sees the rule: it is in the system prompt of the judging call.
+  const { call, reqs } = fakeCall([judged('joke', '', 'Nice try, Skater A.'), REVIEW_OK])
+  await judgeAnswer(
+    call,
+    {
+      ...ctx({ history: [{ question: 'Why?', answer: null }] }),
+      answer: 'Keep your nose out of our gameplan.',
+      followUpAllowed: false,
+    },
+    recorder().record,
+  )
+  assert.ok(reqs[0]!.system.includes('banter at the reporter is a joke, never unusable'))
+})
+
+void test('judgeAnswer: a failed judgement tells why through onFailClosed (once)', async () => {
+  const why: string[] = []
+  const bad = fakeCall([judged('usable', '', 'Skater B, 7?'), judged('usable', '', 'Skater B, 7?')])
+  const out = await judgeAnswer(
+    bad.call,
+    { ...ctx(), answer: 'x', followUpAllowed: true },
+    recorder().record,
+    (w) => why.push(w),
+  )
+  assert.equal(out.usability, 'unusable')
+  assert.equal(why.length, 1)
+  assert.match(why[0]!, /failed after 2 writes/)
+  const thrown: string[] = []
+  const stop = fakeCall([new NewsStopError('bad key')])
+  await judgeAnswer(
+    stop.call,
+    { ...ctx(), answer: 'x', followUpAllowed: true },
+    recorder().record,
+    (w) => thrown.push(w),
+  )
+  assert.deepEqual(thrown, ['bad key'])
 })

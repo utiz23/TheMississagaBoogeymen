@@ -49,7 +49,7 @@ import { NEWS_MAX_ATTEMPTS, nightKeySql } from './news.js'
 // builder that a test pins, and an async wrapper.
 
 /** A pinged person has this long to accept before the ping is `expired`. */
-export const PRESS_ACCEPT_WINDOW_MS = 5 * 60_000
+export const PRESS_ACCEPT_WINDOW_MS = 15 * 60_000
 /** An asked person has this long to answer before the round is closed. */
 export const PRESS_ANSWER_WINDOW_MS = 15 * 60_000
 
@@ -383,6 +383,35 @@ export async function listPeopleToPing(): Promise<ScrumPersonDetail[]> {
   return rows.map((r) => ({ ...r.person, name: r.name, scrum: r.scrum }))
 }
 
+/**
+ * The person a typed message answers: the asked person of this Discord user in
+ * this scrum thread, with a question open right now (`asking`, a current
+ * question). The window and the counters are checked by the handler. Newest
+ * person first, one row.
+ */
+export function openQuestionInThreadSql(threadId: string, userId: string): SQL {
+  return sql`
+    select p.id
+    from news_scrum_people p
+    join news_scrums s on s.id = p.scrum_id
+    where s.thread_id = ${threadId}
+      and p.discord_user_id = ${userId}
+      and p.status = 'asking'
+      and p.current_question is not null
+    order by p.id desc
+    limit 1`
+}
+
+/** The id of the person with an open question for this user in this thread, or null. */
+export async function findOpenQuestionInThread(
+  threadId: string,
+  userId: string,
+): Promise<number | null> {
+  const rows = await db.execute<{ id: number }>(openQuestionInThreadSql(threadId, userId))
+  const id = rows[0]?.id
+  return id === undefined ? null : Number(id)
+}
+
 export function listScrumAnswersQuery(personId: number) {
   return db
     .select({
@@ -611,7 +640,7 @@ export async function countCommandUsesTonight(userId: string, night: string): Pr
 
 /**
  * Is a scrum live that night: a person is being asked, or was pinged within the
- * accept window (5 minutes, database clock)? The night recap waits while it is.
+ * accept window (15 minutes, database clock)? The night recap waits while it is.
  * Test scrums count only when `includeTest`.
  */
 export function nightHasActiveScrumSql(night: string, includeTest: boolean): SQL {
@@ -623,7 +652,7 @@ export function nightHasActiveScrumSql(night: string, includeTest: boolean): SQL
       where s.night = ${night}::date
         and (s.is_test = false or ${includeTest})
         and (p.status = 'asking'
-          or (p.status = 'pinged' and p.pinged_at > now() - interval '5 minutes'))
+          or (p.status = 'pinged' and p.pinged_at > now() - interval '15 minutes'))
     ) as active`
 }
 

@@ -28,7 +28,7 @@ import {
 
 /**
  * The scrum interaction handlers: "Talk to the press", Accept, Answer (opens
- * the pop-up), the pop-up submit and `/scrum`. Pure over `PressDeps`: each
+ * the pop-up), the pop-up submit, a typed answer in the thread and `/scrum`. Pure over `PressDeps`: each
  * returns a `Reply` that the gateway turns into a Discord response. A refusal
  * is private (ephemeral) and changes nothing. Every state change that two
  * taps could both make is a conditional update (`insertScrumPerson`,
@@ -174,7 +174,7 @@ export async function onTalk(
   return askNow(deps, config, personId)
 }
 
-/** Accept on a ping: only the pinged person, within 5 minutes. */
+/** Accept on a ping: only the pinged person, within the accept window (`PRESS_ACCEPT_MS`, 15 minutes). */
 export async function onAccept(
   deps: PressDeps,
   config: PressConfig,
@@ -269,17 +269,30 @@ async function judge(
     end: true,
   }
   const scrum = person.scrum
-  if (scrum.matchId === null) return closed
+  // Why an answer is stored unusable without the model's verdict: a log line, never the answer.
+  const why = (what: string): void =>
+    deps.log(
+      `[press] answer: person ${String(person.id)}: unusable by the code, not the model (${what})`,
+    )
+  if (scrum.matchId === null) {
+    why('no game')
+    return closed
+  }
   try {
     if (!extrasBudgetLeft(await store.monthNewsSpendUsd(deps.now()), config.monthlyLimitUsd)) {
+      why('extras budget spent')
       return closed
     }
     const res = await deps.fetchFacts('game', String(scrum.matchId))
     const onSheet = res.facts.people.find((p) => p.playerId === person.playerId)
     // A guest, or "Leave me out" since the question: nothing about them goes anywhere.
-    if (onSheet === undefined) return closed
+    if (onSheet === undefined) {
+      why('off the sheet')
+      return closed
+    }
     // An answer that names a forbidden person is never used, shown or sent to the model.
     if (res.forbiddenNames.some((n) => containsName(answer, n))) {
+      why('names a forbidden person')
       return { usability: 'unusable', followUp: null, closing: FALLBACK_CLOSING, end: false }
     }
     // The last history entry is the question being answered.
@@ -294,6 +307,10 @@ async function judge(
       deps.call,
       { ...ctx, answer, followUpAllowed: allowed },
       pressRecorder(store),
+      (reasonText) =>
+        deps.log(
+          `[press] answer: person ${String(person.id)}: judgement failed closed, stored unusable (${reasonText.slice(0, 300)})`,
+        ),
     )
     return { ...out, end: false }
   } catch (err: unknown) {
@@ -308,7 +325,9 @@ async function judge(
  * stale submit gets "Already answered."), judges it, echoes a usable or joke
  * answer in the thread as the reporter (escaped, no mentions, no link
  * previews; an unusable answer is never shown), stores it, then asks the
- * follow-up, the next question, or closes the round.
+ * follow-up, the next question, or closes the round. A typed answer
+ * (`typed`) takes the same path; it is already in the thread, so it is not
+ * echoed again.
  */
 export async function onAnswerSubmit(
   deps: PressDeps,
@@ -317,6 +336,7 @@ export async function onAnswerSubmit(
   userId: string,
   text: string,
   seen: { questionsAsked: number; followupsAsked: number },
+  opts: { typed?: boolean } = {},
 ): Promise<Reply> {
   const { store, discord, log } = deps
   const person = await store.getScrumPerson(personId)
@@ -335,8 +355,8 @@ export async function onAnswerSubmit(
   const mention = person.discordUserId
 
   const verdict = await judge(deps, config, person, question, answer)
-  // Echoed after the judgement: an unusable answer is never shown.
-  if (verdict.usability !== 'unusable') {
+  // Echoed after the judgement: an unusable answer is never shown. A typed answer is already there.
+  if (verdict.usability !== 'unusable' && opts.typed !== true) {
     try {
       await discord.send(scrum.reporter, threadId, {
         content: `**${escapeMarkdown(person.name)}:** ${escapeMarkdown(answer)}`,
@@ -381,6 +401,33 @@ export async function onAnswerSubmit(
   await store.updateScrumPerson(personId, { status: 'done', currentQuestion: null })
   await discord.send(scrum.reporter, threadId, threadLine(mention, escapeMarkdown(verdict.closing)))
   return ACK
+}
+
+/**
+ * A message in a scrum thread (needs `PRESS_TYPED_ANSWERS=1`). It counts as the
+ * answer only when this Discord user has a question open in this thread right
+ * now; then it takes the same path as the pop-up (`onAnswerSubmit`: claim on
+ * the current counters, judge, store, next step). Anything else is ignored:
+ * nothing stored, nothing posted. A refusal (an answer that came first, the
+ * window ended, empty text) is logged, never shown to the player.
+ */
+export async function onTypedAnswer(
+  deps: PressDeps,
+  config: PressConfig,
+  msg: { threadId: string; userId: string; text: string },
+): Promise<void> {
+  const { store, log } = deps
+  const personId = await store.findOpenQuestionInThread(msg.threadId, msg.userId)
+  if (personId === null) return
+  const person = await store.getScrumPerson(personId)
+  if (person === null) return
+  const seen = { questionsAsked: person.questionsAsked, followupsAsked: person.followupsAsked }
+  const reply = await onAnswerSubmit(deps, config, personId, msg.userId, msg.text, seen, {
+    typed: true,
+  })
+  if (reply.kind === 'ephemeral') {
+    log(`[press] typed answer: person ${String(personId)}: not taken (${reply.text})`)
+  }
 }
 
 /** Fisher–Yates with a seeded generator. */

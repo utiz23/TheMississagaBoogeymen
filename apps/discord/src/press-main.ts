@@ -10,7 +10,8 @@
  * Env: DATABASE_URL, DISCORD_INTERNAL_TOKEN, WEB_INTERNAL_URL, DISCORD_SITE_URL,
  * NEWS_MODEL, NEWS_MONTHLY_LIMIT_USD, ANTHROPIC_API_KEY, PRESS_MODE,
  * PRESS_TOKEN_*, PRESS_GUILD_ID, PRESS_TEST_CHANNEL_ID, PRESS_LIVE_CHANNEL_ID,
- * PRESS_GM_USER_ID, PRESS_POLL_INTERVAL_MS.
+ * PRESS_GM_USER_ID, PRESS_POLL_INTERVAL_MS, PRESS_TYPED_ANSWERS (1 = typed answers in
+ * scrum threads; needs the Message Content intent on for Wade Barlow).
  */
 import { loadPressConfig } from './press/config.ts'
 
@@ -32,8 +33,10 @@ async function main(): Promise<void> {
   const { pressDbStore } = await import('./press/store.ts')
   const { runPressPass } = await import('./press/pass.ts')
   const {
+    attachMessages,
     attachReactions,
     attachRouter,
+    createMessageRouter,
     createReactionRouter,
     createRouter,
     registerCommands,
@@ -67,10 +70,11 @@ async function main(): Promise<void> {
   if (barlow !== undefined) {
     registerCommands(barlow, config.guildId, log)
     attachReactions(barlow, createReactionRouter({ deps, config, log }), log)
+    if (config.typedAnswers) attachMessages(barlow, createMessageRouter({ deps, config, log }))
   }
 
   log(
-    `[press] started (${config.mode}) in ${config.mode === 'live' ? 'the live channel' : 'the test channel'}, ${String(clients.size)} bots`,
+    `[press] started (${config.mode}) in ${config.mode === 'live' ? 'the live channel' : 'the test channel'}, ${String(clients.size)} bots, typed answers ${config.typedAnswers ? 'on' : 'off'}`,
   )
 
   for (;;) {

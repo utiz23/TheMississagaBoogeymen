@@ -152,3 +152,15 @@ void test('loadPressConfig: collects discord and shared problems, no secret valu
   }
   assert.ok(!text.includes('SECRET'))
 })
+
+void test('PRESS_TYPED_ANSWERS: on only for exactly "1"; unset, 0, true, yes ⇒ off', () => {
+  const on = loadPressConfig({ ...FULL_ENV, PRESS_TYPED_ANSWERS: '1' })
+  assert.ok(on.ok)
+  assert.equal(on.config.typedAnswers, true)
+  assert.equal(loadPressConfig({ ...FULL_ENV, PRESS_TYPED_ANSWERS: ' 1 ' }).ok, true)
+  for (const v of [undefined, '', '0', 'true', 'yes', 'on', '11']) {
+    const r = loadPressConfig({ ...FULL_ENV, PRESS_TYPED_ANSWERS: v })
+    assert.ok(r.ok, `PRESS_TYPED_ANSWERS=${String(v)}`)
+    assert.equal(r.config.typedAnswers, false, `PRESS_TYPED_ANSWERS=${String(v)}`)
+  }
+})

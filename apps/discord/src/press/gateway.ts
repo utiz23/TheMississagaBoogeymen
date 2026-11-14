@@ -5,6 +5,7 @@ import {
   Events,
   GatewayIntentBits,
   MessageFlags,
+  MessageType,
   Partials,
   type CommandInteractionOption,
   type Interaction,
@@ -25,6 +26,7 @@ import {
   onAnswerButton,
   onAnswerSubmit,
   onScrumCommand,
+  onTypedAnswer,
   onTalk,
   type Reply,
 } from './interactions.ts'
@@ -454,6 +456,67 @@ export function createReactionRouter(args: {
   }
 }
 
+// ── Typed answers ────────────────────────────────────────────────────────────
+
+/** One new message, without discord.js. */
+export interface MessageInput {
+  /** A thread message's channel is the thread. */
+  channelId: string
+  guildId: string | null
+  userId: string
+  userIsBot: boolean
+  /** A normal user message (not a join notice, a pin notice, …). */
+  isPlain: boolean
+  inThread: boolean
+  text: string
+}
+
+/**
+ * The typed-answer router: ignores bots, other servers, anything outside a
+ * thread, non-plain messages and empty text; the rest goes to `onTypedAnswer`,
+ * which ignores everyone without an open question in that thread. It never
+ * throws: an error is logged as `[press] typed answer: <reason>`.
+ */
+export function createMessageRouter(args: {
+  deps: PressDeps
+  config: PressConfig
+  log: (m: string) => void
+  handler?: typeof onTypedAnswer
+}): (input: MessageInput) => Promise<void> {
+  const { deps, config, log, handler = onTypedAnswer } = args
+  return async (m) => {
+    if (m.userIsBot || !m.isPlain || !m.inThread) return
+    if (m.guildId !== config.guildId || m.text.trim() === '') return
+    try {
+      await handler(deps, config, { threadId: m.channelId, userId: m.userId, text: m.text })
+    } catch (err: unknown) {
+      log(`[press] typed answer: ${reason(err)}`)
+    }
+  }
+}
+
+/**
+ * Wire the message router to Barlow's `messageCreate` (the only client with
+ * the message intents). Only new messages: an edit is a different event and
+ * is never read.
+ */
+export function attachMessages(
+  client: Client,
+  route: (input: MessageInput) => Promise<void>,
+): void {
+  client.on(Events.MessageCreate, (message) => {
+    void route({
+      channelId: message.channelId,
+      guildId: message.guildId,
+      userId: message.author.id,
+      userIsBot: message.author.bot || message.webhookId !== null,
+      isPlain: message.type === MessageType.Default || message.type === MessageType.Reply,
+      inThread: message.channel.isThread(),
+      text: message.content,
+    })
+  })
+}
+
 // ── discord.js glue (not unit-tested: it only converts) ──────────────────────
 
 const EPHEMERAL = MessageFlags.Ephemeral
@@ -573,6 +636,31 @@ export function attachReactions(
   })
 }
 
+/**
+ * The gateway intents of one reporter's client: Guilds for all; on Barlow also
+ * the reactions, and, only with `typedAnswers`, the guild messages and the
+ * Message Content intent (privileged: the portal switch must be on, or Discord
+ * refuses the login).
+ */
+export function clientIntents(id: ReporterId, typedAnswers: boolean): GatewayIntentBits[] {
+  if (id !== 'barlow') return [GatewayIntentBits.Guilds]
+  return [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessageReactions,
+    ...(typedAnswers ? [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] : []),
+  ]
+}
+
+/** Discord refused the login because a privileged intent is off in the portal (close code 4014). */
+export function intentsRefused(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code
+  return (
+    code === 'DisallowedIntents' ||
+    code === 4014 ||
+    /disallowed intents|privileged intent/i.test(reason(err))
+  )
+}
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 const LOGIN_RETRY_FIRST_MS = 30_000
 const LOGIN_RETRY_MAX_MS = 600_000
@@ -586,7 +674,8 @@ function safe(err: unknown, token: string): string {
 /**
  * One client per reporter: intent Guilds (all), plus GuildMessageReactions
  * and the Message/Reaction/User partials on Barlow (reactions on the
- * reporters' posts, Task 12). Errors and disconnects are logged; discord.js
+ * reporters' posts, Task 12), plus the message intents on Barlow when
+ * `config.typedAnswers` is on (`clientIntents`). Errors and disconnects are logged; discord.js
  * reconnects by itself. A failed login is logged and tried again (30 s,
  * doubling to 10 min); the returned promise waits only for the first try
  * of each, so the press loop never waits on Discord.
@@ -600,9 +689,7 @@ export async function startClients(
   for (const id of REPORTER_IDS) {
     const barlow = id === 'barlow'
     const client = new Client({
-      intents: barlow
-        ? [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessageReactions]
-        : [GatewayIntentBits.Guilds],
+      intents: clientIntents(id, config.typedAnswers),
       partials: barlow ? [Partials.Message, Partials.Reaction, Partials.User] : [],
     })
     const token = config.tokens[id]
@@ -614,6 +701,15 @@ export async function startClients(
     client.on(Events.ShardResume, () => log(`[press] ${name}: reconnected`))
     clients.set(id, client)
 
+    // One clear line when the portal switch for typed answers is off.
+    const loginFailed = (err: unknown): void => {
+      log(`[press] ${name}: login failed: ${safe(err, token)}`)
+      if (barlow && config.typedAnswers && intentsRefused(err)) {
+        log(
+          `[press] ${name}: Discord refused the login for intents: turn on Message Content Intent for ${name} in the Discord Developer Portal, or set PRESS_TYPED_ANSWERS=0. Until then ${name} stays off.`,
+        )
+      }
+    }
     const loginLoop = async (): Promise<void> => {
       let wait = LOGIN_RETRY_FIRST_MS
       for (;;) {
@@ -624,7 +720,7 @@ export async function startClients(
           return
         } catch (err: unknown) {
           wait = Math.min(wait * 2, LOGIN_RETRY_MAX_MS)
-          log(`[press] ${name}: login failed: ${safe(err, token)}`)
+          loginFailed(err)
         }
       }
     }
@@ -632,7 +728,7 @@ export async function startClients(
       client.login(token).then(
         () => undefined,
         (err: unknown) => {
-          log(`[press] ${name}: login failed: ${safe(err, token)}`)
+          loginFailed(err)
           void loginLoop()
         },
       ),

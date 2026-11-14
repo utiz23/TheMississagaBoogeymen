@@ -22,6 +22,7 @@ import type { ModelCall } from '../news/writer.ts'
 import { oct12Response } from '../news/test-fixtures.ts'
 import type { PressConfig } from './config.ts'
 import { runPressPass, type PressDeps, type PressStore } from './pass.ts'
+import { PRESS_ACCEPT_MS } from './rules.ts'
 
 /**
  * Shared fakes for the press tests: an in-memory press store with the same
@@ -47,6 +48,7 @@ export const config = (mode: 'trial' | 'live'): PressConfig => ({
   model: 'claude-opus-5-5',
   monthlyLimitUsd: 20,
   pollIntervalMs: 15000,
+  typedAnswers: false,
 })
 
 export function itemRow(over: Partial<NewsItemRow> & Pick<NewsItemRow, 'id'>): NewsItemRow {
@@ -300,6 +302,16 @@ export class FakeStore implements PressStore {
     const p = this.people.find((x) => x.id === id)
     return Promise.resolve(p === undefined ? null : this.detail(p))
   }
+  findOpenQuestionInThread = (threadId: string, userId: string) => {
+    const hits = this.people.filter(
+      (p) =>
+        this.scrumOf(p).threadId === threadId &&
+        p.discordUserId === userId &&
+        p.status === 'asking' &&
+        p.currentQuestion !== null,
+    )
+    return Promise.resolve(hits.at(-1)?.id ?? null)
+  }
   claimPing = (personId: number) => {
     const p = this.people.find((x) => x.id === personId)
     if (!p || p.pingedAt !== null) return Promise.resolve(false)
@@ -334,7 +346,7 @@ export class FakeStore implements PressStore {
           (p) =>
             p.status === 'pinged' &&
             p.pingedAt !== null &&
-            p.pingedAt.getTime() < now.getTime() - 300_000,
+            p.pingedAt.getTime() < now.getTime() - PRESS_ACCEPT_MS,
         )
         .map(this.withScrum),
     )

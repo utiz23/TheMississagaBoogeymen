@@ -17,7 +17,7 @@ import {
  */
 
 /** A volunteer or picked player has this long to accept the scrum. */
-export const PRESS_ACCEPT_MS = 300_000
+export const PRESS_ACCEPT_MS = 900_000
 /** After a question, the player has this long to answer. */
 export const PRESS_ANSWER_MS = 900_000
 /** A scrum stays open for this long in all. */

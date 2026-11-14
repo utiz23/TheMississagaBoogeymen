@@ -37,7 +37,7 @@ const topFact = (subject: string | null, weight = 1): NewsTopFact => ({
 })
 
 void test('constants hold the planned values', () => {
-  assert.equal(PRESS_ACCEPT_MS, 300_000)
+  assert.equal(PRESS_ACCEPT_MS, 900_000)
   assert.equal(PRESS_ANSWER_MS, 900_000)
   assert.equal(PRESS_OPEN_MS, 3_600_000)
   assert.equal(PRESS_NIGHT_WAIT_MS, 1_800_000)

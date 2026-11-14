@@ -73,8 +73,15 @@ on the Wade Barlow application. The other eight applications have no commands.
    - **Server Members Intent**: off
    - **Message Content Intent**: off
 
-   This is true for all nine bots. The bots do not read chat. Players answer
-   through a pop-up (modal), not in chat.
+   This is true for all nine bots at first. The bots do not read chat. Players
+   answer through a pop-up (modal), not in chat.
+
+   Exception, only for typed answers (2026-11-13): to let a player type the
+   answer in the scrum thread, turn **Message Content Intent** on for
+   **Wade Barlow only**. Then set `PRESS_TYPED_ANSWERS=1` in `.env` and
+   restart `press`. Never set it before the portal switch is on: Discord
+   refuses Barlow's login (the log says so, close code 4014). The Answer
+   button keeps working. Without the flag the bots read no chat.
 
 6. Click **Reset Token**. Click **Copy**. Put the token in a safe place for
    Step 4. Discord shows it one time only. If you lose it, click Reset Token
@@ -169,7 +176,8 @@ yourself.
 
 - The server shows nine bots. They look offline until the program starts.
 - Each bot has the right name and picture.
-- In the portal, every bot shows all three privileged intents **off**.
+- In the portal, every bot shows all three privileged intents **off** (Wade Barlow
+  may show Message Content **on** when typed answers are in use).
 - The `.env` has nine `PRESS_TOKEN_*` lines, four ID lines, and `PRESS_MODE`.
 - The bot test channel lets all nine bots view it and send messages. Check the
   channel permissions if a bot cannot see it.

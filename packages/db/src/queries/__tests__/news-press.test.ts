@@ -43,6 +43,7 @@ const {
   insertReactionVoteQuery,
   insertReactionTriggerQuery,
   PRESS_ACCEPT_WINDOW_MS,
+  openQuestionInThreadSql,
   PRESS_ANSWER_WINDOW_MS,
   setScrumThreadQuery,
   lastScrumReporterQuery,
@@ -160,9 +161,9 @@ void test('inserts: scrum conflicts on recap_item_id, person on (scrum_id, playe
   )
 })
 
-void test('expired pings: pinged, pinged_at older than the accept window (5 min), claimed', () => {
-  assert.equal(PRESS_ACCEPT_WINDOW_MS, 5 * 60_000)
-  const q = dialect.sqlToQuery(listExpiredPingsSql(new Date('2026-10-25T20:10:00Z')))
+void test('expired pings: pinged, pinged_at older than the accept window (15 min), claimed', () => {
+  assert.equal(PRESS_ACCEPT_WINDOW_MS, 15 * 60_000)
+  const q = dialect.sqlToQuery(listExpiredPingsSql(new Date('2026-10-25T20:20:00Z')))
   const s = flat(q.sql)
   assert.match(s, /p\.status = 'pinged'/)
   assert.match(s, /p\.pinged_at is not null/)
@@ -180,14 +181,27 @@ void test('expired questions: asking, last_asked_at older than the answer window
   assert.deepEqual(q.params, ['2026-10-25T20:15:00.000Z'])
 })
 
-void test('night has active scrum: asking, or pinged within 5 minutes; test rows only when asked', () => {
+void test('night has active scrum: asking, or pinged within 15 minutes; test rows only when asked', () => {
   const q = dialect.sqlToQuery(nightHasActiveScrumSql('2026-10-25', false))
   const s = flat(q.sql)
   assert.match(s, /'asking'/)
-  assert.match(s, /p\.status = 'pinged' and p\.pinged_at > now\(\) - interval '5 minutes'/)
+  assert.match(s, /p\.status = 'pinged' and p\.pinged_at > now\(\) - interval '15 minutes'/)
+  // The SQL interval follows the accept window constant.
+  assert.equal(PRESS_ACCEPT_WINDOW_MS, 15 * 60_000)
   assert.match(s, /s\.is_test = false/)
   assert.match(s, /s\.night = \$1::date/)
   assert.deepEqual(q.params, ['2026-10-25', false])
+})
+
+void test('open question in thread: this user, this thread, asking with a current question', () => {
+  const q = dialect.sqlToQuery(openQuestionInThreadSql('thread-9', '200000000000000001'))
+  const s = flat(q.sql)
+  assert.match(s, /s\.thread_id = \$1/)
+  assert.match(s, /p\.discord_user_id = \$2/)
+  assert.match(s, /p\.status = 'asking'/)
+  assert.match(s, /p\.current_question is not null/)
+  assert.match(s, /order by p\.id desc\s+limit 1/)
+  assert.deepEqual(q.params, ['thread-9', '200000000000000001'])
 })
 
 void test('night press material: usable or joke answers only, never from players who are out', () => {

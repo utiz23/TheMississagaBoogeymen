@@ -1,14 +1,20 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { REPORTER_IDS } from '@eanhl/db/news'
+import { GatewayIntentBits } from 'discord.js'
 import {
   ANSWER_INPUT_ID,
   FAILED_TEXT,
+  clientIntents,
   commandDefinitions,
+  createMessageRouter,
   createReactionRouter,
   createRouter,
+  intentsRefused,
   modalBody,
   routeCustomId,
   type InteractionInput,
+  type MessageInput,
   type InteractionPort,
   type PressHandlers,
 } from './gateway.ts'
@@ -490,4 +496,83 @@ test('reaction router: one reaction at a time; an error is logged and never thro
   await Promise.all([a, b, c])
   assert.deepEqual(order, ['start:a', 'end:a', 'start:b', 'start:c', 'end:c'])
   assert.deepEqual(logs, ['[press] reaction: db down'])
+})
+
+// ── Typed answers ──────────────────────────────────────────────────────────
+
+test('clientIntents: the message intents only on Barlow and only with the flag', () => {
+  const content = [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+  const base = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessageReactions]
+  assert.deepEqual(clientIntents('barlow', false), base)
+  assert.deepEqual(clientIntents('barlow', true), [...base, ...content])
+  for (const id of REPORTER_IDS.filter((r) => r !== 'barlow')) {
+    for (const flag of [false, true]) {
+      assert.deepEqual(clientIntents(id, flag), [GatewayIntentBits.Guilds], `${id} ${String(flag)}`)
+    }
+  }
+  // The privileged intent is never requested without the flag.
+  assert.ok(!clientIntents('barlow', false).includes(GatewayIntentBits.MessageContent))
+})
+
+test('intentsRefused: Discord close code 4014 / DisallowedIntents, nothing else', () => {
+  assert.equal(intentsRefused(Object.assign(new Error('x'), { code: 'DisallowedIntents' })), true)
+  assert.equal(intentsRefused(Object.assign(new Error('x'), { code: 4014 })), true)
+  assert.equal(intentsRefused(new Error('Used disallowed intents')), true)
+  assert.equal(intentsRefused(new Error('An invalid token was provided.')), false)
+  assert.equal(intentsRefused(null), false)
+  assert.equal(intentsRefused('boom'), false)
+})
+
+const MSG: MessageInput = {
+  channelId: 'thread-1',
+  guildId: config('live').guildId,
+  userId: USER,
+  userIsBot: false,
+  isPlain: true,
+  inThread: true,
+  text: 'We pushed hard.',
+}
+
+function messageRouter() {
+  const calls: { threadId: string; userId: string; text: string }[] = []
+  const logs: string[] = []
+  const route = createMessageRouter({
+    deps: {} as never,
+    config: config('live'),
+    log: (m) => logs.push(m),
+    handler: (_d, _c, msg) => {
+      calls.push(msg)
+      return Promise.resolve()
+    },
+  })
+  return { route, calls, logs }
+}
+
+test('createMessageRouter: a plain thread message goes to the handler with the thread id', async () => {
+  const { route, calls } = messageRouter()
+  await route(MSG)
+  assert.deepEqual(calls, [{ threadId: 'thread-1', userId: USER, text: 'We pushed hard.' }])
+})
+
+test('createMessageRouter: bots, other servers, outside a thread, non-plain and empty messages are ignored', async () => {
+  const { route, calls } = messageRouter()
+  await route({ ...MSG, userIsBot: true })
+  await route({ ...MSG, guildId: '999999999999999999' })
+  await route({ ...MSG, guildId: null })
+  await route({ ...MSG, inThread: false })
+  await route({ ...MSG, isPlain: false })
+  await route({ ...MSG, text: '  \n ' })
+  assert.deepEqual(calls, [])
+})
+
+test('createMessageRouter: a handler error is logged and never thrown', async () => {
+  const logs: string[] = []
+  const route = createMessageRouter({
+    deps: {} as never,
+    config: config('live'),
+    log: (m) => logs.push(m),
+    handler: () => Promise.reject(new Error('db down')),
+  })
+  await route(MSG)
+  assert.deepEqual(logs, ['[press] typed answer: db down'])
 })

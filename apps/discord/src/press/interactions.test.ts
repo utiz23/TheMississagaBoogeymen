@@ -3,7 +3,14 @@ import assert from 'node:assert/strict'
 import { REPORTERS } from '@eanhl/db/news'
 import type { ModelCall } from '../news/writer.ts'
 import { FALLBACK_CLOSING, JUDGEMENT_SCHEMA } from './asker.ts'
-import { onAccept, onAnswerButton, onAnswerSubmit, onScrumCommand, onTalk } from './interactions.ts'
+import {
+  onAccept,
+  onAnswerButton,
+  onAnswerSubmit,
+  onScrumCommand,
+  onTalk,
+  onTypedAnswer,
+} from './interactions.ts'
 import { runPressPass } from './pass.ts'
 import {
   GM,
@@ -215,10 +222,11 @@ void test('onAccept: another user, too late, twice; the person accepts and is as
     ephemeral('This one is for Skater A.'),
   )
   const p = t.store.people.find((x) => x.id === personId)!
-  p.pingedAt = new Date(NOW.getTime() - 301_000)
+  p.pingedAt = new Date(NOW.getTime() - 901_000)
   assert.deepEqual(await onAccept(t.deps, live, personId, USER_A), ephemeral(TOO_LATE))
   assert.equal(p.status, 'pinged')
-  p.pingedAt = new Date(NOW.getTime() - 60_000)
+  // The accept window is 15 minutes: a ping 10 minutes old (too late before) still works.
+  p.pingedAt = new Date(NOW.getTime() - 600_000)
   assert.deepEqual(await onAccept(t.deps, live, personId, USER_A), { kind: 'ack' })
   assert.equal(p.status, 'asking')
   assert.equal(p.questionsAsked, 1)
@@ -731,4 +739,165 @@ void test('/scrum @self is /scrum: a volunteer, no command use', async () => {
   assert.equal(p.role, 'volunteer')
   assert.equal(p.requestedBy, 'self')
   assert.equal(await t.store.countCommandUsesTonight(USER_B, t.store.scrums[0]!.night), 0)
+})
+
+// ── Typed answers ──────────────────────────────────────────────────────────
+
+const typed = (t: ReturnType<typeof setup>, userId: string, text: string, threadId = 'thread-1') =>
+  onTypedAnswer(t.deps, config('live'), { threadId, userId, text })
+
+void test('typed answer: the asked player counts like the pop-up (same store, same next step), no echo', async () => {
+  const judgement = { usability: 'usable', followUp: '', closing: 'Thanks, Skater A.' }
+  const typedRun = setup({ model: pressModel({ judgements: [judgement] }).call })
+  const typedId = await scrumWithPerson(typedRun)
+  asking(typedRun, typedId, 'Why?', 2)
+  await typed(typedRun, USER_A, '  We pushed hard.  ')
+
+  const popRun = setup({ model: pressModel({ judgements: [judgement] }).call })
+  const popId = await scrumWithPerson(popRun)
+  asking(popRun, popId, 'Why?', 2)
+  await submit(popRun, config('live'), popId, USER_A, 'We pushed hard.')
+
+  const row = typedRun.store.answerRows[0]!
+  assert.deepEqual(typedRun.store.answerRows, popRun.store.answerRows)
+  assert.equal(row.answer, 'We pushed hard.')
+  assert.equal(row.usability, 'usable')
+  assert.equal(typedRun.store.people[0]!.status, 'done')
+  assert.equal(typedRun.store.people[0]!.currentQuestion, null)
+  // The reporter's closing is posted in the thread; the answer is not echoed again.
+  assert.equal(typedRun.sent.length, 1)
+  assert.equal(typedRun.sent[0]!.channelId, 'thread-1')
+  assert.equal(typedRun.sent[0]!.msg.content, `<@${USER_A}> Thanks, Skater A.`)
+  assert.ok(!typedRun.sent.some((s) => s.msg.content.startsWith('**Skater A:**')))
+  // The pop-up path did echo.
+  assert.equal(popRun.sent.length, 2)
+})
+
+void test('typed answer: question 1 of a picked player goes on to question 2 in the thread', async () => {
+  const m = pressModel({
+    questions: ['Skater A, and the third period?'],
+    judgements: [{ usability: 'usable', followUp: '', closing: 'Thanks.' }],
+  })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  asking(t, personId, 'Why?')
+  await typed(t, USER_A, 'We pushed hard.')
+  const p = t.store.people[0]!
+  assert.equal(p.questionsAsked, 2)
+  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Skater A, and the third period?`)
+})
+
+void test('typed answer: ignored for another user, in another thread, with no open question', async () => {
+  const m = pressModel({ judgements: [] })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  asking(t, personId, 'Why?', 2)
+  await typed(t, USER_B, 'I will answer for him.')
+  await typed(t, STRANGER, 'Hello?')
+  await typed(t, USER_A, 'Wrong thread.', 'other-thread')
+  assert.equal(t.store.answerRows.length, 0)
+  assert.equal(t.sent.length, 0)
+  assert.equal(t.modelCalls.length, 0)
+  assert.equal(t.store.people[0]!.currentQuestion, 'Why?')
+
+  // No question open (accepted, the last answer is being judged): ignored.
+  t.store.people[0]!.currentQuestion = null
+  await typed(t, USER_A, 'Early.')
+  // Not asking any more: ignored.
+  t.store.people[0]!.currentQuestion = 'Why?'
+  t.store.people[0]!.status = 'done'
+  await typed(t, USER_A, 'Late.')
+  assert.equal(t.store.answerRows.length, 0)
+  assert.equal(t.sent.length, 0)
+  assert.equal(t.modelCalls.length, 0)
+})
+
+void test('typed answer: after the answer window nothing is stored or posted', async () => {
+  const t = setup()
+  const personId = await scrumWithPerson(t)
+  asking(t, personId, 'Why?')
+  t.store.people[0]!.lastAskedAt = new Date(NOW.getTime() - 900_000)
+  await typed(t, USER_A, 'Too slow.')
+  assert.equal(t.store.answerRows.length, 0)
+  assert.equal(t.sent.length, 0)
+  assert.ok(t.logs.some((l) => l.includes('typed answer') && l.includes('not taken')))
+})
+
+void test('typed answer: empty text is not saved; 600 characters are cut to 500', async () => {
+  const t = setup({
+    model: pressModel({
+      judgements: [{ usability: 'usable', followUp: '', closing: 'Thanks.' }],
+    }).call,
+  })
+  const personId = await scrumWithPerson(t)
+  asking(t, personId, 'Why?', 2)
+  await typed(t, USER_A, '   ')
+  assert.equal(t.store.answerRows.length, 0)
+  assert.equal(t.store.people[0]!.currentQuestion, 'Why?')
+  await typed(t, USER_A, 'a'.repeat(600))
+  assert.equal(t.store.answerRows[0]!.answer.length, 500)
+})
+
+void test('typed answer: a typed message and a pop-up submit at once store one answer', async () => {
+  const m = pressModel({
+    judgements: [{ usability: 'usable', followUp: '', closing: 'Thanks, Skater A.' }],
+  })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  asking(t, personId, 'Why?', 2)
+  // The pop-up was opened before the typed message arrived: it holds the same counters.
+  const [, popup] = await Promise.all([
+    typed(t, USER_A, 'Typed.'),
+    submit(t, config('live'), personId, USER_A, 'Pop-up.'),
+  ])
+  // Whichever claims first wins; the other is refused (a typed refusal is only logged).
+  assert.equal(t.store.answerRows.length, 1)
+  const typedWon = t.store.answerRows[0]!.answer === 'Typed.'
+  if (typedWon) assert.deepEqual(popup, ephemeral('Already answered.'))
+  else assert.ok(t.logs.some((l) => l.includes('not taken (Already answered.)')))
+  // A second typed message finds no open question.
+  await typed(t, USER_A, 'Typed again.')
+  assert.equal(t.store.answerRows.length, 1)
+})
+
+void test('typed answer: a stale pop-up cannot answer the question after a typed answer', async () => {
+  const m = pressModel({
+    questions: ['Skater A, and the third period?'],
+    judgements: [{ usability: 'usable', followUp: '', closing: 'Thanks.' }],
+  })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  asking(t, personId, 'Why?')
+  const stale = { questionsAsked: 1, followupsAsked: 0 }
+  await typed(t, USER_A, 'We pushed hard.')
+  assert.equal(t.store.people[0]!.questionsAsked, 2)
+  assert.deepEqual(
+    await onAnswerSubmit(t.deps, config('live'), personId, USER_A, 'Late pop-up.', stale),
+    ephemeral('Already answered.'),
+  )
+  assert.equal(t.store.answerRows.length, 1)
+})
+
+void test('typed answer: an unusable verdict is stored unusable and never echoed', async () => {
+  const m = pressModel({
+    judgements: [{ usability: 'unusable', followUp: '', closing: 'Fair enough. Next game.' }],
+  })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  asking(t, personId, 'Why?', 2)
+  await typed(t, USER_A, 'my boss yelled at me all day')
+  assert.equal(t.store.answerRows[0]!.usability, 'unusable')
+  assert.equal(t.sent.length, 1)
+  assert.equal(t.sent[0]!.msg.content, `<@${USER_A}> Fair enough. Next game.`)
+})
+
+void test('a judgement that fails closed is logged with its reason (never the answer)', async () => {
+  const t = setup()
+  const personId = await scrumWithPerson(t)
+  asking(t, personId, 'Why?', 2)
+  await submit(t, config('live'), personId, USER_A, 'We pushed hard.')
+  assert.equal(t.store.answerRows[0]!.usability, 'unusable')
+  assert.ok(
+    t.logs.some((l) => l.includes('judgement failed closed') && !l.includes('We pushed hard')),
+  )
 })

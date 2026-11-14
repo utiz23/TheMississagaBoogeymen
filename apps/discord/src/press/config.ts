@@ -19,6 +19,12 @@ export interface PressConfig extends PressDiscord {
   model: string
   monthlyLimitUsd: number
   pollIntervalMs: number
+  /**
+   * Typed answers in scrum threads (`PRESS_TYPED_ANSWERS=1`). Needs the Message
+   * Content intent switched on for Wade Barlow in the Discord portal: the
+   * intents are requested only when this is on. Fail-closed default: off.
+   */
+  typedAnswers: boolean
 }
 
 type Env = Record<string, string | undefined>
@@ -98,6 +104,8 @@ export function loadPressConfig(
       model: env['NEWS_MODEL']?.trim() || 'claude-opus-5-5',
       monthlyLimitUsd: amountOr(env['NEWS_MONTHLY_LIMIT_USD'], 20),
       pollIntervalMs: intOr(env['PRESS_POLL_INTERVAL_MS'], 15000),
+      // On only for exactly `1`: anything else keeps the extra intents off.
+      typedAnswers: env['PRESS_TYPED_ANSWERS']?.trim() === '1',
     },
   }
 }

@@ -104,8 +104,8 @@ export const SCRUM_RULES: readonly string[] = [
 
 /** How a reporter judges an answer and goes on. */
 export const JUDGE_RULES: readonly string[] = [
-  '11. Judge the player\'s answer. "usable": a real answer about hockey. "joke": a joke or a bit instead of a real answer. "unusable": about real life, abuse, another teammate\'s private matters, or empty of content.',
-  '12. A joke answer: react in character. Dex Mercer and Gord Pettibone are annoyed, Rico Vale plays along, the others stay dry. Never state a joke as fact.',
+  '11. Judge the player\'s answer. "usable": a real answer about hockey, even a short, blunt or sour one, and even one that pushes back on the question. "joke": a joke or a bit instead of a real answer, and in-character banter aimed at you, the fictional reporter (rude or cheeky to you, "keep your nose out of our gameplan", "watch your tone"): banter at the reporter is a joke, never unusable. "unusable" only for: real life (work, family, health, looks), abuse of a real person other than you, a slur, another teammate\'s private matters, or an answer with no content. When it is close, pick "usable" or "joke", not "unusable".',
+  '12. A joke answer: react in character. Dex Mercer and Gord Pettibone are annoyed, Rico Vale plays along, the others stay dry. Banter aimed at you is a bit: answer it in your own voice and move on. Never state a joke as fact.',
   '13. An unusable answer: move on. Ask no follow-up, and never repeat or quote the answer.',
   '14. "followUp" is one follow-up question on the answer, or "" for none. Write "" when the request says no follow-up is allowed. "closing" is one short line that ends your part of the scrum. Quote the player only with words from the answer; never add to them or change their meaning.',
 ]
@@ -386,6 +386,8 @@ export async function judgeAnswer(
   call: ModelCall,
   ctx: AskContext & { answer: string; followUpAllowed: boolean },
   record: Recorder,
+  /** Told once when the judgement fails closed, with the reason (the caller cuts and logs it). */
+  onFailClosed: (why: string) => void = () => undefined,
 ): Promise<{ usability: Usability; followUp: string | null; closing: string }> {
   // Fails closed: an answer the desk could not judge is never quoted later.
   const fallback = { usability: 'unusable' as const, followUp: null, closing: FALLBACK_CLOSING }
@@ -450,9 +452,13 @@ export async function judgeAnswer(
       facts: ctx.facts,
       record,
     })
-    if (!r.ok) return fallback
+    if (!r.ok) {
+      onFailClosed(r.reason)
+      return fallback
+    }
     return { usability: r.out.usability, followUp: followUpOf(r.out), closing: r.out.closing }
-  } catch {
+  } catch (err: unknown) {
+    onFailClosed(err instanceof Error ? err.message : String(err))
     return fallback
   }
 }

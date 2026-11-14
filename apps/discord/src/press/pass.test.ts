@@ -256,7 +256,7 @@ void test('heat: a "next" heat is used once; a Go easy pick lowers Hot to normal
   ])
 })
 
-void test('an accept older than 5 minutes becomes expired and loses its button', async () => {
+void test('an accept older than 15 minutes becomes expired and loses its button', async () => {
   const t = setup()
   liveRecap(t.store)
   await runPressPass(t.deps, config('live'))
@@ -266,7 +266,7 @@ void test('an accept older than 5 minutes becomes expired and loses its button',
     discordUserId: USER_A,
     role: 'picked',
     requestedBy: 'auto',
-    pingedAt: new Date(NOW.getTime() - 301_000),
+    pingedAt: new Date(NOW.getTime() - 901_000),
     pingMessageId: 'ping-1',
   })
   await t.store.insertScrumPerson({

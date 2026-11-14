@@ -77,6 +77,8 @@ export interface PressStore {
   getPlayerDiscordUserId(playerId: number): Promise<string | null>
   listPeopleToPing(): Promise<ScrumPersonDetail[]>
   getScrumPerson(id: number): Promise<ScrumPersonDetail | null>
+  /** The person with a question open for this user in this thread (a typed answer), or null. */
+  findOpenQuestionInThread(threadId: string, userId: string): Promise<number | null>
   claimPing(personId: number): Promise<boolean>
   /** Never with an empty patch: the query throws. */
   updateScrumPerson(id: number, patch: ScrumPersonUpdate): Promise<void>
@@ -411,7 +413,7 @@ export async function runPressPass(
     }
   })
 
-  // ── 5. Expired accepts: no accept in 5 minutes ────────────────────────────
+  // ── 5. Expired accepts: no accept in 15 minutes ────────────────────────────
   await step('expired accepts', async () => {
     const now = deps.now()
     const cutoff = new Date(now.getTime() - PRESS_ACCEPT_MS)
