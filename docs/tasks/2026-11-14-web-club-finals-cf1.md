@@ -90,6 +90,8 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 15:41 task agent: operator decision (Lead2, 2026-11-14 15:34): "club finals page not approved. This can just be a component on the home page, doesnt need to be its own page. The rest are approved". Removed the `/club-finals` route and the nav link; added `components/club-finals/club-finals-card.tsx` (Server Component, native `<details>` for "All attempts") placed first on the home page. Rebased on main (B1 merged; kept both export lines in the two index files). Typecheck db, worker, discord, web clean; web unit 727/727; prettier clean. Home screenshots (desktop 1280, phone 390, with the list open) in the scratchpad `shots-cf1/home-*-running*.png`. Not screenshotted: the one-line state (no attempt running); a second preview run for it was denied by the permission system (broad process kill), so it is not shown.
 
+- 2026-11-14 15:48 task agent: operator cancelled the streamline; the dropdown stays.
+
 Resume: Verifier re-checks the rework (home component, no route, no nav link); the Lead merges and plans the deploy (migration 0083, worker, web).
 
 ## Report (task agent fills when state = Verify)
