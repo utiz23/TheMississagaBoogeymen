@@ -99,8 +99,13 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
   quick-check 17/17; db live-events 6/6; prettier clean. Merged `--ff-only`. Spec §3 updated (Tailscale
   transport, optional `match_type`).
 
-Resume: operator's OK for D2 (Codex second opinion first: secrets + exposure), then the runbook §6
-steps; then send the engine Lead the sender details (secrets go by file, never chat).
+- 2026-11-14 13:46 Lead2: operator approved D2 ("I meant D2 and D3"). Codex adversarial review started
+  (base `9ab1a87a`, branch scope, E1 focus; the operator OK'd the arguments after they were lost in the
+  command). Hotel-Echo checked read-only: passwordless sudo (for `tailscale serve`), no `live_events`
+  table, no `LIVE_EVENTS_*` in `.env`, last game ended 22:18 the night before.
+
+Resume: read the Codex result; if nothing serious, deploy by runbook §6 (fresh backup first, `.env`
+copy, rollback tags for `web` and `worker`).
 
 ## Report
 
