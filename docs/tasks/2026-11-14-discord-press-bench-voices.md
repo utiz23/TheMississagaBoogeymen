@@ -1,6 +1,6 @@
 # Task: T7 — people who watched in the call (the "bench") can talk to the press
 
-- **State:** Merged (Lead review 2026-11-14); deploy waits for the operator's OK
+- **State:** Deployed 2026-11-14 (0077; rollback `:rollback-he-2026-11-14-pre-t7`)
 - **Lane:** Discord (`apps/discord/src/press/`), Database (one migration if a non-player person needs
   rows), Web (privacy text)
 - **Risk:** medium (new data source: who is in the voice call; non-players in stories)
@@ -76,6 +76,8 @@ All checks pass and the tests pin the rules above.
   db/discord/web/worker clean; discord 807/807; news db tests 128/128; web unit 672/672; prettier
   clean; compose passes `PRESS_COACH_USER_IDS`. Deploy: backup → 0077 → `press`, `news`, `web`;
   `.env` `PRESS_COACH_USER_IDS=431630903048011777`; privacy `lastUpdated` that day.
+
+- 2026-11-14 Lead: deployed on "Deploy T7": backup `eanhl-pre-0077-2026-11-14.dump`, 0077 applied, `PRESS_COACH_USER_IDS` set, `web`/`news`/`press` rebuilt; privacy page shows the paragraph.
 
 ## Report
 
