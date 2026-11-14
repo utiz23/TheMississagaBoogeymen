@@ -1,29 +1,30 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 15:30 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 15:34 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                                                | My advice                                    | Waiting costs                      |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------- |
-| D13 | Player background B1: screenshots OK (sent)? Also: (a) a fact you type yourself counts as confirmed at once: OK? (b) camrazz's old dossier file already holds 55 written answers: import them as **proposed** facts for you to confirm? | Yes; (a) yes; (b) yes, as a small step in B2 | B2 cannot start until B1 is merged |
+| ID  | Question                                                                                                                                                                                                                                                                                    | My advice                                    | Waiting costs                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------- |
+| D13 | Player background B1: screenshots OK (sent)? Also: (a) a fact you type yourself counts as confirmed at once: OK? (b) camrazz's old dossier file already holds 55 written answers: import them as **proposed** facts for you to confirm?                                                     | Yes; (a) yes; (b) yes, as a small step in B2 | B2 cannot start until B1 is merged |
+| D14 | Club Finals CF1: screenshots OK (the Club Finals page, the final's game page, the games list; sent)? OK = I merge; the deploy (backup, 0083, worker, web) is a separate OK. Times in the screenshots are 1 hour early: only the preview on the main PC (old time-zone data); live is right. | Yes                                          | CF2 and CF3 wait for CF1           |
 
 ## 2. Right now
 
-| What                                            | State                                                                                                                                                                                                                |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                                                                                         |
-| T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                                                                                                |
-| E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                                                                                                                    |
-| Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                                                                                                                      |
-| Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights.                                                                                              |
-| Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                                                                                                                           |
-| Player background B1                            | built and checked (web 727/727, discord 870/870); waits for your screenshot OK (D13)                                                                                                                                 |
-| Club Finals (playoffs) CF1                      | built: the data says the final was lost in game 5 of round 4 vs 4scin (2-3 OT, 11-12); 0 mismatches with the engine's 11 panel reads (claimed). An independent Verifier is re-checking; then your screenshots (D14). |
-| News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                                                                                                                     |
-| Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                                                                                                                            |
+| What                                            | State                                                                                                                                                    |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                             |
+| T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                                    |
+| E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                                                        |
+| Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                                                          |
+| Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights.                                  |
+| Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                                                               |
+| Player background B1                            | built and checked (web 727/727, discord 870/870); waits for your screenshot OK (D13)                                                                     |
+| Club Finals (playoffs) CF1                      | built and verified (independent Verifier: 0 mismatches in 11 panel reads; final lost in game 5 of round 4 vs 4scin, OT, 11-12). Waits for your OK (D14). |
+| News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                                                         |
+| Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                                                                |
 
 ## 3. Your to-dos (only you can do these)
 
