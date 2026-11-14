@@ -1,6 +1,6 @@
 # Task: L2 — Press Box: player dossiers and AI profiles
 
-- **State:** Merged 2026-11-14 14:49 (`efe3dd27`); deploy waits for the operator's OK (D10)
+- **State:** Deployed 2026-11-14 14:55 (operator: "deploy L2")
 - **Lane:** Web, Queries, Database (one migration), Discord (profile writer)
 - **Risk:** medium (AI text about players; actions on players' press)
 - **Slug:** press-box-l2
@@ -78,7 +78,15 @@ All checks pass; screenshots match the mock-up.
   MAY raise a "Leave me out" player's press level (as built, logged). Label fix `49d53243` checked
   (2 texts only). Rebased; web + discord typecheck clean; web 719/719. Merged `--ff-only`.
 
-Resume: operator's OK to deploy (D10): fresh backup, 0081, then `press`, then `web` (never web first).
+- 2026-11-14 14:56 Lead2: deployed. HE `git pull` to `326c1a5d`; backup
+  `~/eanhl-backups/manual/eanhl-pre-0081-2026-11-14.dump` (29 MB, 89 table-data entries); 0081 applied
+  (profiles table + 4 request columns confirmed); rollback tags
+  `eanhl-team-website-{press,web}:rollback-he-2026-11-14-pre-l2`; `press` first ("started (live) … 9 bots",
+  commands registered), then `web` (Ready). Checks: `/` 200; `/admin/press-box/players`, `/players/2`,
+  `/dossiers` 307 → `/login` signed out; `/news` and `/news/guide` 200.
+
+Resume: operator opens a dossier signed in; first real "Write" profile is the operator's click (about
+$0.05).
 
 ## Report
 

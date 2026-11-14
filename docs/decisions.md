@@ -1,15 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 14:49 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 14:56 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                                                                                                                                                                | My advice            | Waiting costs                                       |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | --------------------------------------------------- |
-| D10 | Deploy Press Box L2? Fresh backup, migration 0081 (adds a table and columns), then the press service, then the website (in that order: the old press service would run a profile request as a test scrum).                                                                                                                                              | Yes, at a quiet time | Dossiers not usable live; L3 can be built meanwhile |
-| D11 | The old player dossier files (`docs/specs/player-dossiers/`, ~120 unanswered questions each, nothing reads them): bring the answers into the system? (a) a "Background" box on each Press Box dossier that you fill with confirmed facts, as part of L3; (b) "background interviews": a reporter asks each player 3–5 of the questions in their thread. | (a) and (b)          | None                                                |
+| ID  | Question                                                                                                                                                                                                                                                                                                                                                | My advice   | Waiting costs |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ------------- |
+| D11 | The old player dossier files (`docs/specs/player-dossiers/`, ~120 unanswered questions each, nothing reads them): bring the answers into the system? (a) a "Background" box on each Press Box dossier that you fill with confirmed facts, as part of L3; (b) "background interviews": a reporter asks each player 3–5 of the questions in their thread. | (a) and (b) | None          |
 
 ## 2. Right now
 
@@ -20,7 +19,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                       |
 | Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                         |
 | Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights. |
-| Press Box L2 (player dossiers + AI profiles)    | merged 14:49; deploy is D10                                                                                             |
+| Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                              |
 | News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                        |
 | Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                               |
 
@@ -54,6 +53,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 14:52 · "deploy L2" → Press Box L2 deployed 14:55 (backup, 0081, `press`, `web`).
 - 2026-11-14 14:45 · Press Box L2: "D7 screenshots ok" (merged); "D8 Yes" (keep write + rule check, 2
   requests per profile); "D9 yes" (an admin may raise a "Leave me out" player's press level; logged).
 - 2026-11-14 14:15 · "deploy approved" (D6) → News Desk rename + Press Box menu item live.
