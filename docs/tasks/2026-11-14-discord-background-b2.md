@@ -1,6 +1,6 @@
 # Task: B2 — Player background: the bots ask, propose facts; teammate answers need the admin
 
-- **State:** Proposed (written 2026-11-14 14:57 by Lead2; starts after B1 is merged)
+- **State:** Ready (operator 2026-11-14 15:00: "B1 and B2 ready"); starts after B1 is merged
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Queries, Database (only if a
   column is needed), Web (privacy page: one sentence)
 - **Risk:** medium-high (AI questions and AI-written facts about real teammates; a privacy text change)
@@ -76,7 +76,9 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 14:57 Lead2: written (Proposed), after B1.
 
-Resume: operator says Ready; starts after B1 is merged.
+- 2026-11-14 15:00 Lead2: operator "B1 and B2 ready".
+
+Resume: start after B1 is merged.
 
 ## Report (task agent fills when state = Verify)
 
