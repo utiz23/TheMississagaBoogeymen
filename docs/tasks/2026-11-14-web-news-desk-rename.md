@@ -1,6 +1,6 @@
 # Task: Rename the public "Press Room" pages to "News Desk"
 
-- **State:** Verify (since 2026-11-14 14:05; task agent of `Lead2`; Verify since 2026-11-14 14:09)
+- **State:** Merged 2026-11-14 14:14 (`fd50d4a3`); `web` deploy waits for the operator's OK (D6)
 - **Lane:** Web
 - **Risk:** low (visible text only)
 - **Slug:** news-desk-rename (branch `work/news-desk-rename`, worktree `.claude/worktrees/news-desk-rename`)
@@ -63,7 +63,10 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-14 14:09 operator added: Press Box in the admin dropdown (nav-account.tsx, admins only, after "Admin tools").
 - 2026-11-14 14:09 task agent: renamed all hits; `git grep -i "press room" -- apps/web` = 0 hits. Nav item added; `isActive` would light both "Admin tools" and "Press Box" on /admin/press-box, so a one-line `&&` condition keeps "Admin tools" off there only. Checks pass. Screenshot skipped: the read-only tunnel needs Hotel-Echo's DB password and reading it was denied by auto mode; tunnel and server stopped, nothing running.
 
-Resume: Lead reviews the diff, merges (ff-only), and includes `web` in the next deploy (operator's OK). Screenshot not taken: Lead or operator may look at /news after deploy.
+- 2026-11-14 14:14 Lead2: reviewed the diff; rebased; web typecheck clean, 701/701, prettier clean, 0
+  hits. Merged `--ff-only`.
+
+Resume: operator's OK for a `web` deploy (D6); then the Lead checks `/news` live.
 
 ## Report (task agent fills when state = Verify)
 

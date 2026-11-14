@@ -1,27 +1,27 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 14:12 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 14:14 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                                                                    | My advice | Waiting costs                               |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------- |
+| D6  | Deploy the website now? It ships the News Desk rename and the Press Box item in your account menu. Only `web` restarts (a few seconds); rollback tag first. | Yes, now  | The old "Press Room" name stays on the site |
 
 ## 2. Right now
 
-| What                                         | State                                                                                                                   |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Press bots                                   | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)            |
-| T9 relationships + T10 Talk fix              | LIVE since 2026-11-14                                                                                                   |
-| E1 live events                               | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                       |
-| Worker watchdog                              | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                         |
-| Press Box L1                                 | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights. |
-| Press Box L2 (player dossiers + AI profiles) | running (task agent); you get screenshots before the merge                                                              |
-| Rename /news "Press Room" → "News Desk"      | running (task agent); ships with the next website deploy                                                                |
-| Backup hardening                             | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                               |
+| What                                                                  | State                                                                                                                   |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Press bots                                                            | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)            |
+| T9 relationships + T10 Talk fix                                       | LIVE since 2026-11-14                                                                                                   |
+| E1 live events                                                        | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                       |
+| Worker watchdog                                                       | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                         |
+| Press Box L1                                                          | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights. |
+| Press Box L2 (player dossiers + AI profiles)                          | running (task agent); you get screenshots before the merge                                                              |
+| Rename /news "Press Room" → "News Desk" + Press Box in the admin menu | merged; deploy is D6                                                                                                    |
+| Backup hardening                                                      | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                               |
 
 ## 3. Your to-dos (only you can do these)
 
