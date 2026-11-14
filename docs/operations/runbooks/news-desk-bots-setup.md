@@ -10,36 +10,15 @@ You do this one time, before the first trial night. It takes about 30 minutes.
 
 ## Cost
 
-Prices come from `apps/discord/src/news/cost.ts` (model `claude-opus-5-5`):
-input $4 per million tokens, output $20 per million tokens.
+Prices come from `apps/discord/src/news/cost.ts` (model `claude-opus-5-5`): input $4 and output
+$20 per million tokens. One scrum (2 questions + 2 follow-ups, each written and reviewed) is about
+8 calls, about **$0.25**. A GM note is about $0.03; a reaction follow-up about $0.06.
 
-One call (6,000 input tokens, 300 output tokens, with the fact sheet):
+Real spend of the news desk alone (updated 2026-11-13): $1–5 per game night (November $15.17 by
+11-13). The monthly cap is `NEWS_MONTHLY_LIMIT_USD=60` on Hotel-Echo; the Anthropic workspace limit
+must be the same or higher. Scrums add about $0.25–1 per game night.
 
-- Input: 6,000 x $4 / 1,000,000 = $0.024
-- Output: 300 x $20 / 1,000,000 = $0.006
-- **One call = $0.030**
-
-| Item                                                        | Calls     | Cost  |
-| ----------------------------------------------------------- | --------- | ----- |
-| One scrum (2 questions + 2 follow-ups, each write + review) | 4 x 2 = 8 | $0.24 |
-| One GM note parse                                           | 1         | $0.03 |
-| One reaction follow-up (one game post job: write + review)  | 2         | $0.06 |
-
-Monthly (8 game nights):
-
-- Scrums: 1 per night x 8 nights x $0.24 = **$1.92**
-- GM notes: 2 per night x 8 nights x $0.03 = **$0.48**
-- Reaction follow-ups: 4 per month x $0.06 = **$0.24**
-- **New cost: about $2.64 per month**
-
-The existing news desk costs about $8 to $10 per month. The total is about
-**$10.60 to $12.60 per month**. The limit is $20 per month.
-
-Check against a bad case: if every call costs double (long answers, retries),
-the new cost is about $5.30 and the total is about $13.30 to $15.30. This is
-still under $20.
-
-The 80% rule (spec section 10): when the month's spend reaches $16, scrums and
+The 80% rule (spec section 10): when the month's spend reaches 80% of the cap ($48), scrums and
 reaction follow-ups stop first. Posts and night recaps continue.
 
 ## What you need
@@ -157,12 +136,12 @@ portal and put the new token in the `.env`.
 3. Right-click the item below. Click **Copy ID** (or **Copy Server ID**,
    **Copy Channel ID**, **Copy User ID**).
 
-| Variable                | What to right-click                               |
-| ----------------------- | ------------------------------------------------- |
-| `PRESS_GUILD_ID`        | The team server icon in the left bar              |
-| `PRESS_TEST_CHANNEL_ID` | The bot test channel (only you are in it)         |
-| `PRESS_LIVE_CHANNEL_ID` | `#chel`                                           |
-| `PRESS_GM_USER_ID`      | Your own name in the member list (you are the GM) |
+| Variable                | What to right-click                                     |
+| ----------------------- | ------------------------------------------------------- |
+| `PRESS_GUILD_ID`        | The team server icon in the left bar                    |
+| `PRESS_TEST_CHANNEL_ID` | The bot test channel (only you are in it)               |
+| `PRESS_LIVE_CHANNEL_ID` | the game channel (where the game results and news post) |
+| `PRESS_GM_USER_ID`      | Your own name in the member list (you are the GM)       |
 
 Add them to the same `.env`:
 
@@ -175,9 +154,13 @@ PRESS_MODE=trial
 ```
 
 `PRESS_MODE` decides where the bots post. Only the exact value `live` makes the
-bots post in `#chel`. Any other value, or no value, is trial mode: the bots post
-in the bot test channel only, and every ping goes to the GM. Keep `trial` until
-a trial night goes well. You change it to `live` yourself.
+bots post in the game channel. Any other value, or no value, is trial mode: the
+bots post in the bot test channel only. **Open trial** (operator, 2026-11-13): the
+picked player is pinged there and anyone in that channel may take part; taking
+part is agreement. Trial scrums and answers are marked test and are never used in
+public stories. Teammates you want in the trial must be able to see the bot test
+channel. Keep `trial` until a trial night goes well. You change it to `live`
+yourself.
 
 ## Step 6: Check
 
@@ -273,22 +256,22 @@ Replace `<date>` in the commands with today's date (`YYYY-MM-DD`).
    ```
 
 5. **Trial night.** Leave `PRESS_MODE` unset (or `trial`) in `.env`. Play one
-   game night. The bots post in the bot test channel only. Only you (the GM)
-   are pinged.
+   game night. The bots post in the bot test channel only. The picked players
+   are pinged there (open trial); anyone in that channel may take part.
 6. **Read the trial.** Read the trial posts in the test channel and on
    `/admin/news`. Check the scrum questions, the answers, the nicknames and the
    spending. Delete anything wrong.
 7. **Go live.** Check that the approved privacy text is on the site (the
    `web` image from step 4, or a later rebuild). Check that `.env` has
    `NEWS_DRY_RUN=0`. The bots post only what the news desk writes for real:
-   while the desk is in dry run, live press mode posts nothing in `#chel`.
+   while the desk is in dry run, live press mode posts nothing in the game channel.
    Then set `PRESS_MODE=live` in `.env` and restart the two services:
 
    ```
    docker compose --profile news --profile press up -d --no-deps news press
    ```
 
-   The bots now post in `#chel`.
+   The bots now post in the game channel.
 
 ## Rollback
 

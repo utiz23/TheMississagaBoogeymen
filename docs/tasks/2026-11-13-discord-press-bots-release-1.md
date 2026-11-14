@@ -1,13 +1,13 @@
 # Task: Press bots release 1 (post-game scrums)
 
-- **State:** Proposed (operator 2026-11-13: "lets work on the post game scrums")
+- **State:** Running (operator 2026-11-13: privacy text approved; open trial; release all as built)
 - **Lane:** Discord (with Queries, Database: migration 0072, Web: privacy text, nickname list; Ops:
   compose service `press`)
 - **Risk:** high (new database tables on live, 9 bots post in the team channel, player answers stored
   and sent to the AI service)
 - **Slug:** press-bots (branch `work/press-bots`, worktree `.claude/worktrees/press-bots`; made from
   `feat/news-desk-bots`, which stays as it is)
-- **Operator approval:** pending
+- **Operator approval:** 2026-11-13 (privacy text as written; open trial; full release 1)
 - **Operator gate before merge:** yes (privacy text, trial channel, scope)
 - **Needs a deploy:** yes: migration 0072 (after a fresh backup), then `web`, `news`, `press`
   (runbook `docs/operations/runbooks/news-desk-bots-setup.md`)
@@ -49,7 +49,8 @@ webhook. Design: `docs/superpowers/specs/2026-10-25-news-desk-bots-design.md` (a
 3. Operator: approve the privacy text (or change it); decide the trial channel and the scope.
 4. Operator: create the 9 Discord bot applications (runbook, about 30 minutes); tokens go straight
    into Hotel-Echo's `.env`, never in chat.
-5. Release (runbook checklist): fresh backup → migration 0072 → `web`, `news`, `press` → trial night →
+5. Release day: set `lastUpdated` of privacy and data-collection (`apps/web/src/lib/legal/legal-docs.ts`)
+   to the release date and add a footer notice; then the runbook checklist: fresh backup → migration 0072 → `web`, `news`, `press` → trial night →
    read the trial → `PRESS_MODE=live`.
 
 ## Done when
@@ -64,3 +65,10 @@ webhook. Design: `docs/superpowers/specs/2026-10-25-news-desk-bots-design.md` (a
   365 pass, 3 fail only for want of a database (`DATABASE_URL`; OCR/run-quality query files, not in
   this change); prettier pass. Not run: worker integration and migration 0072 on a test database (no
   Docker on the main PC).
+- 2026-11-13 operator: privacy text approved as written; **open trial** ("anyone in that channel and who
+  responds is aware and has given their permission by participating"); release everything as built.
+- 2026-11-13 Lead: open trial built: trial and live act the same for who is pinged and who may act
+  (each person for themselves; the GM-only gates and the GM mention are gone); the trial differs only
+  in the channel and the test marking; trial pings say "(trial)". `/gm` stays GM-only. 5 trial tests
+  rewritten to pin the open trial. Runbook: real costs ($60 cap, 80% = $48), live channel = the game
+  channel, open-trial wording. DRAFT markers removed from the privacy text.

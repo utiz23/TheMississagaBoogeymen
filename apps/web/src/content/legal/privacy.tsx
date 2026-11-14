@@ -327,14 +327,12 @@ export const sections: LegalPageSection[] = [
           our <DocLink to="data-collection">Data Collection Policy</DocLink>.
         </P>
         <P>
-          {/* DRAFT: awaits operator approval before the press bots go live. */}
           If you answer a reporter's questions in Discord, we store your answers and send them to
           Claude AI (Anthropic) to write the questions and the stories. We can show your answers in
           the scrum thread in our team's Discord channel. The night recaps on this site can quote
           your answers or reword them. Answering is optional.
         </P>
         <P>
-          {/* DRAFT: awaits operator approval before the press bots go live. */}
           If you react to a news post in our team's Discord channel, the bots store your Discord
           user ID with that post. We use it only to count the reactions to the post.
         </P>

@@ -158,7 +158,7 @@ void test('startScrumQuestion: another thread error posts nothing and claims not
   assert.equal(t.store.people.find((x) => x.id === personId)!.questionsAsked, 0)
 })
 
-void test('trial: the question and the closing line mention the GM, never the player', async () => {
+void test('open trial: the question and the closing line mention the player themselves', async () => {
   const t = setup()
   t.store.settings.mirrorFromItemId = 9
   t.store.items.push(itemRow({ id: 10, isGameRecap: true }))
@@ -174,13 +174,13 @@ void test('trial: the question and the closing line mention the GM, never the pl
   t.store.spend = 100
   await startScrumQuestion(t.deps, config('trial'), id)
   const q = t.sent.at(-1)!
-  assert.equal(q.msg.content, `<@${GM}> Walk me through that one, Skater A.`)
-  assert.deepEqual(q.msg.allowed_mentions, { parse: [], users: [GM] })
+  assert.equal(q.msg.content, `<@${USER_A}> Walk me through that one, Skater A.`)
+  assert.deepEqual(q.msg.allowed_mentions, { parse: [], users: [USER_A] })
   t.store.people[0]!.lastAskedAt = new Date(NOW.getTime() - 901_000)
   await runPressPass(t.deps, config('trial'))
   const closing = t.sent.at(-1)!
-  assert.equal(closing.msg.content, `<@${GM}> Fair enough — next game.`)
-  assert.deepEqual(closing.msg.allowed_mentions, { parse: [], users: [GM] })
+  assert.equal(closing.msg.content, `<@${USER_A}> Fair enough — next game.`)
+  assert.deepEqual(closing.msg.allowed_mentions, { parse: [], users: [USER_A] })
 })
 
 void test('startScrumQuestion: a Go easy player gets no critical GM note; other notes stay', async () => {

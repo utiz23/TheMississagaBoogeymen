@@ -664,7 +664,6 @@ export const sections: LegalPageSection[] = [
           notes written by the site's admin for the fictional coverage.
         </P>
         <P>
-          {/* DRAFT: awaits operator approval before the press bots go live. */}
           <Strong>Answers to reporters in Discord.</Strong> If you answer a reporter's questions in
           Discord, we store your answers and send them to Claude AI (Anthropic) to write the
           questions and the stories. We can show your answers in the scrum thread in our team's
@@ -672,7 +671,6 @@ export const sections: LegalPageSection[] = [
           Answering is optional.
         </P>
         <P>
-          {/* DRAFT: awaits operator approval before the press bots go live. */}
           <Strong>Reactions in Discord.</Strong> If you react to a news post in our team's Discord
           channel, the bots store your Discord user ID with that post. We use it only to count the
           reactions to the post.

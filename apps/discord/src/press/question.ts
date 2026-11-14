@@ -25,11 +25,6 @@ const reporterName = (id: ReporterId): string => REPORTERS[id].name
 
 /** The month each deps last logged the spent extras budget (`YYYY-MM`): once a month. */
 const budgetNoticeMonth = new WeakMap<PressDeps, string>()
-/** Who a scrum line mentions: the person, or the GM in the trial (or on a trial scrum). */
-export function scrumMention(config: PressConfig, isTest: boolean, discordUserId: string): string {
-  return config.mode === 'trial' || isTest ? config.gmUserId : discordUserId
-}
-
 /** A line in a scrum thread: it starts with the mention, and only that user is pinged. */
 export function threadLine(userId: string, text: string, components?: unknown[]): BotMessage {
   const msg: BotMessage = {
@@ -195,7 +190,7 @@ export async function startScrumQuestion(
   await discord.send(
     reporter,
     threadId,
-    threadLine(scrumMention(config, scrum.isTest, person.discordUserId), escapeMarkdown(text), [
+    threadLine(person.discordUserId, escapeMarkdown(text), [
       { type: 1, components: [answerButton(personId)] },
     ]),
   )

@@ -85,24 +85,24 @@ function asking(t: ReturnType<typeof setup>, id: number, question: string, asked
 
 // ── Trial and links ────────────────────────────────────────────────────────
 
-void test('trial: only the GM may talk, accept, answer or use /scrum', async () => {
+void test('open trial (operator, 2026-11-13): each person acts for themselves; others are refused as in live', async () => {
   const t = setup()
   const personId = await scrumWithPerson(t)
   asking(t, personId, 'Why?')
   const trial = config('trial')
-  assert.deepEqual(await onTalk(t.deps, trial, 10, USER_A), ephemeral(TRIAL))
-  assert.deepEqual(await onAccept(t.deps, trial, personId, USER_A), ephemeral(TRIAL))
-  assert.deepEqual(await onAnswerButton(t.deps, trial, personId, USER_A), ephemeral(TRIAL))
-  assert.deepEqual(await submit(t, trial, personId, USER_A, 'x'), ephemeral(TRIAL))
+  const notYou = ephemeral('This one is for Skater A.')
+  // The GM is not the person: refused like anyone else.
+  assert.deepEqual(await onAnswerButton(t.deps, trial, personId, GM), notYou)
+  assert.deepEqual(await submit(t, trial, personId, GM, 'x'), notYou)
+  assert.deepEqual(await onAnswerButton(t.deps, trial, personId, USER_B), notYou)
+  // The person answers for themselves in the trial too.
+  assert.equal((await onAnswerButton(t.deps, trial, personId, USER_A)).kind, 'modal')
+  // An unlinked Discord user still needs a link, trial or live.
   assert.deepEqual(
-    await onScrumCommand(t.deps, trial, USER_A, { player: null, random: false }),
-    ephemeral(TRIAL),
+    await onScrumCommand(t.deps, trial, USER_C, { player: null, random: false }),
+    ephemeral('Link your Discord on boogeymen.app (sign in) to talk to the press.'),
   )
-  // A scrum left over from the trial stays GM-only in live.
-  t.store.scrums[0]!.isTest = true
-  assert.deepEqual(await submit(t, config('live'), personId, USER_A, 'x'), ephemeral(TRIAL))
   assert.equal(t.store.answerRows.length, 0)
-  assert.equal(t.sent.length, 0)
 })
 
 void test('unlinked user: told to link their Discord', async () => {
@@ -185,7 +185,7 @@ void test('onTalk: a volunteer is asked their question in the thread', async () 
   assert.match(JSON.stringify(q.msg.components), new RegExp(`press:answer:${String(p.id)}`))
 })
 
-void test('onTalk in the trial: the GM volunteers as the scrum pick, mentions go to the GM', async () => {
+void test('onTalk in the open trial: a player volunteers for themselves; the scrum is test', async () => {
   const t = setup()
   // The trial mirrors item 10 into the test channel; the scrum hangs on the mirror.
   t.store.settings.mirrorFromItemId = 0
@@ -193,14 +193,14 @@ void test('onTalk in the trial: the GM volunteers as the scrum pick, mentions go
   await runPressPass(t.deps, config('trial'))
   assert.equal(t.store.scrums.length, 1)
   assert.equal(t.store.scrums[0]!.isTest, true)
-  const reply = await onTalk(t.deps, config('trial'), 10, GM)
+  const reply = await onTalk(t.deps, config('trial'), 10, USER_B)
   assert.deepEqual(reply, { kind: 'ack' })
   const p = t.store.people[0]!
-  // The fixture's pick: Skater A (most points). The stored ID is the player's own.
-  assert.equal(p.playerId, 1)
-  assert.equal(p.discordUserId, USER_A)
-  assert.equal(p.requestedByUserId, GM)
-  assert.equal(t.sent.at(-1)!.msg.content, `<@${GM}> Walk me through that one, Skater A.`)
+  assert.equal(p.playerId, 2)
+  assert.equal(p.discordUserId, USER_B)
+  assert.equal(p.requestedByUserId, USER_B)
+  assert.match(t.sent.at(-1)!.msg.content, new RegExp(`^<@${USER_B}> `))
+  assert.deepEqual(t.sent.at(-1)!.msg.allowed_mentions, { parse: [], users: [USER_B] })
 })
 
 // ── Accept ─────────────────────────────────────────────────────────────────
@@ -234,12 +234,16 @@ void test('onAccept: another user, too late, twice; the person accepts and is as
   assert.equal(t.sent.length, sent)
 })
 
-void test('onAccept in the trial: the GM accepts for the picked player', async () => {
+void test('onAccept in the open trial: the pinged player accepts; the GM cannot accept for them', async () => {
   const t = setup()
   const personId = await scrumWithPerson(t)
   t.store.scrums[0]!.isTest = true
-  assert.deepEqual(await onAccept(t.deps, config('trial'), personId, GM), { kind: 'ack' })
-  assert.equal(t.sent.at(-1)!.msg.content, `<@${GM}> Walk me through that one, Skater A.`)
+  assert.deepEqual(
+    await onAccept(t.deps, config('trial'), personId, GM),
+    ephemeral('This one is for Skater A.'),
+  )
+  assert.deepEqual(await onAccept(t.deps, config('trial'), personId, USER_A), { kind: 'ack' })
+  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Walk me through that one, Skater A.`)
 })
 
 // ── Answer button ──────────────────────────────────────────────────────────

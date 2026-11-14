@@ -21,12 +21,11 @@ import type {
   ScrumPersonWithScrum,
 } from '@eanhl/db/queries'
 import { acceptButton, type BotMessage } from '../bot-rest.ts'
-import { escapeMarkdown } from '../message.ts'
 import { payloadForItem, toBotMessage } from '../news/messages.ts'
 import type { ModelCall } from '../news/writer.ts'
 import { FALLBACK_CLOSING } from './asker.ts'
 import type { PressConfig } from './config.ts'
-import { scrumMention, threadLine } from './question.ts'
+import { threadLine } from './question.ts'
 import {
   PRESS_ACCEPT_MS,
   PRESS_ANSWER_MS,
@@ -393,12 +392,12 @@ export async function runPressPass(
       if (!(await store.claimPing(p.id))) continue
       try {
         const scrum = p.scrum
-        // Trial (or a scrum left over from the trial): the ping goes to the GM.
-        const target = scrumMention(config, scrum.isTest, p.discordUserId)
-        const toGm = trial || scrum.isTest
+        // Open trial (operator, 2026-11-13): the picked person is pinged, in the
+        // bot test channel; the line says it is a trial.
+        const target = p.discordUserId
         const text = `<@${target}> — ${reporterName(scrum.reporter)} has a question for you about tonight's game.`
         const messageId = await discord.send(scrum.reporter, scrum.channelId, {
-          content: toGm ? `test — would ping ${escapeMarkdown(p.name)}: ${text}` : text,
+          content: scrum.isTest ? `(trial) ${text}` : text,
           allowed_mentions: { parse: [], users: [target] },
           components: [{ type: 1, components: [acceptButton(p.id)] }],
           message_reference: { message_id: scrum.messageId, fail_if_not_exists: false },
@@ -437,11 +436,7 @@ export async function runPressPass(
       summary.closedQuestions++
       if (p.threadId === null) continue
       try {
-        await discord.send(
-          p.reporter,
-          p.threadId,
-          threadLine(scrumMention(config, p.isTest, p.discordUserId), FALLBACK_CLOSING),
-        )
+        await discord.send(p.reporter, p.threadId, threadLine(p.discordUserId, FALLBACK_CLOSING))
       } catch (err: unknown) {
         // Closed: the line is never sent again.
         log(`[press] expired answers: person ${String(p.id)}: ${reason(err)}`)

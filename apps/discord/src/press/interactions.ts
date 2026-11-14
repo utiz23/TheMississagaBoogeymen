@@ -10,7 +10,6 @@ import {
   pressRecorder,
   scrumAskContext,
   scrumHistory,
-  scrumMention,
   startScrumQuestion,
   threadLine,
 } from './question.ts'
@@ -35,8 +34,10 @@ import {
  * taps could both make is a conditional update (`insertScrumPerson`,
  * `acceptScrumPerson`, `claimScrumAnswer`, `claimScrumQuestion`).
  *
- * Trial (and any scrum left over from it): only the GM acts, for the scrum's
- * person; the stored `discord_user_id` stays the player's own.
+ * Trial and live act the same (operator, 2026-11-13: an open trial; anyone in
+ * the bot test channel who takes part agrees by taking part): each person
+ * acts for themselves. The trial differs only in the channel and in that its
+ * scrums and answers are marked test (never used in public pieces).
  */
 
 export type Reply =
@@ -52,7 +53,6 @@ const MODAL_TEXT_MAX = 45
 const SUPPRESS_EMBEDS = 4
 
 export const TEXT = {
-  trial: 'The press bots are on trial.',
   link: 'Link your Discord on boogeymen.app (sign in) to talk to the press.',
   left: 'The press has left. Catch them after the next game.',
   notInGame: 'This scrum is for players of this game.',
@@ -81,25 +81,13 @@ function cut(text: string, max: number): string {
   return chars.length <= max ? text : `${chars.slice(0, max - 1).join('')}…`
 }
 
-/** Only the GM acts in the trial, and on a scrum left over from it. */
-function gmOnly(config: PressConfig, isTest: boolean): boolean {
-  return config.mode === 'trial' || isTest
-}
-
 /** The extras budget is spent (80% of the month): scrums stop until next month. */
 async function pressOff(deps: PressDeps, config: PressConfig): Promise<boolean> {
   return !extrasBudgetLeft(await deps.store.monthNewsSpendUsd(deps.now()), config.monthlyLimitUsd)
 }
 
 /** The refusal for a user who may not act for this person, or null. */
-function actorRefusal(
-  config: PressConfig,
-  person: ScrumPersonDetail,
-  userId: string,
-): Reply | null {
-  if (gmOnly(config, person.scrum.isTest)) {
-    return userId === config.gmUserId ? null : say(TEXT.trial)
-  }
+function actorRefusal(person: ScrumPersonDetail, userId: string): Reply | null {
   return userId === person.discordUserId
     ? null
     : say(`This one is for ${escapeMarkdown(person.name)}.`)
@@ -159,28 +147,16 @@ export async function onTalk(
   userId: string,
 ): Promise<Reply> {
   const { store } = deps
-  const isGm = userId === config.gmUserId
-  if (config.mode === 'trial' && !isGm) return say(TEXT.trial)
   if (await pressOff(deps, config)) return say(TEXT.pressOff)
-  const me = config.mode === 'trial' ? null : await store.getPlayerForDiscordUser(userId)
-  if (config.mode === 'live' && me === null && !isGm) return say(TEXT.link)
+  const me = await store.getPlayerForDiscordUser(userId)
+  if (me === null) return say(TEXT.link)
   const scrum = await store.scrumByRecapItem(itemId)
   if (scrum === null) return say(TEXT.notYet)
-  const gm = gmOnly(config, scrum.isTest)
-  if (gm && !isGm) return say(TEXT.trial)
-  if (!gm && me === null) return say(TEXT.link)
   const now = deps.now()
   if (now >= scrum.openUntil) return say(TEXT.left)
 
-  const { candidates, topFacts } = await gameCandidates(deps, scrum)
-  let player: Candidate | null
-  if (gm) {
-    // The GM acts as the player the scrum picks.
-    const gmAsk = scrum.matchId === null ? null : await store.gmAskForMatch(scrum.matchId, true)
-    player = pickScrumPlayer(candidates, topFacts, gmAsk)
-  } else {
-    player = candidates.find((c) => c.playerId === me!.playerId) ?? null
-  }
+  const { candidates } = await gameCandidates(deps, scrum)
+  const player = candidates.find((c) => c.playerId === me.playerId) ?? null
   if (player === null || player.discordUserId === null) return say(TEXT.notInGame)
 
   const personId = await store.insertScrumPerson({
@@ -198,7 +174,7 @@ export async function onTalk(
   return askNow(deps, config, personId)
 }
 
-/** Accept on a ping: only the pinged person (the GM in the trial), within 5 minutes. */
+/** Accept on a ping: only the pinged person, within 5 minutes. */
 export async function onAccept(
   deps: PressDeps,
   config: PressConfig,
@@ -206,11 +182,10 @@ export async function onAccept(
   userId: string,
 ): Promise<Reply> {
   const { store } = deps
-  if (config.mode === 'trial' && userId !== config.gmUserId) return say(TEXT.trial)
   if (await pressOff(deps, config)) return say(TEXT.pressOff)
   const person = await store.getScrumPerson(personId)
   if (person === null) return say(TEXT.tooLate)
-  const refusal = actorRefusal(config, person, userId)
+  const refusal = actorRefusal(person, userId)
   if (refusal !== null) return refusal
   if (person.status === 'asking') return say(TEXT.already)
   const now = deps.now()
@@ -226,17 +201,16 @@ export async function onAccept(
   return askNow(deps, config, personId)
 }
 
-/** Answer under a question: opens the pop-up for the person (the GM in the trial). */
+/** Answer under a question: opens the pop-up for the person. */
 export async function onAnswerButton(
   deps: PressDeps,
   config: PressConfig,
   personId: number,
   userId: string,
 ): Promise<Reply> {
-  if (config.mode === 'trial' && userId !== config.gmUserId) return say(TEXT.trial)
   const person = await deps.store.getScrumPerson(personId)
   if (person === null) return say(TEXT.tooLate)
-  const refusal = actorRefusal(config, person, userId) ?? openQuestionRefusal(person, deps.now())
+  const refusal = actorRefusal(person, userId) ?? openQuestionRefusal(person, deps.now())
   if (refusal !== null) return refusal
   return {
     kind: 'modal',
@@ -345,11 +319,10 @@ export async function onAnswerSubmit(
   seen: { questionsAsked: number; followupsAsked: number },
 ): Promise<Reply> {
   const { store, discord, log } = deps
-  if (config.mode === 'trial' && userId !== config.gmUserId) return say(TEXT.trial)
   const person = await store.getScrumPerson(personId)
   if (person === null) return say(TEXT.tooLate)
   const now = deps.now()
-  const refusal = actorRefusal(config, person, userId) ?? submitRefusal(person, seen, now)
+  const refusal = actorRefusal(person, userId) ?? submitRefusal(person, seen, now)
   if (refusal !== null) return refusal
   const answer = Array.from(text.trim()).slice(0, ANSWER_MAX_CHARS).join('').trimEnd()
   if (answer === '') return say(TEXT.noAnswer)
@@ -359,7 +332,7 @@ export async function onAnswerSubmit(
 
   const scrum = person.scrum
   const threadId = scrum.threadId ?? scrum.messageId
-  const mention = scrumMention(config, scrum.isTest, person.discordUserId)
+  const mention = person.discordUserId
 
   const verdict = await judge(deps, config, person, question, answer)
   // Echoed after the judgement: an unusable answer is never shown.
@@ -426,7 +399,7 @@ function shuffled<T>(items: readonly T[], seed: number): T[] {
  * played (within 6 h). `random` / `player` = ask a teammate of that game (at
  * most twice a night per user; a teammate who already had `PRESS_PING_LIMIT`
  * automatic or command pings tonight is not asked); the person is inserted
- * `picked` and the timer pass pings them. In the trial the GM acts for any latest game.
+ * `picked` and the timer pass pings them. Trial and live act the same.
  */
 export async function onScrumCommand(
   deps: PressDeps,
@@ -436,13 +409,12 @@ export async function onScrumCommand(
 ): Promise<Reply> {
   const { store } = deps
   const trial = config.mode === 'trial'
-  if (trial && userId !== config.gmUserId) return say(TEXT.trial)
   if (await pressOff(deps, config)) return say(TEXT.pressOff)
-  const me = trial ? null : await store.getPlayerForDiscordUser(userId)
-  if (!trial && me === null) return say(TEXT.link)
+  const me = await store.getPlayerForDiscordUser(userId)
+  if (me === null) return say(TEXT.link)
   const now = deps.now()
   const itemId = await store.latestScrumItem({
-    playerId: me?.playerId ?? null,
+    playerId: me.playerId,
     since: new Date(now.getTime() - SCRUM_SOURCE_WINDOW_MS),
     isTest: trial,
   })

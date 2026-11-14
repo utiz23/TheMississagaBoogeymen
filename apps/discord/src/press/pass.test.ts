@@ -124,7 +124,7 @@ void test('a GM-requested person is pinged only once 60 s old', async () => {
   assert.equal(pings(t.sent)[0]!.msg.allowed_mentions.users?.[0], USER_A)
 })
 
-void test('trial: the scrum hangs on the mirror, is test, and the ping goes to the GM with "test — would ping"', async () => {
+void test('open trial: the scrum hangs on the mirror, is test, and the picked player is pinged, marked (trial)', async () => {
   const t = setup({ response: bigResponse() })
   t.store.settings.mirrorFromItemId = 9
   t.store.items.push(
@@ -141,8 +141,8 @@ void test('trial: the scrum hangs on the mirror, is test, and the ping goes to t
   assert.equal(scrum.channelId, 'test-channel')
   assert.equal(scrum.messageId, t.store.mirrors[0]!.messageId)
   const ping = pings(t.sent)[0]!
-  assert.match(ping.msg.content, new RegExp(`^test — would ping Skater A: <@${GM}> — `))
-  assert.deepEqual(ping.msg.allowed_mentions, { parse: [], users: [GM] })
+  assert.match(ping.msg.content, new RegExp(`^\\(trial\\) <@${USER_A}> — `))
+  assert.deepEqual(ping.msg.allowed_mentions, { parse: [], users: [USER_A] })
   assert.equal(ping.channelId, 'test-channel')
 })
 
