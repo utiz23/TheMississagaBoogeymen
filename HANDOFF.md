@@ -22,8 +22,10 @@ always the operator's OK. Guide [`workflow-v2.md`](docs/operations/workflow-v2.m
 [`docs/board.md`](docs/board.md); **operator's live page [`docs/decisions.md`](docs/decisions.md)**;
 commit/push rules in `CLAUDE.md`.
 
-**Operator requests 2026-11-09** (`docs/tasks/`): all three LIVE 11-09: no badge posts; goalie
-score for the 3 stars; news desk in the game channel, feed in time order, cap $60/month.
+**Press bots LIVE in the game channel** (2026-11-13; `PRESS_MODE=live`, 9 reporter bot accounts,
+news cap $100): post-game scrums, `/scrum`, `/gm`. Deployed: release 1 (0072), T1 typed answers, T2
+panel scrums + `/gm ask` (0073). **Merged, not deployed:** T3 interviews (0074), T4 Discord replies +
+typed-answer fix (0075), T5 hard lines + feuds (0076): one deploy, D1 on `docs/decisions.md`.
 
 ## Current Objective / Status
 
@@ -134,11 +136,9 @@ None.
 
 ## Next 1-3 Actions
 
-0. Discord: operator's live ping check (award + clear a mythic for a player with an ID).
-   Logins/admin open choices: club role display, more flags, a 6v6 banner.
-1. Watch teammates' reactions to the 10-09 batch (Build Locker v3, persona names from OCR). Cards: re-check the season pace at mid-season and re-tune before NHL 28 (AI-goalie ladders too). Still open: a pre-existing Contribution Wheel hydration warning. Jimmy Cap stays RW (vanity card, operator 10-09). Local `eanhl_preview` was rebuilt 10-09 from that night's backup (285 matches). New migrations must also go to `eanhl_test` (verify-ocr seed).
-2. The 2026-11-09 requests: see `docs/decisions.md` (D1 deploy, D2 goalie score, D3 news live).
-3. Backup hardening from the Codex review (optional, small): weekly/monthly
-   copies after a missed Sunday/1st, and a run lock for manual + scheduled
-   overlap. Watch teammates' feedback (including on speed). OCR writing to
-   Hotel-Echo's database is on hold (operator, 10-09); a sister-repo question.
+1. **Operator OK → deploy T3 + T4 + T5** (backup → 0074, 0075, 0076 → `press`, `news`, `web`; set the
+   privacy/data-collection `lastUpdated` that day). Then watch the next game night: typed answers,
+   panel scrums, interviews, replies, hard lines (`docs/decisions.md` D1).
+2. Read the first nights' press logs (failed writes, off-limits, feud points) and tune.
+3. Open, small: backup hardening (Codex review 10-09), Contribution Wheel hydration warning, card
+   season pace at mid-season. OCR writing to Hotel-Echo is on hold (operator, 10-09).
