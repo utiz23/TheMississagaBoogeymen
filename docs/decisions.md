@@ -6,9 +6,9 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                          | My advice                       | Waiting costs                                                          |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------- |
-| D1  | Deploy T3 interviews + T4 Discord replies + T5 hard lines/feuds together (backup → migrations 0074, 0075, 0076 → `press`, `news`, `web`; privacy page dates set that day)? All merged and checked | Yes, before the next game night | Typed answers stay broken; no interviews, replies, hard lines or feuds |
+| ID  | Question  | My advice | Waiting costs |
+| --- | --------- | --------- | ------------- |
+| -   | none open | -         | -             |
 
 ## 2. Your to-dos (only you can do these)
 
