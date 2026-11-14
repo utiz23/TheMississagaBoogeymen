@@ -714,6 +714,32 @@ export async function findScrumPerson(
 }
 
 /**
+ * T10: the person with no player row (a bench guest or the coach) of this Discord user in this
+ * scrum, or null. The partial unique index `news_scrum_people_scrum_user_nonplayer_uniq` makes
+ * it at most one row.
+ */
+export function findScrumPersonByUserQuery(scrumId: number, discordUserId: string) {
+  return db
+    .select()
+    .from(newsScrumPeople)
+    .where(
+      and(
+        eq(newsScrumPeople.scrumId, scrumId),
+        eq(newsScrumPeople.discordUserId, discordUserId),
+        isNull(newsScrumPeople.playerId),
+      ),
+    )
+    .limit(1)
+}
+
+export async function findScrumPersonByUser(
+  scrumId: number,
+  discordUserId: string,
+): Promise<NewsScrumPersonRow | null> {
+  return (await findScrumPersonByUserQuery(scrumId, discordUserId))[0] ?? null
+}
+
+/**
  * End a person's round: `pinged` → `expired` (no accept), `asking` → `done`
  * (no answer). Only while the row is still in that state and, with a
  * `cutoff`, older than it, so an accept or an answer that came in first wins.

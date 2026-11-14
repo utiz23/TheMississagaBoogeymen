@@ -1,6 +1,6 @@
 # Task: T10 — "Talk to the press" for someone already in the scrum
 
-- **State:** Verify (bench guests with no player row: partial, see Report)
+- **State:** Verify
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** low
 - **Slug:** press-talk-button
@@ -46,6 +46,10 @@ All checks pass and the tests pin the four cases.
   person with `findScrumPerson` and answers by state. Pinged and inside the window calls `onAccept`
   (same claim). Tests in new `talk-again.test.ts`; one old assertion in `interactions.test.ts` changed
   (Talk by a pinged person is now an Accept, so the "already" case uses a done person). Ruling 84 added.
+- 2026-11-14 Agent: May edit widened by the Lead 2026-11-14: also `packages/db/src/queries/news-press.ts`
+  and `packages/db/src/queries/__tests__/news-press.test.ts`. Added `findScrumPersonByUser` (query, SQL-shape
+  pin, store port, fake) and used it in `talkAgain` for people with no player row. `bench.test.ts`: the
+  "twice" assertion now checks both bench people (with and without a player row) by state. Ruling 84 updated.
 
 ## Report
 
@@ -56,7 +60,7 @@ thread); pinged late or expired = "The press has moved on."; asking = link to ow
 way"; done = "You've already talked to the press about this game."; volunteers; test scrum (free, no
 model). Checks: db build ok; discord typecheck clean; discord tests 830 pass, 0 fail; prettier clean.
 
-Gap (lane): a bench guest or the coach has no player row, and `findScrumPerson` finds people by
-player id only. For them Talk still says "You're already in this scrum." The fix is one small query in
-`packages/db/src/queries/news-press.ts` (find a person by scrum and Discord user), then a one-line
-call in `talkAgain`. That path is outside this task's "May edit", so it is not done.
+Gap closed (Lead widened the lane): `findScrumPersonByUser(scrumId, discordUserId)` in
+`packages/db/src/queries/news-press.ts` (`player_id IS NULL`), pinned by a SQL-shape test; `talkAgain`
+uses it for bench guests and the coach. Final checks: db build ok; discord typecheck clean; discord
+tests 830 pass, 0 fail; news-press db test 54 pass, 0 fail; prettier clean.

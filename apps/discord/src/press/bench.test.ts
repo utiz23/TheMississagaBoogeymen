@@ -514,11 +514,22 @@ void test('"Talk to the press": a bench person steps up; others are refused as b
       [null, 'bench', 'Wally', 'volunteer', 'asking'],
     ],
   )
-  // Twice: already in.
-  assert.deepEqual(
-    await onTalk(t.deps, cfg(), 10, WATCHER),
-    ephemeral("You're already in this scrum."),
-  )
+  // Twice (T10): answered by state, for the person with a player row and for the one without.
+  for (const [user, index] of [
+    [JOEY, 0],
+    [WATCHER, 1],
+  ] as const) {
+    const again = await onTalk(t.deps, cfg(), 10, user)
+    assert.equal(
+      again.kind === 'ephemeral' && again.text.startsWith('Your questions are in your thread'),
+      true,
+    )
+    t.store.people[index]!.status = 'done'
+    assert.deepEqual(
+      await onTalk(t.deps, cfg(), 10, user),
+      ephemeral("You've already talked to the press about this game."),
+    )
+  }
   // Not in the call (has the role? no): a linked player gets the old refusal, an unlinked one the link text.
   t.store.discordIds.set(4, USER_C)
   assert.deepEqual(

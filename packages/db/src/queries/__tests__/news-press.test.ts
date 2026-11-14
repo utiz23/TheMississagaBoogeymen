@@ -66,6 +66,7 @@ const {
   listScrumQuestionsSql,
   setScrumPersonPanelQuery,
   findScrumPersonQuery,
+  findScrumPersonByUserQuery,
   gmAsksForMatchQuery,
   gmAskForPlayerQuery,
   gmAskForUserQuery,
@@ -752,6 +753,17 @@ void test('find person: by scrum and player', () => {
   assert.match(s, /from "news_scrum_people"/)
   assert.match(s, /"news_scrum_people"."scrum_id" = \$1 and "news_scrum_people"."player_id" = \$2/)
   assert.deepEqual(q.params.slice(0, 2), [4, 9])
+})
+
+void test('find person by user: a person with no player row, by scrum and Discord user', () => {
+  const q = findScrumPersonByUserQuery(4, '200000000000000040').toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /from "news_scrum_people"/)
+  assert.match(
+    s,
+    /"news_scrum_people"."scrum_id" = \$1 and "news_scrum_people"."discord_user_id" = \$2 and "news_scrum_people"."player_id" is null/,
+  )
+  assert.deepEqual(q.params.slice(0, 2), [4, '200000000000000040'])
 })
 
 void test('GM asks for a match: active ones only, oldest first, same test rule', () => {

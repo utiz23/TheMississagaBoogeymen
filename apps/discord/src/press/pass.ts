@@ -121,6 +121,8 @@ export interface PressStore {
   /** Sets the panel once, while it is empty. True when this call set it. */
   setScrumPersonPanel(id: number, panel: ReporterId[], targetTotal: number | null): Promise<boolean>
   findScrumPerson(scrumId: number, playerId: number): Promise<NewsScrumPersonRow | null>
+  /** T10: the person with no player row (bench guest, coach) of this user in this scrum. */
+  findScrumPersonByUser(scrumId: number, discordUserId: string): Promise<NewsScrumPersonRow | null>
   insertScrumAnswer(values: NewNewsScrumAnswer): Promise<number>
   setScrumThread(scrumId: number, threadId: string): Promise<boolean>
   claimScrumQuestion(args: {

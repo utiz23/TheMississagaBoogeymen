@@ -196,7 +196,10 @@ async function talkAgain(
   playerId: number | null,
   userId: string,
 ): Promise<Reply> {
-  const row = playerId === null ? null : await deps.store.findScrumPerson(scrumId, playerId)
+  const row =
+    playerId === null
+      ? await deps.store.findScrumPersonByUser(scrumId, userId)
+      : await deps.store.findScrumPerson(scrumId, playerId)
   if (row === null) return say(TEXT.already)
   if (row.status === 'expired') return say(TEXT.movedOn)
   if (row.status === 'done') return say(TEXT.talkedAlready)

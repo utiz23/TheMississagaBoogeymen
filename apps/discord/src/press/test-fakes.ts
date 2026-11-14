@@ -504,6 +504,12 @@ export class FakeStore implements PressStore {
     Promise.resolve(
       this.people.find((p) => p.scrumId === scrumId && p.playerId === playerId) ?? null,
     )
+  findScrumPersonByUser = (scrumId: number, discordUserId: string) =>
+    Promise.resolve(
+      this.people.find(
+        (p) => p.scrumId === scrumId && p.playerId === null && p.discordUserId === discordUserId,
+      ) ?? null,
+    )
   setScrumThread = (scrumId: number, threadId: string) => {
     const s = this.scrums.find((x) => x.id === scrumId)!
     if (s.threadId !== null) return Promise.resolve(false)
