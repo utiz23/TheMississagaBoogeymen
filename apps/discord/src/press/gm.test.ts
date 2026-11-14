@@ -2,15 +2,19 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { oct12Response } from '../news/test-fixtures.ts'
 import type { ModelCall } from '../news/writer.ts'
+import { REPORTERS } from '@eanhl/db/news'
 import {
+  ASK_REPORTER_IDS,
   GM_NOTE_SCHEMA,
   gmNoteComponents,
+  onGmAsk,
   onGmHeat,
   onGmNote,
   onGmNoteCancel,
   onGmNoteCorrect,
 } from './gm.ts'
-import { GM, NIGHT, NOW, USER_A, config, setup } from './test-fakes.ts'
+import { runPressPass } from './pass.ts'
+import { GM, NIGHT, NOW, USER_A, USER_B, config, itemRow, setup } from './test-fakes.ts'
 
 const GM_ONLY = 'Only the GM can do that.'
 const NO_GAME = 'No game tonight to attach a note to.'
@@ -689,4 +693,299 @@ void test('correct and cancel act only on notes of the current press night', asy
   assert.deepEqual(await onGmNoteCancel(t.deps, config('live'), GM, r.noteId!), EARLIER)
   assert.equal(t.store.noteRows[0]!.playerId, 1)
   assert.equal(t.store.noteRows[0]!.status, 'active')
+})
+
+// ── /gm ask ──────────────────────────────────────────────────────────────────
+
+const Q = 'Why are you so pissy tonight?'
+const live = config('live')
+
+/** `/gm ask` for a player (a Discord user id), like the router passes it. */
+function ask(
+  t: ReturnType<typeof setup>,
+  over: Partial<Parameters<typeof onGmAsk>[3]> = {},
+  userId = GM,
+  cfg = live,
+) {
+  return onGmAsk(t.deps, cfg, userId, {
+    player: USER_A,
+    question: Q,
+    reporter: null,
+    exact: null,
+    game: null,
+    ...over,
+  })
+}
+
+const critical = (v: boolean) => parse({ critical: v })
+
+void test('/gm ask: only the GM; the reporter choices are the 8 scrum reporters (never Father Rink)', async () => {
+  const t = gmSetup()
+  scrumOn(t)
+  assert.deepEqual(await ask(t, {}, USER_A), ephemeral(GM_ONLY))
+  assert.equal(t.store.askRows.length, 0)
+  assert.equal(t.store.people.length, 0)
+  assert.equal(ASK_REPORTER_IDS.length, 8)
+  assert.ok(!(ASK_REPORTER_IDS as readonly string[]).includes('rink'))
+})
+
+void test('/gm ask: the player joins the open scrum as a GM request; the reply names the reporter, the player and the question', async () => {
+  const t = gmSetup()
+  scrumOn(t)
+  const reply = await ask(t, { reporter: 'pettibone' })
+  assert.deepEqual(reply, ephemeral(`Got it: Gord Pettibone will ask Skater A: ${Q}`))
+  assert.equal(REPORTERS.pettibone.name, 'Gord Pettibone')
+  const row = t.store.askRows[0]!
+  assert.equal(row.status, 'active')
+  assert.equal(row.exact, true)
+  assert.equal(row.reporter, 'pettibone')
+  assert.equal(row.playerId, 1)
+  assert.equal(row.matchId, 90002)
+  assert.equal(row.question, Q)
+  assert.equal(row.isTest, false)
+  // A GM request: picked, requested by the GM; the pass pings it after the usual 60 s.
+  const p = t.store.people[0]!
+  assert.equal(p.playerId, 1)
+  assert.equal(p.role, 'picked')
+  assert.equal(p.requestedBy, 'gm')
+  assert.equal(p.requestedByUserId, GM)
+  assert.equal(p.status, 'pinged')
+  // A full-level player needs no AI check.
+  assert.equal(t.reqs.length, 0)
+})
+
+void test('/gm ask: without a reporter the scrum reporter is named; exact off says it is a topic', async () => {
+  const t = gmSetup()
+  scrumOn(t)
+  const reply = await ask(t, { exact: false, question: 'the corner battles' })
+  assert.deepEqual(
+    reply,
+    ephemeral(
+      `Got it: ${REPORTERS.voss.name} will ask Skater A: the corner battles (as a topic, in their own words)`,
+    ),
+  )
+  assert.equal(t.store.askRows[0]!.exact, false)
+  assert.equal(t.store.askRows[0]!.reporter, null)
+})
+
+void test('/gm ask: the game option picks the game; it defaults to the latest', async () => {
+  const t = gmSetup()
+  scrumOn(t, 90001)
+  await ask(t, { game: 1 })
+  assert.equal(t.store.askRows[0]!.matchId, 90001)
+  assert.equal(t.store.people.length, 1)
+  assert.deepEqual(await ask(t, { game: 3 }), ephemeral('No game 3 tonight.'))
+  const t2 = gmSetup()
+  scrumOn(t2, 90002)
+  await ask(t2)
+  assert.equal(t2.store.askRows[0]!.matchId, 90002)
+})
+
+void test('/gm ask: the scrum is not open yet - the ask waits and the pass adds the player when it opens', async () => {
+  const t = gmSetup()
+  const reply = await ask(t, { game: 1, reporter: 'vale' })
+  assert.deepEqual(
+    reply,
+    ephemeral(
+      `Got it: ${REPORTERS.vale.name} will ask Skater A: ${Q} The scrum is not open yet: they are pinged when it opens.`,
+    ),
+  )
+  assert.equal(t.store.askRows[0]!.status, 'active')
+  assert.equal(t.store.people.length, 0)
+  // The recap posts; the pass makes the scrum and the player joins as a GM request.
+  t.store.items.push(itemRow({ id: 10, isGameRecap: true, matchId: 90001, reporter: 'voss' }))
+  await runPressPass(t.deps, live)
+  assert.equal(t.store.scrums.length, 1)
+  const p = t.store.people.find((x) => x.playerId === 1)!
+  assert.equal(p.requestedBy, 'gm')
+  assert.equal(p.role, 'picked')
+  assert.equal(t.store.people.filter((x) => x.playerId === 1).length, 1)
+})
+
+void test('/gm ask: a second ask for a player who is the scrum pick does not add a second person', async () => {
+  const t = gmSetup()
+  scrumOn(t)
+  await ask(t)
+  assert.deepEqual(
+    await ask(t, { question: 'And the third period?' }),
+    ephemeral(`Got it: ${REPORTERS.voss.name} will ask Skater A: And the third period?`),
+  )
+  assert.equal(t.store.people.length, 1)
+  assert.equal(t.store.askRows.length, 2)
+  // The newest ask for the player counts as the first question.
+  assert.equal((await t.store.gmAskForPlayer(90002, 1, false))!.question, 'And the third period?')
+})
+
+void test('/gm ask: a player already being asked, or finished, is refused; nothing active is stored', async () => {
+  const t = gmSetup()
+  const scrumId = scrumOn(t)
+  await t.store.insertScrumPerson({
+    scrumId,
+    playerId: 1,
+    discordUserId: USER_A,
+    role: 'picked',
+    requestedBy: 'auto',
+    status: 'asking',
+    questionsAsked: 1,
+    currentQuestion: 'Q?',
+  })
+  const reply = await ask(t)
+  assert.deepEqual(reply, ephemeral('Skater A is already in this scrum.'))
+  assert.deepEqual(
+    t.store.askRows.map((a) => a.status),
+    ['refused'],
+  )
+  assert.equal(t.store.askRows[0]!.refusal, 'Skater A is already in this scrum.')
+  assert.equal((await t.store.gmAsksForMatch(90002, false)).length, 0)
+})
+
+void test('/gm ask: Leave me out - refused, never stored as active; a question that names one too', async () => {
+  const t = gmSetup()
+  scrumOn(t)
+  t.store.discordIds.set(4, '200000000000000004')
+  assert.deepEqual(
+    await ask(t, { player: '200000000000000004' }),
+    ephemeral('Hidden Hank is on Leave me out — note not used.'),
+  )
+  assert.deepEqual(
+    await ask(t, { question: 'Did hankhides bother you?' }),
+    ephemeral('Hidden Hank is on Leave me out — note not used.'),
+  )
+  assert.deepEqual(
+    await ask(t, { exact: false, question: 'ask about Hidden Hank' }),
+    ephemeral('Hidden Hank is on Leave me out — note not used.'),
+  )
+  assert.equal(t.store.people.length, 0)
+  assert.ok(t.store.askRows.every((a) => a.status === 'refused'))
+  assert.equal(t.store.askRows.length, 3)
+  assert.equal(t.reqs.length, 0)
+})
+
+void test('/gm ask: a name the sheet forbids (a guest) is refused, not posted word for word', async () => {
+  const res = oct12Response('night')
+  res.forbiddenNames.push('Guest Gary')
+  const t = setup({ response: res, model: noteModel(parse()).call })
+  scrumOn(t)
+  const reply = await ask(t, { question: 'Did Guest Gary get to you?' })
+  assert.deepEqual(
+    reply,
+    ephemeral('The question names a player who must not be named — not used.'),
+  )
+  assert.equal(t.store.people.length, 0)
+  assert.equal(t.store.askRows[0]!.status, 'refused')
+  assert.equal((await t.store.gmAsksForMatch(90002, false)).length, 0)
+})
+
+void test('/gm ask: Go easy + a critical question is refused (the existing check); a kind one is accepted', async () => {
+  const t = gmSetup(critical(true))
+  scrumOn(t)
+  assert.deepEqual(
+    await ask(t, { player: USER_B, question: 'Why were you so bad tonight?' }),
+    ephemeral('Skater B is on Go easy — a critical note is not used.'),
+  )
+  assert.equal(t.reqs.length, 1)
+  assert.equal(t.store.people.length, 0)
+  assert.equal(t.store.askRows[0]!.status, 'refused')
+
+  const ok = gmSetup(critical(false))
+  scrumOn(ok)
+  assert.deepEqual(
+    await ask(ok, { player: USER_B, question: 'What went right in the second?' }),
+    ephemeral(`Got it: ${REPORTERS.voss.name} will ask Skater B: What went right in the second?`),
+  )
+  assert.equal(ok.store.people.length, 1)
+  assert.equal(ok.store.askRows[0]!.status, 'active')
+})
+
+void test('/gm ask: Go easy + the AI check unavailable (fails closed): refused', async () => {
+  // The model answers nothing usable.
+  const t = gmSetup('not a parse')
+  scrumOn(t)
+  assert.deepEqual(
+    await ask(t, { player: USER_B }),
+    ephemeral('Skater B is on Go easy — without the AI check the note is not used.'),
+  )
+  // The extras budget is spent: no AI, so refused too; a full-level player is refused by the budget.
+  const spent = gmSetup(critical(false))
+  scrumOn(spent)
+  spent.store.spend = 16
+  assert.deepEqual(
+    await ask(spent, { player: USER_B }),
+    ephemeral('Skater B cannot be asked: the press is off until next month.'),
+  )
+  assert.equal(spent.reqs.length, 0)
+  assert.equal(spent.store.people.length, 0)
+  // The call throws.
+  const boom = setup({
+    response: oct12Response('night'),
+    model: () => Promise.reject(new Error('down')),
+  })
+  scrumOn(boom)
+  assert.deepEqual(
+    await ask(boom, { player: USER_B }),
+    ephemeral('Skater B is on Go easy — without the AI check the note is not used.'),
+  )
+  assert.equal(boom.store.people.length, 0)
+})
+
+void test('/gm ask: a reporter who is off, Father Rink, an unlinked user and a player not in the game are refused', async () => {
+  const t = gmSetup()
+  scrumOn(t)
+  t.store.disabled = ['quill']
+  assert.deepEqual(
+    await ask(t, { reporter: 'quill' }),
+    ephemeral(`${REPORTERS.quill.name} is off — pick another reporter.`),
+  )
+  assert.deepEqual(
+    await ask(t, { reporter: 'rink' }),
+    ephemeral('That is not one of the scrum reporters.'),
+  )
+  assert.deepEqual(
+    await ask(t, { player: '299999999999999999' }),
+    ephemeral('That user has no linked player.'),
+  )
+  // On the roster and linked, but not in game 2.
+  t.store.roster.push({
+    playerId: 5,
+    name: 'Bench Bob',
+    gamertag: 'benchbob',
+    pressLevel: 'full',
+    aliases: [],
+  })
+  t.store.discordIds.set(5, '200000000000000005')
+  assert.deepEqual(
+    await ask(t, { player: '200000000000000005' }),
+    ephemeral('Bench Bob cannot be asked: not in game 2.'),
+  )
+  assert.equal(t.store.people.length, 0)
+  assert.equal((await t.store.gmAsksForMatch(90002, false)).length, 0)
+})
+
+void test('/gm ask: a closed scrum is refused; empty and over-long questions', async () => {
+  const t = gmSetup()
+  scrumOn(t)
+  t.store.scrums[0]!.openUntil = NOW
+  assert.deepEqual(await ask(t), ephemeral('Skater A cannot be asked: the scrum has closed.'))
+  assert.deepEqual(
+    await ask(t, { question: '   ' }),
+    ephemeral('No question saved: the question is empty.'),
+  )
+  assert.equal(t.store.people.length, 0)
+  const open = gmSetup()
+  scrumOn(open)
+  await ask(open, { question: 'x'.repeat(600) })
+  assert.equal(open.store.askRows[0]!.question.length, 400)
+})
+
+void test('/gm ask in the trial: the ask and the scrum person are test', async () => {
+  const t = gmSetup()
+  scrumOn(t, 90002, true)
+  await ask(t, {}, GM, config('trial'))
+  assert.equal(t.store.askRows[0]!.isTest, true)
+  assert.equal(t.store.people.length, 1)
+  // A live scrum on the match is not the trial's.
+  const live2 = gmSetup()
+  scrumOn(live2, 90002, false)
+  await ask(live2, {}, GM, config('trial'))
+  assert.equal(live2.store.people.length, 0)
 })

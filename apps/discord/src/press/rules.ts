@@ -11,8 +11,8 @@ import {
 
 /**
  * Scrum rules (pure, no I/O): which player a scrum picks, whether it pings,
- * how hot it runs, which reporter asks, how many questions, and when the
- * extras budget is spent. The press timer pass and the button handlers call
+ * how hot it runs, which reporters ask (the panel), how many questions and
+ * follow-ups, and when the extras budget is spent. The press timer pass and the button handlers call
  * these.
  */
 
@@ -141,14 +141,112 @@ export function chooseScrumReporter(args: {
   return weightedPick(choices, mulberry32(args.seed >>> 0))
 }
 
-/** Questions a scrum asks first: 2 for a picked player, 1 for a volunteer. */
+/** Reporters who ask one person: 3 for a picked player (or a GM request), 2 for a volunteer. */
+export const PANEL_SIZE = { picked: 3, volunteer: 2 } as const
+
+export function panelSize(role: 'picked' | 'volunteer'): number {
+  return PANEL_SIZE[role]
+}
+
+/**
+ * The target total of questions plus follow-ups for one picked player, with
+ * its share in percent: a low chance of both extremes, the middle value 5.
+ */
+export const TARGET_TOTALS: readonly (readonly [number, number])[] = [
+  [3, 10],
+  [4, 25],
+  [5, 50],
+  [6, 15],
+]
+
+/** The total drawn for one picked player (seeded: the same seed gives the same total). */
+export function drawTargetTotal(seed: number): number {
+  return weightedPick(TARGET_TOTALS, mulberry32(seed >>> 0))
+}
+
+/**
+ * The target total for a role: a volunteer asks 2 reporters and gets no
+ * follow-up (total 2); a picked player gets the drawn total (3-6).
+ */
+export function targetTotalFor(role: 'picked' | 'volunteer', seed: number): number {
+  return role === 'volunteer' ? PANEL_SIZE.volunteer : drawTargetTotal(seed)
+}
+
+/**
+ * The reporters who ask one person, in order. `first` asks first when it can
+ * (the GM's chosen reporter, or the scrum's own reporter chosen by rotation,
+ * heat and takes); the others are drawn without replacement with the heat and
+ * take weights of `chooseScrumReporter`. Never `rink`, never a disabled
+ * reporter, no reporter twice. Shorter than `size` only when too few reporters
+ * are left. Seeded.
+ */
+export function choosePanel(args: {
+  size: number
+  heat: Heat
+  seed: number
+  disabled: readonly ReporterId[]
+  first: ReporterId | null
+  takeReporters: readonly ReporterId[]
+}): ReporterId[] {
+  const allowed = REPORTER_IDS.filter((id) => id !== 'rink' && !args.disabled.includes(id))
+  const panel: ReporterId[] = []
+  if (args.first !== null && allowed.includes(args.first)) panel.push(args.first)
+  const heatSet = args.heat === 'cool' ? COOL_REPORTERS : args.heat === 'hot' ? HOT_REPORTERS : []
+  const rand = mulberry32(args.seed >>> 0)
+  while (panel.length < args.size) {
+    const pool = allowed.filter((id) => !panel.includes(id))
+    if (pool.length === 0) break
+    const choices = pool.map((id): [ReporterId, number] => {
+      let weight = 1
+      if (heatSet.includes(id)) weight *= 3
+      if (args.takeReporters.includes(id)) weight *= 2
+      return [id, weight]
+    })
+    panel.push(weightedPick(choices, rand))
+  }
+  return panel
+}
+
+/** What a reporter may do after an answer: nothing, a follow-up if there is a lot to chase, or a follow-up now. */
+export type FollowUpPlan = 'none' | 'chased' | 'must'
+
+/**
+ * The follow-up plan after an answer in a panel round. At most one follow-up
+ * per reporter (never after a follow-up); the round aims for `targetTotal`
+ * questions plus follow-ups. With follow-ups still to give (`targetTotal` -
+ * panel size - follow-ups so far):
+ * - as many left as answers still to come (this one and the later questions):
+ *   `must` (every chance is needed);
+ * - fewer: `chased` (only when the answer has a lot to chase), so the
+ *   follow-ups go to the answers with the most to chase.
+ * A reporter who cannot (an unusable answer) leaves the round shorter.
+ * `questionsAsked` counts the base questions asked, the current one included.
+ */
+export function followUpPlan(p: {
+  panelSize: number
+  questionsAsked: number
+  followupsAsked: number
+  askingFollowup: boolean
+  targetTotal: number
+}): FollowUpPlan {
+  if (p.askingFollowup) return 'none'
+  const left = p.targetTotal - p.panelSize - p.followupsAsked
+  if (left <= 0) return 'none'
+  const chances = p.panelSize - p.questionsAsked + 1
+  return left >= chances ? 'must' : 'chased'
+}
+
+/**
+ * Old one-reporter rounds (a person with no panel, made before migration
+ * 0073): 2 questions for a picked player, 1 for a volunteer.
+ */
 export function questionLimit(role: 'picked' | 'volunteer'): number {
   return role === 'picked' ? 2 : 1
 }
 
 /**
- * At most one follow-up per question, and no more than the role's limit.
- * A follow-up comes after the answer to the current question, so the
+ * Old rounds: at most one follow-up per question, and no more than the role's
+ * limit. A follow-up comes after the answer to the current question, so the
  * follow-ups so far must be fewer than the questions asked.
  */
 export function followUpAllowed(p: {

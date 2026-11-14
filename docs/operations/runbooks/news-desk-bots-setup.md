@@ -309,3 +309,38 @@ Delete them by hand if you want to.
 
 The migration stays. It does no harm. To undo it, use the rollback SQL in the
 header of `packages/db/migrations/0072_news_press.sql`.
+
+## Panel scrums and `/gm ask` (migration 0073)
+
+A player is now asked by a panel of reporters. A picked player gets 3 reporters, one question
+each. A volunteer ("Talk to the press", `/scrum`) gets 2 reporters and no follow-up. Each
+reporter posts in their own name, in the same scrum thread. Each picked player has a target
+of 3 to 6 questions and follow-ups (3: 10%, 4: 25%, 5: 50%, 6: 15%). A follow-up is always
+by the reporter who asked the question before it. An unusable answer gets no follow-up, so
+that round is shorter.
+
+Every reporter bot must be able to post in threads of the game channel (the same
+permission that lets the bots post in the channel). Check this in the first live scrum.
+
+**Apply the migration before the new code runs**, after a fresh backup (same steps as
+migration 0072 above). It is safe to run twice, and it only adds things:
+
+```
+docker exec -i -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=30s" \
+  eanhl-team-website-db-1 psql -U eanhl -d eanhl -v ON_ERROR_STOP=1 -f - \
+  < packages/db/migrations/0073_press_panel.sql
+```
+
+To undo it, roll the code back first, then run the rollback SQL in the header of
+`packages/db/migrations/0073_press_panel.sql`.
+
+`/gm ask player:<user> question:<text> [reporter] [exact] [game]` (GM only): the player joins
+that game's scrum as a GM request, and the chosen reporter asks the question as the player's
+first question. `exact` is on by default: the question goes out word for word. With `exact`
+off, the reporter writes it as a topic in their own voice. A "Leave me out" player, a question
+that names such a player, and a "Go easy" player with a critical question (or no AI check)
+are refused in private.
+
+Pop-up answers are shown in the thread as soon as they are sent. The one exception is an
+answer that names a "Leave me out" or forbidden person. An unusable answer is acknowledged
+with a short line and is never quoted later.

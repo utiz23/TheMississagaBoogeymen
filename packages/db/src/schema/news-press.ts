@@ -101,12 +101,28 @@ export const newsScrumPeople = pgTable(
     askingFollowup: boolean('asking_followup').notNull().default(false),
     currentQuestion: text('current_question'),
     lastAskedAt: timestamp('last_asked_at', { withTimezone: true }),
+    /**
+     * The reporters who ask this person, in order (migration 0073). Empty = an old
+     * one-reporter round: the scrum's own reporter asks, with the old limits.
+     */
+    panel: text('panel')
+      .array()
+      .$type<NewsReporterId[]>()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    /** Questions plus follow-ups the round aims for (2-6); null = an old round. */
+    targetTotal: integer('target_total'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     unique('news_scrum_people_scrum_player_uniq').on(table.scrumId, table.playerId),
     index('news_scrum_people_status_idx').on(table.status),
     check('news_scrum_people_role_check', sql`${table.role} IN ('picked', 'volunteer')`),
+    check('news_scrum_people_panel_check', sql.raw(`"panel" <@ ARRAY[${REPORTER_LIST}]::text[]`)),
+    check(
+      'news_scrum_people_target_total_check',
+      sql`${table.targetTotal} IS NULL OR ${table.targetTotal} BETWEEN 2 AND 6`,
+    ),
     check(
       'news_scrum_people_requested_by_check',
       sql`${table.requestedBy} IN ('auto', 'gm', 'command', 'self')`,
@@ -136,11 +152,17 @@ export const newsScrumAnswers = pgTable(
     question: text('question').notNull(),
     answer: text('answer').notNull(),
     usability: text('usability').$type<ScrumAnswerUsability>().notNull(),
+    /** The reporter who asked (migration 0073); null = the scrum's own reporter. */
+    reporter: text('reporter').$type<NewsReporterId>(),
     isTest: boolean('is_test').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('news_scrum_answers_night_idx').on(table.night),
+    check(
+      'news_scrum_answers_reporter_check',
+      sql.raw(`"reporter" IS NULL OR "reporter" IN (${REPORTER_LIST})`),
+    ),
     check(
       'news_scrum_answers_usability_check',
       sql`${table.usability} IN ('usable', 'joke', 'unusable')`,
@@ -171,6 +193,44 @@ export const newsGmNotes = pgTable(
   (table) => [
     index('news_gm_notes_night_idx').on(table.night),
     check('news_gm_notes_status_check', sql`${table.status} IN ('active', 'refused', 'cancelled')`),
+  ],
+)
+
+/**
+ * The GM's `/gm ask` (migration 0073): this player is asked this question (word
+ * for word when `exact`, else as a topic in the reporter's voice) as their first
+ * question, by `reporter` (null = the first reporter of their panel). Not a
+ * `news_gm_notes` row: a note reaches the writers as a true event of the night,
+ * and a question is not an event.
+ */
+export const newsGmAsks = pgTable(
+  'news_gm_asks',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    matchId: bigint('match_id', { mode: 'number' }).references(() => matches.id, {
+      onDelete: 'set null',
+    }),
+    night: date('night', { mode: 'string' }).notNull(),
+    playerId: integer('player_id')
+      .notNull()
+      .references(() => players.id),
+    question: text('question').notNull(),
+    exact: boolean('exact').notNull().default(true),
+    reporter: text('reporter').$type<NewsReporterId>(),
+    status: text('status').$type<GmNoteStatus>().notNull().default('active'),
+    refusal: text('refusal'),
+    requestedByUserId: text('requested_by_user_id'),
+    isTest: boolean('is_test').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('news_gm_asks_match_player_idx').on(table.matchId, table.playerId),
+    index('news_gm_asks_night_idx').on(table.night),
+    check('news_gm_asks_status_check', sql`${table.status} IN ('active', 'refused', 'cancelled')`),
+    check(
+      'news_gm_asks_reporter_check',
+      sql.raw(`"reporter" IS NULL OR "reporter" IN (${REPORTER_LIST})`),
+    ),
   ],
 )
 
@@ -252,4 +312,6 @@ export type NewNewsScrumPerson = typeof newsScrumPeople.$inferInsert
 export type NewNewsScrumAnswer = typeof newsScrumAnswers.$inferInsert
 export type NewsGmNoteRow = typeof newsGmNotes.$inferSelect
 export type NewNewsGmNote = typeof newsGmNotes.$inferInsert
+export type NewsGmAskRow = typeof newsGmAsks.$inferSelect
+export type NewNewsGmAsk = typeof newsGmAsks.$inferInsert
 export type NewsPressSettingsRow = typeof newsPressSettings.$inferSelect

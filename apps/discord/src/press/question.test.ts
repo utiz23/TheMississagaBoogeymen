@@ -4,7 +4,23 @@ import type { ModelCall } from '../news/writer.ts'
 import { oct12Response } from '../news/test-fixtures.ts'
 import { runPressPass } from './pass.ts'
 import { startScrumQuestion } from './question.ts'
-import { NOW, GM, USER_A, USER_B, config, itemRow, setup, scrumWithPerson } from './test-fakes.ts'
+import {
+  NOW,
+  GM,
+  USER_A,
+  USER_B,
+  config,
+  itemRow,
+  setup,
+  scrumWithPerson,
+  isPoolLine,
+  type Sent,
+} from './test-fakes.ts'
+
+/** The post is a question of the posting reporter's own fallback pool (for Skater A). */
+function poolQuestion(_t: ReturnType<typeof setup>, s: Sent): boolean {
+  return isPoolLine('question', s, USER_A)
+}
 
 void test('startScrumQuestion: thread "<Reporter> — <player>", question with the Answer button, asking', async () => {
   const reqs: Parameters<ModelCall>[0][] = []
@@ -90,8 +106,9 @@ void test('startScrumQuestion: earlier answers go in as history (unusable ones a
   assert.match(write.user, /Second question\?/)
   assert.doesNotMatch(write.user, /my job is awful/)
   assert.match(write.user, /question 3 of the scrum/)
-  // The model failed: the fallback question is posted, and the person moves on.
-  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Walk me through that one, Skater A.`)
+  // The model failed: a question of the reporter's own pool is posted, and the person moves on.
+  assert.ok(poolQuestion(t, t.sent.at(-1)!), t.sent.at(-1)!.msg.content)
+  assert.ok(t.logs.some((l) => l.includes('write failed') || l.includes('stop after the prompt')))
   assert.equal(t.store.people.find((x) => x.id === personId)!.questionsAsked, 3)
 })
 
@@ -101,10 +118,13 @@ void test('startScrumQuestion: budget spent → fallback question, no model call
   t.store.spend = 16
   await startScrumQuestion(t.deps, config('live'), personId)
   assert.equal(t.modelCalls.length, 0)
-  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Walk me through that one, Skater A.`)
+  const first = t.sent.at(-1)!.msg.content
+  assert.ok(poolQuestion(t, t.sent.at(-1)!), first)
   t.store.people.find((x) => x.id === personId)!.status = 'asking'
   await startScrumQuestion(t.deps, config('live'), personId)
   assert.equal(t.modelCalls.length, 0)
+  // Never the same fallback line twice in one thread.
+  assert.notEqual(t.sent.at(-1)!.msg.content, first)
   assert.equal(t.logs.filter((l) => l.startsWith('[press] budget:')).length, 1)
 })
 
@@ -174,12 +194,12 @@ void test('open trial: the question and the closing line mention the player them
   t.store.spend = 100
   await startScrumQuestion(t.deps, config('trial'), id)
   const q = t.sent.at(-1)!
-  assert.equal(q.msg.content, `<@${USER_A}> Walk me through that one, Skater A.`)
+  assert.ok(poolQuestion(t, q), q.msg.content)
   assert.deepEqual(q.msg.allowed_mentions, { parse: [], users: [USER_A] })
   t.store.people[0]!.lastAskedAt = new Date(NOW.getTime() - 901_000)
   await runPressPass(t.deps, config('trial'))
   const closing = t.sent.at(-1)!
-  assert.equal(closing.msg.content, `<@${USER_A}> Fair enough — next game.`)
+  assert.ok(isPoolLine('closing', closing, USER_A), closing.msg.content)
   assert.deepEqual(closing.msg.allowed_mentions, { parse: [], users: [USER_A] })
 })
 

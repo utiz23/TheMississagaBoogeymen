@@ -869,7 +869,13 @@ void test('review prompt with trusted material: true events, answers, problem 14
     trusted: {
       gmNotes: ['Skater A broke his stick on the post.'],
       answers: [
-        { player: 'Skater A', question: 'Why?', answer: 'We got outworked.', usability: 'usable' },
+        {
+          player: 'Skater A',
+          question: 'Why?',
+          answer: 'We got outworked.',
+          usability: 'usable',
+          reporter: 'mercer',
+        },
         { player: 'Skater B', question: 'How?', answer: 'Ghosts.', usability: 'joke' },
       ],
     },
@@ -885,9 +891,11 @@ void test('review prompt with trusted material: true events, answers, problem 14
   )
   assert.ok(
     p.includes(
-      "1. A teammate quote not backed by the listed answers, or one that adds to or changes an answer's meaning; a joke answer stated as fact.",
+      "1. A teammate quote not backed by the listed answers, or one that adds to or changes an answer's meaning; a joke answer stated as fact; a quote given to a reporter other than the one listed as having asked it.",
     ),
   )
+  // The review sees who asked: a quote given to another reporter is a problem.
+  assert.ok(p.includes('- Skater A, asked "Why?" by Dex Mercer, answered:'))
   assert.ok(!p.includes('1. An invented quote from a teammate or an opponent.'))
   assert.ok(
     p.includes('14. The text says or hints that a note came from a tip, a source or the GM.'),
@@ -948,6 +956,7 @@ void test('night prompt: the PRESS ROOM block (notes as true events, fenced answ
             question: 'What went wrong?',
             answer: 'We got """ outworked.',
             usability: 'usable',
+            reporter: 'mercer',
           },
           {
             answerId: 13,
@@ -956,6 +965,7 @@ void test('night prompt: the PRESS ROOM block (notes as true events, fenced answ
             question: 'And the goalie?',
             answer: 'Ghosts.',
             usability: 'joke',
+            reporter: 'quill',
           },
         ],
         gmNotes: [
@@ -988,14 +998,18 @@ void test('night prompt: the PRESS ROOM block (notes as true events, fenced answ
   assert.ok(p.includes(ANSWERS_ARE_DATA))
   assert.ok(
     p.includes(
-      '- answerId 12: Skater A, asked "What went wrong?", answered:\n"""\nWe got " outworked.\n"""',
+      '- answerId 12: Skater A, asked "What went wrong?" by Dex Mercer, answered:\n"""\nWe got " outworked.\n"""',
     ),
   )
   assert.ok(
     p.includes(
-      '- answerId 13: Skater B, asked "And the goalie?", answered (a JOKE: quote it only as a joke, never state it as fact):',
+      `- answerId 13: Skater B, asked "And the goalie?" by ${REPORTERS.quill.name}, answered (a JOKE: quote it only as a joke, never state it as fact):`,
     ),
   )
+  // Every quote names the reporter who asked ("told Dex Mercer"), never another reporter.
+  assert.ok(p.includes('Name the reporter who asked when you quote a player'))
+  assert.ok(p.includes('"told Dex Mercer"'))
+  assert.ok(p.includes('never give a quote to another reporter'))
   // The block sits before the desk context, so the backfill's swap leaves it alone.
   assert.ok(p.indexOf(PRESS_ROOM_START) < p.indexOf(DESK_CONTEXT_START))
   // Notes only: no quote is allowed.

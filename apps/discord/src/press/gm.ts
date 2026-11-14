@@ -1,6 +1,14 @@
-import { nightKey, type NewsFacts, type NewsGameFacts } from '@eanhl/db/news'
+import {
+  REPORTERS,
+  REPORTER_IDS,
+  nightKey,
+  type NewsFacts,
+  type NewsGameFacts,
+  type ReporterId,
+} from '@eanhl/db/news'
 import type { NewNewsGmNote, NewsGmNoteRow, PressRosterEntry } from '@eanhl/db/queries'
 import { escapeMarkdown } from '../message.ts'
+import { containsName } from '../news/fact-check.ts'
 import { fencedAnswer } from '../news/prompts.ts'
 import type { PressConfig } from './config.ts'
 import type { Reply } from './interactions.ts'
@@ -11,7 +19,8 @@ import { extrasBudgetLeft, scrumCandidates, type Heat } from './rules.ts'
 /**
  * The GM's private controls: `/gm note` (a free-text note about a play, found
  * to a player and a game by the nickname list, the roster names and one AI
- * call), its correct/cancel buttons, and `/gm heat`. Pure over `PressDeps`;
+ * call), its correct/cancel buttons, `/gm ask` (the GM shapes a player's first
+ * question and who asks it) and `/gm heat`. Pure over `PressDeps`;
  * only the GM (`gmUserId`) may act. Fairness runs before any side effect: a
  * note about a "Leave me out" player, or a critical note about a "Go easy"
  * player, is stored `refused` and does nothing else. A "Leave me out"
@@ -375,6 +384,42 @@ async function noteNight(deps: PressDeps): Promise<string | null> {
   return deps.store.latestPressNight(new Date(deps.now().getTime() - SCRUM_SOURCE_WINDOW_MS))
 }
 
+/**
+ * The note's AI parse (one call). `noAi` says why there is none (the extras
+ * budget, or the call failed): the callers fail closed on it.
+ */
+async function analyseNote(
+  deps: PressDeps,
+  config: PressConfig,
+  note: string,
+  games: NewsGameFacts[],
+  roster: readonly PressRosterEntry[],
+): Promise<{ parsed: NoteParse | null; noAi: string | null }> {
+  const { store, log } = deps
+  if (!extrasBudgetLeft(await store.monthNewsSpendUsd(deps.now()), config.monthlyLimitUsd)) {
+    return { parsed: null, noAi: TEXT.noBudget }
+  }
+  let parsed: NoteParse | null = null
+  try {
+    const out = await deps.call({
+      purpose: 'write',
+      system: NOTE_SYSTEM,
+      user: notePrompt(
+        note,
+        games,
+        roster.filter((r) => r.pressLevel !== 'out'),
+      ),
+      schema: GM_NOTE_SCHEMA,
+      effort: 'low',
+    })
+    await pressRecorder(store)('write', out.model, out.usage)
+    parsed = out.refused ? null : parseNote(out.json)
+  } catch (err: unknown) {
+    log(`[press] gm note: ${reason(err)}`)
+  }
+  return { parsed, noAi: parsed === null ? TEXT.aiFailed : null }
+}
+
 /** `/gm note <text> [game]`: store the note, found to a player and a game. */
 export async function onGmNote(
   deps: PressDeps,
@@ -402,30 +447,7 @@ export async function onGmNote(
   const named = outPlayerNamed(note, roster)
   let parsed: NoteParse | null = null
   let noAi: string | null = null
-  if (named === null) {
-    if (!extrasBudgetLeft(await store.monthNewsSpendUsd(deps.now()), config.monthlyLimitUsd)) {
-      noAi = TEXT.noBudget
-    } else {
-      try {
-        const out = await deps.call({
-          purpose: 'write',
-          system: NOTE_SYSTEM,
-          user: notePrompt(
-            note,
-            games,
-            roster.filter((r) => r.pressLevel !== 'out'),
-          ),
-          schema: GM_NOTE_SCHEMA,
-          effort: 'low',
-        })
-        await pressRecorder(store)('write', out.model, out.usage)
-        parsed = out.refused ? null : parseNote(out.json)
-      } catch (err: unknown) {
-        log(`[press] gm note: ${reason(err)}`)
-      }
-      if (parsed === null) noAi = TEXT.aiFailed
-    }
-  }
+  if (named === null) ({ parsed, noAi } = await analyseNote(deps, config, note, games, roster))
 
   const player = named ?? resolvePlayer(note, roster, parsed)
   const critical = parsed?.critical ?? false
@@ -475,6 +497,154 @@ export async function onGmNote(
     noteId,
     choices: choicesOf(res.facts),
   }
+}
+
+/** The reporters `/gm ask` may name: the 8 scrum reporters (never Father Rink). */
+export const ASK_REPORTER_IDS: readonly ReporterId[] = REPORTER_IDS.filter((id) => id !== 'rink')
+/** A GM question is cut to this (code points). */
+export const ASK_MAX_CHARS = 400
+
+const ASK_TEXT = {
+  empty: 'No question saved: the question is empty.',
+  noPlayer: 'That user has no linked player.',
+  badReporter: 'That is not one of the scrum reporters.',
+  named: 'The question names a player who must not be named — not used.',
+  budget: 'the press is off until next month',
+} as const
+
+/**
+ * `/gm ask <player> <question> [reporter] [exact] [game]`: the player joins
+ * that game's scrum as a GM request (pinged after the usual 60 s; when the
+ * scrum opens, if it is not open yet), and the chosen reporter (default: the
+ * first of the player's panel) asks the question as the player's FIRST
+ * question: word for word when `exact` (the default), else written from it as
+ * a topic in the reporter's voice. Fairness runs before anything is stored as
+ * active: a "Leave me out" player, a question that names one, or a guest, a
+ * "Go easy" player when the question is critical (the note check; fails
+ * closed) or the AI check is unavailable, a reporter who is off, a player not
+ * in the game, a closed scrum and a player already asked all get a private
+ * refusal (stored `refused`, never used). Private reply: "Got it: <Reporter>
+ * will ask <Player>: <question>".
+ */
+export async function onGmAsk(
+  deps: PressDeps,
+  config: PressConfig,
+  userId: string,
+  args: {
+    /** The player's Discord user id. */
+    player: string
+    question: string
+    reporter: string | null
+    exact: boolean | null
+    game: number | null
+  },
+): Promise<Reply> {
+  const { store } = deps
+  if (userId !== config.gmUserId) return say(TEXT.gmOnly)
+  const question = Array.from(args.question.trim()).slice(0, ASK_MAX_CHARS).join('').trimEnd()
+  if (question === '') return say(ASK_TEXT.empty)
+  const reporterId =
+    args.reporter === null ? null : (ASK_REPORTER_IDS.find((id) => id === args.reporter) ?? null)
+  if (args.reporter !== null && reporterId === null) return say(ASK_TEXT.badReporter)
+  const exact = args.exact ?? true
+
+  const night = await noteNight(deps)
+  if (night === null) return say(TEXT.noGame)
+  const res = await deps.fetchFacts('night', night)
+  const games = nightGames(res.facts)
+  if (games.length === 0) return say(TEXT.noGame)
+  if (args.game !== null && (args.game < 1 || args.game > games.length)) {
+    return say(`No game ${String(args.game)} tonight.`)
+  }
+  const number = args.game ?? games.length
+  const game = games[number - 1]!
+  const me = await store.getPlayerForDiscordUser(args.player)
+  if (me === null) return say(ASK_TEXT.noPlayer)
+  const roster = await store.listPressRoster()
+  const entry = roster.find((r) => r.playerId === me.playerId)
+  if (entry === undefined) return say(TEXT.notOnRoster)
+  const isTest = config.mode === 'trial'
+  const name = entry.name
+
+  const base = {
+    matchId: game.matchId,
+    night,
+    playerId: entry.playerId,
+    question,
+    exact,
+    reporter: reporterId,
+    requestedByUserId: userId,
+    isTest,
+  }
+  /** A refusal is private; the row is kept (`refused`) and never used. */
+  const refuse = async (text: string): Promise<Reply> => {
+    await store.insertGmAsk({ ...base, status: 'refused', refusal: text })
+    return say(text)
+  }
+
+  // Fairness first, before any AI call or any ask stored as active.
+  if (entry.pressLevel === 'out') return refuse(outText(name))
+  const named = outPlayerNamed(question, roster)
+  if (named !== null) return refuse(outText(named.name))
+  if (res.forbiddenNames.some((n) => containsName(question, n))) return refuse(ASK_TEXT.named)
+  if (!extrasBudgetLeft(await store.monthNewsSpendUsd(deps.now()), config.monthlyLimitUsd)) {
+    return refuse(`${escapeMarkdown(name)} cannot be asked: ${ASK_TEXT.budget}.`)
+  }
+  if (entry.pressLevel === 'easy') {
+    // "Go easy": the note's criticism check, and no AI check = no question (fails closed).
+    const { parsed } = await analyseNote(deps, config, question, games, roster)
+    if (parsed === null) return refuse(easyNoAiText(name))
+    if (parsed.critical) return refuse(easyText(name))
+  }
+  if (reporterId !== null && (await store.listDisabledReporters()).includes(reporterId)) {
+    return refuse(`${REPORTERS[reporterId].name} is off — pick another reporter.`)
+  }
+
+  const discordUserId = await store.getPlayerDiscordUserId(entry.playerId)
+  if (discordUserId === null)
+    return refuse(`${escapeMarkdown(name)} cannot be asked: no linked Discord.`)
+  const candidate = scrumCandidates(
+    game,
+    res.facts,
+    new Map([[entry.playerId, discordUserId]]),
+  ).find((c) => c.playerId === entry.playerId)
+  if (candidate === undefined) {
+    return refuse(`${escapeMarkdown(name)} cannot be asked: not in game ${String(number)}.`)
+  }
+  const scrum = await store.scrumForMatch(game.matchId, isTest)
+  if (scrum !== null) {
+    if (deps.now() >= scrum.openUntil) {
+      return refuse(`${escapeMarkdown(name)} cannot be asked: the scrum has closed.`)
+    }
+    const there = await store.findScrumPerson(scrum.id, entry.playerId)
+    // Already in, but not asked yet: the GM's question still comes first.
+    if (there !== null && (there.status !== 'pinged' || there.questionsAsked > 0)) {
+      return refuse(`${escapeMarkdown(name)} is already in this scrum.`)
+    }
+  }
+
+  await store.insertGmAsk({ ...base, status: 'active', refusal: null })
+  if (scrum !== null) {
+    await store.insertScrumPerson({
+      scrumId: scrum.id,
+      playerId: entry.playerId,
+      discordUserId,
+      role: 'picked',
+      requestedBy: 'gm',
+      requestedByUserId: userId,
+    })
+  }
+  const who =
+    reporterId !== null
+      ? REPORTERS[reporterId].name
+      : scrum !== null
+        ? REPORTERS[scrum.reporter].name
+        : 'the first reporter on their panel'
+  const how = exact ? '' : ' (as a topic, in their own words)'
+  const wait = scrum === null ? ' The scrum is not open yet: they are pinged when it opens.' : ''
+  return say(
+    `Got it: ${who} will ask ${escapeMarkdown(name)}: ${escapeMarkdown(question)}${how}${wait}`,
+  )
 }
 
 /** The player select on a note: the GM picks the right player. Saves the nickname. */

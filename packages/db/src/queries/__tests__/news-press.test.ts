@@ -1,5 +1,5 @@
 /**
- * SQL-shape pins for the press queries (news desk bots, migration 0072). No database.
+ * SQL-shape pins for the press queries (news desk bots, migrations 0072 and 0073). No database.
  *   pnpm --filter @eanhl/db build
  *   node --test packages/db/dist/queries/__tests__/news-press.test.js
  */
@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import { PgDialect, getTableConfig } from 'drizzle-orm/pg-core'
 import {
   NEWS_JOB_KINDS,
+  newsGmAsks,
   newsGmNotes,
   newsPlayerAliases,
   newsPressMirrors,
@@ -61,6 +62,11 @@ const {
   updateGmNoteQuery,
   countGmPingsTonightSql,
   expireUnpingedGmPersonQuery,
+  listScrumQuestionsSql,
+  setScrumPersonPanelQuery,
+  findScrumPersonQuery,
+  gmAsksForMatchQuery,
+  gmAskForPlayerQuery,
 } = await import('../news-press.js')
 const { nightCriticizedSql } = await import('../news.js')
 const dialect = new PgDialect()
@@ -93,9 +99,11 @@ void test('scrum people: unique (scrum_id, player_id); status, role, requested_b
   assert.deepEqual(unique.columns.map((c) => c.name).sort(), ['player_id', 'scrum_id'])
   const names = cfg.checks.map((c) => c.name).sort()
   assert.deepEqual(names, [
+    'news_scrum_people_panel_check',
     'news_scrum_people_requested_by_check',
     'news_scrum_people_role_check',
     'news_scrum_people_status_check',
+    'news_scrum_people_target_total_check',
   ])
   const status = cfg.checks.find((c) => c.name === 'news_scrum_people_status_check')
   const text = flat(dialect.sqlToQuery(status!.value).sql)
@@ -214,6 +222,9 @@ void test('night press material: usable or joke answers only, never from players
   assert.match(s, /\(a\.is_test = false or \$2\)/)
   assert.match(s, /order by a\.id asc/)
   assert.match(s, /coalesce\(nullif\(btrim\(pp\.player_name\), ''\), p\.gamertag\)/)
+  // Every quote names the reporter who asked: the answer's own, else the scrum's (an old round).
+  assert.match(s, /coalesce\(a\.reporter, sc\.reporter\) as reporter/)
+  assert.match(s, /join news_scrums sc on sc\.id = a\.scrum_id/)
   assert.deepEqual(q.params, ['2026-10-25', false])
 })
 
@@ -404,7 +415,7 @@ void test('scrum person detail: person, scrum and display name; by id or the peo
 void test("scrum answers: one person's answers, oldest first", () => {
   const q = listScrumAnswersQuery(5).toSQL()
   const s = flat(q.sql)
-  assert.match(s, /select "question", "answer", "usability" from "news_scrum_answers"/)
+  assert.match(s, /select "question", "answer", "usability", "reporter" from "news_scrum_answers"/)
   assert.match(s, /where "news_scrum_answers"."person_id" = \$1/)
   assert.match(s, /order by "news_scrum_answers"."id" asc/)
 })
@@ -610,4 +621,170 @@ void test('reaction item by id: not deleted, with the job kind', () => {
   assert.match(s, /where n\.deleted_at is null and n\.id = \$1/)
   assert.doesNotMatch(s, /news_press_mirrors/)
   assert.deepEqual(q.params, [42])
+})
+
+// ── Panel scrums and /gm ask (migration 0073) ───────────────────────────────
+
+void test('scrum people: panel (reporter ids, default empty) and target_total (2-6, nullable)', () => {
+  const cfg = getTableConfig(newsScrumPeople)
+  const panel = cfg.columns.find((c) => c.name === 'panel')
+  assert.ok(panel, 'panel column')
+  assert.equal(panel.notNull, true)
+  assert.equal(panel.getSQLType(), 'text[]')
+  const target = cfg.columns.find((c) => c.name === 'target_total')
+  assert.ok(target, 'target_total column')
+  assert.equal(target.notNull, false)
+})
+
+void test('scrum answers: reporter is nullable (null = the scrum reporter) with a reporter check', () => {
+  const cfg = getTableConfig(newsScrumAnswers)
+  const reporter = cfg.columns.find((c) => c.name === 'reporter')
+  assert.ok(reporter, 'reporter column')
+  assert.equal(reporter.notNull, false)
+  assert.ok(cfg.checks.some((c) => c.name === 'news_scrum_answers_reporter_check'))
+})
+
+void test('GM asks: their own table (a note reaches the writers as a true event), with status and reporter checks', () => {
+  const cfg = getTableConfig(newsGmAsks)
+  assert.equal(cfg.name, 'news_gm_asks')
+  const names = cfg.columns.map((c) => c.name).sort()
+  assert.deepEqual(names, [
+    'created_at',
+    'exact',
+    'id',
+    'is_test',
+    'match_id',
+    'night',
+    'player_id',
+    'question',
+    'refusal',
+    'reporter',
+    'requested_by_user_id',
+    'status',
+  ])
+  assert.deepEqual(cfg.checks.map((c) => c.name).sort(), [
+    'news_gm_asks_reporter_check',
+    'news_gm_asks_status_check',
+  ])
+  const exact = cfg.columns.find((c) => c.name === 'exact')!
+  assert.equal(exact.default, true)
+})
+
+void test('answers list carries the reporter; the scrum questions query leaves the person out, answered first', () => {
+  const a = flat(listScrumAnswersQuery(5).toSQL().sql)
+  assert.match(a, /"usability", "reporter" from "news_scrum_answers"/)
+  const q = dialect.sqlToQuery(listScrumQuestionsSql(3, 7))
+  const s = flat(q.sql)
+  assert.match(s, /from news_scrum_answers a where a\.scrum_id = \$1 and a\.person_id <> \$2/)
+  assert.match(
+    s,
+    /from news_scrum_people p where p\.scrum_id = \$3 and p\.id <> \$4 and p\.current_question is not null/,
+  )
+  assert.match(s, /order by q\.ord asc/)
+  assert.deepEqual(q.params, [3, 7, 3, 7])
+})
+
+void test('set panel: only while the panel is empty (two callers never both set it)', () => {
+  const q = setScrumPersonPanelQuery(8, ['voss', 'mercer', 'vale'], 5).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /^update "news_scrum_people" set "panel" = \$1, "target_total" = \$2/)
+  assert.match(
+    s,
+    /"news_scrum_people"."id" = \$3 and cardinality\("news_scrum_people"."panel"\) = 0/,
+  )
+  assert.match(s, /returning/)
+  assert.equal(q.params[1], 5)
+  assert.equal(q.params[2], 8)
+})
+
+void test('find person: by scrum and player', () => {
+  const q = findScrumPersonQuery(4, 9).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /from "news_scrum_people"/)
+  assert.match(s, /"news_scrum_people"."scrum_id" = \$1 and "news_scrum_people"."player_id" = \$2/)
+  assert.deepEqual(q.params.slice(0, 2), [4, 9])
+})
+
+void test('GM asks for a match: active ones only, oldest first, same test rule', () => {
+  const q = gmAsksForMatchQuery(90001, false).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /from "news_gm_asks"/)
+  assert.match(s, /"news_gm_asks"."match_id" = \$1/)
+  assert.match(s, /"news_gm_asks"."status" = \$2/)
+  assert.match(s, /\("news_gm_asks"."is_test" = false or \$3\)/)
+  assert.match(s, /order by "news_gm_asks"."id" asc/)
+  assert.deepEqual(q.params.slice(0, 3), [90001, 'active', false])
+})
+
+void test("the GM ask for a player: the newest active one on that match is the first question's wish", () => {
+  const q = gmAskForPlayerQuery(90001, 3, true).toSQL()
+  const s = flat(q.sql)
+  assert.match(s, /"news_gm_asks"."match_id" = \$1 and "news_gm_asks"."player_id" = \$2/)
+  assert.match(s, /"news_gm_asks"."status" = \$3/)
+  assert.match(s, /\("news_gm_asks"."is_test" = false or \$4\)/)
+  assert.match(s, /order by "news_gm_asks"."id" desc limit/)
+  assert.deepEqual(q.params.slice(0, 4), [90001, 3, 'active', true])
+})
+
+void test('migration 0073: idempotent, additive, header with how to apply and the rollback', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const sqlText = await readFile(
+    new URL('../../../migrations/0073_press_panel.sql', import.meta.url),
+    'utf8',
+  )
+  // Columns: added only when missing.
+  for (const c of ['panel', 'target_total', 'reporter']) {
+    assert.match(sqlText, new RegExp(`ADD COLUMN IF NOT EXISTS "${c}"`), c)
+  }
+  assert.match(sqlText, /"panel" text\[\] DEFAULT '\{\}' NOT NULL/)
+  assert.match(sqlText, /"target_total" integer;/)
+  // The new table, idempotent, with its indexes.
+  assert.match(sqlText, /CREATE TABLE IF NOT EXISTS "news_gm_asks"/)
+  assert.match(sqlText, /CREATE INDEX IF NOT EXISTS "news_gm_asks_match_player_idx"/)
+  assert.match(sqlText, /CREATE INDEX IF NOT EXISTS "news_gm_asks_night_idx"/)
+  // Checks: dropped and re-added by name.
+  for (const name of [
+    'news_scrum_people_panel_check',
+    'news_scrum_people_target_total_check',
+    'news_scrum_answers_reporter_check',
+    'news_gm_asks_status_check',
+    'news_gm_asks_reporter_check',
+  ]) {
+    assert.match(
+      sqlText,
+      new RegExp(
+        `DROP CONSTRAINT IF EXISTS "${name}";\\s+ALTER TABLE "[a-z_]+" ADD CONSTRAINT "${name}"`,
+      ),
+      name,
+    )
+  }
+  // Additive only: no destructive statement outside the rollback comment.
+  const live = sqlText
+    .split('\n')
+    .filter((l) => !l.startsWith('--'))
+    .join('\n')
+  assert.doesNotMatch(live, /DROP TABLE|DROP COLUMN|DELETE FROM|TRUNCATE|UPDATE "/)
+  // Header: how to apply, and the rollback of every addition.
+  assert.match(sqlText, /HOW TO APPLY/)
+  assert.match(sqlText, /< packages\/db\/migrations\/0073_press_panel\.sql/)
+  assert.match(sqlText, /Needs 0072 first/)
+  assert.match(sqlText, /^-- {3}DROP TABLE IF EXISTS "news_gm_asks";$/m)
+  for (const c of ['reporter']) {
+    assert.match(
+      sqlText,
+      new RegExp(`^--   ALTER TABLE "news_scrum_answers" DROP COLUMN IF EXISTS "${c}";$`, 'm'),
+    )
+  }
+  for (const c of ['panel', 'target_total']) {
+    assert.match(
+      sqlText,
+      new RegExp(`^--   ALTER TABLE "news_scrum_people" DROP COLUMN IF EXISTS "${c}";$`, 'm'),
+    )
+  }
+  assert.match(sqlText, /BEGIN;[\s\S]*COMMIT;/)
+  // The reporter list in the checks matches the schema's.
+  assert.match(
+    sqlText,
+    /'barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom'/,
+  )
 })

@@ -1308,6 +1308,7 @@ const ANSWER_12 = {
   question: 'What went wrong?',
   answer: 'We scored two goals and got outworked. Next week we fix it.',
   usability: 'usable' as const,
+  reporter: 'mercer' as const,
 }
 
 const quoted = (over: object = {}) => ({

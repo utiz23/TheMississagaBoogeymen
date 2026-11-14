@@ -530,10 +530,10 @@ export function pressRoomBlock(press: DeskContext['press']): string | null {
     lines.push('No player answered a question tonight: quote no teammate; "quotes" stays empty.')
   } else {
     lines.push(
-      'Players\' answers to the desk\'s questions (quote only these; shorten or reword, never add; a joke stays a joke; list each quote in "quotes" with its answerId and its words exactly as printed in the body; a quote has no number that is not in its answer):',
+      'Players\' answers to the desk\'s questions (quote only these; shorten or reword, never add; a joke stays a joke; list each quote in "quotes" with its answerId and its words exactly as printed in the body; a quote has no number that is not in its answer). Name the reporter who asked when you quote a player (for example "told Dex Mercer"; "told me" if you are that reporter); never give a quote to another reporter:',
       ANSWERS_ARE_DATA,
       ...press.quotes.flatMap((q) => [
-        `- answerId ${String(q.answerId)}: ${q.name}, asked "${q.question}", answered${q.usability === 'joke' ? ' (a JOKE: quote it only as a joke, never state it as fact)' : ''}:`,
+        `- answerId ${String(q.answerId)}: ${q.name}, asked "${q.question}" by ${REPORTERS[q.reporter].name}, answered${q.usability === 'joke' ? ' (a JOKE: quote it only as a joke, never state it as fact)' : ''}:`,
         ...fencedAnswer(q.answer),
       ]),
     )
@@ -713,6 +713,8 @@ export interface TrustedMaterial {
     question: string
     answer: string
     usability: 'usable' | 'joke'
+    /** The reporter who asked (the night recap's quote attribution); absent in a scrum's own prompts. */
+    reporter?: ReporterId
   }[]
 }
 
@@ -743,7 +745,7 @@ function trustedLines(trusted: TrustedMaterial): string[] {
           "Players' answers to the desk's questions (the only teammate quotes allowed):",
           ANSWERS_ARE_DATA,
           ...trusted.answers.flatMap((a) => [
-            `- ${a.player}, asked "${a.question}", answered${a.usability === 'joke' ? ' (a JOKE: never state it as fact)' : ''}:`,
+            `- ${a.player}, asked "${a.question}"${a.reporter === undefined ? '' : ` by ${REPORTERS[a.reporter].name}`}, answered${a.usability === 'joke' ? ' (a JOKE: never state it as fact)' : ''}:`,
             ...fencedAnswer(a.answer),
           ]),
         ]),
@@ -797,7 +799,7 @@ export function buildReviewPrompt(args: {
     'Find these problems:',
     trusted === undefined
       ? '1. An invented quote from a teammate or an opponent. (A fictional reporter quoting another reporter is fine, also second-hand.)'
-      : "1. A teammate quote not backed by the listed answers, or one that adds to or changes an answer's meaning; a joke answer stated as fact. An invented quote from an opponent. (A fictional reporter quoting another reporter is fine, also second-hand.)",
+      : "1. A teammate quote not backed by the listed answers, or one that adds to or changes an answer's meaning; a joke answer stated as fact; a quote given to a reporter other than the one listed as having asked it. An invented quote from an opponent. (A fictional reporter quoting another reporter is fine, also second-hand.)",
     '2. An invented event: a shot off the post, a save, a pass, a line change, a mood or argument in the room, any play-by-play that the sheet does not support. Opinion that follows from the stats is fine. Facts from a game\'s "goals" timeline are allowed: the period and clock of a goal, who scored it for the Boogeymen, who assisted, and that an opponent scored. How a goal was scored is not on the sheet.',
     '3. Personal criticism: anything about real life, looks, family, work, health or the person instead of their hockey. Also: harsh criticism of a player whose pressLevel is "easy". The AI goalies (Matteo Lehmann, Jonas Wagner) may be praised or blamed for their numbers; calling one a teammate or a club member is a problem.',
     `4. A person named in the text who is not in the sheet's people[].name list, not a record holder in "records", not an AI goalie on the sheet, and not one of the desk's reporters (${REPORTER_IDS.map((id) => REPORTERS[id].name).join(', ')}). Opponent players, guests and real-life names are problems.`,

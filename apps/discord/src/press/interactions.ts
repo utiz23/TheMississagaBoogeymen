@@ -1,13 +1,18 @@
-import { REPORTERS, mulberry32 } from '@eanhl/db/news'
+import { REPORTERS, mulberry32, type NewsFactsResponse, type ReporterId } from '@eanhl/db/news'
 import type { NewsScrumRow, ScrumPersonDetail } from '@eanhl/db/queries'
 import { answerButton } from '../bot-rest.ts'
 import { escapeMarkdown } from '../message.ts'
 import { containsName } from '../news/fact-check.ts'
-import { FALLBACK_CLOSING, judgeAnswer, type Usability } from './asker.ts'
+import { FALLBACK_CLOSING, judgeAnswer, type FollowUpMode, type Usability } from './asker.ts'
+import { fallbackLine } from './fallbacks.ts'
 import type { PressConfig } from './config.ts'
 import { SCRUM_SOURCE_WINDOW_MS, type PressDeps } from './pass.ts'
 import {
+  panelOf,
+  personSeed,
   pressRecorder,
+  reporterAt,
+  safeWhy,
   scrumAskContext,
   scrumHistory,
   startScrumQuestion,
@@ -20,6 +25,7 @@ import {
   PRESS_PING_LIMIT,
   extrasBudgetLeft,
   followUpAllowed,
+  followUpPlan,
   pickScrumPlayer,
   questionLimit,
   scrumCandidates,
@@ -139,7 +145,7 @@ async function askNow(deps: PressDeps, config: PressConfig, personId: number): P
   return say(TEXT.rightWithYou)
 }
 
-/** "Talk to the press" on a recap post: the user volunteers (1 question). */
+/** "Talk to the press" on a recap post: the user volunteers (2 reporters, no follow-up). */
 export async function onTalk(
   deps: PressDeps,
   config: PressConfig,
@@ -246,13 +252,66 @@ interface Verdict {
   closing: string
   /** End the round now (budget spent, off the sheet, no game): no next question. */
   end: boolean
+  /** The code, not the model, decided (budget, forbidden name, no verdict): the fixed lines are used. */
+  byCode: boolean
+  /** The model's verdict stands, but its reply line failed after all tries: a neutral line is used. */
+  replyFailed: boolean
 }
 
 /**
- * Judge the answer. Fails closed to unusable + `FALLBACK_CLOSING` + end when
- * the extras budget is spent, the person is off the sheet, or anything throws.
- * An answer that names a forbidden person ("Leave me out", a guest) is
- * unusable with no model call; the round goes on (no follow-up).
+ * What may follow the answer to the current item. An old round (no target):
+ * the old rule, the model's choice. A panel round: nothing after a follow-up;
+ * else `must` or `chased` by how many follow-ups the target still needs
+ * (`followUpPlan`), so the follow-ups go to the answers with the most to chase.
+ */
+function followUpRule(person: ScrumPersonDetail): { allowed: boolean; mode: FollowUpMode } {
+  if (person.targetTotal === null) {
+    return { allowed: !person.askingFollowup && followUpAllowed(person), mode: 'any' }
+  }
+  const plan = followUpPlan({
+    panelSize: panelOf(person).length,
+    questionsAsked: person.questionsAsked,
+    followupsAsked: person.followupsAsked,
+    askingFollowup: person.askingFollowup,
+    targetTotal: person.targetTotal,
+  })
+  return { allowed: plan !== 'none', mode: plan === 'must' ? 'must' : 'chased' }
+}
+
+/** Questions the round asks in all (without follow-ups): the panel's size; the old limit for an old round. */
+function questionsInRound(person: ScrumPersonDetail): number {
+  return person.targetTotal === null ? questionLimit(person.role) : panelOf(person).length
+}
+
+/** The reporter who asked the item open now (the base question's reporter; a follow-up is the same one's). */
+function askerOf(person: ScrumPersonDetail): ReporterId {
+  return reporterAt(panelOf(person), Math.max(person.questionsAsked - 1, 0), person.scrum.reporter)
+}
+
+/**
+ * The game sheet for the person's scrum, or null when there is no game or the
+ * fetch failed (logged). Nothing about the person is echoed or judged without it.
+ */
+async function loadSheet(
+  deps: PressDeps,
+  person: ScrumPersonDetail,
+): Promise<NewsFactsResponse | null> {
+  const matchId = person.scrum.matchId
+  if (matchId === null) return null
+  try {
+    return await deps.fetchFacts('game', String(matchId))
+  } catch (err: unknown) {
+    deps.log(`[press] answer: person ${String(person.id)}: ${reason(err)}`)
+    return null
+  }
+}
+
+/**
+ * Judge the answer. Fails closed to unusable + the fixed line + end when the
+ * extras budget is spent, the person is off the sheet, or anything throws. An
+ * answer that names a forbidden person ("Leave me out", a guest) is unusable
+ * with no model call; the round goes on (no follow-up). When the model gave a
+ * verdict and only its reply line failed, the verdict stands (`replyFailed`).
  */
 async function judge(
   deps: PressDeps,
@@ -260,6 +319,8 @@ async function judge(
   person: ScrumPersonDetail,
   question: string,
   answer: string,
+  asker: ReporterId,
+  res: NewsFactsResponse | null,
 ): Promise<Verdict> {
   const { store } = deps
   const closed: Verdict = {
@@ -267,6 +328,8 @@ async function judge(
     followUp: null,
     closing: FALLBACK_CLOSING,
     end: true,
+    byCode: true,
+    replyFailed: false,
   }
   const scrum = person.scrum
   // Why an answer is stored unusable without the model's verdict: a log line, never the answer.
@@ -274,7 +337,7 @@ async function judge(
     deps.log(
       `[press] answer: person ${String(person.id)}: unusable by the code, not the model (${what})`,
     )
-  if (scrum.matchId === null) {
+  if (scrum.matchId === null || res === null) {
     why('no game')
     return closed
   }
@@ -283,7 +346,6 @@ async function judge(
       why('extras budget spent')
       return closed
     }
-    const res = await deps.fetchFacts('game', String(scrum.matchId))
     const onSheet = res.facts.people.find((p) => p.playerId === person.playerId)
     // A guest, or "Leave me out" since the question: nothing about them goes anywhere.
     if (onSheet === undefined) {
@@ -293,26 +355,37 @@ async function judge(
     // An answer that names a forbidden person is never used, shown or sent to the model.
     if (res.forbiddenNames.some((n) => containsName(answer, n))) {
       why('names a forbidden person')
-      return { usability: 'unusable', followUp: null, closing: FALLBACK_CLOSING, end: false }
+      return { ...closed, end: false }
     }
+    const earlier = await store.listScrumAnswers(person.id)
     // The last history entry is the question being answered.
     const history = [
-      ...scrumHistory(await store.listScrumAnswers(person.id)),
-      { question, answer: null },
+      ...scrumHistory(earlier, scrum.reporter),
+      { question, answer: null, by: asker },
     ]
-    const ctx = await scrumAskContext(store, scrum, res, onSheet, history, person.questionsAsked)
-    // One follow-up per question: never after a follow-up.
-    const allowed = !person.askingFollowup && followUpAllowed(person)
+    const ctx = await scrumAskContext(store, scrum, res, onSheet, history, person.questionsAsked, {
+      reporter: asker,
+    })
+    // One follow-up per reporter, and only as many as the round's target needs.
+    const rule = followUpRule(person)
+    let failed = false
+    let kept = false
     const out = await judgeAnswer(
       deps.call,
-      { ...ctx, answer, followUpAllowed: allowed },
+      { ...ctx, answer, followUpAllowed: rule.allowed, followUpMode: rule.mode },
       pressRecorder(store),
-      (reasonText) =>
+      (reasonText, verdictKept) => {
+        failed = !verdictKept
+        kept = verdictKept
+        const text = safeWhy(reasonText, [answer, ...earlier.map((a) => a.answer)])
         deps.log(
-          `[press] answer: person ${String(person.id)}: judgement failed closed, stored unusable (${reasonText.slice(0, 300)})`,
-        ),
+          verdictKept
+            ? `[press] answer: person ${String(person.id)}: reply line failed after all tries, the model's verdict is kept (${text})`
+            : `[press] answer: person ${String(person.id)}: judgement failed closed, stored unusable (${text})`,
+        )
+      },
     )
-    return { ...out, end: false }
+    return { ...out, end: false, byCode: failed, replyFailed: kept }
   } catch (err: unknown) {
     deps.log(`[press] answer: person ${String(person.id)}: ${reason(err)}`)
     return closed
@@ -322,10 +395,11 @@ async function judge(
 /**
  * The pop-up submit. `seen` = the counters in the pop-up's custom id (the
  * item it was opened for). Claims the answer on those counters (a second or
- * stale submit gets "Already answered."), judges it, echoes a usable or joke
- * answer in the thread as the reporter (escaped, no mentions, no link
- * previews; an unusable answer is never shown), stores it, then asks the
- * follow-up, the next question, or closes the round. A typed answer
+ * stale submit gets "Already answered."), echoes the answer in the thread as
+ * the asking reporter right away (escaped, no mentions, no link previews;
+ * never an answer the code refuses for naming a forbidden person), judges it,
+ * stores it, then asks the follow-up, the next question, or closes the round.
+ * An unusable answer is acknowledged but never quoted later. A typed answer
  * (`typed`) takes the same path; it is already in the thread, so it is not
  * echoed again.
  */
@@ -354,11 +428,22 @@ export async function onAnswerSubmit(
   const threadId = scrum.threadId ?? scrum.messageId
   const mention = person.discordUserId
 
-  const verdict = await judge(deps, config, person, question, answer)
-  // Echoed after the judgement: an unusable answer is never shown. A typed answer is already there.
-  if (verdict.usability !== 'unusable' && opts.typed !== true) {
+  // The reporter who asked this item: the answer, the follow-up and the next line are theirs.
+  const asker = askerOf(person)
+  const sheet = await loadSheet(deps, person)
+  const onSheet = sheet?.facts.people.find((p) => p.playerId === person.playerId)
+  // The code refuses an answer that names a forbidden person ("Leave me out", a guest), and
+  // any answer when the sheet is not known: such an answer is never shown anywhere.
+  const refused =
+    sheet === null ||
+    onSheet === undefined ||
+    sheet.forbiddenNames.some((n) => containsName(answer, n))
+  // Echoed right after the submit, before the judgement, so the player sees their own answer
+  // at once (operator, 2026-11-13). A typed answer is already there. The desk still never
+  // quotes an unusable answer later.
+  if (!refused && opts.typed !== true) {
     try {
-      await discord.send(scrum.reporter, threadId, {
+      await discord.send(asker, threadId, {
         content: `**${escapeMarkdown(person.name)}:** ${escapeMarkdown(answer)}`,
         allowed_mentions: { parse: [] },
         flags: SUPPRESS_EMBEDS,
@@ -368,6 +453,17 @@ export async function onAnswerSubmit(
       log(`[press] answer: person ${String(personId)}: echo failed (${reason(err)})`)
     }
   }
+  const verdict = await judge(deps, config, person, question, answer, asker, sheet)
+  /** A fixed line from the asking reporter's own pool: never one this thread already had. */
+  const poolLine = (kind: 'closing' | 'ack'): string =>
+    fallbackLine(deps, {
+      scrumId: scrum.id,
+      kind,
+      reporter: asker,
+      name: person.name,
+      seed: personSeed(scrum.id, personId) + person.questionsAsked + person.followupsAsked,
+    })
+  const fixed = verdict.byCode || verdict.replyFailed
   await store.insertScrumAnswer({
     personId,
     scrumId: scrum.id,
@@ -376,6 +472,7 @@ export async function onAnswerSubmit(
     question,
     answer,
     usability: verdict.usability,
+    reporter: asker,
     isTest: scrum.isTest,
   })
 
@@ -387,7 +484,7 @@ export async function onAnswerSubmit(
       lastAskedAt: now,
     })
     await discord.send(
-      scrum.reporter,
+      asker,
       threadId,
       threadLine(mention, escapeMarkdown(verdict.followUp), [
         { type: 1, components: [answerButton(personId)] },
@@ -395,11 +492,29 @@ export async function onAnswerSubmit(
     )
     return ACK
   }
-  if (!verdict.end && person.questionsAsked < questionLimit(person.role)) {
+  if (!verdict.end && person.questionsAsked < questionsInRound(person)) {
+    // No silent answers: an answer the desk cannot use is still acknowledged (its words are
+    // never repeated) before the next reporter asks, so the player knows it arrived.
+    if (verdict.usability === 'unusable') {
+      try {
+        await discord.send(
+          asker,
+          threadId,
+          threadLine(mention, escapeMarkdown(fixed ? poolLine('ack') : verdict.closing)),
+        )
+      } catch (err: unknown) {
+        // The answer is stored and the round goes on: the acknowledgement is not retried.
+        log(`[press] answer: person ${String(personId)}: acknowledgement failed (${reason(err)})`)
+      }
+    }
     return askNow(deps, config, personId)
   }
   await store.updateScrumPerson(personId, { status: 'done', currentQuestion: null })
-  await discord.send(scrum.reporter, threadId, threadLine(mention, escapeMarkdown(verdict.closing)))
+  await discord.send(
+    asker,
+    threadId,
+    threadLine(mention, escapeMarkdown(fixed ? poolLine('closing') : verdict.closing)),
+  )
   return ACK
 }
 

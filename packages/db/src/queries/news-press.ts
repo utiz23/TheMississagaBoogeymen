@@ -14,6 +14,7 @@ import {
 } from 'drizzle-orm'
 import { db } from '../client.js'
 import {
+  newsGmAsks,
   newsGmNotes,
   newsItems,
   newsPlayerAliases,
@@ -26,7 +27,9 @@ import {
   newsScrums,
   playerProfiles,
   players,
+  type NewNewsGmAsk,
   type NewNewsGmNote,
+  type NewsGmAskRow,
   type NewsGmNoteRow,
   type NewNewsScrum,
   type NewNewsScrumAnswer,
@@ -44,7 +47,7 @@ import {
 import { MEMBER_CONDITION } from './club-members.js'
 import { NEWS_MAX_ATTEMPTS, nightKeySql } from './news.js'
 
-// Press queries (news desk bots, migration 0072): scrums, GM notes, nicknames,
+// Press queries (news desk bots, migrations 0072 and 0073): scrums, GM notes, nicknames,
 // the trial mirror and fan reactions. Each query has a `…Sql` / `…Query`
 // builder that a test pins, and an async wrapper.
 
@@ -130,6 +133,61 @@ export function gmAskForMatchQuery(matchId: number, includeTest: boolean) {
 /** The player the GM asked for on this match; null when no note asks. */
 export async function gmAskForMatch(matchId: number, includeTest: boolean): Promise<number | null> {
   return (await gmAskForMatchQuery(matchId, includeTest))[0]?.playerId ?? null
+}
+
+/** Store a GM ask (`/gm ask`), active or refused. */
+export async function insertGmAsk(values: NewNewsGmAsk): Promise<number> {
+  const rows = await db.insert(newsGmAsks).values(values).returning({ id: newsGmAsks.id })
+  const row = rows[0]
+  if (!row) throw new Error('insertGmAsk: no row returned')
+  return row.id
+}
+
+/** The match's active GM asks, oldest first. Test asks only when `includeTest`. */
+export function gmAsksForMatchQuery(matchId: number, includeTest: boolean) {
+  return db
+    .select()
+    .from(newsGmAsks)
+    .where(
+      and(
+        eq(newsGmAsks.matchId, matchId),
+        eq(newsGmAsks.status, 'active'),
+        sql`(${newsGmAsks.isTest} = false or ${includeTest})`,
+      ),
+    )
+    .orderBy(asc(newsGmAsks.id))
+}
+
+export async function gmAsksForMatch(
+  matchId: number,
+  includeTest: boolean,
+): Promise<NewsGmAskRow[]> {
+  return gmAsksForMatchQuery(matchId, includeTest)
+}
+
+/** The newest active GM ask for this player on this match (the first question's wish), or null. */
+export function gmAskForPlayerQuery(matchId: number, playerId: number, includeTest: boolean) {
+  return db
+    .select()
+    .from(newsGmAsks)
+    .where(
+      and(
+        eq(newsGmAsks.matchId, matchId),
+        eq(newsGmAsks.playerId, playerId),
+        eq(newsGmAsks.status, 'active'),
+        sql`(${newsGmAsks.isTest} = false or ${includeTest})`,
+      ),
+    )
+    .orderBy(desc(newsGmAsks.id))
+    .limit(1)
+}
+
+export async function gmAskForPlayer(
+  matchId: number,
+  playerId: number,
+  includeTest: boolean,
+): Promise<NewsGmAskRow | null> {
+  return (await gmAskForPlayerQuery(matchId, playerId, includeTest))[0] ?? null
 }
 
 /** The match's newest scrum: test scrums when `isTest` (the trial), real ones otherwise. */
@@ -418,17 +476,95 @@ export function listScrumAnswersQuery(personId: number) {
       question: newsScrumAnswers.question,
       answer: newsScrumAnswers.answer,
       usability: newsScrumAnswers.usability,
+      reporter: newsScrumAnswers.reporter,
     })
     .from(newsScrumAnswers)
     .where(eq(newsScrumAnswers.personId, personId))
     .orderBy(asc(newsScrumAnswers.id))
 }
 
+/** One scrum answer as the asker reads it: `reporter` null = the scrum's own reporter (an old round). */
+export interface ScrumAnswerEntry {
+  question: string
+  answer: string
+  usability: 'usable' | 'joke' | 'unusable'
+  reporter: NewsReporterId | null
+}
+
 /** One person's earlier questions and answers, oldest first. */
-export async function listScrumAnswers(
-  personId: number,
-): Promise<{ question: string; answer: string; usability: 'usable' | 'joke' | 'unusable' }[]> {
+export async function listScrumAnswers(personId: number): Promise<ScrumAnswerEntry[]> {
   return listScrumAnswersQuery(personId)
+}
+
+/**
+ * The questions the scrum asked other people, for the question writer (no
+ * repeated angle): answered questions of other people, and the question each
+ * of them has open now. Oldest first; this person's own are left out (they are
+ * in the person's history).
+ */
+export function listScrumQuestionsSql(scrumId: number, exceptPersonId: number): SQL {
+  return sql`
+    select q.question
+    from (
+      select a.id as ord, a.question
+      from news_scrum_answers a
+      where a.scrum_id = ${scrumId} and a.person_id <> ${exceptPersonId}
+      union all
+      select p.id + 1000000000000 as ord, p.current_question as question
+      from news_scrum_people p
+      where p.scrum_id = ${scrumId} and p.id <> ${exceptPersonId} and p.current_question is not null
+    ) q
+    order by q.ord asc`
+}
+
+export async function listScrumQuestions(
+  scrumId: number,
+  exceptPersonId: number,
+): Promise<string[]> {
+  const rows = await db.execute<{ question: string }>(
+    listScrumQuestionsSql(scrumId, exceptPersonId),
+  )
+  return rows.map((r) => r.question)
+}
+
+/**
+ * Set a person's panel once, while it is empty (so two callers never both set
+ * it). `targetTotal` null = an old round. True when this call set it.
+ */
+export function setScrumPersonPanelQuery(
+  id: number,
+  panel: NewsReporterId[],
+  targetTotal: number | null,
+) {
+  return db
+    .update(newsScrumPeople)
+    .set({ panel, targetTotal })
+    .where(and(eq(newsScrumPeople.id, id), sql`cardinality(${newsScrumPeople.panel}) = 0`))
+    .returning({ id: newsScrumPeople.id })
+}
+
+export async function setScrumPersonPanel(
+  id: number,
+  panel: NewsReporterId[],
+  targetTotal: number | null,
+): Promise<boolean> {
+  return (await setScrumPersonPanelQuery(id, panel, targetTotal)).length > 0
+}
+
+/** The person of this player in this scrum, or null. */
+export function findScrumPersonQuery(scrumId: number, playerId: number) {
+  return db
+    .select()
+    .from(newsScrumPeople)
+    .where(and(eq(newsScrumPeople.scrumId, scrumId), eq(newsScrumPeople.playerId, playerId)))
+    .limit(1)
+}
+
+export async function findScrumPerson(
+  scrumId: number,
+  playerId: number,
+): Promise<NewsScrumPersonRow | null> {
+  return (await findScrumPersonQuery(scrumId, playerId))[0] ?? null
 }
 
 /**
@@ -670,6 +806,8 @@ export interface PressQuote {
   question: string
   answer: string
   usability: 'usable' | 'joke'
+  /** The reporter who asked: the answer's own, else the scrum's (an old round). Quotes name them. */
+  reporter: NewsReporterId
 }
 
 export interface PressNote {
@@ -686,8 +824,10 @@ export interface PressNote {
 /** Usable or joke answers of the night, oldest first, never from players whose press level is `out`. */
 export function nightPressMaterialSql(night: string, includeTest: boolean): SQL {
   return sql`
-    select a.id as answer_id, a.player_id, ${DISPLAY_NAME} as name, a.question, a.answer, a.usability
+    select a.id as answer_id, a.player_id, ${DISPLAY_NAME} as name, a.question, a.answer, a.usability,
+      coalesce(a.reporter, sc.reporter) as reporter
     from news_scrum_answers a
+    join news_scrums sc on sc.id = a.scrum_id
     join players p on p.id = a.player_id
     left join player_profiles pp on pp.player_id = a.player_id
     where a.night = ${night}::date
@@ -721,6 +861,7 @@ export async function nightPressMaterial(
     question: string
     answer: string
     usability: 'usable' | 'joke'
+    reporter: NewsReporterId
   }>(nightPressMaterialSql(night, includeTest))
   const notes = await db.execute<{
     id: string | number
@@ -738,6 +879,7 @@ export async function nightPressMaterial(
       question: r.question,
       answer: r.answer,
       usability: r.usability,
+      reporter: r.reporter,
     })),
     gmNotes: notes.map((r) => ({
       id: num(r.id),
@@ -1254,5 +1396,7 @@ export type {
   NewNewsScrumAnswer,
   NewNewsGmNote,
   NewsGmNoteRow,
+  NewNewsGmAsk,
+  NewsGmAskRow,
   NewsPressSettingsRow,
 } from '../schema/index.js'

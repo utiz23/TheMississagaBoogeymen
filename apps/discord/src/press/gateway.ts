@@ -20,7 +20,16 @@ import {
   startThread,
 } from '../bot-rest.ts'
 import type { PressConfig } from './config.ts'
-import { gmNoteComponents, onGmHeat, onGmNote, onGmNoteCancel, onGmNoteCorrect } from './gm.ts'
+import {
+  ASK_MAX_CHARS,
+  ASK_REPORTER_IDS,
+  gmNoteComponents,
+  onGmAsk,
+  onGmHeat,
+  onGmNote,
+  onGmNoteCancel,
+  onGmNoteCorrect,
+} from './gm.ts'
 import {
   onAccept,
   onAnswerButton,
@@ -133,6 +142,43 @@ export function commandDefinitions(): RESTPostAPIChatInputApplicationCommandsJSO
         },
         {
           type: ApplicationCommandOptionType.Subcommand,
+          name: 'ask',
+          description: "Put your question to a player's scrum, and pick who asks it",
+          options: [
+            {
+              type: ApplicationCommandOptionType.User,
+              name: 'player',
+              description: 'The player to ask',
+              required: true,
+            },
+            {
+              type: ApplicationCommandOptionType.String,
+              name: 'question',
+              description: 'The question (or a topic when exact is off)',
+              required: true,
+              max_length: ASK_MAX_CHARS,
+            },
+            {
+              type: ApplicationCommandOptionType.String,
+              name: 'reporter',
+              description: 'Who asks it (default: the first reporter of their panel)',
+              choices: ASK_REPORTER_IDS.map((id) => ({ name: REPORTERS[id].name, value: id })),
+            },
+            {
+              type: ApplicationCommandOptionType.Boolean,
+              name: 'exact',
+              description: 'Word for word (default). Off: the reporter writes it as a topic',
+            },
+            {
+              type: ApplicationCommandOptionType.Integer,
+              name: 'game',
+              description: "Tonight's game number (1 = the first game)",
+              min_value: 1,
+            },
+          ],
+        },
+        {
+          type: ApplicationCommandOptionType.Subcommand,
           name: 'heat',
           description: 'How hard the questions are',
           options: [
@@ -221,6 +267,7 @@ export interface PressHandlers {
   onAnswerSubmit: typeof onAnswerSubmit
   onScrumCommand: typeof onScrumCommand
   onGmNote: typeof onGmNote
+  onGmAsk: typeof onGmAsk
   onGmNoteCorrect: typeof onGmNoteCorrect
   onGmNoteCancel: typeof onGmNoteCancel
   onGmHeat: typeof onGmHeat
@@ -233,6 +280,7 @@ const HANDLERS: PressHandlers = {
   onAnswerSubmit,
   onScrumCommand,
   onGmNote,
+  onGmAsk,
   onGmNoteCorrect,
   onGmNoteCancel,
   onGmHeat,
@@ -309,6 +357,20 @@ export function createRouter(args: {
               option<string>(o, 'text', 'string') ?? '',
               option<number>(o, 'game', 'number'),
             ),
+        }
+      }
+      if (input.name === 'gm' && input.subcommand === 'ask') {
+        return {
+          kind: 'gm ask',
+          open: 'reply',
+          run: () =>
+            h.onGmAsk(deps, config, u, {
+              player: option<string>(o, 'player', 'string') ?? '',
+              question: option<string>(o, 'question', 'string') ?? '',
+              reporter: option<string>(o, 'reporter', 'string'),
+              exact: option<boolean>(o, 'exact', 'boolean'),
+              game: option<number>(o, 'game', 'number'),
+            }),
         }
       }
       if (input.name === 'gm' && input.subcommand === 'heat') {

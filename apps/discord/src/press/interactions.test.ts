@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { REPORTERS } from '@eanhl/db/news'
+import { REPORTERS, type ReporterId } from '@eanhl/db/news'
 import type { ModelCall } from '../news/writer.ts'
-import { FALLBACK_CLOSING, JUDGEMENT_SCHEMA } from './asker.ts'
+import { JUDGEMENT_SCHEMA } from './asker.ts'
 import {
   onAccept,
   onAnswerButton,
@@ -19,6 +19,7 @@ import {
   USER_B,
   config,
   itemRow,
+  isPoolLine,
   liveRecap,
   scrumWithPerson,
   setup,
@@ -44,7 +45,7 @@ function submit(
   return onAnswerSubmit(t.deps, cfg, personId, userId, text, seen)
 }
 
-type Judgement = { usability: string; followUp: string; closing: string }
+type Judgement = { usability: string; chase?: string; followUp: string; closing: string }
 
 /** A fake model: questions and judgements in order; every review passes. */
 function pressModel(script: { questions?: string[]; judgements?: Judgement[] } = {}) {
@@ -251,7 +252,8 @@ void test('onAccept in the open trial: the pinged player accepts; the GM cannot 
     ephemeral('This one is for Skater A.'),
   )
   assert.deepEqual(await onAccept(t.deps, config('trial'), personId, USER_A), { kind: 'ack' })
-  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Walk me through that one, Skater A.`)
+  const q = t.sent.at(-1)!
+  assert.ok(isPoolLine('question', q, USER_A), q.msg.content)
 })
 
 // ── Answer button ──────────────────────────────────────────────────────────
@@ -333,20 +335,36 @@ void test('onAnswerSubmit: the echo is escaped and mentions nobody; 600 characte
   assert.equal(t2.store.answerRows[0]!.answer.length, 500)
 })
 
-void test('onAnswerSubmit: a picked player gets question 2 after question 1', async () => {
+/** Fix a person's panel and target (what the first question would draw), before the first question. */
+function withPanel(
+  t: ReturnType<typeof setup>,
+  id: number,
+  panel: ReporterId[],
+  targetTotal: number | null,
+): void {
+  const p = t.store.people.find((x) => x.id === id)!
+  p.panel = panel
+  p.targetTotal = targetTotal
+}
+
+void test('onAnswerSubmit: a picked player gets question 2 from the next reporter of the panel', async () => {
   const m = pressModel({
     questions: ['Skater A, what changed after the first period?', 'Skater A, and the third?'],
     judgements: [{ usability: 'usable', followUp: '', closing: 'Good, thanks.' }],
   })
   const t = setup({ model: m.call })
   const personId = await scrumWithPerson(t)
+  withPanel(t, personId, ['voss', 'mercer', 'vale'], 3)
   await onAccept(t.deps, config('live'), personId, USER_A)
+  // Question 1 is Voss's.
+  assert.equal(t.sent.at(-1)!.reporter, 'voss')
   const reply = await submit(t, config('live'), personId, USER_A, 'We stopped chasing the puck.')
   assert.deepEqual(reply, { kind: 'ack' })
   const row = t.store.answerRows[0]!
   assert.equal(row.question, 'Skater A, what changed after the first period?')
   assert.equal(row.answer, 'We stopped chasing the puck.')
   assert.equal(row.usability, 'usable')
+  assert.equal(row.reporter, 'voss')
   assert.equal(row.scrumId, 1)
   assert.equal(row.playerId, 1)
   assert.equal(row.night, t.store.scrums[0]!.night)
@@ -355,7 +373,10 @@ void test('onAnswerSubmit: a picked player gets question 2 after question 1', as
   assert.equal(p.status, 'asking')
   assert.equal(p.questionsAsked, 2)
   assert.equal(p.currentQuestion, 'Skater A, and the third?')
-  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Skater A, and the third?`)
+  // Question 2 is Dex Mercer's own post, in the same thread.
+  const q2 = t.sent.at(-1)!
+  assert.equal(q2.reporter, 'mercer')
+  assert.equal(q2.msg.content, `<@${USER_A}> Skater A, and the third?`)
   // The judgement saw the question being answered; usage has no job.
   const judge = m.reqs.find((r) => r.schema === JUDGEMENT_SCHEMA)!
   assert.match(judge.user, /what changed after the first period/)
@@ -364,10 +385,11 @@ void test('onAnswerSubmit: a picked player gets question 2 after question 1', as
   assert.ok(t.store.usage.every((u) => u.jobId === null))
 })
 
-void test('onAnswerSubmit: a volunteer after one question and one follow-up gets the closing', async () => {
+void test('onAnswerSubmit: a volunteer is asked by 2 reporters, no follow-up, then gets the closing', async () => {
   const m = pressModel({
-    questions: ['Skater B, how did the second period feel?'],
+    questions: ['Skater B, how did the second period feel?', 'Skater B, and the power play?'],
     judgements: [
+      // The model offers a follow-up: a volunteer gets none.
       { usability: 'usable', followUp: 'And the power play?', closing: 'Noted.' },
       { usability: 'joke', followUp: 'Another one?', closing: 'Ha. Thanks, Skater B.' },
     ],
@@ -377,16 +399,18 @@ void test('onAnswerSubmit: a volunteer after one question and one follow-up gets
   const live = config('live')
   await onTalk(t.deps, live, 10, USER_B)
   const p = t.store.people[0]!
+  assert.equal(p.role, 'volunteer')
+  assert.equal(p.panel.length, 2)
+  assert.equal(p.targetTotal, 2)
+  assert.notEqual(p.panel[0], p.panel[1])
+  const [first, second] = p.panel
+  assert.equal(t.sent.at(-1)!.reporter, first)
   await submit(t, live, p.id, USER_B, 'It felt slow.')
-  assert.equal(p.followupsAsked, 1)
-  assert.equal(p.currentQuestion, 'And the power play?')
-  assert.equal(p.status, 'asking')
-  const fu = t.sent.at(-1)!
-  assert.equal(fu.msg.content, `<@${USER_B}> And the power play?`)
-  assert.deepEqual(fu.msg.allowed_mentions, { parse: [], users: [USER_B] })
-  assert.match(JSON.stringify(fu.msg.components), new RegExp(`press:answer:${String(p.id)}`))
-  assert.equal(p.askingFollowup, true)
-  // A stale second pop-up (opened for question 1) is not the answer to the follow-up.
+  assert.equal(p.followupsAsked, 0)
+  assert.equal(p.questionsAsked, 2)
+  assert.equal(p.currentQuestion, 'Skater B, and the power play?')
+  assert.equal(t.sent.at(-1)!.reporter, second)
+  // A stale second pop-up (opened for question 1) is not the answer to question 2.
   assert.deepEqual(
     await onAnswerSubmit(t.deps, live, p.id, USER_B, 'Late copy.', {
       questionsAsked: 1,
@@ -399,15 +423,16 @@ void test('onAnswerSubmit: a volunteer after one question and one follow-up gets
   await submit(t, live, p.id, USER_B, 'We were saving energy for the playoffs.')
   assert.equal(p.status, 'done')
   assert.equal(p.currentQuestion, null)
-  assert.equal(p.followupsAsked, 1)
+  assert.equal(p.followupsAsked, 0)
   const last = t.sent.at(-1)!
+  assert.equal(last.reporter, second)
   assert.equal(last.msg.content, `<@${USER_B}> Ha. Thanks, Skater B.`)
   assert.equal(last.msg.components, undefined)
   assert.deepEqual(
-    t.store.answerRows.map((a) => [a.question, a.usability]),
+    t.store.answerRows.map((a) => [a.question, a.usability, a.reporter]),
     [
-      ['Skater B, how did the second period feel?', 'usable'],
-      ['And the power play?', 'joke'],
+      ['Skater B, how did the second period feel?', 'usable', first],
+      ['Skater B, and the power play?', 'joke', second],
     ],
   )
 })
@@ -425,7 +450,7 @@ void test('onAnswerSubmit: an unusable answer is stored as unusable', async () =
   assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Fair enough. Next game.`)
 })
 
-void test('onAnswerSubmit: a usable answer is echoed after the judgement', async () => {
+void test('onAnswerSubmit: the pop-up answer is echoed right after the submit, before the judgement', async () => {
   const m = pressModel({
     judgements: [{ usability: 'usable', followUp: '', closing: 'Thanks, Skater A.' }],
   })
@@ -439,7 +464,7 @@ void test('onAnswerSubmit: a usable answer is echoed after the judgement', async
     return call(req)
   }
   await submit(t, config('live'), personId, USER_A, 'We pushed hard.')
-  assert.equal(echoedBeforeJudgement, false)
+  assert.equal(echoedBeforeJudgement, true)
   const echo = t.sent.find((s) => s.msg.content.startsWith('**Skater A:**'))!
   assert.equal(echo.msg.content, '**Skater A:** We pushed hard.')
   assert.equal(echo.msg.flags, 4)
@@ -465,7 +490,7 @@ void test('onAnswerSubmit: an answer naming a Leave me out person is unusable: n
   assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Skater A, and the third period?`)
 })
 
-void test('onAnswerSubmit: an unusable answer is never echoed', async () => {
+void test('onAnswerSubmit: an unusable answer is echoed too (the player sees it), then acknowledged; it is never quoted later', async () => {
   const m = pressModel({
     judgements: [{ usability: 'unusable', followUp: '', closing: 'Fair enough. Next game.' }],
   })
@@ -473,8 +498,11 @@ void test('onAnswerSubmit: an unusable answer is never echoed', async () => {
   const personId = await scrumWithPerson(t)
   asking(t, personId, 'Why?', 2)
   await submit(t, config('live'), personId, USER_A, 'my boss yelled at me all day')
-  assert.ok(!t.sent.some((s) => s.msg.content.startsWith('**Skater A:**')))
-  assert.equal(t.sent.length, 1)
+  assert.equal(t.sent[0]!.msg.content, '**Skater A:** my boss yelled at me all day')
+  // The closing is the model's own line, never the answer repeated.
+  assert.equal(t.sent.length, 2)
+  assert.equal(t.sent[1]!.msg.content, `<@${USER_A}> Fair enough. Next game.`)
+  assert.equal(t.store.answerRows[0]!.usability, 'unusable')
 })
 
 void test('onAnswerSubmit: extras budget spent → stored unusable, fallback closing, no model call', async () => {
@@ -489,7 +517,9 @@ void test('onAnswerSubmit: extras budget spent → stored unusable, fallback clo
   assert.equal(t.store.answerRows[0]!.usability, 'unusable')
   const p = t.store.people[0]!
   assert.equal(p.status, 'done')
-  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> ${FALLBACK_CLOSING}`)
+  // A neutral closing from the asking reporter's own pool, not the one stock line.
+  const last = t.sent.at(-1)!
+  assert.ok(isPoolLine('closing', last, USER_A), last.msg.content)
 })
 
 void test('onAnswerSubmit: a double submit stores one answer', async () => {
@@ -662,38 +692,59 @@ void test('/scrum random: skips players with 2 pings tonight', async () => {
   assert.equal(t.store.people.at(-1)!.scrumId, 1)
 })
 
-void test('onAnswerSubmit: picked — no follow-up on Q1, Q2 may get one, never a second', async () => {
+void test('onAnswerSubmit: picked, target 4 — the one follow-up goes to the answer with the most to chase', async () => {
   const m = pressModel({
-    questions: ['Skater A, what changed after the first period?', 'Skater A, and the third?'],
+    questions: ['Q one?', 'Q two?', 'Q three?'],
     judgements: [
-      { usability: 'usable', followUp: '', closing: 'Good.' },
-      { usability: 'usable', followUp: 'And then?', closing: 'Thanks, Skater A.' },
-      { usability: 'usable', followUp: 'And after that?', closing: 'Thanks, Skater A.' },
+      // Q1: a small opening only: the follow-up is not used.
+      { usability: 'usable', chase: 'some', followUp: 'Skip this?', closing: 'Good.' },
+      // Q2: a lot to chase: Mercer follows up.
+      { usability: 'usable', chase: 'strong', followUp: 'And then?', closing: 'Good.' },
+      // The follow-up's answer: no second follow-up.
+      { usability: 'usable', chase: 'strong', followUp: 'And after that?', closing: 'Good.' },
+      {
+        usability: 'usable',
+        chase: 'strong',
+        followUp: 'Once more?',
+        closing: 'Thanks, Skater A.',
+      },
     ],
   })
   const t = setup({ model: m.call })
   const personId = await scrumWithPerson(t)
   const live = config('live')
+  withPanel(t, personId, ['voss', 'mercer', 'vale'], 4)
   await onAccept(t.deps, live, personId, USER_A)
-  await submit(t, live, personId, USER_A, 'We slowed down.')
   const p = t.store.people[0]!
+  await submit(t, live, personId, USER_A, 'We slowed down.')
   assert.equal(p.questionsAsked, 2)
-  assert.equal(p.askingFollowup, false)
+  assert.equal(p.followupsAsked, 0)
   await submit(t, live, personId, USER_A, 'We held on.')
-  // Q2 is a question: its follow-up is allowed.
   assert.equal(p.followupsAsked, 1)
   assert.equal(p.askingFollowup, true)
-  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> And then?`)
+  const fu = t.sent.at(-1)!
+  assert.equal(fu.reporter, 'mercer')
+  assert.equal(fu.msg.content, `<@${USER_A}> And then?`)
+  // The follow-up's answer goes on to Rico Vale's question 3, not a second follow-up.
   await submit(t, live, personId, USER_A, 'Then we lost.')
+  assert.equal(p.questionsAsked, 3)
+  assert.equal(t.sent.at(-1)!.reporter, 'vale')
+  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Q three?`)
+  await submit(t, live, personId, USER_A, 'We were tired.')
   assert.equal(p.status, 'done')
   assert.equal(p.followupsAsked, 1)
+  assert.ok(!t.sent.some((s) => s.msg.content.includes('Once more?')))
   assert.ok(!t.sent.some((s) => s.msg.content.includes('And after that?')))
-  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Thanks, Skater A.`)
+  assert.equal(t.sent.at(-1)!.reporter, 'vale')
+  assert.deepEqual(
+    t.store.answerRows.map((a) => a.reporter),
+    ['voss', 'mercer', 'mercer', 'vale'],
+  )
 })
 
-void test('onAnswerSubmit: picked — Q1, its follow-up, then question 2 (no second follow-up)', async () => {
+void test('onAnswerSubmit: an old one-reporter round (no panel) keeps its old limits', async () => {
   const m = pressModel({
-    questions: ['Skater A, what changed after the first period?', 'Skater A, and the third?'],
+    questions: ['Skater A, and the third?'],
     judgements: [
       { usability: 'usable', followUp: 'And then?', closing: 'Good.' },
       { usability: 'usable', followUp: 'Again?', closing: 'Good.' },
@@ -702,15 +753,22 @@ void test('onAnswerSubmit: picked — Q1, its follow-up, then question 2 (no sec
   const t = setup({ model: m.call })
   const personId = await scrumWithPerson(t)
   const live = config('live')
-  await onAccept(t.deps, live, personId, USER_A)
-  await submit(t, live, personId, USER_A, 'We slowed down.')
+  // Question 1 was asked before panels: no panel, no target.
+  asking(t, personId, 'Why?')
   const p = t.store.people[0]!
+  assert.deepEqual(p.panel, [])
+  await submit(t, live, personId, USER_A, 'We slowed down.')
   assert.equal(p.askingFollowup, true)
+  assert.equal(t.sent.at(-1)!.reporter, t.store.scrums[0]!.reporter)
   await submit(t, live, personId, USER_A, 'We changed lines.')
   assert.equal(p.questionsAsked, 2)
   assert.equal(p.followupsAsked, 1)
   assert.equal(p.askingFollowup, false)
   assert.equal(p.currentQuestion, 'Skater A, and the third?')
+  // The scrum's own reporter asks it, and the panel is now the scrum's reporter alone.
+  assert.equal(t.sent.at(-1)!.reporter, t.store.scrums[0]!.reporter)
+  assert.deepEqual(p.panel, [t.store.scrums[0]!.reporter])
+  assert.equal(p.targetTotal, null)
   assert.ok(!t.sent.some((s) => s.msg.content.includes('Again?')))
 })
 

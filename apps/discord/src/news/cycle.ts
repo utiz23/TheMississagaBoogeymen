@@ -337,6 +337,7 @@ function trustedOf(press: {
       question: q.question,
       answer: q.answer,
       usability: q.usability,
+      reporter: q.reporter,
     })),
   }
 }

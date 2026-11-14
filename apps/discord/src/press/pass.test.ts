@@ -1,6 +1,5 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { FALLBACK_CLOSING } from './asker.ts'
 import { runPressPass } from './pass.ts'
 import {
   NOW,
@@ -13,6 +12,7 @@ import {
   bigResponse,
   setup,
   liveRecap,
+  isPoolLine,
   type Sent,
 } from './test-fakes.ts'
 
@@ -100,6 +100,40 @@ void test('a GM note that asks a player pings them on a quiet game, requested by
   t.deps.now = () => new Date(NOW.getTime() + 61_000)
   await runPressPass(t.deps, config('live'))
   assert.equal(pings(t.sent)[0]!.msg.allowed_mentions.users?.[0], USER_B)
+})
+
+void test('/gm ask players join the scrum when it opens (every one, once), as GM requests pinged after 60 s', async () => {
+  const t = setup()
+  liveRecap(t.store)
+  const ask = (id: number, playerId: number, status: 'active' | 'refused' = 'active') =>
+    t.store.askRows.push({
+      id,
+      matchId: 90001,
+      night: NIGHT,
+      playerId,
+      question: 'Why?',
+      exact: true,
+      reporter: 'mercer',
+      status,
+      refusal: null,
+      requestedByUserId: GM,
+      isTest: false,
+      createdAt: NOW,
+    })
+  ask(1, 1)
+  ask(2, 2)
+  ask(3, 1) // a second ask for the same player: one person
+  ask(4, 3, 'refused') // refused: never joins
+  ask(5, 77) // not in the game: skipped
+  await runPressPass(t.deps, config('live'))
+  assert.deepEqual(t.store.people.map((p) => [p.playerId, p.requestedBy, p.role]).sort(), [
+    [1, 'gm', 'picked'],
+    [2, 'gm', 'picked'],
+  ])
+  assert.equal(pings(t.sent).length, 0)
+  t.deps.now = () => new Date(NOW.getTime() + 61_000)
+  await runPressPass(t.deps, config('live'))
+  assert.equal(pings(t.sent).length, 2)
 })
 
 void test('a GM-requested person is pinged only once 60 s old', async () => {
@@ -308,8 +342,8 @@ void test('an unanswered question older than 15 minutes gets the closing line an
   assert.equal(p.currentQuestion, null)
   assert.equal(t.sent.length, 1)
   assert.equal(t.sent[0]!.channelId, 'thread-9')
-  assert.equal(t.sent[0]!.msg.content, `<@${USER_A}> ${FALLBACK_CLOSING}`)
-  assert.equal(t.sent[0]!.msg.content, `<@${USER_A}> Fair enough — next game.`)
+  // A line of the scrum reporter's own closing pool (not the one stock line).
+  assert.ok(isPoolLine('closing', t.sent[0]!, USER_A), t.sent[0]!.msg.content)
   assert.deepEqual(t.sent[0]!.msg.allowed_mentions, { parse: [], users: [USER_A] })
   // A second pass does not close it again.
   await runPressPass(t.deps, config('live'))

@@ -191,6 +191,7 @@ function harness(overrides: Partial<PressHandlers> = {}) {
     onAnswerSubmit: record('submit', { kind: 'ack' }),
     onScrumCommand: record('scrum', say('scrum done')),
     onGmNote: record('gmnote', say('note done')),
+    onGmAsk: record('gmask', say('ask done')),
     onGmNoteCorrect: record('gmfix', say('fixed')),
     onGmNoteCancel: record('gmcancel', say('cancelled')),
     onGmHeat: record('gmheat', say('heat set')),
@@ -575,4 +576,62 @@ test('createMessageRouter: a handler error is logged and never thrown', async ()
   })
   await route(MSG)
   assert.deepEqual(logs, ['[press] typed answer: db down'])
+})
+
+test('commandDefinitions: /gm ask has the player, the question, the reporter, exact and game', () => {
+  const gm = commandDefinitions().find((d) => d.name === 'gm')!
+  const ask = gm.options?.find((o) => o.name === 'ask') as unknown as {
+    type: number
+    options: {
+      name: string
+      type: number
+      required?: boolean
+      max_length?: number
+      choices?: { name: string; value: string }[]
+    }[]
+  }
+  assert.equal(ask.type, 1)
+  assert.deepEqual(
+    ask.options.map((o) => [o.name, o.type, o.required ?? false]),
+    [
+      ['player', 6, true],
+      ['question', 3, true],
+      ['reporter', 3, false],
+      ['exact', 5, false],
+      ['game', 4, false],
+    ],
+  )
+  const reporter = ask.options.find((o) => o.name === 'reporter')!
+  assert.equal(reporter.choices?.length, 8)
+  assert.ok(!reporter.choices?.some((c) => c.value === 'rink'))
+  assert.equal(ask.options.find((o) => o.name === 'question')!.max_length, 400)
+})
+
+test('router: /gm ask passes player, question, reporter, exact and game (null when missing)', async () => {
+  const seen: unknown[] = []
+  const h = harness({
+    onGmAsk: async (_d, _c, userId, args) => {
+      seen.push([userId, args])
+      return say('Got it.')
+    },
+  })
+  await h.run({
+    type: 'command',
+    name: 'gm',
+    subcommand: 'ask',
+    userId: USER,
+    options: { player: '123', question: 'Why?', reporter: 'mercer', exact: false, game: 2 },
+  })
+  await h.run({
+    type: 'command',
+    name: 'gm',
+    subcommand: 'ask',
+    userId: USER,
+    options: { player: '123', question: 'Why?' },
+  })
+  assert.deepEqual(seen, [
+    [USER, { player: '123', question: 'Why?', reporter: 'mercer', exact: false, game: 2 }],
+    [USER, { player: '123', question: 'Why?', reporter: null, exact: null, game: null }],
+  ])
+  assert.deepEqual(h.calls.slice(0, 2), [['deferReply'], ['editReply', { content: 'Got it.' }]])
 })

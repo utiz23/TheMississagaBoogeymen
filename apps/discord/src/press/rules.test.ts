@@ -4,6 +4,7 @@ import { REPORTER_IDS, type NewsTopFact, type ReporterId } from '@eanhl/db/news'
 import { oct12Facts } from '../news/test-fixtures.ts'
 import {
   EXTRAS_BUDGET_SHARE,
+  PANEL_SIZE,
   PRESS_ACCEPT_MS,
   PRESS_ANSWER_MS,
   PRESS_COMMAND_LIMIT,
@@ -11,13 +12,17 @@ import {
   PRESS_OPEN_MS,
   PRESS_PING_LIMIT,
   chooseScrumReporter,
+  choosePanel,
+  drawTargetTotal,
   effectiveHeat,
   extrasBudgetLeft,
   followUpAllowed,
+  followUpPlan,
   pickScrumPlayer,
   questionLimit,
   scrumCandidates,
   shouldPing,
+  targetTotalFor,
   type Candidate,
 } from './rules.ts'
 
@@ -169,7 +174,7 @@ void test('effectiveHeat: easy lowers hot to normal, nothing else changes', () =
 })
 
 const args = (over: Partial<Parameters<typeof chooseScrumReporter>[0]> = {}) => ({
-  heat: 'normal' as const,
+  heat: 'normal' as 'normal' | 'hot' | 'cool',
   seed: 1,
   disabled: [] as ReporterId[],
   lastScrumReporter: null as ReporterId | null,
@@ -251,4 +256,130 @@ void test('extrasBudgetLeft: spent must stay under 80% of the limit', () => {
   assert.equal(extrasBudgetLeft(16, 20), false)
   assert.equal(extrasBudgetLeft(15.99, 20), true)
   assert.equal(extrasBudgetLeft(0, 0), false)
+})
+
+// ── Panel scrums: the panel, the target total, the follow-up plan ──────────
+
+void test('panel size: 3 reporters for a picked player, 2 for a volunteer', () => {
+  assert.equal(PANEL_SIZE.picked, 3)
+  assert.equal(PANEL_SIZE.volunteer, 2)
+})
+
+void test('drawTargetTotal: 3 (10%), 4 (25%), 5 (50%), 6 (15%) over many seeds, and seeded', () => {
+  const n = 20_000
+  const counts = new Map<number, number>()
+  for (let seed = 1; seed <= n; seed++) {
+    const t = drawTargetTotal(seed)
+    counts.set(t, (counts.get(t) ?? 0) + 1)
+  }
+  assert.deepEqual([...counts.keys()].sort(), [3, 4, 5, 6])
+  const share = (t: number): number => (counts.get(t) ?? 0) / n
+  // Within one percentage point of the planned share.
+  assert.ok(Math.abs(share(3) - 0.1) < 0.01, `3: ${String(share(3))}`)
+  assert.ok(Math.abs(share(4) - 0.25) < 0.01, `4: ${String(share(4))}`)
+  assert.ok(Math.abs(share(5) - 0.5) < 0.01, `5: ${String(share(5))}`)
+  assert.ok(Math.abs(share(6) - 0.15) < 0.01, `6: ${String(share(6))}`)
+  // The same seed, the same total.
+  assert.equal(drawTargetTotal(12345), drawTargetTotal(12345))
+})
+
+void test('targetTotalFor: a volunteer is 2 (no follow-up); a picked player draws 3-6', () => {
+  for (let seed = 1; seed <= 50; seed++) {
+    assert.equal(targetTotalFor('volunteer', seed), 2)
+    assert.ok([3, 4, 5, 6].includes(targetTotalFor('picked', seed)))
+  }
+})
+
+const PANEL_ARGS = {
+  size: 3,
+  heat: 'normal' as 'normal' | 'hot' | 'cool',
+  seed: 7,
+  disabled: [] as ReporterId[],
+  first: null,
+  takeReporters: [] as ReporterId[],
+}
+
+void test('choosePanel: 3 different reporters, never Father Rink, never a disabled one', () => {
+  for (let seed = 1; seed <= 300; seed++) {
+    const panel = choosePanel({ ...PANEL_ARGS, seed, disabled: ['quill', 'halberd'] })
+    assert.equal(panel.length, 3)
+    assert.equal(new Set(panel).size, 3)
+    assert.ok(!panel.includes('rink'))
+    assert.ok(!panel.includes('quill') && !panel.includes('halberd'))
+  }
+})
+
+void test('choosePanel: the first reporter asks first; a disabled or Rink first is dropped; seeded', () => {
+  for (let seed = 1; seed <= 100; seed++) {
+    const panel = choosePanel({ ...PANEL_ARGS, seed, first: 'vale' })
+    assert.equal(panel[0], 'vale')
+    assert.equal(new Set(panel).size, 3)
+  }
+  assert.ok(!choosePanel({ ...PANEL_ARGS, first: 'vale', disabled: ['vale'] }).includes('vale'))
+  assert.ok(!choosePanel({ ...PANEL_ARGS, first: 'rink' }).includes('rink'))
+  assert.deepEqual(choosePanel({ ...PANEL_ARGS, seed: 9 }), choosePanel({ ...PANEL_ARGS, seed: 9 }))
+})
+
+void test('choosePanel: a hot heat favours Mercer, Pettibone and Vale; a take weighs x2; a short pool gives a short panel', () => {
+  const tally = (args: Partial<typeof PANEL_ARGS>) => {
+    const counts = new Map<ReporterId, number>()
+    for (let seed = 1; seed <= 3000; seed++) {
+      for (const id of choosePanel({ ...PANEL_ARGS, ...args, seed })) {
+        counts.set(id, (counts.get(id) ?? 0) + 1)
+      }
+    }
+    return counts
+  }
+  const hot = tally({ heat: 'hot' })
+  const normal = tally({ heat: 'normal' })
+  for (const id of ['mercer', 'pettibone', 'vale'] as const) {
+    assert.ok((hot.get(id) ?? 0) > (normal.get(id) ?? 0) * 1.2, id)
+  }
+  const taken = tally({ takeReporters: ['quill'] })
+  assert.ok((taken.get('quill') ?? 0) > (normal.get('quill') ?? 0) * 1.1)
+  // Only two reporters left: the panel has two.
+  const two = choosePanel({
+    ...PANEL_ARGS,
+    disabled: REPORTER_IDS.filter((id) => id !== 'voss' && id !== 'mercer' && id !== 'rink'),
+  })
+  assert.deepEqual([...two].sort(), ['mercer', 'voss'])
+})
+
+void test('followUpPlan: the follow-ups go to the answers with the most to chase, one per reporter', () => {
+  const plan = (
+    targetTotal: number,
+    questionsAsked: number,
+    followupsAsked: number,
+    askingFollowup = false,
+  ) => followUpPlan({ panelSize: 3, questionsAsked, followupsAsked, askingFollowup, targetTotal })
+  // Target 3: none, ever.
+  for (const q of [1, 2, 3]) assert.equal(plan(3, q, 0), 'none')
+  // Target 4: one follow-up wanted: only a lot to chase for Q1 and Q2; Q3 must use it.
+  assert.equal(plan(4, 1, 0), 'chased')
+  assert.equal(plan(4, 2, 0), 'chased')
+  assert.equal(plan(4, 3, 0), 'must')
+  assert.equal(plan(4, 3, 1), 'none')
+  // Target 5: two wanted: Q1 chased; Q2 and Q3 must when none was used yet.
+  assert.equal(plan(5, 1, 0), 'chased')
+  assert.equal(plan(5, 2, 0), 'must')
+  assert.equal(plan(5, 2, 1), 'chased')
+  assert.equal(plan(5, 3, 1), 'must')
+  assert.equal(plan(5, 3, 2), 'none')
+  // Target 6: all three must.
+  assert.equal(plan(6, 1, 0), 'must')
+  assert.equal(plan(6, 2, 1), 'must')
+  assert.equal(plan(6, 3, 2), 'must')
+  // Never after a follow-up (one per reporter).
+  assert.equal(plan(6, 1, 1, true), 'none')
+  // A volunteer (panel 2, target 2): no follow-up.
+  assert.equal(
+    followUpPlan({
+      panelSize: 2,
+      questionsAsked: 1,
+      followupsAsked: 0,
+      askingFollowup: false,
+      targetTotal: 2,
+    }),
+    'none',
+  )
 })

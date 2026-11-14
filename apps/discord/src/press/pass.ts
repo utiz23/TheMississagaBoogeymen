@@ -2,13 +2,16 @@ import { REPORTERS, planBuzz, type NewsFactsResponse, type ReporterId } from '@e
 import type {
   GmNoteUpdate,
   MirrorDeletion,
+  NewNewsGmAsk,
   NewNewsGmNote,
   NewNewsScrum,
   NewNewsScrumAnswer,
   NewNewsScrumPerson,
   NewNewsUsage,
+  NewsGmAskRow,
   NewsGmNoteRow,
   NewsItemRow,
+  NewsScrumPersonRow,
   NewsPressSettingsRow,
   NewsScrumRow,
   PressNote,
@@ -16,6 +19,7 @@ import type {
   PressQuote,
   ReactionItem,
   RecapItemWithoutScrum,
+  ScrumAnswerEntry,
   ScrumPersonDetail,
   ScrumPersonUpdate,
   ScrumPersonWithScrum,
@@ -23,7 +27,7 @@ import type {
 import { acceptButton, type BotMessage } from '../bot-rest.ts'
 import { payloadForItem, toBotMessage } from '../news/messages.ts'
 import type { ModelCall } from '../news/writer.ts'
-import { FALLBACK_CLOSING } from './asker.ts'
+import { fallbackLine } from './fallbacks.ts'
 import type { PressConfig } from './config.ts'
 import { threadLine } from './question.ts'
 import {
@@ -66,6 +70,15 @@ export interface PressStore {
   }): Promise<RecapItemWithoutScrum[]>
   scrumByRecapItem(itemId: number): Promise<NewsScrumRow | null>
   gmAskForMatch(matchId: number, includeTest: boolean): Promise<number | null>
+  /** The GM's active `/gm ask` rows on the match, oldest first. */
+  gmAsksForMatch(matchId: number, includeTest: boolean): Promise<NewsGmAskRow[]>
+  /** The newest active `/gm ask` for this player on the match, or null. */
+  gmAskForPlayer(
+    matchId: number,
+    playerId: number,
+    includeTest: boolean,
+  ): Promise<NewsGmAskRow | null>
+  insertGmAsk(values: NewNewsGmAsk): Promise<number>
   consumeNextHeat(): Promise<Heat | null>
   listDisabledReporters(): Promise<ReporterId[]>
   lastScrumReporter(): Promise<ReporterId | null>
@@ -85,9 +98,12 @@ export interface PressStore {
   listExpiredPings(now: Date): Promise<ScrumPersonWithScrum[]>
   listExpiredQuestions(now: Date): Promise<ScrumPersonWithScrum[]>
   expireScrumPerson(id: number, from: 'pinged' | 'asking', cutoff: Date | null): Promise<boolean>
-  listScrumAnswers(
-    personId: number,
-  ): Promise<{ question: string; answer: string; usability: 'usable' | 'joke' | 'unusable' }[]>
+  listScrumAnswers(personId: number): Promise<ScrumAnswerEntry[]>
+  /** The questions the scrum put to other people (answered and open), oldest first: no repeated angle. */
+  listScrumQuestions(scrumId: number, exceptPersonId: number): Promise<string[]>
+  /** Sets the panel once, while it is empty. True when this call set it. */
+  setScrumPersonPanel(id: number, panel: ReporterId[], targetTotal: number | null): Promise<boolean>
+  findScrumPerson(scrumId: number, playerId: number): Promise<NewsScrumPersonRow | null>
   insertScrumAnswer(values: NewNewsScrumAnswer): Promise<number>
   setScrumThread(scrumId: number, threadId: string): Promise<boolean>
   claimScrumQuestion(args: {
@@ -282,7 +298,8 @@ export async function runPressPass(
     const game = res.facts.games.find((g) => g.matchId === matchId)
     if (game === undefined) throw new Error('the game is not on its fact sheet')
     const plan = planBuzz(game, res.facts)
-    const gmAsk = await store.gmAskForMatch(matchId, trial)
+    const asks = await store.gmAsksForMatch(matchId, trial)
+    const gmAsk = (await store.gmAskForMatch(matchId, trial)) ?? asks[0]?.playerId ?? null
 
     const discordIds = new Map<number, string>()
     for (const line of game.players) {
@@ -336,6 +353,23 @@ export async function runPressPass(
         log(`[press] scrums: extras budget for ${month} is spent; scrums ask nobody`)
       }
       return
+    }
+
+    // The GM's `/gm ask` players join as GM requests (pinged after the usual 60 s).
+    // The pick below may be one of them: the unique (scrum, player) joins them once.
+    const candidates = scrumCandidates(game, res.facts, discordIds)
+    for (const ask of asks) {
+      if (pick !== null && ask.playerId === pick.playerId) continue
+      const c = candidates.find((x) => x.playerId === ask.playerId)
+      if (c === undefined || c.discordUserId === null) continue
+      await store.insertScrumPerson({
+        scrumId,
+        playerId: c.playerId,
+        discordUserId: c.discordUserId,
+        role: 'picked',
+        requestedBy: 'gm',
+        requestedByUserId: ask.requestedByUserId,
+      })
     }
 
     if (pick === null || pick.discordUserId === null) return
@@ -438,7 +472,15 @@ export async function runPressPass(
       summary.closedQuestions++
       if (p.threadId === null) continue
       try {
-        await discord.send(p.reporter, p.threadId, threadLine(p.discordUserId, FALLBACK_CLOSING))
+        // A line of the reporter's own pool: never the one stock line again in the same thread.
+        const line = fallbackLine(deps, {
+          scrumId: p.scrumId,
+          kind: 'closing',
+          reporter: p.reporter,
+          name: '',
+          seed: p.id,
+        })
+        await discord.send(p.reporter, p.threadId, threadLine(p.discordUserId, line))
       } catch (err: unknown) {
         // Closed: the line is never sent again.
         log(`[press] expired answers: person ${String(p.id)}: ${reason(err)}`)

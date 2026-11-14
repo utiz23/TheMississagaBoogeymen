@@ -6,6 +6,8 @@ import type {
   NewNewsScrumAnswer,
   NewNewsScrumPerson,
   NewNewsUsage,
+  NewNewsGmAsk,
+  NewsGmAskRow,
   NewsGmNoteRow,
   NewsItemRow,
   NewsPressSettingsRow,
@@ -18,6 +20,8 @@ import type {
   ScrumPersonUpdate,
 } from '@eanhl/db/queries'
 import type { BotMessage } from '../bot-rest.ts'
+import { escapeMarkdown } from '../message.ts'
+import { fallbackPool, type FallbackKind } from './fallbacks.ts'
 import type { ModelCall } from '../news/writer.ts'
 import { oct12Response } from '../news/test-fixtures.ts'
 import type { PressConfig } from './config.ts'
@@ -126,8 +130,12 @@ export class FakeStore implements PressStore {
     question: string
     answer: string
     usability: 'usable' | 'joke' | 'unusable'
+    reporter?: ReporterId | null
+    scrumId?: number
   }[] = []
   gmAsks = new Map<number, number>()
+  /** Stored `/gm ask` rows. */
+  askRows: NewsGmAskRow[] = []
   discordIds = new Map<number, string>([
     [1, USER_A],
     [2, USER_B],
@@ -213,6 +221,42 @@ export class FakeStore implements PressStore {
   scrumByRecapItem = (itemId: number) =>
     Promise.resolve(this.scrums.find((s) => s.recapItemId === itemId) ?? null)
   gmAskForMatch = (matchId: number) => Promise.resolve(this.gmAsks.get(matchId) ?? null)
+  insertGmAsk = (v: NewNewsGmAsk) => {
+    const id = this.askRows.length + 1
+    this.askRows.push({
+      id,
+      matchId: v.matchId ?? null,
+      night: v.night,
+      playerId: v.playerId,
+      question: v.question,
+      exact: v.exact ?? true,
+      reporter: v.reporter ?? null,
+      status: v.status ?? 'active',
+      refusal: v.refusal ?? null,
+      requestedByUserId: v.requestedByUserId ?? null,
+      isTest: v.isTest ?? false,
+      createdAt: NOW,
+    })
+    return Promise.resolve(id)
+  }
+  gmAsksForMatch = (matchId: number, includeTest: boolean) =>
+    Promise.resolve(
+      this.askRows.filter(
+        (a) => a.matchId === matchId && a.status === 'active' && (!a.isTest || includeTest),
+      ),
+    )
+  gmAskForPlayer = (matchId: number, playerId: number, includeTest: boolean) =>
+    Promise.resolve(
+      this.askRows
+        .filter(
+          (a) =>
+            a.matchId === matchId &&
+            a.playerId === playerId &&
+            a.status === 'active' &&
+            (!a.isTest || includeTest),
+        )
+        .at(-1) ?? null,
+    )
   consumeCalls = 0
   consumeNextHeat = () => {
     this.consumeCalls++
@@ -264,6 +308,8 @@ export class FakeStore implements PressStore {
       askingFollowup: v.askingFollowup ?? false,
       currentQuestion: v.currentQuestion ?? null,
       lastAskedAt: v.lastAskedAt ?? null,
+      panel: v.panel ?? [],
+      targetTotal: v.targetTotal ?? null,
       createdAt: v.createdAt ?? NOW,
     })
     return Promise.resolve(id)
@@ -377,7 +423,12 @@ export class FakeStore implements PressStore {
     Promise.resolve(
       this.answers
         .filter((a) => a.personId === personId)
-        .map(({ question, answer, usability }) => ({ question, answer, usability })),
+        .map(({ question, answer, usability, reporter }) => ({
+          question,
+          answer,
+          usability,
+          reporter: reporter ?? null,
+        })),
     )
   insertScrumAnswer = (v: NewNewsScrumAnswer) => {
     this.answerRows.push(v)
@@ -386,9 +437,33 @@ export class FakeStore implements PressStore {
       question: v.question,
       answer: v.answer,
       usability: v.usability,
+      reporter: v.reporter ?? null,
+      scrumId: v.scrumId,
     })
     return Promise.resolve(this.answerRows.length)
   }
+  listScrumQuestions = (scrumId: number, exceptPersonId: number) =>
+    Promise.resolve([
+      ...this.answers
+        .filter((a) => a.scrumId === scrumId && a.personId !== exceptPersonId)
+        .map((a) => a.question),
+      ...this.people
+        .filter(
+          (p) => p.scrumId === scrumId && p.id !== exceptPersonId && p.currentQuestion !== null,
+        )
+        .map((p) => p.currentQuestion!),
+    ])
+  setScrumPersonPanel = (id: number, panel: ReporterId[], targetTotal: number | null) => {
+    const p = this.people.find((x) => x.id === id)
+    if (!p || p.panel.length > 0) return Promise.resolve(false)
+    p.panel = panel
+    p.targetTotal = targetTotal
+    return Promise.resolve(true)
+  }
+  findScrumPerson = (scrumId: number, playerId: number) =>
+    Promise.resolve(
+      this.people.find((p) => p.scrumId === scrumId && p.playerId === playerId) ?? null,
+    )
   setScrumThread = (scrumId: number, threadId: string) => {
     const s = this.scrums.find((x) => x.id === scrumId)!
     if (s.threadId !== null) return Promise.resolve(false)
@@ -621,6 +696,18 @@ export interface Sent {
   reporter: ReporterId
   channelId: string
   msg: BotMessage
+}
+
+/** The post is a line of the posting reporter's own fallback pool, addressed to `userId`. */
+export function isPoolLine(
+  kind: FallbackKind,
+  s: Sent,
+  userId: string,
+  name = 'Skater A',
+): boolean {
+  return fallbackPool(kind, s.reporter, name).some(
+    (l) => s.msg.content === `<@${userId}> ${escapeMarkdown(l)}`,
+  )
 }
 
 export function setup(opts: { response?: NewsFactsResponse; model?: ModelCall } = {}) {

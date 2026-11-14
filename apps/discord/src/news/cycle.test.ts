@@ -2178,6 +2178,7 @@ const QUOTE_12 = {
   question: 'What went wrong?',
   answer: 'We got outworked, plain and simple.',
   usability: 'usable' as const,
+  reporter: 'mercer' as const,
 }
 /** A drop-in who is not on the sheet's people: never offered. */
 const QUOTE_13 = {
@@ -2187,6 +2188,7 @@ const QUOTE_13 = {
   question: 'Your first game?',
   answer: 'Loved every minute.',
   usability: 'usable' as const,
+  reporter: 'mercer' as const,
 }
 const pressMaterial = async () => ({
   quotes: [QUOTE_12, QUOTE_13],
