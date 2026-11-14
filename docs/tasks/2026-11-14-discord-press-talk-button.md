@@ -1,6 +1,6 @@
 # Task: T10 — "Talk to the press" for someone already in the scrum
 
-- **State:** Verify
+- **State:** Merged (Lead review 2026-11-14); deploy `press` waits for the operator's OK
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** low
 - **Slug:** press-talk-button
@@ -50,6 +50,8 @@ All checks pass and the tests pin the four cases.
   and `packages/db/src/queries/__tests__/news-press.test.ts`. Added `findScrumPersonByUser` (query, SQL-shape
   pin, store port, fake) and used it in `talkAgain` for people with no player row. `bench.test.ts`: the
   "twice" assertion now checks both bench people (with and without a player row) by state. Ruling 84 updated.
+
+- 2026-11-14 Lead review: rebased on main; paths inside "May edit" (widened for the bench query) plus Ruling 84. Re-ran: typecheck db/discord/web clean; discord 830/830; news-press 54/54; prettier clean. No migration.
 
 ## Report
 
