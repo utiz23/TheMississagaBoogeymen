@@ -1,6 +1,7 @@
 # Task: L1 — Press Box: shell, overview, relationships board, change log
 
-- **State:** Ready (operator 2026-11-14: design and mock-up approved); starts after T8 and T9 are merged
+- **State:** Running (since 2026-11-14 03:22; task agent of `Lead2`; Opus: migration + admin controls)
+  (operator 2026-11-14: design and mock-up approved; "Proceed with both" 03:22)
 - **Lane:** Web (`apps/web/src/app/admin/press-box/`), Queries, Database (one migration)
 - **Risk:** medium (admin controls that change live press behaviour)
 - **Slug:** press-box-l1
@@ -33,7 +34,7 @@ Migration: `news_press_box_audit` (actor, at, kind, target, summary); relationsh
 
 - **May edit:** `apps/web/src/app/admin/press-box/`, `apps/web/src/components/press-box/`,
   `apps/web/src/app/admin/` (a link to the Press Box only), `packages/db/src/queries/` (new
-  `press-box.ts` + tests), `packages/db/src/schema/`, `packages/db/migrations/<next>_*.sql`,
+  `press-box.ts` + tests), `packages/db/src/schema/`, `packages/db/migrations/0080_*.sql` (0079 is E1's),
   `apps/discord/src/press/` only to export the test-scrum entry point, this task file.
 
 ## Checks
@@ -50,5 +51,11 @@ All checks pass; screenshots match the mock-up's layout; every action is admin-o
 ## Log
 
 - 2026-11-14 Lead: written.
+- 2026-11-14 03:22 Lead2: started. Migration number **0080** (E1, running beside this task, has 0079 and
+  adds `packages/db/src/schema/live-events.ts` + an export in the schema index): if both edit the same
+  schema index line, whoever merges second rebases. Only the live database's mode stays read-only in the
+  preview. Running beside E1 and backup hardening.
+
+Resume: task agent makes the branch and worktree, reads the design §3.1/§3.3 and the mock-up, then builds.
 
 ## Report
