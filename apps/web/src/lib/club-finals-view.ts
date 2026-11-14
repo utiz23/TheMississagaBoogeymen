@@ -107,8 +107,6 @@ export function clubFinalsBanner(
 
 export interface FinalsRoundGame {
   matchId: number
-  roundWinsAfter: number
-  roundLossesAfter: number
   roundResults: string
 }
 
@@ -120,15 +118,13 @@ export interface SeriesCell {
 }
 
 export interface SeriesPanelView {
-  before: { wins: number; losses: number }
-  after: { wins: number; losses: number }
   cells: SeriesCell[]
 }
 
 /**
  * The round as it stood at one game. `roundGames` are the round's games in time order, up to and
- * including the game shown. The score before is the stored score after the game before it; a
- * round's first game starts from 0–0 by the rules. Null when the game is not in the list.
+ * including the game shown: the 7 boxes come from the stored results string of that game. Null
+ * when the game is not in the list.
  */
 export function seriesPanelView(
   roundGames: readonly FinalsRoundGame[],
@@ -137,21 +133,13 @@ export function seriesPanelView(
   const index = roundGames.findIndex((g) => g.matchId === matchId)
   const game = roundGames[index]
   if (index < 0 || game === undefined) return null
-  const previous = roundGames[index - 1]
   const cells: SeriesCell[] = Array.from({ length: FINALS_BOX_COUNT }, (_, i) => {
     const c = game.roundResults[i]
     const letter = c === 'W' || c === 'L' ? c : null
     const g = roundGames[i]
     return { letter, matchId: letter === null ? null : (g?.matchId ?? null), current: i === index }
   })
-  return {
-    before:
-      previous === undefined
-        ? { wins: 0, losses: 0 }
-        : { wins: previous.roundWinsAfter, losses: previous.roundLossesAfter },
-    after: { wins: game.roundWinsAfter, losses: game.roundLossesAfter },
-    cells,
-  }
+  return { cells }
 }
 
 interface AttemptGames {

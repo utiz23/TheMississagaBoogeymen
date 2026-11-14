@@ -71,19 +71,10 @@ describe('outcome', () => {
 
 describe('series panel', () => {
   const games: FinalsRoundGame[] = [
-    { matchId: 10, roundWinsAfter: 1, roundLossesAfter: 0, roundResults: 'W' },
-    { matchId: 11, roundWinsAfter: 1, roundLossesAfter: 1, roundResults: 'WL' },
-    { matchId: 12, roundWinsAfter: 2, roundLossesAfter: 1, roundResults: 'WLW' },
+    { matchId: 10, roundResults: 'W' },
+    { matchId: 11, roundResults: 'WL' },
+    { matchId: 12, roundResults: 'WLW' },
   ]
-
-  it('takes the score before from the game before, and 0-0 for the first game', () => {
-    const first = seriesPanelView(games.slice(0, 1), 10)
-    assert.deepEqual(first?.before, { wins: 0, losses: 0 })
-    assert.deepEqual(first?.after, { wins: 1, losses: 0 })
-    const third = seriesPanelView(games, 12)
-    assert.deepEqual(third?.before, { wins: 1, losses: 1 })
-    assert.deepEqual(third?.after, { wins: 2, losses: 1 })
-  })
 
   it('draws 7 boxes with this game marked and empty boxes unknown', () => {
     const view = seriesPanelView(games, 12)
@@ -112,8 +103,6 @@ describe('round games lookup', () => {
   const row = (matchId: number, round: number, results: string) => ({
     matchId,
     round,
-    roundWinsAfter: 0,
-    roundLossesAfter: 0,
     roundResults: results,
   })
   const attempts = [

@@ -40,27 +40,6 @@ export function SeriesPanel({
                 {roundName(round, isFinal)}
               </p>
             </div>
-            <div className="flex items-end gap-4 font-condensed uppercase tabular-nums">
-              <div className="text-center">
-                <p className={LABEL}>Before</p>
-                <p className="text-2xl font-black leading-none text-fg-3">
-                  {view.before.wins}
-                  <span className="text-fg-6">–</span>
-                  {view.before.losses}
-                </p>
-              </div>
-              <span aria-hidden className="pb-1 text-lg font-black text-accent">
-                →
-              </span>
-              <div className="text-center">
-                <p className={LABEL}>After</p>
-                <p className="text-4xl font-black leading-none text-fg-1">
-                  {view.after.wins}
-                  <span className="text-fg-6">–</span>
-                  {view.after.losses}
-                </p>
-              </div>
-            </div>
           </div>
 
           <div>
