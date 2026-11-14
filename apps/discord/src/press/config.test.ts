@@ -164,3 +164,17 @@ void test('PRESS_TYPED_ANSWERS: on only for exactly "1"; unset, 0, true, yes ⇒
     assert.equal(r.config.typedAnswers, false, `PRESS_TYPED_ANSWERS=${String(v)}`)
   }
 })
+
+void test('PRESS_WIRE_REPLIES: on only for exactly "1" and only with PRESS_TYPED_ANSWERS=1', () => {
+  const both = loadPressConfig({ ...FULL_ENV, PRESS_TYPED_ANSWERS: '1', PRESS_WIRE_REPLIES: '1' })
+  assert.ok(both.ok)
+  assert.equal(both.config.wireReplies, true)
+  const noTyped = loadPressConfig({ ...FULL_ENV, PRESS_WIRE_REPLIES: '1' })
+  assert.ok(noTyped.ok)
+  assert.equal(noTyped.config.wireReplies, false)
+  for (const v of [undefined, '', '0', 'true', 'yes']) {
+    const r = loadPressConfig({ ...FULL_ENV, PRESS_TYPED_ANSWERS: '1', PRESS_WIRE_REPLIES: v })
+    assert.ok(r.ok)
+    assert.equal(r.config.wireReplies, false, `PRESS_WIRE_REPLIES=${String(v)}`)
+  }
+})

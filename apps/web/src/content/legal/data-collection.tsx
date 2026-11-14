@@ -676,6 +676,12 @@ export const sections: LegalPageSection[] = [
           reactions to the post.
         </P>
         <P>
+          <Strong>Replies to reporters in Discord.</Strong> If you reply to a reporter's post in our
+          team's Discord channel, the bots may send your reply to Claude AI (Anthropic) so the
+          reporter can answer you. We store the answer and the message IDs, not the text of your
+          reply.
+        </P>
+        <P>
           <Strong>Where it appears.</Strong> The finished posts and articles appear on the News
           pages of this site. Our team's Discord channel gets the posts, and links to the articles.
         </P>

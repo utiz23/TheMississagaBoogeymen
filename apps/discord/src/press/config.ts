@@ -25,6 +25,12 @@ export interface PressConfig extends PressDiscord {
    * intents are requested only when this is on. Fail-closed default: off.
    */
   typedAnswers: boolean
+  /**
+   * T4: a reporter may answer a member's Discord Reply to its post in the
+   * press channel (`PRESS_WIRE_REPLIES=1`). Needs `typedAnswers` (the same
+   * intents). Fail-closed default: off. Optional so older fakes stay valid.
+   */
+  wireReplies?: boolean
 }
 
 type Env = Record<string, string | undefined>
@@ -106,6 +112,9 @@ export function loadPressConfig(
       pollIntervalMs: intOr(env['PRESS_POLL_INTERVAL_MS'], 15000),
       // On only for exactly `1`: anything else keeps the extra intents off.
       typedAnswers: env['PRESS_TYPED_ANSWERS']?.trim() === '1',
+      // On only for exactly `1`, and only with typed answers (Barlow must read messages).
+      wireReplies:
+        env['PRESS_TYPED_ANSWERS']?.trim() === '1' && env['PRESS_WIRE_REPLIES']?.trim() === '1',
     },
   }
 }

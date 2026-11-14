@@ -5,7 +5,6 @@ import {
   Events,
   GatewayIntentBits,
   MessageFlags,
-  MessageType,
   Partials,
   type CommandInteractionOption,
   type Interaction,
@@ -30,18 +29,21 @@ import {
   onGmNoteCancel,
   onGmNoteCorrect,
 } from './gm.ts'
-import { interviewPlan, onPressThreadMessage, withInterviewCommands } from './interview-gateway.ts'
+import { interviewPlan, withInterviewCommands } from './interview-gateway.ts'
 import {
   onAccept,
   onAnswerButton,
   onAnswerSubmit,
   onScrumCommand,
-  onTypedAnswer,
   onTalk,
   type Reply,
 } from './interactions.ts'
 import type { PressDeps, PressDiscordOps } from './pass.ts'
 import { onReaction } from './reactions.ts'
+import { messageFromRaw } from './replies-raw.ts'
+import { onThreadMessage, type ReferencedMessage, type ThreadMessage } from './replies.ts'
+import { joinOpenThreads, joinThread, withBarlowJoin } from './thread-join.ts'
+import { onWireReply } from './wire-replies.ts'
 import type { Heat } from './rules.ts'
 
 /**
@@ -535,26 +537,58 @@ export interface MessageInput {
   isPlain: boolean
   inThread: boolean
   text: string
+  /** The message's own id (T4: reporters reply to it). */
+  messageId?: string
+  /** T4: the message a Discord Reply points at; null or absent = not a Reply. */
+  reference?: ReferencedMessage | null
 }
 
 /**
- * The typed-answer router: ignores bots, other servers, anything outside a
- * thread, non-plain messages and empty text; the rest goes to `onTypedAnswer`,
- * which ignores everyone without an open question in that thread. It never
- * throws: an error is logged as `[press] typed answer: <reason>`.
+ * The message router: ignores bots, other servers, non-plain messages and
+ * empty text. A thread message goes to `onThreadMessage` (replies.ts: an
+ * interview or scrum answer, one log line each). Outside a thread only a
+ * Discord Reply in the press channel is read, and only with
+ * `PRESS_WIRE_REPLIES=1` (`onWireReply`, wire-replies.ts). It never throws: an
+ * error is logged as `[press] typed answer: <reason>` / `[press] wire reply: <reason>`.
  */
 export function createMessageRouter(args: {
   deps: PressDeps
   config: PressConfig
   log: (m: string) => void
-  handler?: typeof onTypedAnswer
+  handler?: (deps: PressDeps, config: PressConfig, msg: ThreadMessage) => Promise<void>
+  /** T4 item 3: a Reply to a reporter's post in the press channel (`PRESS_WIRE_REPLIES=1`). */
+  wireHandler?: typeof onWireReply
 }): (input: MessageInput) => Promise<void> {
-  const { deps, config, log, handler = onPressThreadMessage } = args
+  const { deps, config, log, handler = onThreadMessage, wireHandler = onWireReply } = args
   return async (m) => {
-    if (m.userIsBot || !m.isPlain || !m.inThread) return
+    if (m.userIsBot || !m.isPlain) return
     if (m.guildId !== config.guildId || m.text.trim() === '') return
+    if (!m.inThread) {
+      if (
+        config.wireReplies === true &&
+        m.channelId === config.channelId &&
+        m.reference !== null &&
+        m.reference !== undefined &&
+        m.messageId !== undefined
+      ) {
+        try {
+          await wireHandler(deps, config, {
+            userId: m.userId,
+            messageId: m.messageId,
+            targetMessageId: m.reference.messageId,
+            text: m.text,
+          })
+        } catch (err: unknown) {
+          log(`[press] wire reply: ${reason(err)}`)
+        }
+      }
+      return
+    }
+    const msg: ThreadMessage = { threadId: m.channelId, userId: m.userId, text: m.text }
+    if (m.messageId !== undefined) msg.messageId = m.messageId
+    if (m.reference !== undefined) msg.reference = m.reference
     try {
-      await handler(deps, config, { threadId: m.channelId, userId: m.userId, text: m.text })
+      await handler(deps, config, msg)
     } catch (err: unknown) {
       log(`[press] typed answer: ${reason(err)}`)
     }
@@ -562,24 +596,23 @@ export function createMessageRouter(args: {
 }
 
 /**
- * Wire the message router to Barlow's `messageCreate` (the only client with
- * the message intents). Only new messages: an edit is a different event and
- * is never read.
+ * Wire the message router to Barlow's raw gateway events (the only client
+ * with the message intents). T4: the raw MESSAGE_CREATE, not `messageCreate`:
+ * discord.js drops a message whose thread is not in its channel cache, and
+ * that is how typed answers were lost live. Only new messages: an edit is a
+ * different event and is never read.
  */
 export function attachMessages(
   client: Client,
   route: (input: MessageInput) => Promise<void>,
 ): void {
-  client.on(Events.MessageCreate, (message) => {
-    void route({
-      channelId: message.channelId,
-      guildId: message.guildId,
-      userId: message.author.id,
-      userIsBot: message.author.bot || message.webhookId !== null,
-      isPlain: message.type === MessageType.Default || message.type === MessageType.Reply,
-      inThread: message.channel.isThread(),
-      text: message.content,
+  client.on(Events.Raw, (packet: { t?: unknown; d?: unknown }) => {
+    if (packet.t !== 'MESSAGE_CREATE') return
+    const input = messageFromRaw(packet.d, (id) => {
+      const channel = client.channels.cache.get(id)
+      return channel === undefined ? null : channel.isThread()
     })
+    if (input !== null) void route(input)
   })
 }
 
@@ -800,6 +833,15 @@ export async function startClients(
       ),
     )
   }
+  // T4: Barlow reads the typed answers, so Barlow joins the open press threads (a restart).
+  if (config.typedAnswers) {
+    void joinOpenThreads({
+      token: config.tokens.barlow,
+      guildId: config.guildId,
+      channelId: config.channelId,
+      log,
+    })
+  }
   await Promise.all(first)
   return clients
 }
@@ -819,13 +861,23 @@ export function registerCommands(barlow: Client, guildId: string, log: (m: strin
   else barlow.once(Events.ClientReady, put)
 }
 
-/** The deps' Discord side over REST, with each reporter's token; DMs come from Barlow. */
-export function restDiscordOps(tokens: Record<ReporterId, string>): PressDiscordOps {
-  return {
-    send: (r, channelId, msg) => sendBotMessage(tokens[r], channelId, msg),
-    edit: (r, channelId, messageId, msg) => editBotMessage(tokens[r], channelId, messageId, msg),
-    remove: (r, channelId, messageId) => deleteBotMessage(tokens[r], channelId, messageId),
-    thread: (r, channelId, messageId, name) => startThread(tokens[r], channelId, messageId, name),
-    dm: (userId, content) => sendDirectMessage(tokens.barlow, userId, content),
-  }
+/**
+ * The deps' Discord side over REST, with each reporter's token; DMs come from
+ * Barlow. T4: Barlow joins every thread a reporter starts (`withBarlowJoin`).
+ */
+export function restDiscordOps(
+  tokens: Record<ReporterId, string>,
+  log: (m: string) => void = (m) => console.log(m),
+): PressDiscordOps {
+  return withBarlowJoin(
+    {
+      send: (r, channelId, msg) => sendBotMessage(tokens[r], channelId, msg),
+      edit: (r, channelId, messageId, msg) => editBotMessage(tokens[r], channelId, messageId, msg),
+      remove: (r, channelId, messageId) => deleteBotMessage(tokens[r], channelId, messageId),
+      thread: (r, channelId, messageId, name) => startThread(tokens[r], channelId, messageId, name),
+      dm: (userId, content) => sendDirectMessage(tokens.barlow, userId, content),
+    },
+    (threadId) => joinThread(tokens.barlow, threadId),
+    log,
+  )
 }

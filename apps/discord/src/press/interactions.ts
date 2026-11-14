@@ -5,6 +5,7 @@ import { escapeMarkdown } from '../message.ts'
 import { containsName } from '../news/fact-check.ts'
 import { FALLBACK_CLOSING, judgeAnswer, type FollowUpMode, type Usability } from './asker.ts'
 import { fallbackLine } from './fallbacks.ts'
+import { replyingTo } from './reply-ref.ts'
 import type { PressConfig } from './config.ts'
 import { SCRUM_SOURCE_WINDOW_MS, type PressDeps } from './pass.ts'
 import {
@@ -410,7 +411,8 @@ export async function onAnswerSubmit(
   userId: string,
   text: string,
   seen: { questionsAsked: number; followupsAsked: number },
-  opts: { typed?: boolean } = {},
+  /** `messageId`: the typed answer's own message (T4: the reporter's lines reply to it). */
+  opts: { typed?: boolean; messageId?: string } = {},
 ): Promise<Reply> {
   const { store, discord, log } = deps
   const person = await store.getScrumPerson(personId)
@@ -441,9 +443,12 @@ export async function onAnswerSubmit(
   // Echoed right after the submit, before the judgement, so the player sees their own answer
   // at once (operator, 2026-11-13). A typed answer is already there. The desk still never
   // quotes an unusable answer later.
+  // T4: the reporter's lines reply to the answer message (the typed one, or the echo below);
+  // never to a refused answer.
+  let answerRef: string | null = refused ? null : (opts.messageId ?? null)
   if (!refused && opts.typed !== true) {
     try {
-      await discord.send(asker, threadId, {
+      answerRef = await discord.send(asker, threadId, {
         content: `**${escapeMarkdown(person.name)}:** ${escapeMarkdown(answer)}`,
         allowed_mentions: { parse: [] },
         flags: SUPPRESS_EMBEDS,
@@ -486,9 +491,12 @@ export async function onAnswerSubmit(
     await discord.send(
       asker,
       threadId,
-      threadLine(mention, escapeMarkdown(verdict.followUp), [
-        { type: 1, components: [answerButton(personId)] },
-      ]),
+      replyingTo(
+        threadLine(mention, escapeMarkdown(verdict.followUp), [
+          { type: 1, components: [answerButton(personId)] },
+        ]),
+        answerRef,
+      ),
     )
     return ACK
   }
@@ -500,7 +508,10 @@ export async function onAnswerSubmit(
         await discord.send(
           asker,
           threadId,
-          threadLine(mention, escapeMarkdown(fixed ? poolLine('ack') : verdict.closing)),
+          replyingTo(
+            threadLine(mention, escapeMarkdown(fixed ? poolLine('ack') : verdict.closing)),
+            answerRef,
+          ),
         )
       } catch (err: unknown) {
         // The answer is stored and the round goes on: the acknowledgement is not retried.
@@ -513,7 +524,10 @@ export async function onAnswerSubmit(
   await discord.send(
     asker,
     threadId,
-    threadLine(mention, escapeMarkdown(fixed ? poolLine('closing') : verdict.closing)),
+    replyingTo(
+      threadLine(mention, escapeMarkdown(fixed ? poolLine('closing') : verdict.closing)),
+      answerRef,
+    ),
   )
   return ACK
 }

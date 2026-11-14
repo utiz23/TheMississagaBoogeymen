@@ -398,3 +398,68 @@ Rollback: put the old `press` image back and restart `press`. The commands go
 away at the next start. Articles already written stay as normal news items. The
 tables do no harm. To remove them, use the rollback SQL in the header of
 `packages/db/migrations/0074_press_interviews.sql`.
+
+## Discord replies (task T4, 2026-11-13)
+
+Task file: `docs/tasks/2026-11-13-discord-press-replies.md`. Three changes, and a
+fix for typed answers.
+
+**Typed answers fix.** Players still had to press Answer. Cause found in the
+code (not proven live): Wade Barlow reads the messages, but discord.js drops a
+message whose thread is not in Barlow's channel cache. Now:
+
+- Barlow reads the raw gateway message event, so the cache does not matter.
+- Barlow joins every thread a reporter starts, and at start-up every open thread
+  under the press channel. Look for
+  `[press] thread join: Barlow is in N of M open threads` in the `press` log.
+- Each message in a thread gets one log line, never its text:
+  `[press] thread message: thread <id> user <id>: ... taken` or
+  `not taken (<why>)`.
+
+**1. Reply to a question.** In a scrum or interview thread, a Discord Reply to
+the reporter's question message is the answer to that question, for the asked
+player only. A reply to an earlier question, to someone else's question or to
+any other message is ignored. A plain message still answers. Needs
+`PRESS_TYPED_ANSWERS=1`.
+
+**2. Reporter lines reply to answers.** The reporter's follow-up, its
+acknowledgement and its closing line are Discord replies to the player's answer
+(the typed message, or the bots' echo of a pop-up answer).
+
+**3. Replies to wire posts** (off by default). A team member replies to a
+reporter's post in the press channel; the reporter may answer, as a reply. On
+only with `PRESS_TYPED_ANSWERS=1` **and** `PRESS_WIRE_REPLIES=1` in `.env`.
+
+- Only members with a linked Discord. Never "Leave me out"; "Go easy" gets no
+  criticism.
+- About half of the replies get an answer (the same person on the same post
+  always gets the same result). One answer per person per post. At most 8 a
+  night. None after the 80% budget stop. No answer to a correction or to a post
+  older than 24 hours. The answer pings nobody.
+- The reply text goes to Claude as data and is not stored. The answer and the
+  message IDs are stored in `news_wire_replies` (migration 0075).
+- Log: `[press] wire reply: item <id> user <id>: answered by <reporter>` or
+  `no answer (<why>)`.
+
+Deploy (operator's OK first):
+
+1. Take a fresh database backup (step 2 of the release checklist). Check that
+   it is not empty.
+2. Apply migration 0075. It adds one new table only. It is safe to run twice.
+
+   ```
+   docker exec -i -e PGOPTIONS="-c lock_timeout=5s -c statement_timeout=30s" \
+     eanhl-team-website-db-1 psql -U eanhl -d eanhl -v ON_ERROR_STOP=1 -f - \
+     < packages/db/migrations/0075_press_wire_replies.sql
+   ```
+
+3. Set `lastUpdated` of the privacy policy and the data collection policy
+   (`apps/web/src/lib/legal/legal-docs.ts`) to the release day, if it is not
+   already that day.
+4. Tag rollback images for `web`, `news` and `press`. Rebuild and restart the
+   three services. To turn on item 3, add `PRESS_WIRE_REPLIES=1` to `.env`
+   before the restart (turning a poster on is a High step: the operator's OK).
+
+Rollback: remove `PRESS_WIRE_REPLIES` (item 3 stops at the next start), or put
+the old `press` image back. The table does no harm; its rollback SQL is in the
+header of `packages/db/migrations/0075_press_wire_replies.sql`.

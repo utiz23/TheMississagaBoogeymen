@@ -30,6 +30,7 @@ import { interviewStoreOf, type InterviewStore } from './interview-store.ts'
 import { ANSWER_MAX_CHARS, TEXT, type Reply } from './interactions.ts'
 import type { PressDeps, PressStore } from './pass.ts'
 import { pressRecorder, safeWhy, threadLine } from './question.ts'
+import { replyingTo } from './reply-ref.ts'
 import { extrasBudgetLeft } from './rules.ts'
 
 /**
@@ -353,6 +354,8 @@ async function close(
   iv: InterviewDetail,
   to: 'done' | 'stopped',
   line: string,
+  /** T4: the player's answer message the line replies to. */
+  replyTo: string | null = null,
 ): Promise<void> {
   if (!(await st.endInterview({ id: iv.id, from: 'active', to, cutoff: null, at: deps.now() }))) {
     return
@@ -362,7 +365,7 @@ async function close(
     await deps.discord.send(
       iv.reporter,
       lineTarget(iv),
-      threadLine(iv.discordUserId, escapeMarkdown(line)),
+      replyingTo(threadLine(iv.discordUserId, escapeMarkdown(line)), replyTo),
     )
   } catch (err: unknown) {
     deps.log(`[press] interview ${String(iv.id)}: closing line failed (${reason(err)})`)
@@ -595,7 +598,8 @@ export async function onInterviewAnswerSubmit(
   userId: string,
   text: string,
   seen: { questionsAsked: number; followupsAsked: number },
-  opts: { typed?: boolean } = {},
+  /** `messageId`: the typed answer's own message (T4: the reporter's lines reply to it). */
+  opts: { typed?: boolean; messageId?: string } = {},
 ): Promise<Reply> {
   const st = interviewStore(deps)
   if (st === null) return say(INTERVIEW_TEXT.off)
@@ -636,7 +640,7 @@ export async function onInterviewAnswerSubmit(
 
   if (saysItIsOver(answer)) {
     await store('unusable')
-    await close(deps, st, iv, 'stopped', interviewClosing(iv.name))
+    await close(deps, st, iv, 'stopped', interviewClosing(iv.name), opts.messageId ?? null)
     return ACK
   }
 
@@ -645,9 +649,12 @@ export async function onInterviewAnswerSubmit(
     sheet === null ||
     sheet.person === undefined ||
     sheet.res.forbiddenNames.some((n) => containsName(answer, n))
+  // T4: the reporter's lines reply to the answer message (the typed one, or the echo below);
+  // never to a refused answer.
+  let answerRef: string | null = refused ? null : (opts.messageId ?? null)
   if (!refused && opts.typed !== true) {
     try {
-      await deps.discord.send(iv.reporter, target, {
+      answerRef = await deps.discord.send(iv.reporter, target, {
         content: `**${escapeMarkdown(iv.name)}:** ${escapeMarkdown(answer)}`,
         allowed_mentions: { parse: [] },
         flags: SUPPRESS_EMBEDS,
@@ -671,16 +678,19 @@ export async function onInterviewAnswerSubmit(
       await deps.discord.send(
         iv.reporter,
         target,
-        threadLine(mention, escapeMarkdown(verdict.followUp), [
-          { type: 1, components: [interviewAnswerButton(id)] },
-        ]),
+        replyingTo(
+          threadLine(mention, escapeMarkdown(verdict.followUp), [
+            { type: 1, components: [interviewAnswerButton(id)] },
+          ]),
+          answerRef,
+        ),
       )
       return ACK
     }
   }
   const lastLine = verdict.fixed ? interviewClosing(iv.name) : verdict.closing
   if (verdict.end) {
-    await close(deps, st, iv, 'stopped', lastLine)
+    await close(deps, st, iv, 'stopped', lastLine, answerRef)
     return ACK
   }
   if (moreQuestions(iv)) {
@@ -691,7 +701,10 @@ export async function onInterviewAnswerSubmit(
         await deps.discord.send(
           iv.reporter,
           target,
-          threadLine(mention, escapeMarkdown(verdict.fixed ? FALLBACK_ACK : verdict.closing)),
+          replyingTo(
+            threadLine(mention, escapeMarkdown(verdict.fixed ? FALLBACK_ACK : verdict.closing)),
+            answerRef,
+          ),
         )
       } catch (err: unknown) {
         deps.log(`[press] interview ${String(id)}: acknowledgement failed (${reason(err)})`)
@@ -704,7 +717,7 @@ export async function onInterviewAnswerSubmit(
     }
     return say(TEXT.rightWithYou)
   }
-  await close(deps, st, iv, 'done', lastLine)
+  await close(deps, st, iv, 'done', lastLine, answerRef)
   return ACK
 }
 

@@ -336,6 +336,12 @@ export const sections: LegalPageSection[] = [
           If you react to a news post in our team's Discord channel, the bots store your Discord
           user ID with that post. We use it only to count the reactions to the post.
         </P>
+        <P>
+          <Strong>Replies to reporters in Discord.</Strong> If you reply to a reporter's post in our
+          team's Discord channel, the bots may send your reply to Claude AI (Anthropic) so the
+          reporter can answer you. We store the answer and the message IDs, not the text of your
+          reply.
+        </P>
       </>
     ),
   },

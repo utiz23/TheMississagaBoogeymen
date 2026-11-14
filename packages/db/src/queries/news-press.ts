@@ -46,6 +46,8 @@ import {
 } from '../schema/index.js'
 import { MEMBER_CONDITION } from './club-members.js'
 import { NEWS_MAX_ATTEMPTS, nightKeySql } from './news.js'
+// Wire-post replies (T4, migration 0075): kept apart from the import list above.
+import { newsWireReplies, type NewNewsWireReply } from '../schema/news-wire-replies.js'
 
 // Press queries (news desk bots, migrations 0072 and 0073): scrums, GM notes, nicknames,
 // the trial mirror and fan reactions. Each query has a `…Sql` / `…Query`
@@ -1400,3 +1402,58 @@ export type {
   NewsGmAskRow,
   NewsPressSettingsRow,
 } from '../schema/index.js'
+
+// ── Replies to wire posts (T4, migration 0075) ──────────────────────────────
+
+export type { NewNewsWireReply, NewsWireReplyRow } from '../schema/index.js'
+
+/** Claim one answer for this person on this post: the id, or null when they had one. */
+export function claimWireReplyQuery(values: NewNewsWireReply) {
+  return db
+    .insert(newsWireReplies)
+    .values({ ...values, status: 'claimed' })
+    .onConflictDoNothing({ target: [newsWireReplies.itemId, newsWireReplies.discordUserId] })
+    .returning({ id: newsWireReplies.id })
+}
+
+export async function claimWireReply(values: NewNewsWireReply): Promise<number | null> {
+  const rows = await claimWireReplyQuery(values)
+  return rows[0]?.id ?? null
+}
+
+/** The outcome of a claimed answer: posted (with the answer and its message id) or failed. */
+export function finishWireReplyQuery(
+  id: number,
+  outcome:
+    | { status: 'answered'; answer: string; answerMessageId: string }
+    | { status: 'failed'; answer?: string | null },
+) {
+  return db
+    .update(newsWireReplies)
+    .set(
+      outcome.status === 'answered'
+        ? { status: 'answered', answer: outcome.answer, answerMessageId: outcome.answerMessageId }
+        : { status: 'failed', answer: outcome.answer ?? null },
+    )
+    .where(and(eq(newsWireReplies.id, id), eq(newsWireReplies.status, 'claimed')))
+}
+
+export async function finishWireReply(
+  id: number,
+  outcome:
+    | { status: 'answered'; answer: string; answerMessageId: string }
+    | { status: 'failed'; answer?: string | null },
+): Promise<void> {
+  await finishWireReplyQuery(id, outcome)
+}
+
+/** Answers this night, given or being written (a failed one does not count). */
+export function countWireRepliesTonightSql(night: string): SQL {
+  return sql`select count(*)::int as n from news_wire_replies
+    where night = ${night}::date and status in ('claimed', 'answered')`
+}
+
+export async function countWireRepliesTonight(night: string): Promise<number> {
+  const rows = await db.execute<{ n: number }>(countWireRepliesTonightSql(night))
+  return Number(rows[0]?.n ?? 0)
+}

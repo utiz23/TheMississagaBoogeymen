@@ -60,12 +60,15 @@ import {
   upsertAlias,
 } from '@eanhl/db/queries'
 import { interviewDbStore } from './interview-db.ts'
+import { repliesDbStore } from './replies-db.ts'
 import type { PressStore } from './pass.ts'
 
 /** The press store on the database (the `@eanhl/db` queries). */
 export const pressDbStore: PressStore = {
   // The interview methods (interview-store.ts): found by `interviewStoreOf`.
   ...interviewDbStore,
+  // The wire-reply methods (replies-store.ts): found by `replyStoreOf`.
+  ...repliesDbStore,
   getPressSettings,
   setMirrorFrom,
   newestNewsItemId: async () => (await listAdminNewsItems(1))[0]?.id ?? null,
