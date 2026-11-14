@@ -85,10 +85,20 @@ services:
       DISCORD_INTERNAL_TOKEN: ${DISCORD_INTERNAL_TOKEN:-}
       # Shown on /admin/news ("spent of limit"); the news service has its own copy.
       NEWS_MONTHLY_LIMIT_USD: ${NEWS_MONTHLY_LIMIT_USD:-20}
+      # Live events (E1): POST /api/internal/live-events. Unset or short = the
+      # route refuses everyone (503). docs/operations/runbooks/live-events.md
+      LIVE_EVENTS_TOKEN: ${LIVE_EVENTS_TOKEN:-}
+      LIVE_EVENTS_HMAC_KEY: ${LIVE_EVENTS_HMAC_KEY:-}
     ports:
       # Public traffic arrives through cloudflared over the compose network, not
       # through this published port. Keep it on loopback even on a public host.
       - '${WEB_BIND_ADDR:-127.0.0.1}:${WEB_HOST_PORT:-3000}:3000'
+      # Live events sender on the main PC (E1): Tailscale only, never public.
+      # On Hotel-Echo set LIVE_EVENTS_BIND_ADDR=100.98.29.119 (its Tailscale
+      # address) in .env; the default keeps the port on loopback. Never 0.0.0.0.
+      # Tailscale must be up before Docker starts web, or this bind fails (see
+      # the runbook). A sender ON Hotel-Echo uses http://web:3000 instead.
+      - '${LIVE_EVENTS_BIND_ADDR:-127.0.0.1}:${LIVE_EVENTS_HOST_PORT:-3100}:3000'
     depends_on:
       db:
         condition: service_healthy
