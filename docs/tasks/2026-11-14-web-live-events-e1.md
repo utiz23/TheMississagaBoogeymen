@@ -25,10 +25,17 @@ Design: `docs/superpowers/specs/2026-11-14-live-events-interface.md` (approved; 
    applies the compose change; the agent writes it and explains both paths in the runbook.
 3. **Storage:** `live_events` table (id text primary key, type, source, at, received_at, payload jsonb;
    30-day retention by a small cleanup in the worker). Hand-written migration with rollback.
-4. **Worker fast poll:** on a stored `period_end` with `period >= 3` (or `game_end`), the worker runs an
-   EA ingestion pass at once and then every 30 s until a new club game for the active title appears or
-   15 minutes pass; then normal polling resumes. Never overlaps the normal loop (one ingestion at a time).
-   EA stays the truth; events never write match data.
+4. **Worker quick checks at the horn** (changed by the operator 2026-11-14 03:18, "lets go with your
+   advice": do not load the EA API): on a stored `period_end` with `period >= 3` (or `game_end`), the
+   worker runs a **match-list-only** check at once, then at +1, +2, +4 and +8 minutes (5 checks at most),
+   and stops early when a new club game for the active title appears. A quick check calls only the EA
+   match-list endpoints (at most the 3 match types; only 1 when the event says which mode was played),
+   then transforms and stores any new game exactly as a normal pass does. It does **not** call member
+   stats, club record, season rank, settings or opponent club info: those stay in the normal pass. The
+   normal 5-minute loop is unchanged. Never overlaps the normal loop (one ingestion at a time); a second
+   horn event while checks are scheduled does not start a second series. Same throttle (1 s between EA
+   calls). EA stays the truth; events never write match data. Log each quick check in one line (calls
+   made, new games).
 5. **Docs:** a runbook section for the sender side (how to sign a request; an example `curl` with
    placeholder secrets) for the engine's E2 card.
 
@@ -44,8 +51,9 @@ Design: `docs/superpowers/specs/2026-11-14-live-events-interface.md` (approved; 
 
 db build; typecheck db, web, worker, discord; web unit + worker unit tests where they run; changed db tests
 by name; prettier. Tests: auth (missing/wrong token, bad HMAC, old timestamp, replay), validation, size
-limit, idempotency, rate limit, public-tunnel refusal, the fast-poll state machine (starts on the horn in
-period ≥ 3, stops on a new game or 15 minutes, no overlap). No real secret in tests or docs.
+limit, idempotency, rate limit, public-tunnel refusal, the quick-check schedule (starts on the horn in
+period ≥ 3 or `game_end`; checks at 0, +1, +2, +4, +8 min; stops early on a new game; no overlap with the
+normal pass; a repeat horn does not start a second series; only match-list endpoints are called). No real secret in tests or docs.
 
 ## Done when
 
@@ -58,6 +66,10 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
 - 2026-11-14 03:16 Lead2: State was still "Ready" here and on the board after the 03:09 "E1 running"
   commit (that commit changed only the dashboard). Set to Running. Branch `work/live-events-e1` has
   `bc7eef72` (migration 0079 + queries) and web work not yet committed. New Lead is `Lead2`.
+
+- 2026-11-14 03:18 Lead2: operator decision: replace "every 30 s for 15 minutes" (worst case ~210 EA
+  calls per game) with match-list-only checks at 0/+1/+2/+4/+8 min (worst case ~15 calls per game).
+  Goal item 4 and Checks changed. Sent to the task agent through the old Lead chat.
 
 Resume: task agent finishes, writes the Report, rebases, sets Verify; Lead2 reviews and merges.
 
