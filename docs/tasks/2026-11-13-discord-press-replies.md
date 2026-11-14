@@ -1,7 +1,6 @@
 # Task: T4 — Discord replies (answers, reporter replies, replies to wire posts)
 
-- **State:** Verify (operator 2026-11-13: all three items; privacy paragraph approved as written; run in
-  parallel with T3 in the operator's chat)
+- **State:** Merged (Lead review 2026-11-13); deploy waits for the operator's OK
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Web (privacy text),
   Database only if item 3 needs a small table
 - **Risk:** medium (reads more Discord messages; new AI calls on player text)
@@ -96,6 +95,12 @@ answers, and a reply to a wire post gets an in-character answer within the limit
   applied), queries in news-press.ts, flag PRESS_WIRE_REPLIES (default off).
 - 2026-11-13 agent: privacy paragraph in privacy.tsx and data-collection.tsx; runbook section.
 - 2026-11-13 agent: checks green (Report); State = Verify.
+
+- 2026-11-13 Lead review: on main 089bc1fe (T3 inside); every changed path inside "May edit";
+  migration 0075 (one new table, independent of 0073/0074). Re-ran: typecheck db/discord/web/worker
+  clean; discord 724/724; news db tests 120/120; web unit 672/672; prettier clean. On release day: set
+  `lastUpdated` of privacy + data-collection and a footer notice. Deploy order: backup → 0074 → 0075 →
+  `press`, `news`, `web`.
 
 ## Report
 
