@@ -1,6 +1,6 @@
 # Task: Backup hardening — weekly/monthly copies after a missed day; one run at a time
 
-- **State:** Running (since 2026-11-14 03:24; task agent of `Lead2`)
+- **State:** Running (since 2026-11-14 03:22; task agent of `Lead2`)
 - **Lane:** Ops
 - **Risk:** medium (the nightly backup is the data-safety net; this changes which copies it keeps)
 - **Slug:** backup-hardening (branch `work/backup-hardening`, worktree `.claude/worktrees/backup-hardening`)
@@ -69,7 +69,7 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 ## Log
 
-- 2026-11-14 03:24 Lead2: written from the operator's "Proceed with both" (dashboard item "Backup
+- 2026-11-14 03:22 Lead2: written from the operator's "Proceed with both" (dashboard item "Backup
   hardening"). Items 2 and 4 as offered on 10-09; item 3 is in the same lines, so it is in.
 
 Resume: task agent makes the branch and worktree, then writes the tests first.
