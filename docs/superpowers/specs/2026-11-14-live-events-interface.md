@@ -113,3 +113,10 @@ as EA lists the game (often about 1 minute after the end) instead of waiting for
    only around it: a reporter's one-line comment on big moments, intermission interviews, and the
    recap after the game. The ticker is marked as a live reading; the EA game post stays the final
    word. Open for E5: correct or delete a wrong or overturned goal line.
+   Engine Lead's notes for E5 (2026-11-14): the engine's goal lines already carry period, clock left
+   (tenths), team + side, scorer + up to 2 assists (in-game names; gamertag when sure) and goal number
+   per team (score after the goal from the scorebug). (a) A game-ending goal (OT winner, or any goal
+   that ends the game) has no clock live, because the scorebug vanishes at once: post it as "OT winner,
+   time unknown" and fill the time later from the Events screen. (b) Every event carries `sure`: post
+   only sure goals, or mark the line "reading". (c) No goal review or disallowed goal seen in NHL 27
+   recordings yet; the safe design is to edit the line in place by event id.
