@@ -6,16 +6,15 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                      | My advice                         | Waiting costs            |
+| --- | ------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------ |
+| D1  | Panel scrums + interviews: OK the design in `docs/tasks/2026-11-13-discord-press-panel-scrums-interviews.md`? | OK, build after the trial is read | Scrums stay one-reporter |
 
 ## 2. Your to-dos (only you can do these)
 
 - **Name the Lead chat tab** (for example `website-lead`) and tell the Lead, so task chats can find it.
-- **Press bots:** 9 bots made, tokens and IDs set on Hotel-Echo (11-14), `#bot-test` ready. Left:
-  1. Optional but advised: a Codex second opinion on `work/press-bots` before release.
-  2. Your OK to release (see the Lead's plan): backup → new tables (0072) → deploy → trial night.
+- **Press bots:** LIVE in trial since 11-13 (`#bot-test`). First scrum worked. Next: read the trial
+  with the Lead, then switch to the game channel (`PRESS_MODE=live`).
 - **Anthropic workspace limit:** set it to $100 a month to match the news desk cap ($100 on
   Hotel-Echo since 11-13; scrums stop at $80). November so far: $15.17.
 
