@@ -73,6 +73,9 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
 - 2026-11-14 03:14 agent: database step done: migration 0079_live_events.sql (table, checks, index;
   rollback in the header), schema `live-events.ts`, queries `live-events.ts`, SQL-shape test (6 pass).
 
-Resume: build the web endpoint (`lib/live-events/` + the route) and its tests.
+- 2026-11-14 03:31 agent: web endpoint done: `POST /api/internal/live-events` (route) + `lib/live-events/`
+  (auth, v1 validation, rate limit, handler); 15 tests pass; web typecheck clean.
+
+Resume: build the worker fast poll + 30-day cleanup and their tests.
 
 ## Report
