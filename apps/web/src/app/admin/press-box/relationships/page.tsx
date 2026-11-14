@@ -59,7 +59,7 @@ export default async function PressBoxRelationshipsPage({
           aria-label="Board"
           className="broadcast-panel w-full min-w-0 flex-1 overflow-x-auto xl:flex-[999_1_720px]"
         >
-          <table className="w-full min-w-[980px] border-collapse">
+          <table className="w-full min-w-[820px] border-collapse">
             <thead>
               <tr>
                 <th className="px-4 py-3 text-left font-condensed text-[11px] font-semibold uppercase tracking-[0.16em] text-fg-4">
@@ -69,7 +69,7 @@ export default async function PressBoxRelationshipsPage({
                   <th
                     key={id}
                     title={REPORTERS[id].name}
-                    className="px-2 py-3 text-center font-condensed text-[11px] font-semibold uppercase tracking-[0.16em] text-fg-4"
+                    className="px-1 py-3 text-center font-condensed text-[11px] font-semibold uppercase tracking-[0.1em] text-fg-4"
                   >
                     {surname(id)}
                   </th>
@@ -104,7 +104,7 @@ export default async function PressBoxRelationshipsPage({
                           href={`/admin/press-box/relationships?player=${String(p.playerId)}&reporter=${id}`}
                           aria-label={`${p.name} and ${REPORTERS[id].name}: ${label === '—' ? 'none' : label}`}
                           aria-current={isSel ? 'true' : undefined}
-                          className={`inline-block min-w-[76px] border px-1 py-1.5 font-condensed text-xs font-bold uppercase tracking-[0.08em] ${LEVEL_CLASS[level]} ${
+                          className={`inline-block min-w-[64px] border px-1 py-1.5 font-condensed text-xs font-bold uppercase tracking-[0.08em] ${LEVEL_CLASS[level]} ${
                             isSel ? 'outline outline-2 outline-offset-2 outline-fg-1' : ''
                           }`}
                         >

@@ -56,8 +56,9 @@ export async function loadOverview(now: Date) {
     getPressBoxNow(now),
     listRelationships({ now }).catch(() => []),
     listRecentStorylines(now, 5).catch(() => []),
-    listPressBoxAudit(20),
-    listRecentPressBoxRequests(3),
+    // Before migration 0080 is applied these tables do not exist: the page still renders.
+    listPressBoxAudit(20).catch(() => []),
+    listRecentPressBoxRequests(3).catch(() => []),
     listPressRoster(),
     getLatestMatchId(),
   ])
