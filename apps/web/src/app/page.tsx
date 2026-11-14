@@ -15,8 +15,10 @@ import {
   getCardProgressForPlayers,
   getClubMemberIds,
   getHistoricalClubTeamStatsBatch,
+  getClubFinalsOverview,
 } from '@eanhl/db/queries'
 import { redirect } from 'next/navigation'
+import { ClubFinalsCard } from '@/components/club-finals/club-finals-card'
 import { LatestResult } from '@/components/home/latest-result'
 import { PlayerCarousel } from '@/components/home/player-carousel'
 import { ScoringLeadersPanel } from '@/components/home/leaders-section'
@@ -120,7 +122,15 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     },
   })
 
-  const [fetched, titleRecords] = await Promise.all([criticalPromise, titleRecordsPromise])
+  // Club Finals rounds (CF1): stored by the worker. A failure (also before migration 0083) only
+  // leaves the card out.
+  const clubFinalsPromise = getClubFinalsOverview(gameTitle.id).catch(() => null)
+
+  const [fetched, titleRecords, clubFinals] = await Promise.all([
+    criticalPromise,
+    titleRecordsPromise,
+    clubFinalsPromise,
+  ])
 
   if (fetched === null) {
     return (
@@ -195,6 +205,9 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             {gameTitle.name}
           </span>
         </div>
+
+        {/* 0. CLUB FINALS — high while an attempt runs, one line otherwise (CF1) */}
+        {clubFinals !== null && <ClubFinalsCard overview={clubFinals} />}
 
         {/* 1. LATEST RESULT */}
         {lastMatch !== null && (

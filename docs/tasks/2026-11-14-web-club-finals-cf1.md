@@ -1,6 +1,6 @@
 # Task: CF1 — Club Finals: rounds from EA results, game badges, the Club Finals page
 
-- **State:** Verify (since 2026-11-14 15:27; started 2026-11-14 15:08; task agent of `Lead2`; Opus: numbers teammates see)
+- **State:** Verify (since 2026-11-14 15:27, rework 2026-11-14 15:41; started 2026-11-14 15:08; task agent of `Lead2`; Opus: numbers teammates see)
 - **Lane:** Worker (derive after each pass), Database (one migration), Queries, Web
 - **Risk:** medium (a number teammates see: round, game number, series score) — a Verifier checks it
 - **Slug:** club-finals-cf1 (branch `work/club-finals-cf1`, worktree `.claude/worktrees/club-finals-cf1`)
@@ -37,9 +37,11 @@
    and reported, never silently fixed.
 2. **Badges:** on game pages and game lists: "Club Finals · Round 4 · Game 5", series score, "Final"
    and "Eliminated" / "Round won" marks.
-3. **Club Finals page** (pick the place in the site nav that fits; say where): the current attempt
-   (round, W/L boxes like the panel, attempt W-L), past attempts (rounds reached, record), best record.
-   Always dark, red accents, scoreboard look (the site's design direction).
+3. **Club Finals component on the home page** (operator 2026-11-14 15:34: not its own page): the
+   current attempt (round, R1/R2/R3/FINAL steps, this round's W/L boxes, attempt W-L, last game) and
+   the best attempt, high on the home page while an attempt runs; one small line ("Best 13-9, reached
+   the final") when none runs; past attempts in a collapsed "All attempts" list. Anchor `/#club-finals`.
+   No route, no nav link. Always dark, red accents, scoreboard look (the site's design direction).
 4. **Season 1 history:** a table in the Report: every Club Finals game 11-06 → today with its derived
    attempt/round/game, next to the panel reads where they exist (old vs new side by side for the
    operator).
@@ -48,8 +50,9 @@
 
 - **May edit:** `apps/worker/src/` (a new `club-finals.ts` + tests; one call after a pass),
   `packages/db/migrations/0083_*.sql`, `packages/db/src/schema/`, `packages/db/src/queries/` (new
-  `club-finals.ts` + tests), `apps/web/src/app/` (game pages and lists: badges only; the new Club
-  Finals page), `apps/web/src/components/` (badges, the page's pieces, one nav link), this task file.
+  `club-finals.ts` + tests), `apps/web/src/app/` (game pages and lists: badges only; the home page `page.tsx`:
+  the component), `apps/web/src/components/` (badges), `apps/web/src/components/home/` and
+  `apps/web/src/components/club-finals/` (the home component; added by the Lead 2026-11-14), this task file.
   Read only: the engine repo file above.
 
 ## Checks
@@ -85,7 +88,9 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 15:27 task agent: screenshots done (read-only dev server and tunnel stopped, temporary in-memory patch reverted, never committed). History table and Report written. Rebased on main (already up to date). Checks pass. State = Verify.
 
-Resume: Verifier re-runs the checks; the Lead shows the operator the screenshots and the history table, then merges and plans the deploy (migration 0083, worker, web).
+- 2026-11-14 15:41 task agent: operator decision (Lead2, 2026-11-14 15:34): "club finals page not approved. This can just be a component on the home page, doesnt need to be its own page. The rest are approved". Removed the `/club-finals` route and the nav link; added `components/club-finals/club-finals-card.tsx` (Server Component, native `<details>` for "All attempts") placed first on the home page. Rebased on main (B1 merged; kept both export lines in the two index files). Typecheck db, worker, discord, web clean; web unit 727/727; prettier clean. Home screenshots (desktop 1280, phone 390, with the list open) in the scratchpad `shots-cf1/home-*-running*.png`. Not screenshotted: the one-line state (no attempt running); a second preview run for it was denied by the permission system (broad process kill), so it is not shown.
+
+Resume: Verifier re-checks the rework (home component, no route, no nav link); the Lead merges and plans the deploy (migration 0083, worker, web).
 
 ## Report (task agent fills when state = Verify)
 
@@ -93,7 +98,7 @@ Resume: Verifier re-runs the checks; the Lead shows the operator the screenshots
   - Worker derives Club Finals rounds after each normal pass and each quick check that stored a new game (`apps/worker/src/club-finals.ts` rules, `club-finals-sync.ts` store, two calls in `ingest.ts`). It rebuilds the title's rows from `matches` each time, so a late game fixes the rows after it. It skips when migration 0083 is not applied.
   - Migration 0083 (hand-written, idempotent, rollback in the header): `club_finals_games` (one row per game) and `club_finals_attempts` (one row per attempt). Not applied anywhere yet; it was **not run** on any database (no Docker, no local Postgres; one attempt to test it in a throwaway engine was denied, so it is checked by eye against 0081 only).
   - Badges: game cards on /games and the scoreboard of a game page show "Club Finals · Round R · Game N", "Series W–L" (the round record after the game), and marks "Final", "Final won", "Round won", "Eliminated". The game page strip also shows the attempt record. A game with no row shows nothing.
-  - New page `/club-finals` (own nav link "Club Finals", after Games; also in the mobile drawer): now (round, 4 round boxes track, the seven W/L boxes like the panel, RETRY, attempt record, last game), best attempt, every attempt by round with each game linking to its page. Dark, red accents, scoreboard look. Unknown after a won final: the page says so.
+  - REWORKED 2026-11-14 (operator): there is no `/club-finals` page and no nav link now. The same content is a component on the home page (`/#club-finals`), first block, compact; one small line when no attempt runs. The next bullet describes the old page and is kept for the record. (old) New page `/club-finals` (own nav link "Club Finals", after Games; also in the mobile drawer): now (round, 4 round boxes track, the seven W/L boxes like the panel, RETRY, attempt record, last game), best attempt, every attempt by round with each game linking to its page. Dark, red accents, scoreboard look. Unknown after a won final: the page says so.
   - Only 6v6 games count: `match_type = gameType10` and EA code 10. Only active titles are derived (NHL 27). NHL 26 also has code-10 games (44) but is inactive and its rules are unknown, so they are not derived.
 - **What the data says:**
   - Attempt 1 ended with **match 3431** (4scin, OT loss 2-3, 11-12 19:08): game 5 of round 4. Round 4 was W L L L L (3427 W, 3428 L, 3429 L, 3430 L Homie Time, 3431 OTL). The Engine Lead's guess holds.
