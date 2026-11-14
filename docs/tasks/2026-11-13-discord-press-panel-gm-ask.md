@@ -1,6 +1,6 @@
 # Task: T2 — panel scrums (3 reporters) and `/gm ask` (GM shapes questions)
 
-- **State:** Verify (task agent done 2026-11-13; the Lead repeats the checks)
+- **State:** Merged (Lead review 2026-11-13); deploy waits for the operator's OK
 - **Lane:** Discord (`apps/discord/src/press/`), Database (one hand-written migration), Queries
 - **Risk:** medium (live bots; a migration on live, additive only)
 - **Slug:** press-panel (branch `work/press-panel`, worktree `.claude/worktrees/press-panel`)
@@ -164,3 +164,7 @@ requested_by_user_id, is_test, created_at; status and reporter checks; 2 indexes
 - Deploy: migration 0073, then `press` and `news` (shared `news/prompts.ts` and `cycle.ts` changed); `web` only
   if the Lead wants the image rebuilt for the db package.
 - Git: branch `work/press-panel`, rebased on `main` (a72bf0be); commit a5dbac74 plus this task-file commit. Not pushed.
+- 2026-11-13 Lead review: migration 0073 read (additive, one transaction, rollback in header; new
+  table `news_gm_asks` instead of note columns, reason accepted). Re-ran: typecheck db/discord/web/worker
+  clean; discord 650/650; news + news-press db tests 105/105; web unit 672/672. Rulings file edited
+  (51-55) at the Lead's request. Deploy order: backup → 0073 → `press` + `news`.
