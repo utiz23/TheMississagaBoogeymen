@@ -7,6 +7,7 @@ import {
   PROFILE_MAX_WRITES,
   PROFILE_RULES,
   PROFILE_SCHEMA,
+  offeredBackground,
   offeredRelationships,
   offeredTakes,
   profileProblems,
@@ -45,6 +46,7 @@ function ctx(over: Partial<ProfileContext> = {}): ProfileContext {
         reporter: 'vale',
       },
     ],
+    background: { own: [], fromTeammates: [] },
     ...over,
   }
 }
@@ -218,4 +220,73 @@ void test('the system prompt states the hard lines', () => {
   ]) {
     assert.ok(rules.includes(needle), needle)
   }
+})
+
+// ── Task background-b1: confirmed background facts reach the profile; nothing else ──
+
+const FACT_OWN = 'Joined the club in its first season as a stay-at-home defender'
+const FACT_TEAM = 'Teammates count him as the calm voice on the second pair'
+const BG: ProfileContext['background'] = {
+  own: [{ part: 'career', text: FACT_OWN }],
+  fromTeammates: [{ part: 'room', text: FACT_TEAM }],
+}
+
+void test("confirmed background goes into the prompt as facts, never as the person's words; the review may state it", async () => {
+  const m = fake()
+  const r = await writePlayerProfile(m.call, ctx({ background: BG }), m.record)
+  assert.ok(r.ok)
+  const [write, review] = m.reqs as [Parameters<ModelCall>[0], Parameters<ModelCall>[0]]
+  assert.match(write.user, /Confirmed background about Skater A \(facts the admin approved/)
+  assert.ok(write.user.includes(`- [Career history and team timeline] ${FACT_OWN}`))
+  assert.match(write.user, /What teammates have said about Skater A, approved by the admin/)
+  assert.ok(write.user.includes(`- [Room presence and team dynamics] ${FACT_TEAM}`))
+  assert.match(write.user, /never say who said it/)
+  // The review gets the facts as true desk notes, so a profile that states one is not "invented".
+  assert.ok(review.user.includes(FACT_OWN))
+  assert.ok(
+    PROFILE_RULES.some((x) => /Confirmed background lines are facts the admin approved/.test(x)),
+  )
+})
+
+void test('no background: the prompt says so and the review gets no extra notes', async () => {
+  const p = profilePrompt(ctx())
+  assert.match(p, /Confirmed background about Skater A: none\./)
+  assert.doesNotMatch(p, /What teammates have said/)
+})
+
+void test('Leave me out: even a context that carries facts offers none, and no call is made', async () => {
+  const out = ctx({
+    person: { name: 'Skater A', role: 'player', pressLevel: 'out' },
+    background: BG,
+  })
+  assert.deepEqual(offeredBackground(out), { own: [], fromTeammates: [] })
+  const prompt = profilePrompt(out)
+  assert.ok(!prompt.includes(FACT_OWN) && !prompt.includes(FACT_TEAM))
+  const m = fake()
+  const r = await writePlayerProfile(m.call, out, m.record)
+  assert.equal(r.ok, false)
+  assert.equal(m.reqs.length, 0)
+})
+
+void test('Go easy: facts are offered, and the no-criticism rule still stands in the prompt', async () => {
+  const easy = ctx({
+    person: { name: 'Skater B', role: 'player', pressLevel: 'easy' },
+    background: BG,
+  })
+  const prompt = profilePrompt(easy)
+  assert.ok(prompt.includes(FACT_OWN))
+  assert.match(prompt, /no criticism at all, not even mild/)
+})
+
+void test('code check: a profile that copies four words from a background line is refused', () => {
+  const c = ctx({ background: BG })
+  const copied = `Quill notes he joined the club in its first season as a defender.`
+  assert.ok(
+    profileProblems(copied, c).some((p) => /repeats a background line/.test(p)),
+    'copied words',
+  )
+  assert.deepEqual(
+    profileProblems('Quill sees a steady defender who has grown into the room.', c),
+    [],
+  )
 })

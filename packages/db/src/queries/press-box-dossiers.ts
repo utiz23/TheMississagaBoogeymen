@@ -18,6 +18,7 @@ import {
 } from './discord-ids.js'
 import { listPressRoster, listPressRosterSql } from './news-press.js'
 import { writeAudit, type PressBoxActor } from './press-box.js'
+import { NO_BACKGROUND, getConfirmedBackground, type WriterBackground } from './press-background.js'
 
 // Press Box player dossiers (admin page /admin/press-box/players, migration 0081, task
 // press-box-l2). Same shape as press-box.ts: pure rules carry the tests; the async functions run
@@ -1133,6 +1134,8 @@ export interface ProfileMaterial {
   /** Usable and joke answers, newest first. */
   quotes: DossierQuote[]
   takes: DossierTake[]
+  /** Confirmed background facts only (task background-b1); nothing for "Leave me out". */
+  background: WriterBackground
 }
 
 export async function getProfileMaterial(key: DossierKey): Promise<ProfileMaterial | null> {
@@ -1149,12 +1152,15 @@ export async function getProfileMaterial(key: DossierKey): Promise<ProfileMateri
     discordUserId: identity.discordUserId,
   }
   // "Leave me out": nothing is read at all.
-  if (identity.pressLevel === 'out') return { ...base, quotes: [], takes: [] }
-  const [answers, takes] = await Promise.all([
+  if (identity.pressLevel === 'out') {
+    return { ...base, quotes: [], takes: [], background: NO_BACKGROUND }
+  }
+  const [answers, takes, background] = await Promise.all([
     readAnswers(key, 12),
     identity.playerId === null ? Promise.resolve([]) : listDossierTakes(identity.playerId),
+    getConfirmedBackground(key, identity.pressLevel),
   ])
-  return { ...base, quotes: answers.quotes, takes: takes.filter((t) => t.active) }
+  return { ...base, quotes: answers.quotes, takes: takes.filter((t) => t.active), background }
 }
 
 export interface NewProfile {

@@ -4,9 +4,12 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { nightKey } from '@eanhl/db/news'
 import {
+  addBackgroundFactWithAudit,
   addGmNoteWithAudit,
   addNicknameWithAudit,
   applyRelationshipAction,
+  decideBackgroundFactWithAudit,
+  editBackgroundFactWithAudit,
   hasOpenPressBoxRequest,
   latestPressNight,
   queueInterviewRequest,
@@ -17,6 +20,14 @@ import {
   setPressLevelWithAudit,
 } from '@eanhl/db/queries'
 import { requireAdmin } from '@/lib/auth'
+import {
+  addBackgroundBox,
+  confirmBackgroundBox,
+  editBackgroundBox,
+  rejectBackgroundBox,
+  removeBackgroundBox,
+  type BackgroundActionDeps,
+} from './background-box-actions'
 import {
   addNicknameBox,
   gmNoteBox,
@@ -137,4 +148,35 @@ export async function interviewAction(formData: FormData): Promise<void> {
 /** Cool down a relationship from a dossier: the same rule and audit line as the board, then back here. */
 export async function dossierRelationshipAction(formData: FormData): Promise<void> {
   backToDossier(formData, await relationshipBox(formData, deps))
+}
+
+// ── Player background (task background-b1) ──────────────────────────────────
+
+/** The same admin check as every Press Box action; the queries write the audit line themselves. */
+const backgroundDeps: BackgroundActionDeps = {
+  requireAdmin: deps.requireAdmin,
+  now: deps.now,
+  addBackgroundFactWithAudit,
+  decideBackgroundFactWithAudit,
+  editBackgroundFactWithAudit,
+}
+
+export async function addBackgroundAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await addBackgroundBox(formData, backgroundDeps))
+}
+
+export async function confirmBackgroundAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await confirmBackgroundBox(formData, backgroundDeps))
+}
+
+export async function rejectBackgroundAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await rejectBackgroundBox(formData, backgroundDeps))
+}
+
+export async function removeBackgroundAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await removeBackgroundBox(formData, backgroundDeps))
+}
+
+export async function editBackgroundAction(formData: FormData): Promise<void> {
+  backToDossier(formData, await editBackgroundBox(formData, backgroundDeps))
 }

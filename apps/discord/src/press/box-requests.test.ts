@@ -156,6 +156,7 @@ function material(over: Partial<ProfileMaterial> = {}): ProfileMaterial {
       },
     ],
     takes: [{ id: 4, reporter: 'quill', take: 'a steady hand', active: true, updatedAt: NOW }],
+    background: { own: [], fromTeammates: [] },
     ...over,
   }
 }
@@ -365,6 +366,31 @@ void test('a profile that fails the checks stores nothing and its result and log
   assert.equal(t.calls.length, 1, 'one write, no review, no rewrite')
   const everything = JSON.stringify([requests, t.logs])
   assert.ok(!everything.includes('CANARY'))
+})
+
+void test('a profile request passes the confirmed background of the material to the writer, and nothing else', async () => {
+  const requests: Request[] = [
+    {
+      id: 30,
+      kind: 'profile',
+      requestedBy: 'Silky',
+      status: 'pending',
+      result: null,
+      targetPlayerId: 1,
+    },
+  ]
+  const t = profileSetup(
+    requests,
+    material({
+      background: {
+        own: [{ part: 'career', text: 'Came over from the old roster in the first season' }],
+        fromTeammates: [],
+      },
+    }),
+  )
+  await runBoxRequests(t.deps, live)
+  assert.equal(requests[0]!.status, 'done')
+  assert.match(t.calls[0]!.user, /Came over from the old roster in the first season/)
 })
 
 void test('an old store without the profile methods fails a profile request with a fixed line', async () => {

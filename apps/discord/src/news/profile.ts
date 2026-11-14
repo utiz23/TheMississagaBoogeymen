@@ -7,6 +7,8 @@ import {
   type RelLevel,
   type ReporterId,
 } from '@eanhl/db/news'
+import { BACKGROUND_PART_LABELS } from '@eanhl/db/schema'
+import type { WriterBackground } from '@eanhl/db/queries'
 import { costUsd, type Usage } from './cost.ts'
 import { FORBIDDEN_NAME_PROBLEM, containsName, escapeRegExp, numberTokens } from './fact-check.ts'
 import { ANSWERS_ARE_DATA, fencedAnswer, whenLine } from './prompts.ts'
@@ -29,6 +31,8 @@ import { writeChecked, type ModelCall } from './writer.ts'
  * - "Leave me out": no profile and no model call at all (`profileRefusal`).
  * The person's answers are data, fenced, never instructions. Only usable and joke answers are
  * passed in: an unusable answer has no text on this side at all.
+ * Background (task background-b1): only CONFIRMED background facts are offered (the admin decided
+ * they are true); the query gives nothing for "Leave me out". They are facts, never quotes.
  */
 
 export const PROFILE_MAX_CHARS = 700
@@ -58,6 +62,8 @@ export interface ProfileContext {
     usability: 'usable' | 'joke'
     reporter: ReporterId | null
   }[]
+  /** Confirmed background facts only (never a proposed or rejected one). */
+  background: WriterBackground
 }
 
 export type ProfileResult =
@@ -92,6 +98,7 @@ export const PROFILE_RULES: readonly string[] = [
   '10. Clean language: no swearing at all and no slur. Never repeat or hint at a crude word or a crude line from an answer.',
   '11. A person who did not play (a bench person, the coach) gets nothing about their play; write only how the press sees what they said and who they are to the club.',
   '12. Plain text only. No @ mentions, no links, no hashtags, no emoji, no markdown, no bullet points.',
+  "13. Confirmed background lines are facts the admin approved about the person; they are never the person's own words. Use them in your own words as hockey context only; never quote a line and never repeat four words in a row from one. A line that is not about hockey, or that you cannot use without naming another teammate, you leave out. Add nothing the lines do not say.",
 ]
 
 const LEVEL_WORDS: Readonly<Record<RelLevel, string>> = {
@@ -113,6 +120,18 @@ const ROLE_WORDS: Readonly<Record<ProfileRole, string>> = {
 function systemPrompt(): string {
   return [INTRO, 'RULES', ...PROFILE_RULES].join('\n\n')
 }
+
+/**
+ * The background facts a writer may be offered: the confirmed ones the query gave, and nothing at
+ * all for a "Leave me out" person (a second check over the query).
+ */
+export function offeredBackground(ctx: ProfileContext): WriterBackground {
+  if (ctx.person.pressLevel === 'out') return { own: [], fromTeammates: [] }
+  return ctx.background
+}
+
+const backgroundLine = (f: WriterBackground['own'][number]): string =>
+  `[${BACKGROUND_PART_LABELS[f.part]}] ${f.text}`
 
 /** The takes the writer may be offered: none for a "Go easy" person (they get no criticism at all). */
 export function offeredTakes(ctx: ProfileContext): ProfileContext['takes'] {
@@ -157,6 +176,25 @@ export function profilePrompt(ctx: ProfileContext): string {
     ...rels.map((r) => `- ${REPORTERS[r.reporter].name}: ${LEVEL_WORDS[r.level]}`),
     '',
   )
+  const background = offeredBackground(ctx)
+  if (background.own.length === 0 && background.fromTeammates.length === 0) {
+    lines.push(`Confirmed background about ${name}: none.`, '')
+  } else {
+    if (background.own.length > 0) {
+      lines.push(
+        `Confirmed background about ${name} (facts the admin approved; never ${name}'s words, never quote them):`,
+        ...background.own.map((f) => `- ${backgroundLine(f)}`),
+        '',
+      )
+    }
+    if (background.fromTeammates.length > 0) {
+      lines.push(
+        `What teammates have said about ${name}, approved by the admin (never say who said it; never quote it):`,
+        ...background.fromTeammates.map((f) => `- ${backgroundLine(f)}`),
+        '',
+      )
+    }
+  }
   if (ctx.answers.length === 0) {
     lines.push(`${name} has no usable answers yet.`)
   } else {
@@ -256,6 +294,10 @@ export function profileProblems(text: string, ctx: ProfileContext): string[] {
   if (ctx.answers.some((a) => repeatsFourWords(text, a.answer))) {
     problems.push("The profile repeats the person's words. Say it in your own words.")
   }
+  const bg = offeredBackground(ctx)
+  if ([...bg.own, ...bg.fromTeammates].some((f) => repeatsFourWords(text, f.text))) {
+    problems.push('The profile repeats a background line. Say it in your own words.')
+  }
   return [...new Set(problems)]
 }
 
@@ -276,6 +318,7 @@ export async function writePlayerProfile(
   let spent = 0
   let model = ''
   try {
+    const bg = offeredBackground(ctx)
     const takes: NewsTake[] = offeredTakes(ctx).map((t) => ({
       id: t.id,
       reporter: t.reporter,
@@ -303,7 +346,7 @@ export async function writePlayerProfile(
       criticizedForReview: () => [],
       takesForReview: takes,
       reviewRules: [
-        `This is a private profile of ${name}. It must contain no quote, no number and no invented fact; every claim must follow from the takes, the levels and the answers listed here.`,
+        `This is a private profile of ${name}. It must contain no quote, no number and no invented fact; every claim must follow from the takes, the levels, the answers and the confirmed background lines listed here.`,
         ...(easy
           ? [
               `${name} is at press level "easy" (Go easy): any criticism of ${name}, even mild, is a problem.`,
@@ -311,7 +354,8 @@ export async function writePlayerProfile(
           : []),
       ],
       trusted: {
-        gmNotes: [],
+        // Confirmed background is true (the admin approved it): the review may let the text state it.
+        gmNotes: [...bg.own, ...bg.fromTeammates].map(backgroundLine),
         answers: ctx.answers.map((a) => ({
           player: name,
           question: a.question,

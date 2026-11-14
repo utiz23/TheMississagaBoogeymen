@@ -24,6 +24,11 @@ const KIND_VERB: Readonly<Record<string, string>> = {
   relationship_unfreeze: 'unfroze',
   relationship_level: 'pinned the level of',
   relationship_level_clear: 'cleared the pinned level of',
+  background_add: 'added a background fact for',
+  background_confirm: 'confirmed a background fact for',
+  background_edit: 'edited a background fact for',
+  background_reject: 'rejected a background fact for',
+  background_delete: 'removed a background fact for',
 }
 const PILL =
   'border border-border px-2 py-0.5 font-condensed text-[11px] font-bold uppercase tracking-[0.14em] text-fg-3'
@@ -194,6 +199,32 @@ export default async function PressBoxOverviewPage({
           Last test scrum request ({formatClubDateTime(lastRequest.requestedAt)},{' '}
           {lastRequest.requestedBy}): <strong className="text-fg-2">{lastRequest.status}</strong>
           {lastRequest.result !== null && ` — ${plainResult(lastRequest.result).split('\n')[0]}`}
+        </p>
+      )}
+
+      {d.waitingBackground.length > 0 && (
+        <p
+          role="status"
+          className="border border-border px-4 py-3 text-sm text-fg-2"
+          aria-label="Background facts waiting"
+        >
+          <strong className="text-fg-1">
+            {d.waitingBackground.reduce((n, p) => n + p.count, 0)} background{' '}
+            {d.waitingBackground.reduce((n, p) => n + p.count, 0) === 1 ? 'fact' : 'facts'} waiting
+          </strong>{' '}
+          for you:{' '}
+          {d.waitingBackground.slice(0, 8).map((p, i) => (
+            <span key={p.key}>
+              {i > 0 && ', '}
+              <Link
+                prefetch
+                href={`/admin/press-box/players/${p.key}`}
+                className="text-fg-1 underline hover:text-accent-readable"
+              >
+                {p.name} ({p.count})
+              </Link>
+            </span>
+          ))}
         </p>
       )}
 

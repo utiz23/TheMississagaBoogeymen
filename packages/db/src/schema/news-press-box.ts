@@ -41,6 +41,11 @@ export const PRESS_BOX_AUDIT_KINDS = [
   'gm_note',
   'profile_request',
   'interview_request',
+  'background_add',
+  'background_confirm',
+  'background_edit',
+  'background_reject',
+  'background_delete',
 ] as const
 export type PressBoxAuditKind = (typeof PRESS_BOX_AUDIT_KINDS)[number]
 

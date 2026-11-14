@@ -1,4 +1,5 @@
 import { REPORTER_IDS, REL_LEVELS, type RelLevel, type ReporterId } from '@eanhl/db/news'
+import { BACKGROUND_NOTICE_TEXT } from './background-box-actions.ts'
 import { DOSSIER_NOTICE_TEXT } from './dossier-box-actions.ts'
 import type {
   PressBoxActor,
@@ -132,6 +133,8 @@ export const NOTICE_TEXT: Readonly<Record<string, string>> = {
   no_player: 'Nothing changed: no such player.',
   // The player dossier (release L2).
   ...DOSSIER_NOTICE_TEXT,
+  // Player background (task background-b1).
+  ...BACKGROUND_NOTICE_TEXT,
 }
 
 /** The notice code from a query string, or null when it is none of ours. */

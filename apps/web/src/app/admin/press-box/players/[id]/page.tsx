@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
-import { parseDossierKey } from '@eanhl/db/queries'
+import { getBackgroundView, parseDossierKey } from '@eanhl/db/queries'
+import { BackgroundPanel } from '@/components/press-box/background'
 import {
   DossierRail,
   FormPanel,
@@ -34,6 +35,12 @@ export default async function PressBoxDossierPage({
   const now = new Date()
   const page = await loadDossierPage(key, now, dbReads)
   if (page === null) notFound()
+  // Background facts: the admin sees them for every person, "Leave me out" included (no writer does).
+  const background = await getBackgroundView({
+    key,
+    name: page.dossier.identity.name,
+    pressLevel: page.dossier.identity.pressLevel,
+  })
   const { dossier: d } = page
   const notice = noticeFromQuery(q.notice)
   const out = d.identity.pressLevel === 'out'
@@ -48,6 +55,13 @@ export default async function PressBoxDossierPage({
           </p>
         )}
         <IdentityPanel d={d} requests={page.requests} />
+        <BackgroundPanel
+          k={d.identity.key}
+          name={d.identity.name}
+          view={background}
+          pressLevel={d.identity.pressLevel}
+          isMember={d.identity.playerId !== null}
+        />
         {!out && (
           <>
             <ProfilePanel d={d} requests={page.requests} now={now} />

@@ -1,6 +1,6 @@
 # Task: B1 — Player background: question bank, facts and the admin editor
 
-- **State:** Running (since 2026-11-14 15:02; task agent of `Lead2`) (operator 2026-11-14: "B1 and B2 ready")
+- **State:** Verify (started 2026-11-14 15:02; task agent of `Lead2`) (operator 2026-11-14: "B1 and B2 ready")
 - **Lane:** Database (one migration), Queries, Web (`/admin/press-box/players/[id]`), Discord (profile
   writer reads confirmed facts only)
 - **Risk:** medium (facts about real teammates that the writers will treat as true)
@@ -81,12 +81,19 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 15:02 Lead2: operator "B1 and B2 ready"; started.
 
-Resume: task agent makes the branch and worktree, reads the worksheets and L2's dossier code, then builds.
+- 2026-11-14 15:03 task agent: branch work/background-b1 and worktree made; installed; db and ea-client built.
+- 2026-11-14 15:07 task agent: read worksheets: 10 players (ids 1,2,3,5,6,8,10,11,12,13, match live), 1202 question lines. camrazz.md already has 55 written answers: NOT imported (answers are not part of the seed; operator may want them later). Seed = 100 generic questions + 252 player-specific rows (30 flagged about_teammate). Migration 0082 written and run twice on an in-memory Postgres (pglite): same counts, constraints refuse bad rows.
+
+- 2026-11-14 15:19 task agent: built schema (news-press-background.ts), queries (press-background.ts), profile material + profile writer block (confirmed facts only), web actions, Background panel, Overview line. Tests: db 17 new (43 with the two older press-box files), web 8 new (727 unit pass), discord 870 pass. SQL also run on an in-memory Postgres (pglite): unusable and test-answer text never selected; writer rows exclude proposed, rejected, Leave me out.
+
+- 2026-11-14 15:26 task agent: screenshots done (live read-only tunnel + a fixture page for the proposed/confirmed states; login bypass, fixture page, dev server and tunnel all removed again, nothing of them committed). State = Verify.
+
+Resume: Lead merges after the operator sees the screenshots, then deploy in order: migration 0082, press, web.
 
 ## Report (task agent fills when state = Verify)
 
-- **What changed (visible effect):**
-- **How it was checked (commands, numbers):**
-- **Tried, no gain:**
-- **Not done:**
-- **Git state:** branch, last commit, rebased on `main` at <hash>, checks pass/fail
+- **What changed (visible effect):** Migration 0082 adds the question bank (100 generic questions + 252 player-specific rows for 10 players, 30 flagged about-a-teammate; seeded from the worksheets' questions only) and the facts table (proposed | confirmed | rejected; source admin or answer; optional second player). Each dossier has a "Background" section: waiting facts first with Confirm / Edit / Reject (source answer shown only when usable or joke), confirmed facts by part, "what teammates said" (confirm or reject, edit on the owner's page), Add a fact (confirmed at once, since the admin typed it), open questions per part (answering one files the fact), rejected list. Overview shows "N background facts waiting" with links. The AI profile gets a "Confirmed background" block (confirmed only; nothing for Leave me out; Go easy shows facts, no-criticism rule stays; a profile that copies 4 words of a fact is refused). Every action runs requireAdmin first and writes news_press_box_audit in the same transaction (ids and parts, never fact text).
+- **How it was checked (commands, numbers):** db build ok. db dist tests by name: press-background 17 new pass, plus press-box-dossiers and press-box (43 pass total, 0 fail). web typecheck ok; web test:unit 727 pass (8 new). discord typecheck ok; discord test 870 pass (5 new profile tests, 1 new box-requests test). worker typecheck ok. prettier --check on all changed files ok (format:check on the whole repo already warns on 8 old files I did not touch). Migration 0082 run twice on an in-memory Postgres (pglite): same row counts (100 + 252), constraints refuse an unreviewed confirmed fact, a self-named subject, a bad part, a half-set person. The fact/writer/open-question SQL also ran there: unusable and test-answer text never came back; writer rows excluded proposed, rejected, Leave-me-out owner or subject. Screenshots: dossier on live read-only (tables missing, section falls back to empty, no error), fixture page for all states, mobile 390px has no sideways scroll.
+- **Tried, no gain:** none. camrazz.md already holds 55 written answers: NOT imported (answers are not part of this task; operator may want them as proposed facts later). Position-bound worksheet questions (for example "What kind of winger is {name}") are attached to the players whose worksheet had them and carry the worksheet's position; they can be switched off with `active`.
+- **Not done:** no live apply, no deploy, no real model call. Screenshots could not show real facts (live has no 0082 tables), so proposed/confirmed states are from a fixture page. B2 (bots ask, propose facts) not started. Questions have no admin editor (active flag is set by SQL only).
+- **Git state:** branch work/background-b1; see the final report for the commit hash and the main hash it is rebased on. Checks pass.

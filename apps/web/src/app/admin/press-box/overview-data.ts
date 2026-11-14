@@ -4,6 +4,7 @@ import {
   getPressBoxNow,
   getPressBoxSettings,
   latestPressNight,
+  listWaitingBackground,
   listDisabledReporters,
   listNewsPlayerGames,
   listPressBoxAudit,
@@ -49,6 +50,7 @@ export async function loadOverview(now: Date) {
     requests,
     roster,
     latest,
+    waitingBackground,
   ] = await Promise.all([
     getPressBoxSettings(),
     listDisabledReporters(),
@@ -61,6 +63,8 @@ export async function loadOverview(now: Date) {
     listRecentPressBoxRequests(3).catch(() => []),
     listPressRoster(),
     getLatestMatchId(),
+    // Player background (task background-b1): proposed facts the admin has not decided on yet.
+    listWaitingBackground(),
   ])
   const tonight = (await latestPressNight(new Date(now.getTime() - 6 * 3_600_000))) ?? nightKey(now)
 
@@ -90,6 +94,7 @@ export async function loadOverview(now: Date) {
     storylines,
     audit,
     requests,
+    waitingBackground,
     form: hotAndCold(players, title, now),
     milestones: milestonesInReach(players, title).slice(0, 6),
   }

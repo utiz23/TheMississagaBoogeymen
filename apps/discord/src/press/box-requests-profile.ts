@@ -106,6 +106,8 @@ export async function runProfileRequest(
         material.playerId === null || material.pressLevel === null
           ? []
           : await relationshipsFor(deps, material.playerId, material.pressLevel),
+      // Confirmed background only (the query gives nothing for "Leave me out").
+      background: material.background,
       answers: material.quotes.map((q) => ({
         question: q.question,
         answer: q.text,
