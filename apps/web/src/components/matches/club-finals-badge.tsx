@@ -1,6 +1,7 @@
 import type { ClubFinalsBadge } from '@eanhl/db/queries'
 import {
   clubFinalsBanner,
+  clubFinalsCardLabel,
   clubFinalsLabel,
   clubFinalsOutcome,
   clubFinalsOutcomeText,
@@ -24,66 +25,64 @@ const OUTCOME_TITLE: Record<FinalsOutcome, string> = {
   eliminated: 'The 4th loss of the round: the attempt ends here',
 }
 
-/** Compact header of a game card: the Club Finals tag, "R4 · G5" and the series score after the game. */
-export function ClubFinalsChips({ badge }: { badge: ClubFinalsBadge }) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-      <span
-        className="bg-accent-strong px-2 py-0.5 font-condensed text-[10px] font-black uppercase tracking-[0.2em] text-white"
-        title={clubFinalsLabel(badge)}
-      >
-        Club Finals
-      </span>
-      <span
-        className={`${CHIP} border-accent/60 bg-accent/10 text-accent-readable`}
-        title={clubFinalsLabel(badge)}
-      >
-        {clubFinalsShortLabel(badge)}
-      </span>
-      {badge.isFinal ? (
-        <span
-          className={`${CHIP} border-fg-1/60 bg-fg-1/10 text-fg-1`}
-          title="Round 4 is the final"
-        >
-          The Final
-        </span>
-      ) : null}
-      <span
-        className="font-condensed text-sm font-black uppercase tabular-nums tracking-[0.06em] text-fg-1"
-        title="Round record after this game (wins–losses). 4 wins win the round; 4 losses end the attempt."
-      >
-        <span className="mr-1.5 text-[10px] font-bold tracking-[0.16em] text-fg-4">Series</span>
-        {clubFinalsSeriesScore(badge)}
-      </span>
-    </div>
-  )
-}
+// Tag shape of the games-list card (same size as the 6S / 3S mode tag, so the top row keeps one height).
+const TAG =
+  'inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] @max-[24rem]:px-2 @max-[22rem]:tracking-[0.1em]'
 
 /**
- * The mark of a game that decided something, as a full-width bar at the foot of a game card: an
- * eliminating loss, a round-winning win, a won final. Nothing for any other game.
+ * The Club Finals tags of a game card, for the card's top row next to the 6S / 3S tag: the Club
+ * Finals tag, "R4 · G5" ("Final · G5" in the final), the series score and the mark of a game that
+ * decided something (round won, eliminated, final won). Renders as a fragment: the card owns the
+ * row. On a narrow card (the card is a container) the word "Series" and the run score drop out (they
+ * stay in the hover title) so the row stays one line.
  */
-export function ClubFinalsOutcomeBar({ badge }: { badge: ClubFinalsBadge }) {
+export function ClubFinalsTags({ badge }: { badge: ClubFinalsBadge }) {
   const outcome = clubFinalsOutcome(badge)
-  if (outcome === null) return null
-  const tone =
+  const outcomeTone =
     outcome === 'eliminated'
       ? 'border-accent bg-accent-strong text-white'
       : outcome === 'final_won'
         ? 'border-emerald-300 bg-emerald-500 text-emerald-950'
         : 'border-emerald-600 bg-emerald-900/80 text-emerald-100'
   return (
-    <div
-      className={`flex items-center justify-between gap-3 border-t px-4 py-2 font-condensed text-xs font-black uppercase tracking-[0.2em] ${tone}`}
-      title={OUTCOME_TITLE[outcome]}
-    >
-      <span>{clubFinalsOutcomeText(outcome)}</span>
-      {outcome === 'eliminated' ? (
-        <span className="text-[11px] font-bold tabular-nums tracking-[0.14em] opacity-90">
-          Run ends {clubFinalsRunScore(badge)}
+    <>
+      <span
+        className={`${TAG} border-accent bg-accent-strong font-black text-white`}
+        title={clubFinalsLabel(badge)}
+      >
+        Finals
+      </span>
+      <span
+        className={`${TAG} ${
+          badge.isFinal
+            ? 'border-fg-1/60 bg-fg-1/10 text-fg-1'
+            : 'border-accent/60 bg-accent/10 text-accent-readable'
+        }`}
+        title={clubFinalsLabel(badge)}
+      >
+        {clubFinalsCardLabel(badge)}
+      </span>
+      <span
+        className={`${TAG} border-zinc-700 bg-zinc-900/70 tabular-nums text-fg-1 @max-[19rem]:hidden`}
+        title="Round record after this game (wins–losses). 4 wins win the round; 4 losses end the attempt."
+      >
+        <span className="mr-1.5 text-fg-4 @max-[34rem]:hidden">Series</span>
+        {clubFinalsSeriesScore(badge)}
+      </span>
+      {outcome !== null ? (
+        <span
+          className={`${TAG} font-black ${outcomeTone}`}
+          title={`${OUTCOME_TITLE[outcome]}${outcome === 'eliminated' ? `. Run ends ${clubFinalsRunScore(badge)}` : ''}`}
+        >
+          {clubFinalsOutcomeText(outcome)}
+          {outcome === 'eliminated' ? (
+            <span className="ml-1.5 tabular-nums opacity-90 @max-[34rem]:hidden">
+              {clubFinalsRunScore(badge)}
+            </span>
+          ) : null}
         </span>
       ) : null}
-    </div>
+    </>
   )
 }
 

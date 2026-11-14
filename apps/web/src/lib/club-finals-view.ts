@@ -45,6 +45,13 @@ export function clubFinalsShortLabel(
   return `R${String(badge.round)} · G${String(badge.gameInRound)}`
 }
 
+/** The round chip of a game card: "R4 · G5", or "Final · G5" in the final. */
+export function clubFinalsCardLabel(
+  badge: Pick<FinalsBadgeLike, 'round' | 'gameInRound' | 'isFinal'>,
+): string {
+  return badge.isFinal ? `Final · G${String(badge.gameInRound)}` : clubFinalsShortLabel(badge)
+}
+
 /** Round record after the game, e.g. "1–4". */
 export function clubFinalsSeriesScore(
   badge: Pick<FinalsBadgeLike, 'roundWinsAfter' | 'roundLossesAfter'>,

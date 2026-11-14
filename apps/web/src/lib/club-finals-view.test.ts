@@ -11,6 +11,7 @@ import {
   clubFinalsRoundHeader,
   clubFinalsRoundKey,
   clubFinalsRunAlive,
+  clubFinalsCardLabel,
   clubFinalsShortLabel,
   clubFinalsSituation,
   finalsRoundGamesUpTo,
@@ -41,6 +42,11 @@ describe('labels', () => {
   it('writes the long and the short label from stored values', () => {
     assert.equal(clubFinalsLabel(badge()), 'Club Finals · Round 2 · Game 3')
     assert.equal(clubFinalsShortLabel(badge({ round: 4, gameInRound: 5 })), 'R4 · G5')
+    assert.equal(clubFinalsCardLabel(badge({ round: 2, gameInRound: 3 })), 'R2 · G3')
+    assert.equal(
+      clubFinalsCardLabel(badge({ round: 4, gameInRound: 5, isFinal: true })),
+      'Final · G5',
+    )
     assert.equal(clubFinalsRoundHeader(badge()), 'Attempt 4 · Round 2')
     assert.equal(clubFinalsRoundHeader(badge({ round: 4, isFinal: true })), 'Attempt 4 · The Final')
     assert.equal(clubFinalsRoundKey(badge()), '4:2')

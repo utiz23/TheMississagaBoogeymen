@@ -2,7 +2,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import type { Match, MatchResult } from '@eanhl/db'
 import type { ClubFinalsBadge } from '@eanhl/db/queries'
-import { ClubFinalsChips, ClubFinalsOutcomeBar } from '@/components/matches/club-finals-badge'
+import { ClubFinalsTags } from '@/components/matches/club-finals-badge'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { OcrPill } from '@/components/ui/ocr-pill'
 import { ResultPill } from '@/components/ui/result-pill'
@@ -164,13 +164,16 @@ export function ScoreCard({
       : null
 
   const cardStyles = CARD_STYLES[match.result]
+  // Club Finals cards carry more tags in the top row. On a narrow card the less important ones
+  // (Dominated / Outshot, OCR) and the time drop out so the row stays one line.
+  const narrowHide = clubFinals === undefined ? '' : '@max-[34rem]:hidden'
 
   return (
     <Link
       prefetch
       href={href ?? `/games/${match.id.toString()}`}
       aria-label={`${getResultStyle(match.result).label} ${match.scoreFor.toString()}–${match.scoreAgainst.toString()} vs ${match.opponentName}, ${formatMatchDate(match.playedAt)}`}
-      className={`group block overflow-hidden border transition-[border-color,transform] hover:-translate-y-0.5 ${cardStyles.border} ${cardStyles.bg} ${cardStyles.hoverBorder} ${
+      className={`group block overflow-hidden border ${clubFinals === undefined ? '' : '@container'} transition-[border-color,transform] hover:-translate-y-0.5 ${cardStyles.border} ${cardStyles.bg} ${cardStyles.hoverBorder} ${
         clubFinals === undefined
           ? ''
           : clubFinals.isFinal
@@ -184,12 +187,14 @@ export function ScoreCard({
         className={`w-full ${
           clubFinals === undefined
             ? `h-1 ${TOP_BAR[match.result]}`
-            : 'h-1.5 bg-[linear-gradient(90deg,#7f1d1d,#e84131_50%,#7f1d1d)]'
+            : 'h-1 bg-[linear-gradient(90deg,#7f1d1d,#e84131_50%,#7f1d1d)]'
         }`}
       />
 
       <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-1.5">
+        <div
+          className={`flex items-center gap-1.5 ${clubFinals === undefined ? '' : 'mr-2 min-w-0 overflow-hidden @max-[34rem]:mr-0'}`}
+        >
           {gameModeClass !== null && (
             <span
               className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${gameModeClass}`}
@@ -197,6 +202,7 @@ export function ScoreCard({
               {match.gameMode}
             </span>
           )}
+          {clubFinals !== undefined && <ClubFinalsTags badge={clubFinals} />}
           {isPrivate && (
             <span
               className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${PRIVATE_PILL}`}
@@ -211,7 +217,7 @@ export function ScoreCard({
                   ? 'BGM took 65% or more of the shots'
                   : 'The opponent took 65% or more of the shots'
               }
-              className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${
+              className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${narrowHide} ${
                 qualityLabel === 'Dominated'
                   ? 'border-[rgba(16,185,129,0.40)] bg-[rgba(16,185,129,0.10)] text-[#10b981]'
                   : 'border-[rgba(232,65,49,0.40)] bg-[rgba(232,65,49,0.10)] text-[#ef6a5e]'
@@ -220,16 +226,12 @@ export function ScoreCard({
               {qualityLabel}
             </span>
           )}
-          {ocrCoverage !== undefined && <OcrPill streams={ocrCoverage} />}
+          {ocrCoverage !== undefined && <OcrPill streams={ocrCoverage} className={narrowHide} />}
         </div>
-        <span className="text-xs text-fg-5">{formatMatchTime(match.playedAt)}</span>
+        <span className={`shrink-0 text-xs text-fg-5 ${narrowHide}`}>
+          {formatMatchTime(match.playedAt)}
+        </span>
       </div>
-
-      {clubFinals !== undefined && (
-        <div className="px-4 pb-2">
-          <ClubFinalsChips badge={clubFinals} />
-        </div>
-      )}
 
       <div className="px-4 pb-5">
         <p className="truncate font-condensed text-xl font-bold uppercase tracking-[0.08em] text-zinc-100">
@@ -306,8 +308,6 @@ export function ScoreCard({
           <DtWStat bgmRaw={dtw} />
         </div>
       </div>
-
-      {clubFinals !== undefined && <ClubFinalsOutcomeBar badge={clubFinals} />}
     </Link>
   )
 }

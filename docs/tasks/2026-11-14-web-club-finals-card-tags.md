@@ -1,6 +1,6 @@
 # Task: CF3b — Club Finals game cards: tags in the top row, same height as other cards
 
-- **State:** Running (since 2026-11-14 17:39; task agent of `Lead2`)
+- **State:** Verify (task agent done 2026-11-14 17:47; Running since 17:39; task agent of `Lead2`)
 - **Lane:** Web
 - **Risk:** low (layout of one card)
 - **Slug:** club-finals-card-tags (branch `work/club-finals-card-tags`)
@@ -53,11 +53,28 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-14 17:39 Lead2: written and started from the operator's screenshot
   (`/tmp/claude-1000/-home-michal-projects-eanhl-team-website/a2a7873b-2807-4e71-85a1-f9e79d57ba31/scratchpad/operator-cf3-card.png`).
 
-Resume: task agent makes the branch and worktree, then fixes the card.
+- 2026-11-14 17:46 task agent: branch and worktree made; finals tags (Finals, R3 · G4 / Final · G5, series
+  score, outcome tag) moved into the top row; bottom bar and tag row removed; finals top edge h-1.5 -> h-1
+  (it added 2 px). Preview on the live DB read-only (tunnel 5439, port 3600; no data patch needed, live has
+  0083). Server and tunnel stopped, URL file deleted. Checks green.
+
+Resume: Lead reviews the screenshots and the report, then merges (operator gate) and deploys `web`.
 
 ## Report (task agent fills when state = Verify)
 
-- **What changed (visible effect):**
-- **How it was checked (commands, numbers):**
-- **Not done:**
-- **Git state:** branch, last commit, rebased on `main` at <hash>, checks pass/fail
+- **What changed (visible effect):** On a Club Finals card the tags sit in the top row after the 6S / 3S tag:
+  FINALS (solid red), "R3 · G4" ("Final · G5" in the final), the series score ("Series 4–0"), and the mark
+  (ROUND WON green, FINAL WON strong green, ELIMINATED red) as a pill tag. Bottom bar and tag row are gone;
+  the red left edge stays. Pill size and shape match the 6S / 3S tag. Choices on a card narrower than 34 rem
+  (all 3-column and phone cards): the word "Series", the run score, the time, the Dominated/Outshot tag
+  and the OCR tag are hidden (hover titles keep the full words); below 24 rem tags use less padding, below
+  22 rem less letter spacing, below 19 rem the series tag hides. A normal card is unchanged.
+- **How it was checked (commands, numbers):** `pnpm typecheck` pass; `pnpm test:unit` 755 pass 0 fail (new
+  `clubFinalsCardLabel` test); prettier clean. Live /games read-only preview: all 20 cards are 277 px high at
+  1280 (3 columns, card width 405) and at 390 (card width 358): finals and normal equal; top row has no
+  overflow at 390, 375, 360, 320. Screenshots in
+  `/tmp/claude-1000/-home-michal-projects-eanhl-team-website/a2a7873b-2807-4e71-85a1-f9e79d57ba31/scratchpad/shots-cf3b/`.
+- **Not done:** No eliminated card sits beside a normal card in live data (they sit in finals-only rows);
+  heights are equal for every card in the list. Opponent crests showed empty in dev (image route), not
+  related. Not merged, pushed or deployed.
+- **Git state:** branch `work/club-finals-card-tags`, rebased on `main` (see commit); checks pass.
