@@ -8,12 +8,13 @@ import { NAV_MENU_HEADING, NavMenu, NavMenuChevron, navMenuItemClass } from './n
 import { NavPendingCue } from './nav-pending-cue'
 
 /**
- * The site's five destinations. Shared with the mobile drawer (`nav-drawer`)
+ * The site's six destinations. Shared with the mobile drawer (`nav-drawer`)
  * so the two renderings of the nav can never drift out of sync.
  */
 export const NAV_LINKS = [
   { href: '/', label: 'Home' },
   { href: '/games', label: 'Games' },
+  { href: '/club-finals', label: 'Club Finals' },
   { href: '/roster', label: 'Roster' },
   { href: '/stats', label: 'Stats' },
   { href: '/news', label: 'News' },

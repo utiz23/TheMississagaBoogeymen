@@ -33,6 +33,7 @@ import { fetchMatches, matchesUrl, throttle, EaApiError, type EaMatchType } from
 import { transformMatch, type TransformResult, type PlayerIdentity } from './transform.js'
 import { recomputeAggregates } from './aggregate.js'
 import { syncAiGoalies } from './ai-goalie-sync.js'
+import { syncClubFinals } from './club-finals-sync.js'
 import { recomputeCardProgression } from './card-progression.js'
 import { fetchAndStoreMemberStats, fetchAndStoreSeasonalStats } from './ingest-members.js'
 import { fetchAndStoreOpponentClubs } from './ingest-opponents.js'
@@ -111,6 +112,9 @@ async function runIngestionCycleSteps(): Promise<void> {
       console.error(`[ingest] Aggregate recomputation failed for ${title.slug}:`, err)
     }
 
+    // Club Finals rounds (CF1) from the stored games. Non-fatal; needs migration 0083.
+    await runClubFinalsStep(title.id, title.slug, '[ingest]')
+
     // Fetch EA member stats: archives raw payload, resolves player rows for
     // members not yet seen in match data, and writes structured EA season totals
     // to ea_member_season_stats for debug/baseline comparison.
@@ -179,6 +183,7 @@ export function runQuickMatchCheck(request: QuickCheckRequest): Promise<QuickChe
         console.error(`[quick-check] AI goalie sync failed for ${title.slug}:`, err)
       }
       await recomputeAggregates(title.id)
+      await runClubFinalsStep(title.id, title.slug, '[quick-check]')
     },
     afterAllNewGames: async () => {
       await recomputeCardProgression({ dryRun: false })
@@ -186,6 +191,22 @@ export function runQuickMatchCheck(request: QuickCheckRequest): Promise<QuickChe
     markFinished: markCycleFinished,
     log: (line) => console.error(line),
   })
+}
+
+/** One Club Finals derive for a title (CF1). Never throws: a failure only logs. */
+async function runClubFinalsStep(titleId: number, slug: string, tag: string): Promise<void> {
+  try {
+    const r = await syncClubFinals(titleId)
+    if (r.skipped !== undefined) return
+    if (r.games > 0) {
+      console.log(
+        `${tag} Club Finals ${slug}: ${String(r.games)} games, ${String(r.attempts)} attempts` +
+          (r.unplaced > 0 ? `, ${String(r.unplaced)} unplaced (after a won final)` : ''),
+      )
+    }
+  } catch (err) {
+    console.error(`${tag} Club Finals derive failed for ${slug}:`, err)
+  }
 }
 
 async function ingestGameTitle(title: GameTitle): Promise<void> {

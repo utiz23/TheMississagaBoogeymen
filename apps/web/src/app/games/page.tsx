@@ -6,6 +6,8 @@ import {
   countMatches,
   getOpponentClubs,
   getOcrCoverageForMatches,
+  getClubFinalsBadges,
+  type ClubFinalsBadge,
   type MatchOcrCoverage,
 } from '@eanhl/db/queries'
 import type { GameMode, MatchResult } from '@eanhl/db'
@@ -185,6 +187,11 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
     () => new Map<number, MatchOcrCoverage>(),
   )
 
+  // Club Finals round and game (CF1) — a badge only; fails soft (also before migration 0083).
+  const clubFinals = await getClubFinalsBadges(pageIds).catch(
+    () => new Map<number, ClubFinalsBadge>(),
+  )
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   // Clamp page to valid range — handles stale bookmarks
   const clampedPage = Math.min(page, totalPages)
@@ -268,6 +275,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
                         opponentCrestAssetId={opponent?.crestAssetId ?? null}
                         opponentCrestUseBaseAsset={opponent?.useBaseAsset ?? null}
                         ocrCoverage={ocrCoverage.get(match.id)}
+                        clubFinals={clubFinals.get(match.id)}
                       />
                     )
                   })}

@@ -1,5 +1,7 @@
 import Image from 'next/image'
 import type { Match } from '@eanhl/db'
+import type { ClubFinalsBadge } from '@eanhl/db/queries'
+import { ClubFinalsStrip } from './club-finals-badge'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { abbreviateTeamName, formatMatchDate, formatMatchTime } from '@/lib/format'
 import { delayVar } from '@/lib/motion'
@@ -23,6 +25,8 @@ interface HeroCardProps {
   opponentCrestUseBaseAsset: string | null
   /** Derived via wentToOvertime() — the schema has no OT column. */
   overtime: boolean
+  /** Club Finals round, game and marks, when this game has a derived row. */
+  clubFinals?: ClubFinalsBadge | null
   meta: {
     seasonNumber: number | null
     meetingNumber: number | null
@@ -44,6 +48,7 @@ export function HeroCard({
   opponentCrestAssetId,
   opponentCrestUseBaseAsset,
   overtime,
+  clubFinals = null,
   meta,
 }: HeroCardProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
@@ -111,6 +116,8 @@ export function HeroCard({
           ) : null}
         </span>
       </div>
+
+      {clubFinals !== null ? <ClubFinalsStrip badge={clubFinals} /> : null}
 
       {/* Score row — BGM | score | opponent */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-6 sm:gap-5 sm:px-8 sm:py-7">

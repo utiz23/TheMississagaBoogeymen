@@ -16,6 +16,7 @@ import {
   getMatchLineups,
   getMatchLineupProvenance,
   getSeasonPlayerMatchStats,
+  getClubFinalsBadge,
 } from '@eanhl/db/queries'
 import type { Match } from '@eanhl/db'
 import { HeroCard } from '@/components/matches/hero-card'
@@ -103,6 +104,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
     actionTrackerProvenance,
     lineups,
     lineupProvenance,
+    clubFinals,
   ] = await Promise.all([
     safe(() => getPlayerMatchStats(m.id), []),
     safe(() => getOpponentPlayerMatchStats(m.id), []),
@@ -122,6 +124,8 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
       sources: [],
       confidence: { canonical: 0, tiered: 0, attribute: 0 },
     }),
+    // Club Finals round and game (CF1); null for any other game, and when 0083 is not applied.
+    safe(() => getClubFinalsBadge(m.id), null),
   ])
 
   const opponentCrestAssetId = opponentClub?.crestAssetId ?? null
@@ -235,6 +239,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
           opponentCrestAssetId={opponentCrestAssetId}
           opponentCrestUseBaseAsset={opponentCrestUseBaseAsset}
           overtime={overtime}
+          clubFinals={clubFinals}
           meta={heroMeta}
         />
 

@@ -80,8 +80,10 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   0082; B2 takes 0084 if it needs one). CF2 (Discord post line, news desk and press weighting) after
   CF1.
 
-Resume: task agent makes the branch and worktree, reads the panel file and the 6v6 games, writes the
-round-rule tests first.
+- 2026-11-14 15:2x task agent: branch `work/club-finals-cf1` and worktree made; panel file and the 33 live 6v6 games read. Rules written as tests first (`apps/worker/src/__tests__/club-finals.test.ts`, 13 tests), then `club-finals.ts` (pure rules). Replay of the 33 games matches all 11 panel reads that have a time. Migration 0083 (two tables), schema, queries, worker step after a pass and a quick check, badges on /games and game pages, page `/club-finals`, nav link. Typecheck db, worker, discord, web pass.
+- 2026-11-14 15:2x finding: code 206 is NOT Club Finals (reason in Report). Attempt 1 ended with match 3431 (4scin, OT loss), game 5 of round 4: the Engine Lead's guess holds.
+
+Resume: screenshots from the read-only dev server (port 3400, tunnel 5437), history table and Report, rebase on main, checks, State = Verify, commit.
 
 ## Report (task agent fills when state = Verify)
 

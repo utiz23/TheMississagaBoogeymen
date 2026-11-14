@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Match, MatchResult } from '@eanhl/db'
+import type { ClubFinalsBadge } from '@eanhl/db/queries'
+import { ClubFinalsChips } from '@/components/matches/club-finals-badge'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { OcrPill } from '@/components/ui/ocr-pill'
 import { ResultPill } from '@/components/ui/result-pill'
@@ -67,6 +69,8 @@ interface ScoreCardProps {
    * callers without the batched coverage lookup simply don't show one.
    */
   ocrCoverage?: OcrCoverageStreams | undefined
+  /** Club Finals round, game and marks, when this game has a derived row. */
+  clubFinals?: ClubFinalsBadge | undefined
 }
 
 /** Stat labels read at fg-5 (~4.6:1), the site's floor for small text. */
@@ -119,6 +123,7 @@ export function ScoreCard({
   opponentCrestUseBaseAsset,
   href,
   ocrCoverage,
+  clubFinals,
 }: ScoreCardProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
 
@@ -205,6 +210,12 @@ export function ScoreCard({
         </div>
         <span className="text-xs text-fg-5">{formatMatchTime(match.playedAt)}</span>
       </div>
+
+      {clubFinals !== undefined && (
+        <div className="px-4 pb-1">
+          <ClubFinalsChips badge={clubFinals} />
+        </div>
+      )}
 
       <div className="px-4 pb-5">
         <p className="truncate font-condensed text-xl font-bold uppercase tracking-[0.08em] text-zinc-100">
