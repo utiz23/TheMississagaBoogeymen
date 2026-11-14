@@ -45,6 +45,14 @@ Players who want to cool off change their press status ("Go easy" / "Leave me ou
   "Leave me out": nothing at all.
 - Feuds are shown to the GM (`/gm` reply or a line on `/admin/news`: agent's choice, small).
 
+## C. No crude quotes (Lead, 2026-11-13; operator asked whether the banter becomes article material)
+
+Public pieces (recaps, columns, interviews, wire posts) never quote or paraphrase profanity, slurs or
+crude lines, also not as a joke; a clean joke may be quoted as a joke. The answer judge marks a crude
+answer `unusable` (acknowledged, never quoted). Case: Samich's "I like to see my team work for me like
+a bunch of slaves…" was judged `joke` on 11-13; the Lead set answer 5 to `unusable` by hand before that
+night's recap (reverse: set it back to `joke`).
+
 ## Data
 
 Hand-written idempotent migration (next number), header like 0072: e.g. `news_press_feuds` (player_id,

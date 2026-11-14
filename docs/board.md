@@ -1,6 +1,6 @@
 # Board
 
-**Lead chat now:** this chat (started 2026-11-09, VS Code; a new Lead updates this line first).
+**Lead chat now:** `Lead` (session tag `08efa5`; task chats send to "Lead"). Task chats: T3 = `eanhl-team-website-f2`, T4 = `eanhl-team-website-0d` (since 2026-11-13 evening).
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
