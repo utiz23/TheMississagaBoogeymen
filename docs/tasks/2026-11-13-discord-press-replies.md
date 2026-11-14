@@ -39,8 +39,9 @@ Goes into `apps/web/src/content/legal/privacy.tsx` and `data-collection.tsx` (se
 ## Paths
 
 - **May edit:** `apps/discord/src/press/`, `apps/discord/src/news/`, `packages/db/src/queries/news*.ts`
-  - tests, `packages/db/src/schema/` and `packages/db/migrations/0075_*.sql` only if item 3 needs it,
-    `apps/web/src/content/legal/`, `apps/web/src/lib/legal/legal-docs.ts`, the press runbook, this task.
+  and their tests, `packages/db/src/schema/` and `packages/db/migrations/0075_*.sql` only if item 3
+  needs it, `apps/web/src/content/legal/`, `apps/web/src/lib/legal/legal-docs.ts`, the press runbook,
+  this task.
 
 ## Checks
 
