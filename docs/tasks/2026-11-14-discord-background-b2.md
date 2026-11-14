@@ -42,7 +42,10 @@ Over time the bots fill in each player's background from B1's question bank. All
    admin checks them before the reporters use them, and you can ask to have them removed." The exact
    wording is the operator's (gate before merge). Players at "Leave me out" get no background
    questions.
-6. **Admin switch:** background questions on/off in the Press Box (logged), default **off** until the
+6. **Old answers (operator 2026-11-14, D13 b):** `docs/specs/player-dossiers/camrazz.md` already holds 55
+   written answers. Import them once as **proposed** facts (source: the worksheet, with the question), for
+   the admin to confirm; no other worksheet has answers.
+7. **Admin switch:** background questions on/off in the Press Box (logged), default **off** until the
    operator turns it on after the deploy.
 
 ## Paths
@@ -78,7 +81,7 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 15:02 Lead2: operator "B1 and B2 ready".
 
-Resume: start after B1 is merged.
+Resume: B1 merged; start when the Lead starts it.
 
 ## Report (task agent fills when state = Verify)
 

@@ -1,30 +1,29 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 15:34 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 15:35 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                                                                                                    | My advice                                    | Waiting costs                      |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------- |
-| D13 | Player background B1: screenshots OK (sent)? Also: (a) a fact you type yourself counts as confirmed at once: OK? (b) camrazz's old dossier file already holds 55 written answers: import them as **proposed** facts for you to confirm?                                                     | Yes; (a) yes; (b) yes, as a small step in B2 | B2 cannot start until B1 is merged |
-| D14 | Club Finals CF1: screenshots OK (the Club Finals page, the final's game page, the games list; sent)? OK = I merge; the deploy (backup, 0083, worker, web) is a separate OK. Times in the screenshots are 1 hour early: only the preview on the main PC (old time-zone data); live is right. | Yes                                          | CF2 and CF3 wait for CF1           |
+| ID  | Question                                                                                                                                | My advice            | Waiting costs                      |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------- |
+| D15 | Deploy player background B1? Fresh backup, migration 0082 (2 new tables + the question bank), then the press service, then the website. | Yes, at a quiet time | Background section not usable live |
 
 ## 2. Right now
 
-| What                                            | State                                                                                                                                                    |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                             |
-| T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                                    |
-| E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                                                        |
-| Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                                                          |
-| Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights.                                  |
-| Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                                                               |
-| Player background B1                            | built and checked (web 727/727, discord 870/870); waits for your screenshot OK (D13)                                                                     |
-| Club Finals (playoffs) CF1                      | built and verified (independent Verifier: 0 mismatches in 11 panel reads; final lost in game 5 of round 4 vs 4scin, OT, 11-12). Waits for your OK (D14). |
-| News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                                                         |
-| Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                                                                |
+| What                                            | State                                                                                                                   |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)            |
+| T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                   |
+| E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                       |
+| Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                         |
+| Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights. |
+| Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                              |
+| Player background B1                            | merged; deploy is D15. B2 (bots ask) can start.                                                                         |
+| Club Finals (playoffs) CF1                      | verified; being changed: no separate page, a Club Finals component on the home page instead. Badges approved.           |
+| News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                        |
+| Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                               |
 
 ## 3. Your to-dos (only you can do these)
 
@@ -56,6 +55,9 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 15:35 · Club Finals: "club finals page not approved. This can just be a component on the home
+  page" → CF1 reworked (no page, no nav link). "The rest are approved" → CF1 badges; B1 screenshots, typed
+  facts confirmed at once, camrazz's 55 answers imported as proposed facts (B2). B1 merged.
 - 2026-11-14 15:27 · Finals look: "Lets go with your advice" → CF3 (Ready, after CF1): items 1, 2, 3, 5, 6,
   7, 8, 9, 10, 11, 14; CF4 (Proposed): finals stats (12, 13, 15, 16, 17).
 - 2026-11-14 15:08 · Club Finals (playoffs): "approve all 4 items" → round/game badges (site + Discord

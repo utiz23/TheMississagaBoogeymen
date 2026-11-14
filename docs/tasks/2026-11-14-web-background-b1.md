@@ -1,6 +1,6 @@
 # Task: B1 — Player background: question bank, facts and the admin editor
 
-- **State:** Verify (started 2026-11-14 15:02; task agent of `Lead2`) (operator 2026-11-14: "B1 and B2 ready")
+- **State:** Merged 2026-11-14 15:35 (`4e4ba1fa`); deploy waits for the operator's OK
 - **Lane:** Database (one migration), Queries, Web (`/admin/press-box/players/[id]`), Discord (profile
   writer reads confirmed facts only)
 - **Risk:** medium (facts about real teammates that the writers will treat as true)
@@ -94,9 +94,11 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   727/727; discord 870/870; db press-background 17, press-box-dossiers 11, press-box 15 (all pass);
   prettier clean. Screenshots seen (fixture data: live has no 0082).
 
-Resume: operator: screenshots (D13), admin-typed facts confirmed at once, and whether to import
-camrazz.md's 55 written answers as proposed facts; then merge (after CF1's or before: both edit the
-schema/queries index lines).
+- 2026-11-14 15:35 Lead2: operator (D13) "The rest are approved": screenshots OK; a fact the admin types is
+  confirmed at once; camrazz.md's 55 answers come in as proposed facts in B2. Rebased; typecheck clean;
+  merged `--ff-only`.
+
+Resume: operator's OK to deploy: fresh backup, 0082, `press`, then `web`.
 
 ## Report (task agent fills when state = Verify)
 

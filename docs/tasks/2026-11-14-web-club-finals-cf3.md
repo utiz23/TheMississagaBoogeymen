@@ -36,9 +36,9 @@ sharp/aggressive esports look, scoreboard cards, high contrast. Keep every exist
 
 **Home page**
 
-8. "Playoff mode" while a Club Finals run is alive: a Club Finals strip at the top (run, round, the W/L
-   boxes, run record, RP if CF1 stores it, "one win from the final"), linking to CF1's Club Finals page.
-   When no run is alive the home page is as today.
+8. "Playoff mode" while a Club Finals run is alive: CF1's home-page Club Finals component (operator
+   2026-11-14: no separate page, "just a component on the home page") moves to the top and gets the
+   playoff look ("one win from the final" etc.). When no run is alive the home page is as today.
 9. Latest result (`components/home/latest-result.tsx`): the finals context line.
 10. Recent games strip (`components/home/recent-games-strip.tsx`): finals games marked as in item 1.
 11. Record strip (`components/home/record-strip.tsx`): a Club Finals line next to the division chip (best
@@ -46,8 +46,8 @@ sharp/aggressive esports look, scoreboard cards, high contrast. Keep every exist
 
 **Navigation**
 
-14. Top nav: a "Club Finals" link (where CF1 put the page), with a small live dot while a run is alive.
-    Every Link to a data page gets `prefetch` (repo convention).
+(14. Top nav link: dropped: there is no Club Finals page, operator 2026-11-14.) Every Link to a data page
+gets `prefetch` (repo convention).
 
 Not in this task (CF4, Proposed): finals stats (season records row, finals leaders, player-page finals
 stats, a stats-page filter, news pinning).
@@ -82,6 +82,9 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 15:27 Lead2: written from the operator's "Lets go with your advice" (must + next items:
   1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 14). Ready; starts after CF1 is merged.
+
+- 2026-11-14 15:35 Lead2: operator: no Club Finals page; CF1 makes a home component. Item 8 builds on it;
+  item 14 dropped.
 
 Resume: start after CF1 is merged.
 
