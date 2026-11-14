@@ -68,7 +68,6 @@ All checks pass and the tests pin the rules above.
 ## Log
 
 - 2026-11-14 Lead: written from the operator's request and approval.
+- 2026-11-14 operator: some reporters are more prone to conflict; Father Rink never feuds → per-reporter range added.
 
 ## Report
-
-- 2026-11-14 operator: some reporters are more prone to conflict; Father Rink never feuds → per-reporter range added.

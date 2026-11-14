@@ -1,6 +1,6 @@
 # Task: T8 — `/gm testscrum`: a free test scrum in `#bot-test` (no AI calls)
 
-- **State:** Verify (built 2026-11-14; not merged, not deployed)
+- **State:** Merged (Lead review 2026-11-14); deploy `press` waits for the operator's OK
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** low (GM-only command; posts only in the test channel; no AI; test data only)
 - **Slug:** press-test-scrum (branch `work/press-test-scrum`, worktree `.claude/worktrees/press-test-scrum`)
@@ -56,6 +56,8 @@ All checks pass and a test drives `/gm testscrum` end to end with zero model cal
 - 2026-11-14 Task agent: built in `work/press-test-scrum` (one feature commit, then this Log/Report commit),
   rebased on `main` 7746aeac. All edits are inside "May edit" (press folder, `news-press.ts` and its test,
   the runbook, the rulings file, this file). Rulings 78-83 added. No Blocked state.
+
+- 2026-11-14 Lead review: rebased on 5411b025; paths inside "May edit" plus rulings 78-83; no migration (marker `buzz_level='testscrum'` + a hidden soft-deleted test item). Re-ran: typecheck db/discord/web/worker clean; discord 823/823 (e2e: 0 model calls); news-press 53/53; prettier clean.
 
 ## Report
 
