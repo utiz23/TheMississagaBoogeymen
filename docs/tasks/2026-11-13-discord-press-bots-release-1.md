@@ -76,3 +76,11 @@ webhook. Design: `docs/superpowers/specs/2026-10-25-news-desk-bots-design.md` (a
   `.env.bak-2026-11-13-pre-cap-100`, `news` restarted "limit 100 USD/month"; scrums stop at $80).
   Asked: 9 bot accounts or one central bot + an app-owned webhook? Operator: "I want a robust
   solution" → **9 accounts, as built** (tested code; one bad token silences one reporter only).
+- 2026-11-13/14 operator + Lead: 9 bot applications made (Wade Barlow by hand; 8 by Claude in Chrome,
+  no tokens); `#bot-test` made (channel `1570986048333545492`). Tokens entered with a one-off script
+  (hidden input, checked with Discord, never on a command line; script removed after). Hotel-Echo
+  `.env` (backup `.env.bak-2026-11-14-0218-pre-press`, mode 600): 9 `PRESS_TOKEN_*`,
+  `PRESS_GUILD_ID=447213420765380618`, `PRESS_TEST_CHANNEL_ID=1570986048333545492`,
+  `PRESS_LIVE_CHANNEL_ID=1563716468665880576` (the game channel), `PRESS_GM_USER_ID=320600985372196866`,
+  `PRESS_MODE=trial`. Check: each token's bot name matches; all 9 see both channels (HTTP 200).
+  Nothing deployed or restarted.
