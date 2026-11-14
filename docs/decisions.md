@@ -1,25 +1,25 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 13:57 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 13:58 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                  | My advice                                               | Waiting costs                                               |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------- |
-| D4  | Fix first: a small task for a worker watchdog (if the loop makes no progress for 15 minutes, the worker exits and Docker restarts it) plus time limits on EA requests and database reads. Then deploy E1. | Yes: it also protects game collection today, without E1 | E1 stays undeployed; today's small risk of lost games stays |
-| D5  | Deploy Press Box L1? Fresh backup, migration 0080 (adds tables/columns only), then `web` + `press`. I then click each action once and check the change log.                                               | Yes, at a quiet time                                    | Press Box not usable; L2 can be built meanwhile             |
+| ID  | Question  | My advice | Waiting costs |
+| --- | --------- | --------- | ------------- |
+| -   | none open | -         | -             |
 
 ## 2. Right now
 
-| What                            | State                                                                                                                                          |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                   |
-| T9 relationships + T10 Talk fix | LIVE since 2026-11-14                                                                                                                          |
-| E1 live events endpoint         | deploy HELD: Codex found that a hung EA or database connection can stop game collection (an older weakness that E1 makes more likely). See D4. |
-| Press Box L1                    | merged 13:57; deploy waits for your OK (D5)                                                                                                    |
-| Backup hardening                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                                                      |
+| What                            | State                                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums) |
+| T9 relationships + T10 Talk fix | LIVE since 2026-11-14                                                                                        |
+| E1 live events endpoint         | deploy HELD until the watchdog fix (D4) is merged; then E1 + the fix deploy together                         |
+| Worker watchdog (D4)            | running (task agent): a stuck worker exits and Docker restarts it; time limits on EA requests                |
+| Press Box L1                    | deploying now (D5)                                                                                           |
+| Backup hardening                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                    |
 
 ## 3. Your to-dos (only you can do these)
 
@@ -51,6 +51,8 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 13:58 · "D4 yes" → worker watchdog + time limits task started; "D5 yes, now is a quiet time" →
+  Press Box L1 deploy.
 - 2026-11-14 13:46 · "I meant D2 and D3" → deploy E1 after a Codex second opinion (running, E1 changes
   only, your OK on the arguments); merge Press Box L1 after the review ends.
 - 2026-11-14 · "D1, approved" → backup hardening deployed 03:42 (rollback tag `:rollback-he-2026-11-14-pre-hardening`).
