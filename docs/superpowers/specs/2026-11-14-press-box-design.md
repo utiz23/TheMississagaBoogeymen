@@ -1,6 +1,6 @@
 # Press Box — admin design (`/admin/press-box`)
 
-Status: **proposed** (operator 2026-11-14; name "Press Box" chosen by the operator over "lore": "an admin only page on the site to manage the lore … read the
+Status: **approved 2026-11-14** (mock-up approved: https://claude.ai/artifact/CkBNzXiMwt9w7yujcFqAdJ — five desktop pages; operator 2026-11-14; name "Press Box" chosen by the operator over "lore": "an admin only page on the site to manage the lore … read the
 player dossiers, current feuds and trends, and manage the game"). Written for the operator; built in
 four tasks (L1–L4, end of this file).
 
