@@ -1,7 +1,6 @@
 # Task: L2 — Press Box: player dossiers and AI profiles
 
-- **State:** Verify (since 2026-11-14 14:36; task agent of `Lead2`; Opus: AI text about players +
-  migration) (operator 2026-11-14 14:04: "start L2")
+- **State:** Merged 2026-11-14 14:49 (`efe3dd27`); deploy waits for the operator's OK (D10)
 - **Lane:** Web, Queries, Database (one migration), Discord (profile writer)
 - **Risk:** medium (AI text about players; actions on players' press)
 - **Slug:** press-box-l2
@@ -75,8 +74,11 @@ All checks pass; screenshots match the mock-up.
 
 - 2026-11-14 14:48 task agent: operator answered D7 to D9 (keep write + review; admin may raise Leave me out). Profile card texts now say "2 AI requests (one writes, one checks the rules), about $0.05 together". No other change.
 
-Resume: operator: screenshots (D7) and the two questions (D8 two requests per profile; D9 may an admin
-raise a "Leave me out" player). Then fix the label if needed, merge; deploy order 0081 → `press` → `web`.
+- 2026-11-14 14:49 Lead2: operator "D7 screenshots ok / D8 Yes / D9 yes": keep write + review; an admin
+  MAY raise a "Leave me out" player's press level (as built, logged). Label fix `49d53243` checked
+  (2 texts only). Rebased; web + discord typecheck clean; web 719/719. Merged `--ff-only`.
+
+Resume: operator's OK to deploy (D10): fresh backup, 0081, then `press`, then `web` (never web first).
 
 ## Report
 
