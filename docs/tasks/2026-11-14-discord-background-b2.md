@@ -1,6 +1,6 @@
 # Task: B2 — Player background: the bots ask, propose facts; teammate answers need the admin
 
-- **State:** Merged 2026-11-14 16:49 (`44daf4bd`; operator D19 "yes"); deploy waits for the operator's OK (D20)
+- **State:** Deployed 2026-11-14 17:12 (operator: "D20 deploy"); switch OFF
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Queries, Database (only if a
   column is needed), Web (privacy page: one sentence)
 - **Risk:** medium-high (AI questions and AI-written facts about real teammates; a privacy text change)
@@ -134,7 +134,13 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   db/web/discord/worker clean; web 755/755; discord 910/910; prettier clean except the privacy draft's
   2-line gap that was already on `main`. Merged `--ff-only`.
 
-Resume: operator's OK to deploy (D20): fresh backup, 0084, `press` + `news`, then `web`; switch stays OFF.
+- 2026-11-14 17:13 Lead2: deployed. HE at `a7b4d1cb`; backup `~/eanhl-backups/manual/eanhl-pre-0084-2026-11-14.dump`
+  (29 MB, 94 table-data entries); 0084 applied (switch row `enabled = f`); rollback tags
+  `eanhl-team-website-{press,news,web}:rollback-he-2026-11-14-pre-b2`; `press` + `news` (live, $100 cap),
+  then `web`. `/legal/privacy` shows the approved sentence; Press Box 307 → login signed out.
+
+Resume: the operator turns the switch on in the Press Box when wanted; then watch the first background
+answers and proposed facts.
 
 ## Report (task agent fills when state = Verify)
 
