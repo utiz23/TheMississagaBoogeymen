@@ -3,30 +3,61 @@ import type { AdjacentMatch } from '@eanhl/db/queries'
 import { Panel } from '@/components/ui/panel'
 import { ResultPill } from '@/components/ui/result-pill'
 import { formatMatchDate } from '@/lib/format'
+import type { FinalsContextLine } from '@/lib/club-finals-view'
 
 interface ContextFooterProps {
   previous: AdjacentMatch | null
   next: AdjacentMatch | null
   /** The games-list filters this sheet was opened from, kept across prev/next (as the top bar does). */
   listQuery?: string | undefined
+  /** Club Finals: what this game decided and what comes next (stored state; CF3). */
+  finals?: FinalsContextLine | null | undefined
 }
 
-export function ContextFooter({ previous, next, listQuery }: ContextFooterProps) {
-  if (!previous && !next) return null
+const FINALS_TONE: Record<FinalsContextLine['kind'], string> = {
+  final_won: 'border-emerald-500 bg-emerald-950/50 text-emerald-200',
+  round_won: 'border-emerald-700 bg-emerald-950/40 text-emerald-200',
+  eliminated: 'border-accent bg-accent/10 text-accent-readable',
+  next: 'border-accent/40 bg-accent/5 text-fg-2',
+}
+
+function FinalsContext({ line }: { line: FinalsContextLine }) {
+  return (
+    <div
+      className={`flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-l-4 px-4 py-3 font-condensed uppercase ${FINALS_TONE[line.kind]}`}
+    >
+      <span className="text-[10px] font-extrabold tracking-[0.24em] opacity-80">Club Finals</span>
+      <span className="text-base font-black tracking-[0.08em]">{line.title}</span>
+      {line.detail !== null ? (
+        <span className="w-full text-xs font-semibold tracking-[0.14em] opacity-80 sm:ml-auto sm:w-auto">
+          {line.detail}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+export function ContextFooter({ previous, next, listQuery, finals }: ContextFooterProps) {
+  if (!previous && !next && !finals) return null
 
   return (
-    <nav className="grid grid-cols-1 gap-3 border-t border-zinc-800 pt-6 sm:grid-cols-2">
-      {previous ? (
-        <AdjacentLink match={previous} direction="prev" listQuery={listQuery} />
-      ) : (
-        <Spacer direction="prev" />
-      )}
-      {next ? (
-        <AdjacentLink match={next} direction="next" listQuery={listQuery} />
-      ) : (
-        <Spacer direction="next" />
-      )}
-    </nav>
+    <div className="space-y-3 border-t border-zinc-800 pt-6">
+      {finals ? <FinalsContext line={finals} /> : null}
+      {previous || next ? (
+        <nav className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {previous ? (
+            <AdjacentLink match={previous} direction="prev" listQuery={listQuery} />
+          ) : (
+            <Spacer direction="prev" />
+          )}
+          {next ? (
+            <AdjacentLink match={next} direction="next" listQuery={listQuery} />
+          ) : (
+            <Spacer direction="next" />
+          )}
+        </nav>
+      ) : null}
+    </div>
   )
 }
 

@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
@@ -7,6 +8,7 @@ import {
   getOpponentClubs,
   getOcrCoverageForMatches,
   getClubFinalsBadges,
+  getClubFinalsOverview,
   type ClubFinalsBadge,
   type MatchOcrCoverage,
 } from '@eanhl/db/queries'
@@ -14,6 +16,7 @@ import type { GameMode, MatchResult } from '@eanhl/db'
 import { GAME_MODE } from '@eanhl/db'
 import type { GameTitle } from '@eanhl/db'
 import { ScoreCard } from '@/components/matches/score-card'
+import { ClubFinalsRoundDivider } from '@/components/matches/club-finals-badge'
 import {
   GamesFilterPanel,
   LastTenStrip,
@@ -22,6 +25,12 @@ import {
 } from '@/components/matches/games-filter'
 import { Panel } from '@/components/ui/panel'
 import { SectionHeader } from '@/components/ui/section-header'
+import {
+  FINALS_ROUND_COUNT,
+  clubFinalsMatchIds,
+  clubFinalsRoundKey,
+  parseFinalsRound,
+} from '@/lib/club-finals-view'
 import { formatDataDay, formatMatchDate } from '@/lib/format'
 import { resolveTitleFromSlug, switcherTitles } from '@/lib/title-resolver'
 
@@ -33,7 +42,10 @@ export const revalidate = 300
 const PAGE_SIZE = 20
 const FORM_WINDOW_SIZE = 10
 type ResultFilter = 'all' | 'WIN' | 'LOSS' | 'OTL_DNF'
-type GamesModeFilter = GameMode | 'dev' | null
+/** `finals` = the derived Club Finals games (CF3); like `dev`, a fixed selection of matches. */
+type GamesModeFilter = GameMode | 'dev' | 'finals' | null
+/** Matches nothing: an empty id list would mean "no filter" to the query. */
+const NO_MATCH_IDS = [-1]
 const DEV_MATCH_IDS = [
   // Benchmark / OCR-labeled — source of truth
   250,
@@ -69,9 +81,14 @@ const DEV_MATCH_IDS = [
 interface GamesFilters {
   titleSlug: string | undefined
   gameMode: GamesModeFilter
+  /** Club Finals round 1 to 4; only with `gameMode: 'finals'`. */
+  round: number | null
   resultFilter: ResultFilter
   opponent: string
 }
+
+/** The derived Club Finals games of the title, as the query's `attempts` (empty = none). */
+type FinalsAttempts = Awaited<ReturnType<typeof getClubFinalsOverview>>['attempts']
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -82,7 +99,7 @@ function parsePage(raw: string | string[] | undefined): number {
 
 function parseGameMode(raw: string | string[] | undefined): GamesModeFilter {
   if (typeof raw !== 'string') return null
-  if (raw === 'dev') return 'dev'
+  if (raw === 'dev' || raw === 'finals') return raw
   return (GAME_MODE as readonly string[]).includes(raw) ? (raw as GameMode) : null
 }
 
@@ -101,24 +118,33 @@ function resultValues(filter: ResultFilter): MatchResult | MatchResult[] | null 
   return filter
 }
 
-function devMatchIds(gameMode: GamesModeFilter): number[] | null {
-  return gameMode === 'dev' ? [...DEV_MATCH_IDS] : null
+function selectionMatchIds(
+  gameMode: GamesModeFilter,
+  round: number | null,
+  finals: FinalsAttempts,
+): number[] | null {
+  if (gameMode === 'dev') return [...DEV_MATCH_IDS]
+  if (gameMode === 'finals') {
+    const ids = clubFinalsMatchIds(finals, round)
+    return ids.length > 0 ? ids : NO_MATCH_IDS
+  }
+  return null
 }
 
 function dbGameMode(gameMode: GamesModeFilter): GameMode | null {
-  return gameMode === 'dev' ? null : gameMode
+  return gameMode === 'dev' || gameMode === 'finals' ? null : gameMode
 }
 
 export default async function GamesPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const titleSlug = typeof params.title === 'string' ? params.title : undefined
   const gameMode = parseGameMode(params.mode)
+  const round = gameMode === 'finals' ? parseFinalsRound(params.round) : null
   const resultFilter = parseResultFilter(params.result)
   const opponent = parseOpponent(params.opponent)
   const page = parsePage(params.page)
   const offset = (page - 1) * PAGE_SIZE
-  const filters: GamesFilters = { titleSlug, gameMode, resultFilter, opponent }
-  const matchIds = devMatchIds(gameMode)
+  const filters: GamesFilters = { titleSlug, gameMode, round, resultFilter, opponent }
   const queryGameMode = dbGameMode(gameMode)
 
   const result = await resolveTitleFromSlug(titleSlug, { liveOnly: true }).catch(() => null)
@@ -139,11 +165,17 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
   // Live titles plus the default and the selected title, newest first.
   const titles = switcherTitles(allTitles, gameTitle.id)
 
+  // Club Finals games of this title (CF1's stored rows): the Club Finals filter and the round
+  // filter select from them. Fails soft (also before migration 0083): no Club Finals tile.
+  const finalsOverview = await getClubFinalsOverview(gameTitle.id).catch(() => null)
+  const finalsAttempts: FinalsAttempts = finalsOverview?.attempts ?? []
+  const matchIds = selectionMatchIds(gameMode, round, finalsAttempts)
+
   let pageMatches: Awaited<ReturnType<typeof getRecentMatches>> = []
   let formMatches: Awaited<ReturnType<typeof getRecentMatches>> = []
   let total = 0
   let opponentClubs: Awaited<ReturnType<typeof getOpponentClubs>> = []
-  let counts: FilterCounts = { titles: [], modes: [], results: [] }
+  let counts: FilterCounts = { titles: [], modes: [], results: [], finals: 0, rounds: [] }
   try {
     ;[pageMatches, total, formMatches, counts] = await Promise.all([
       getRecentMatches({
@@ -171,7 +203,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
         opponent,
         matchIds,
       }),
-      getFilterCounts(titles, gameTitle.id, filters),
+      getFilterCounts(titles, gameTitle.id, filters, finalsAttempts),
     ])
     opponentClubs = await getOpponentClubs(
       Array.from(new Set(pageMatches.map((match) => match.opponentClubId))),
@@ -206,6 +238,8 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
 
   const opponentClubMap = new Map(opponentClubs.map((club) => [club.eaClubId, club]))
   const dateGroups = groupMatchesByDate(pageMatches)
+  const hasFinalsTile =
+    finalsAttempts.length > 0 && clubFinalsMatchIds(finalsAttempts, null).length > 0
   const listContextQuery = gamesQueryString(filters, clampedPage)
 
   return (
@@ -231,6 +265,7 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
           gameTitle={gameTitle}
           filters={filters}
           counts={counts}
+          showFinalsTile={hasFinalsTile || gameMode === 'finals'}
           total={total}
           showingStart={showingStart}
           showingEnd={showingEnd}
@@ -265,18 +300,29 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {group.matches.map((match) => {
+                  {group.matches.map((match, i) => {
                     const opponent = opponentClubMap.get(match.opponentClubId) ?? null
+                    const badge = clubFinals.get(match.id)
+                    // A header where a Club Finals round starts in the list (newest first, so
+                    // it sits over the round's newest game on this page).
+                    const prevBadge =
+                      i > 0 ? clubFinals.get(group.matches[i - 1]?.id ?? -1) : undefined
+                    const startsRound =
+                      badge !== undefined &&
+                      (prevBadge === undefined ||
+                        clubFinalsRoundKey(prevBadge) !== clubFinalsRoundKey(badge))
                     return (
-                      <ScoreCard
-                        key={match.id}
-                        match={match}
-                        href={`/games/${match.id.toString()}${listContextQuery ? `?${listContextQuery}` : ''}`}
-                        opponentCrestAssetId={opponent?.crestAssetId ?? null}
-                        opponentCrestUseBaseAsset={opponent?.useBaseAsset ?? null}
-                        ocrCoverage={ocrCoverage.get(match.id)}
-                        clubFinals={clubFinals.get(match.id)}
-                      />
+                      <Fragment key={match.id}>
+                        {startsRound ? <ClubFinalsRoundDivider badge={badge} /> : null}
+                        <ScoreCard
+                          match={match}
+                          href={`/games/${match.id.toString()}${listContextQuery ? `?${listContextQuery}` : ''}`}
+                          opponentCrestAssetId={opponent?.crestAssetId ?? null}
+                          opponentCrestUseBaseAsset={opponent?.useBaseAsset ?? null}
+                          ocrCoverage={ocrCoverage.get(match.id)}
+                          clubFinals={badge}
+                        />
+                      </Fragment>
                     )
                   })}
                 </div>
@@ -322,6 +368,7 @@ function gamesQueryString(filters: GamesFilters, page?: number): string {
   const qs = new URLSearchParams()
   if (filters.titleSlug) qs.set('title', filters.titleSlug)
   if (filters.gameMode !== null) qs.set('mode', filters.gameMode)
+  if (filters.round !== null) qs.set('round', filters.round.toString())
   if (filters.resultFilter !== 'all') qs.set('result', filters.resultFilter)
   if (filters.opponent) qs.set('opponent', filters.opponent)
   if (page !== undefined && page > 1) qs.set('page', page.toString())
@@ -352,6 +399,9 @@ interface FilterCounts {
   titles: number[]
   modes: number[]
   results: number[]
+  /** The Club Finals tile (all rounds), and one count per round 1 to 4. */
+  finals: number
+  rounds: number[]
 }
 
 /**
@@ -363,17 +413,31 @@ async function getFilterCounts(
   titles: GameTitle[],
   gameTitleId: number,
   filters: GamesFilters,
+  finals: FinalsAttempts,
 ): Promise<FilterCounts> {
-  const { gameMode, resultFilter, opponent } = filters
-  const [titleCounts, modeCounts, resultCounts] = await Promise.all([
+  const { gameMode, round, resultFilter, opponent } = filters
+  // The Club Finals selection belongs to one title: a title tile counts that title's own games.
+  const titleMode = gameMode === 'finals' ? null : gameMode
+  const finalsCount = (matchRound: number | null) => {
+    const ids = clubFinalsMatchIds(finals, matchRound)
+    return ids.length === 0
+      ? Promise.resolve(0)
+      : countMatches({
+          gameTitleId,
+          result: resultValues(resultFilter),
+          opponent,
+          matchIds: ids,
+        })
+  }
+  const [titleCounts, modeCounts, resultCounts, finalsTotal, roundCounts] = await Promise.all([
     Promise.all(
       titles.map((title) =>
         countMatches({
           gameTitleId: title.id,
-          gameMode: dbGameMode(gameMode),
+          gameMode: dbGameMode(titleMode),
           result: resultValues(resultFilter),
           opponent,
-          matchIds: devMatchIds(gameMode),
+          matchIds: selectionMatchIds(titleMode, null, []),
         }),
       ),
     ),
@@ -384,7 +448,7 @@ async function getFilterCounts(
           gameMode: dbGameMode(mode),
           result: resultValues(resultFilter),
           opponent,
-          matchIds: devMatchIds(mode),
+          matchIds: selectionMatchIds(mode, null, finals),
         }),
       ),
     ),
@@ -395,12 +459,20 @@ async function getFilterCounts(
           gameMode: dbGameMode(gameMode),
           result: resultValues(value),
           opponent,
-          matchIds: devMatchIds(gameMode),
+          matchIds: selectionMatchIds(gameMode, round, finals),
         }),
       ),
     ),
+    finalsCount(null),
+    Promise.all(Array.from({ length: FINALS_ROUND_COUNT }, (_, i) => finalsCount(i + 1))),
   ])
-  return { titles: titleCounts, modes: modeCounts, results: resultCounts }
+  return {
+    titles: titleCounts,
+    modes: modeCounts,
+    results: resultCounts,
+    finals: finalsTotal,
+    rounds: roundCounts,
+  }
 }
 
 function GamesToolbar({
@@ -408,6 +480,7 @@ function GamesToolbar({
   gameTitle,
   filters,
   counts,
+  showFinalsTile,
   total,
   showingStart,
   showingEnd,
@@ -416,6 +489,7 @@ function GamesToolbar({
   gameTitle: GameTitle
   filters: GamesFilters
   counts: FilterCounts
+  showFinalsTile: boolean
   total: number
   showingStart: number
   showingEnd: number
@@ -431,7 +505,12 @@ function GamesToolbar({
         key: title.slug,
         label: title.name,
         count: counts.titles[i] ?? 0,
-        href: gamesHref({ ...filters, titleSlug: title.slug }),
+        // The Club Finals selection is one title's: switching title leaves it.
+        href: gamesHref(
+          filters.gameMode === 'finals'
+            ? { ...filters, titleSlug: title.slug, gameMode: null, round: null }
+            : { ...filters, titleSlug: title.slug },
+        ),
         active: title.id === gameTitle.id,
         tone: 'accent',
       })),
@@ -439,15 +518,31 @@ function GamesToolbar({
     {
       key: 'mode',
       legend: 'Mode',
-      tiles: MODE_LABELS.map(({ mode, label, tone }, i) => ({
-        key: label,
-        label,
-        count: counts.modes[i] ?? 0,
-        href: gamesHref({ ...filters, gameMode: mode }),
-        active: mode === filters.gameMode,
-        tone,
-        dot: true,
-      })),
+      tiles: [
+        ...MODE_LABELS.map(({ mode, label, tone }, i) => ({
+          key: label,
+          label,
+          count: counts.modes[i] ?? 0,
+          href: gamesHref({ ...filters, gameMode: mode, round: null }),
+          active: mode === filters.gameMode,
+          tone,
+          dot: true,
+        })),
+        ...(showFinalsTile
+          ? [
+              {
+                key: 'finals',
+                label: 'Finals',
+                fullLabel: 'Club Finals',
+                count: counts.finals,
+                href: gamesHref({ ...filters, gameMode: 'finals', round: null }),
+                active: filters.gameMode === 'finals',
+                tone: 'finals' as const,
+                dot: true,
+              },
+            ]
+          : []),
+      ],
     },
     {
       key: 'result',
@@ -464,12 +559,49 @@ function GamesToolbar({
     },
   ]
 
+  // Round filter: only while Club Finals is the selection (a second row under the groups).
+  const roundGroups: FilterGroup[] =
+    filters.gameMode === 'finals'
+      ? [
+          {
+            key: 'round',
+            legend: 'Round',
+            tiles: [
+              {
+                key: 'all-rounds',
+                label: 'All',
+                fullLabel: 'All Club Finals rounds',
+                count: counts.finals,
+                href: gamesHref({ ...filters, round: null }),
+                active: filters.round === null,
+                tone: 'finals' as const,
+              },
+              ...Array.from({ length: FINALS_ROUND_COUNT }, (_, i) => ({
+                key: `r${(i + 1).toString()}`,
+                label: `R${(i + 1).toString()}`,
+                fullLabel:
+                  i + 1 === FINALS_ROUND_COUNT
+                    ? 'Round 4, the final'
+                    : `Round ${(i + 1).toString()}`,
+                count: counts.rounds[i] ?? 0,
+                href: gamesHref({ ...filters, round: i + 1 }),
+                active: filters.round === i + 1,
+                tone: 'finals' as const,
+              })),
+            ],
+          },
+        ]
+      : []
+
   return (
-    <GamesFilterPanel groups={groups}>
+    <GamesFilterPanel groups={groups} secondaryGroups={roundGroups}>
       <form action="/games" className="flex w-full min-w-0 flex-col gap-1.5 sm:max-w-md">
         {filters.titleSlug ? <input type="hidden" name="title" value={filters.titleSlug} /> : null}
         {filters.gameMode !== null ? (
           <input type="hidden" name="mode" value={filters.gameMode} />
+        ) : null}
+        {filters.round !== null ? (
+          <input type="hidden" name="round" value={filters.round.toString()} />
         ) : null}
         {filters.resultFilter !== 'all' ? (
           <input type="hidden" name="result" value={filters.resultFilter} />
@@ -518,6 +650,7 @@ function clearFiltersHref(filters: GamesFilters): string {
   return gamesHref({
     titleSlug: filters.titleSlug,
     gameMode: null,
+    round: null,
     resultFilter: 'all',
     opponent: '',
   })
@@ -526,7 +659,15 @@ function clearFiltersHref(filters: GamesFilters): string {
 function buildEmptyMessage(gameTitleName: string, filters: GamesFilters): string {
   const parts: string[] = []
   if (filters.gameMode !== null) {
-    parts.push(filters.gameMode === 'dev' ? 'dev selection' : filters.gameMode)
+    parts.push(
+      filters.gameMode === 'dev'
+        ? 'dev selection'
+        : filters.gameMode === 'finals'
+          ? filters.round === null
+            ? 'Club Finals'
+            : `Club Finals round ${filters.round.toString()}`
+          : filters.gameMode,
+    )
   }
   if (filters.resultFilter === 'WIN') parts.push('wins')
   else if (filters.resultFilter === 'LOSS') parts.push('losses')

@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Match, MatchType } from '@eanhl/db'
+import type { ClubFinalsBadge } from '@eanhl/db/queries'
+import { ClubFinalsStrip } from '@/components/matches/club-finals-badge'
 import {
   formatMatchDate,
   formatMatchTime,
@@ -40,7 +42,8 @@ interface LatestResultProps {
   } | null
   /** Current season division placement (from EA clubs/seasonRank). */
   divisionName: string | null
-  /** Reviewed OCR shot totals, so DtW matches the game sheet. */
+  /** Club Finals round, game and marks, when the latest game has a derived row (CF3). */
+  clubFinals?: ClubFinalsBadge | null
 }
 
 export function LatestResult({
@@ -50,6 +53,7 @@ export function LatestResult({
   opponentCrestUseBaseAsset,
   faceoffs,
   divisionName,
+  clubFinals = null,
 }: LatestResultProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
   const matchTypeLabel = MATCH_TYPE_LABEL[match.matchType]
@@ -117,6 +121,9 @@ export function LatestResult({
             {formatMatchDate(match.playedAt)} · {formatMatchTime(match.playedAt)}
           </span>
         </div>
+
+        {/* Club Finals context: round, game, series score, what the game decided */}
+        {clubFinals !== null ? <ClubFinalsStrip badge={clubFinals} /> : null}
 
         {/* Body: team | center | team */}
         <div className="grid grid-cols-1 items-center gap-5 px-7 py-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-x-3.5">

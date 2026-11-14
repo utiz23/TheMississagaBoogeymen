@@ -22,13 +22,21 @@ interface GameTopBarProps {
   listQuery: string
   /** Chronological position of this match in its game title ("Game 64"). */
   seasonNumber: number | null
+  /** Club Finals chip text ("R4 · G5"), when this game has a derived row. */
+  finalsChip?: string | null | undefined
   adjacent: {
     previous: AdjacentGame | null
     next: AdjacentGame | null
   }
 }
 
-export function GameTopBar({ gamesHref, listQuery, seasonNumber, adjacent }: GameTopBarProps) {
+export function GameTopBar({
+  gamesHref,
+  listQuery,
+  seasonNumber,
+  finalsChip,
+  adjacent,
+}: GameTopBarProps) {
   const { previous, next } = adjacent
   // Both edges empty (a single-match game title) would render a box holding
   // two em-dashes — nothing to navigate to, so the box itself is dropped.
@@ -49,6 +57,16 @@ export function GameTopBar({ gamesHref, listQuery, seasonNumber, adjacent }: Gam
         </span>
         All Games
       </Link>
+
+      {finalsChip ? (
+        <span
+          className="flex min-h-11 items-center gap-2 border border-accent/60 bg-accent/10 px-3 text-xs font-black tracking-[0.2em] text-accent-readable"
+          title="Club Finals"
+        >
+          <span aria-hidden className="h-2 w-2 bg-accent" />
+          Finals · {finalsChip}
+        </span>
+      ) : null}
 
       <span
         aria-hidden

@@ -416,6 +416,17 @@
     padding-top: 12px;
     border-top: 1px solid var(--color-border-subtle);
   }
+  .rs-m-details .chip-finals {
+    border-color: rgba(212, 210, 211, 0.35);
+    background: rgba(212, 210, 211, 0.06);
+    color: var(--color-fg-2);
+    text-decoration: none;
+  }
+  .rs-m-details .chip-finals-live {
+    border-color: rgba(232, 65, 49, 0.8);
+    background: rgba(232, 65, 49, 0.2);
+    color: #fff;
+  }
   .rs-m-details .chip {
     padding: 2px 7px;
     border: 1px solid rgba(232, 65, 49, 0.45);

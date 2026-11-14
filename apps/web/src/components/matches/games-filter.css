@@ -68,6 +68,12 @@
   --t-bd: rgba(56, 189, 248, 0.65);
   --t-bar: #38bdf8;
 }
+.gf-tone-finals {
+  --t-fg: #ffffff;
+  --t-bg: rgba(232, 65, 49, 0.22);
+  --t-bd: rgba(232, 65, 49, 0.9);
+  --t-bar: #e84131;
+}
 .gf-tone-dev {
   --t-fg: #e4e4e7;
   --t-bg: rgba(161, 161, 170, 0.14);
@@ -84,6 +90,9 @@
 .gf-group {
   min-width: 0;
   padding: 16px 20px 18px;
+}
+.gf-groups-second {
+  border-top: 1px solid #2c2a2b;
 }
 .gf-group + .gf-group {
   border-left: 1px solid #2c2a2b;

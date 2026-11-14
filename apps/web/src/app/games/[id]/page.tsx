@@ -17,6 +17,8 @@ import {
   getMatchLineupProvenance,
   getSeasonPlayerMatchStats,
   getClubFinalsBadge,
+  getClubFinalsOverview,
+  panelViewFromGame,
 } from '@eanhl/db/queries'
 import type { Match } from '@eanhl/db'
 import { HeroCard } from '@/components/matches/hero-card'
@@ -36,6 +38,7 @@ import { EventTimeline } from '@/components/matches/event-timeline'
 import { ActionTracker } from '@/components/matches/action-tracker'
 import { LineupModule } from '@/components/matches/lineup/lineup-module'
 import { LineupModuleFooter } from '@/components/matches/lineup/lineup-footer'
+import { SeriesPanel } from '@/components/club-finals/series-panel'
 import { Panel } from '@/components/ui/panel'
 import {
   buildAllTeamScores,
@@ -51,6 +54,12 @@ import {
 import { ladderFor } from '@/lib/lineup-shape'
 import { resolveOpponentColors } from '@/lib/opponent-colors'
 import { abbreviateTeamName } from '@/lib/format'
+import {
+  clubFinalsContextLine,
+  clubFinalsShortLabel,
+  finalsRoundGamesUpTo,
+  seriesPanelView,
+} from '@/lib/club-finals-view'
 import { showOcrDiagnostics } from '@/lib/ocr-diagnostics'
 
 // Match data never changes once written — cache indefinitely
@@ -127,6 +136,31 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
     // Club Finals round and game (CF1); null for any other game, and when 0083 is not applied.
     safe(() => getClubFinalsBadge(m.id), null),
   ])
+
+  // Club Finals series panel, footer line (CF3): the round's stored games, up to this one. When
+  // the overview is missing the banner (from the badge) stays and these two are left out.
+  const finalsOverview =
+    clubFinals === null ? null : await safe(() => getClubFinalsOverview(m.gameTitleId), null)
+  const finalsGame =
+    clubFinals === null || finalsOverview === null
+      ? null
+      : (finalsOverview.attempts
+          .find((a) => a.attempt === clubFinals.attempt)
+          ?.gameRows.find((g) => g.matchId === m.id) ?? null)
+  const seriesView =
+    clubFinals === null || finalsOverview === null
+      ? null
+      : seriesPanelView(
+          finalsRoundGamesUpTo(finalsOverview.attempts, clubFinals.attempt, clubFinals.round, m.id),
+          m.id,
+        )
+  const finalsContext =
+    clubFinals === null
+      ? null
+      : clubFinalsContextLine(
+          clubFinals,
+          finalsGame === null ? null : panelViewFromGame(finalsGame),
+        )
 
   const opponentCrestAssetId = opponentClub?.crestAssetId ?? null
   const opponentCrestUseBaseAsset = opponentClub?.useBaseAsset ?? null
@@ -231,6 +265,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
           adjacent={adjacent}
           listQuery={listQuery}
           seasonNumber={seasonNumber}
+          finalsChip={clubFinals === null ? null : clubFinalsShortLabel(clubFinals)}
         />
 
         {/* 2. Scoreboard hero */}
@@ -242,6 +277,18 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
           clubFinals={clubFinals}
           meta={heroMeta}
         />
+
+        {/* 2b. Club Finals series: the round's boxes with this game marked (CF3) */}
+        {clubFinals !== null && seriesView !== null ? (
+          <SeriesPanel
+            view={seriesView}
+            round={clubFinals.round}
+            isFinal={clubFinals.isFinal}
+            gameInRound={clubFinals.gameInRound}
+            badge={clubFinals}
+            listQuery={listQuery}
+          />
+        ) : null}
 
         <GameSheetModeProvider initialMode={initialMode} loadoutsAvailable={hasOcrLineups}>
           {/* 3. LOADOUTS | STATS sub-nav — client mode context; the lineup
@@ -339,7 +386,12 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
         />
 
         {/* 6. Context footer (lowest priority — first to cut if scope shrinks) */}
-        <ContextFooter previous={adjacent.previous} next={adjacent.next} listQuery={listQuery} />
+        <ContextFooter
+          previous={adjacent.previous}
+          next={adjacent.next}
+          listQuery={listQuery}
+          finals={finalsContext}
+        />
       </div>
     </MemberLinks>
   )
@@ -349,7 +401,7 @@ export default async function GameDetailPage({ params, searchParams }: Props) {
 
 function gamesListQuery(params: Record<string, string | string[] | undefined>): string {
   const qs = new URLSearchParams()
-  for (const key of ['title', 'mode', 'result', 'opponent', 'page']) {
+  for (const key of ['title', 'mode', 'round', 'result', 'opponent', 'page']) {
     const value = params[key]
     if (typeof value === 'string' && value.trim()) qs.set(key, value)
   }

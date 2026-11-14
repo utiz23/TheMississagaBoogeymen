@@ -3,6 +3,7 @@ import type { ClubGameTitleStats, ClubSeasonalStats, ClubSeasonRank, MatchResult
 import './record-strip.css'
 import './record-strip-compact.css'
 import { formatClubDateTime, formatRecord } from '@/lib/format'
+import type { FinalsRecordLine } from '@/lib/club-finals-view'
 
 interface Props {
   /** EA-official seasonal record (W/L/OTL/GP). Optional. */
@@ -13,6 +14,8 @@ interface Props {
   seasonRank: ClubSeasonRank | null
   /** Recent match results, newest first. The component looks at the first 10. */
   recentResults: { result: MatchResult; playedAt: Date }[]
+  /** Club Finals line (best attempt, current attempt), from stored rows. Null = nothing derived. */
+  clubFinals?: FinalsRecordLine | null
   /** Title shown in the meta cluster (e.g. "NHL 26"). */
   gameTitleName: string
   /** Team name shown in the identity tile. */
@@ -33,6 +36,7 @@ export function RecordStrip({
   seasonRank,
   recentResults,
   gameTitleName,
+  clubFinals = null,
   teamName = TEAM_NAME_DEFAULT,
   teamMonogram = MONOGRAM_DEFAULT,
   logoSrc = LOGO_DEFAULT,
@@ -134,6 +138,7 @@ export function RecordStrip({
               {seasonRank?.divisionName ? (
                 <span className="chip">DIV · {seasonRank.divisionName}</span>
               ) : null}
+              <FinalsChip line={clubFinals} />
               <span>
                 <b>{String(gp)}</b> GP
               </span>
@@ -457,12 +462,18 @@ export function RecordStrip({
               </div>
             </div>
 
-            {divisionName || lastGameAt ? (
+            {divisionName || lastGameAt || clubFinals !== null ? (
               <div className="facts">
                 {divisionName ? (
                   <div className="row">
                     <span className="k">Division</span>
                     <span className="chip">DIV · {divisionName}</span>
+                  </div>
+                ) : null}
+                {clubFinals !== null ? (
+                  <div className="row">
+                    <span className="k">Club Finals</span>
+                    <FinalsChip line={clubFinals} />
                   </div>
                 ) : null}
                 {lastGameAt ? (
@@ -577,4 +588,25 @@ function markerPctFromDiff(diff: number): number {
   // Map [-50, +50] → [0, 100]; clamped.
   const clamped = Math.max(-50, Math.min(50, diff))
   return ((clamped + 50) / 100) * 100
+}
+
+/** Club Finals chips next to the division chip: the current attempt (while one runs) and the best. */
+function FinalsChip({ line }: { line: FinalsRecordLine | null }) {
+  if (line === null) return null
+  return (
+    <>
+      {line.current !== null ? (
+        <a
+          href="#club-finals"
+          className="chip chip-finals chip-finals-live"
+          title="Club Finals: current attempt"
+        >
+          Finals · {line.current}
+        </a>
+      ) : null}
+      <span className="chip chip-finals" title="Club Finals: best attempt">
+        Finals · Best {line.best ?? 'unknown'}
+      </span>
+    </>
+  )
 }

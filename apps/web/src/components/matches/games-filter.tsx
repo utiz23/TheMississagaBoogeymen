@@ -7,11 +7,13 @@ import './games-filter.css'
 // ─── Filter panel ─────────────────────────────────────────────────────────────
 
 /** Colour family of a tile: its dot, and its frame/fill when active. */
-export type FilterTone = 'accent' | 'win' | 'loss' | 'otl' | 's6' | 's3' | 'dev'
+export type FilterTone = 'accent' | 'win' | 'loss' | 'otl' | 's6' | 's3' | 'dev' | 'finals'
 
 export interface FilterTile {
   key: string
   label: string
+  /** The full name when `label` is a short form (read by screen readers, shown on hover). */
+  fullLabel?: string
   /** Matches this option shows with the other current filters applied. */
   count: number
   href: string
@@ -35,15 +37,18 @@ export interface FilterGroup {
  */
 export function GamesFilterPanel({
   groups,
+  secondaryGroups = [],
   children,
 }: {
   groups: FilterGroup[]
+  /** A second row under the groups (the Club Finals round filter): its own columns, numbered on. */
+  secondaryGroups?: FilterGroup[]
   children?: ReactNode
 }) {
   // Wider columns for groups with more tiles (2 / 4 / 4 → 1fr 2fr 2fr).
-  const columns = groups
-    .map((group) => `minmax(0, ${Math.max(1, group.tiles.length).toString()}fr)`)
-    .join(' ')
+  const columnsFor = (list: FilterGroup[]) =>
+    list.map((group) => `minmax(0, ${Math.max(1, group.tiles.length).toString()}fr)`).join(' ')
+  const columns = columnsFor(groups)
 
   return (
     <section className="gf-panel" aria-label="Game filter">
@@ -53,6 +58,16 @@ export function GamesFilterPanel({
           <FilterGroupView key={group.key} group={group} index={i + 1} />
         ))}
       </div>
+      {secondaryGroups.length > 0 ? (
+        <div
+          className="gf-groups gf-groups-second"
+          style={{ '--gf-group-cols': columnsFor(secondaryGroups) } as CSSProperties}
+        >
+          {secondaryGroups.map((group, i) => (
+            <FilterGroupView key={group.key} group={group} index={groups.length + i + 1} />
+          ))}
+        </div>
+      ) : null}
       {children ? <div className="gf-foot">{children}</div> : null}
     </section>
   )
@@ -83,7 +98,7 @@ function FilterGroupView({ group, index }: { group: FilterGroup; index: number }
 function FilterTileView({ tile, max }: { tile: FilterTile; max: number }) {
   const pct = max > 0 ? (tile.count / max) * 100 : 0
   const className = `gf-tile gf-tone-${tile.tone}`
-  const label = `${tile.label}, ${tile.count.toString()} ${tile.count === 1 ? 'match' : 'matches'}`
+  const label = `${tile.fullLabel ?? tile.label}, ${tile.count.toString()} ${tile.count === 1 ? 'match' : 'matches'}`
   const body = (
     <>
       <span className="gf-tl" aria-hidden>
@@ -114,6 +129,7 @@ function FilterTileView({ tile, max }: { tile: FilterTile; max: number }) {
       className={className}
       aria-current={tile.active ? 'true' : undefined}
       aria-label={label}
+      title={tile.fullLabel}
     >
       {body}
     </Link>

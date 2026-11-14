@@ -2,7 +2,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import type { Match, MatchResult } from '@eanhl/db'
 import type { ClubFinalsBadge } from '@eanhl/db/queries'
-import { ClubFinalsChips } from '@/components/matches/club-finals-badge'
+import { ClubFinalsChips, ClubFinalsOutcomeBar } from '@/components/matches/club-finals-badge'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { OcrPill } from '@/components/ui/ocr-pill'
 import { ResultPill } from '@/components/ui/result-pill'
@@ -170,9 +170,23 @@ export function ScoreCard({
       prefetch
       href={href ?? `/games/${match.id.toString()}`}
       aria-label={`${getResultStyle(match.result).label} ${match.scoreFor.toString()}–${match.scoreAgainst.toString()} vs ${match.opponentName}, ${formatMatchDate(match.playedAt)}`}
-      className={`group block overflow-hidden border transition-[border-color,transform] hover:-translate-y-0.5 ${cardStyles.border} ${cardStyles.bg} ${cardStyles.hoverBorder}`}
+      className={`group block overflow-hidden border transition-[border-color,transform] hover:-translate-y-0.5 ${cardStyles.border} ${cardStyles.bg} ${cardStyles.hoverBorder} ${
+        clubFinals === undefined
+          ? ''
+          : clubFinals.isFinal
+            ? 'border-l-4 border-l-accent shadow-[0_0_0_1px_rgba(232,65,49,0.55),0_0_26px_rgba(232,65,49,0.22)]'
+            : 'border-l-4 border-l-accent shadow-[0_0_0_1px_rgba(232,65,49,0.3)]'
+      }`}
     >
-      <div className={`h-1 w-full ${TOP_BAR[match.result]}`} />
+      {/* Club Finals games: a red ticker edge instead of the result colour (the result pill and
+          score still carry the result). */}
+      <div
+        className={`w-full ${
+          clubFinals === undefined
+            ? `h-1 ${TOP_BAR[match.result]}`
+            : 'h-1.5 bg-[linear-gradient(90deg,#7f1d1d,#e84131_50%,#7f1d1d)]'
+        }`}
+      />
 
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-1.5">
@@ -212,7 +226,7 @@ export function ScoreCard({
       </div>
 
       {clubFinals !== undefined && (
-        <div className="px-4 pb-1">
+        <div className="px-4 pb-2">
           <ClubFinalsChips badge={clubFinals} />
         </div>
       )}
@@ -292,6 +306,8 @@ export function ScoreCard({
           <DtWStat bgmRaw={dtw} />
         </div>
       </div>
+
+      {clubFinals !== undefined && <ClubFinalsOutcomeBar badge={clubFinals} />}
     </Link>
   )
 }

@@ -5,20 +5,27 @@ import type {
   ClubFinalsPageGame,
 } from '@eanhl/db/queries'
 import { Panel } from '@/components/ui/panel'
+import {
+  FINALS_BOX_COUNT,
+  FINALS_ROUND_COUNT,
+  clubFinalsReached as reached,
+  clubFinalsRunAlive,
+  clubFinalsSituation,
+  type FinalsSituation,
+} from '@/lib/club-finals-view'
 import { formatMatchDate, formatMatchTime } from '@/lib/format'
 
 // Club Finals on the home page (CF1). Everything shown is a stored value from the worker's derive
 // (migration 0083); nothing is worked out here. A Server Component: the collapsed "All attempts"
 // list is a native <details>, so there is no client code. The section id is the anchor `/#club-finals`.
 
-const ROUND_COUNT = 4
-const BOX_COUNT = 7
+const ROUND_COUNT = FINALS_ROUND_COUNT
+const BOX_COUNT = FINALS_BOX_COUNT
 const LABEL = 'font-condensed text-[10px] font-semibold uppercase tracking-[0.16em] text-fg-5'
 
 export function ClubFinalsCard({ overview }: { overview: ClubFinalsOverview }) {
   if (overview.attempts.length === 0) return null
-  const lastAttempt = overview.attempts[overview.attempts.length - 1]
-  const running = lastAttempt?.status === 'active' && overview.panel !== null
+  const running = clubFinalsRunAlive(overview.attempts, overview.panel)
   return (
     <section id="club-finals" className="scroll-mt-24">
       {running ? <RunningCard overview={overview} /> : <QuietLine overview={overview} />}
@@ -32,16 +39,30 @@ function RunningCard({ overview }: { overview: ClubFinalsOverview }) {
   const { panel, lastGame, best } = overview
   const lastAttempt = overview.attempts[overview.attempts.length - 1]
   if (panel === null || lastAttempt === undefined) return null
+  // Playoff look (CF3): while an attempt runs the card is the loudest thing on the page. The
+  // stakes line comes from the last game's stored round score (lib/club-finals-view.ts).
+  const situation = clubFinalsSituation(panel.round, lastGame)
+  const inFinal = panel.round === ROUND_COUNT
   return (
-    <Panel className="overflow-hidden">
+    <div
+      className={`relative overflow-hidden border border-l-4 border-accent/70 border-l-accent bg-[radial-gradient(ellipse_at_50%_0%,rgba(232,65,49,0.22),transparent_60%),linear-gradient(180deg,#1a1415,#0e0d0d)] ${
+        inFinal
+          ? 'shadow-[0_0_0_1px_rgba(232,65,49,0.6),0_0_44px_rgba(232,65,49,0.32)]'
+          : 'shadow-[0_0_0_1px_rgba(232,65,49,0.3),0_0_30px_rgba(232,65,49,0.14)]'
+      }`}
+    >
       <div className="ticker-strip ticker-strip-hero" />
       <div className="space-y-4 p-4 sm:p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <div className="flex flex-wrap items-baseline gap-x-3">
-            <h2 className="font-condensed text-xs font-semibold uppercase tracking-widest text-zinc-500 sm:text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="inline-flex items-center gap-1.5 bg-accent-strong px-2.5 py-1 font-condensed text-[10px] font-black uppercase tracking-[0.22em] text-white">
+              <span aria-hidden className="h-[6px] w-[6px] animate-pulse rounded-full bg-white" />
+              Live run
+            </span>
+            <h2 className="font-condensed text-lg font-black uppercase tracking-[0.14em] text-fg-1 sm:text-xl">
               Club Finals
             </h2>
-            <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.18em] text-fg-4">
+            <span className="font-condensed text-[11px] font-bold uppercase tracking-[0.18em] text-fg-3">
               Attempt {lastAttempt.attempt} · 6v6
             </span>
           </div>
@@ -51,6 +72,8 @@ function RunningCard({ overview }: { overview: ClubFinalsOverview }) {
             </span>
           ) : null}
         </div>
+
+        {situation !== null ? <SituationBanner situation={situation} /> : null}
 
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:gap-8">
           <div className="space-y-3">
@@ -96,7 +119,24 @@ function RunningCard({ overview }: { overview: ClubFinalsOverview }) {
         {lastGame !== null ? <LastGameLine game={lastGame} /> : null}
         <AllAttempts attempts={overview.attempts} />
       </div>
-    </Panel>
+    </div>
+  )
+}
+
+/** The stakes of the next game: one bold line over the round track. */
+function SituationBanner({ situation }: { situation: FinalsSituation }) {
+  const tone =
+    situation.tone === 'danger'
+      ? 'border-accent bg-accent-strong text-white'
+      : situation.tone === 'chance'
+        ? 'border-fg-2/60 bg-fg-1/10 text-fg-1'
+        : 'border-emerald-600 bg-emerald-950/60 text-emerald-200'
+  return (
+    <p
+      className={`border-l-4 px-3 py-2 font-condensed text-base font-black uppercase tracking-[0.14em] sm:text-lg ${tone}`}
+    >
+      {situation.text}
+    </p>
   )
 }
 
@@ -235,14 +275,6 @@ function AttemptBlock({ attempt }: { attempt: ClubFinalsPageAttempt }) {
   )
 }
 
-function reached(a: Pick<ClubFinalsPageAttempt, 'roundReached' | 'status'>): string {
-  if (a.status === 'final_won') return 'Won the final'
-  if (a.roundReached === ROUND_COUNT) {
-    return a.status === 'active' ? 'In the final' : 'Reached the final'
-  }
-  return `Reached round ${String(a.roundReached)}`
-}
-
 // ── Pieces ───────────────────────────────────────────────────────────────────
 
 /** Four rounds as a track: done, current, to come. The last one is the final. */
@@ -257,7 +289,7 @@ function RoundTrack({ round }: { round: number }) {
           r < round
             ? 'border-zinc-600 bg-zinc-800 text-fg-3'
             : r === round
-              ? 'border-accent bg-accent/15 text-accent-readable'
+              ? 'border-accent bg-accent-strong text-white'
               : 'border-zinc-800 bg-transparent text-fg-6'
         return (
           <li
