@@ -79,6 +79,8 @@ export const TEXT = {
   left: 'The press has left. Catch them after the next game.',
   notInGame: 'This scrum is for players of this game.',
   already: "You're already in this scrum.",
+  movedOn: 'The press has moved on.',
+  talkedAlready: "You've already talked to the press about this game.",
   tooLate: 'Too late — the reporter moved on.',
   noAnswer: 'No answer saved.',
   answered: 'Already answered.',
@@ -181,6 +183,35 @@ async function askNow(
   return say(TEXT.rightWithYou)
 }
 
+/**
+ * "Talk to the press" from someone who already has a person in this scrum (their `insertScrumPerson`
+ * came back null). Pinged inside the accept window: the same path as the Accept button, so both
+ * buttons take the one `acceptScrumPerson` claim. Pinged too late: the press has moved on.
+ * Answering: a link to their own thread. Done: nothing more to do.
+ */
+async function talkAgain(
+  deps: PressDeps,
+  config: PressConfig,
+  scrumId: number,
+  playerId: number | null,
+  userId: string,
+): Promise<Reply> {
+  const row = playerId === null ? null : await deps.store.findScrumPerson(scrumId, playerId)
+  if (row === null) return say(TEXT.already)
+  if (row.status === 'expired') return say(TEXT.movedOn)
+  if (row.status === 'done') return say(TEXT.talkedAlready)
+  if (row.status === 'pinged') {
+    if (row.pingedAt === null) return say(TEXT.already)
+    if (row.pingedAt < new Date(deps.now().getTime() - PRESS_ACCEPT_MS)) return say(TEXT.movedOn)
+    return onAccept(deps, config, row.id, userId)
+  }
+  const person = await deps.store.getScrumPerson(row.id)
+  const threadId = person === null ? null : personThreadId(person)
+  return say(
+    threadId === null ? TEXT.onItsWay : `Your questions are in your thread → <#${threadId}>`,
+  )
+}
+
 /** "Talk to the press" on a recap post: the user volunteers (2 reporters, no follow-up). */
 export async function onTalk(
   deps: PressDeps,
@@ -217,7 +248,7 @@ export async function onTalk(
       status: 'asking',
       lastAskedAt: now,
     })
-    if (benchId === null) return say(TEXT.already)
+    if (benchId === null) return talkAgain(deps, config, scrum.id, bench.playerId, userId)
     return askNow(deps, config, benchId)
   }
 
@@ -232,7 +263,7 @@ export async function onTalk(
     // Starts the answer window: if the question never goes out, the expiry pass ends the round.
     lastAskedAt: now,
   })
-  if (personId === null) return say(TEXT.already)
+  if (personId === null) return talkAgain(deps, config, scrum.id, player.playerId, userId)
   return askNow(deps, config, personId)
 }
 

@@ -1,7 +1,6 @@
 # Task: T10 — "Talk to the press" for someone already in the scrum
 
-- **State:** Ready (operator 2026-11-14: "There is always an already in a scrum message no matter what"
-  … "only talk to the press"); starts after T9 is merged (same files)
+- **State:** Verify (bench guests with no player row: partial, see Report)
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** low
 - **Slug:** press-talk-button
@@ -43,5 +42,21 @@ All checks pass and the tests pin the four cases.
 ## Log
 
 - 2026-11-14 Lead: written from the operator's report.
+- 2026-11-14 Agent: `onTalk` now calls `talkAgain` when the insert says the person exists. It reads the
+  person with `findScrumPerson` and answers by state. Pinged and inside the window calls `onAccept`
+  (same claim). Tests in new `talk-again.test.ts`; one old assertion in `interactions.test.ts` changed
+  (Talk by a pinged person is now an Accept, so the "already" case uses a done person). Ruling 84 added.
 
 ## Report
+
+Changed: `apps/discord/src/press/interactions.ts` (`talkAgain`, two new `TEXT` lines),
+`talk-again.test.ts` (7 tests), `interactions.test.ts` (1 assertion), rulings file (84).
+Cases pinned: pinged in window = Accept (and Talk/Accept in either order start one question, one
+thread); pinged late or expired = "The press has moved on."; asking = link to own thread, or "on its
+way"; done = "You've already talked to the press about this game."; volunteers; test scrum (free, no
+model). Checks: db build ok; discord typecheck clean; discord tests 830 pass, 0 fail; prettier clean.
+
+Gap (lane): a bench guest or the coach has no player row, and `findScrumPerson` finds people by
+player id only. For them Talk still says "You're already in this scrum." The fix is one small query in
+`packages/db/src/queries/news-press.ts` (find a person by scrum and Discord user), then a one-line
+call in `talkAgain`. That path is outside this task's "May edit", so it is not done.

@@ -157,9 +157,11 @@ void test('onTalk: closed scrum, a player not in the game, already in it', async
     await onTalk(t.deps, live, 10, USER_C),
     ephemeral('This scrum is for players of this game.'),
   )
+  // T10: someone already in the scrum is answered by their state (here: done).
+  t.store.people[0]!.status = 'done'
   assert.deepEqual(
     await onTalk(t.deps, live, 10, USER_A),
-    ephemeral("You're already in this scrum."),
+    ephemeral("You've already talked to the press about this game."),
   )
   t.store.scrums[0]!.openUntil = NOW
   assert.deepEqual(
