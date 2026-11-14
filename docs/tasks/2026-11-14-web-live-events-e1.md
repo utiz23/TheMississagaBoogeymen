@@ -1,6 +1,6 @@
 # Task: E1 — live events endpoint (Tailscale only) and fast EA polling at the horn
 
-- **State:** Merged 2026-11-14 03:46 (`314854ad`); deploy waits for the operator's OK (D2)
+- **State:** Deployed 2026-11-14 14:12 with the worker watchdog (operator D2 + D4)
 - **Lane:** Web (endpoint), Worker (fast poll), Database (one migration), Ops (`tailscale serve` step)
 - **Risk:** high (a new listening port on Hotel-Echo; a new writer into the database) — the port and
   the deploy are the operator's OK
@@ -111,7 +111,18 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
   has no timeout either: `INGEST_CYCLE_TIMEOUT_MS` is documented but not wired; no fetch signal; no
   database query timeout); E1 adds more chances. Healthchecks would email; nothing restarts. Deploy held.
 
-Resume: operator decides on the fix task (worker watchdog + timeouts) before the E1 deploy.
+- 2026-11-14 14:13 Lead2: deployed with D4 (watchdog). HE `git pull` to `dd944a13`; backup
+  `~/eanhl-backups/manual/eanhl-pre-0079-2026-11-14.dump` (29 MB, 88 table-data entries); 0079 applied;
+  `.env` copied to `.env.bak-2026-11-14-pre-live-events`, two 64-character secrets added (made on
+  Hotel-Echo, never shown); rollback tags `eanhl-team-website-{web,worker}:rollback-he-2026-11-14-pre-e1`;
+  `build web worker` + `up -d --no-deps web worker`; `sudo tailscale serve --bg --tcp=3100
+tcp://127.0.0.1:3000` ("tailnet only"). Checks: `/` 200; public POST 404; main PC over Tailscale,
+  unsigned → 401; signed `lobby_countdown` on HE → 202 and stored (no EA checks started); worker
+  "Watchdog: 900000ms", first pass done in 16 s. Rollback: retag both `:latest` + `up -d --no-deps web
+worker`; `sudo tailscale serve --tcp=3100 off`; `DROP TABLE live_events` after the code.
+
+Resume: the sender (engine E2) gets the two secrets by file copy to the main PC (never chat) when E2 is
+ready; watch the first game night's quick-check log lines.
 
 ## Report
 

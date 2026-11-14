@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 14:08 CST by Lead2. Fully done tasks leave the board; their files stay in `docs/tasks/`.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 14:13 CST by Lead2. Fully done tasks leave the board; their files stay in `docs/tasks/`.
 
 ## Open tasks
 
@@ -18,8 +18,8 @@ Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. 
 | [T7 bench voices (watched in the call)](tasks/2026-11-14-discord-press-bench-voices.md)                | Discord + DB + Web      | medium | Deployed 11-14 (0077)                                           | test with T8                                  |
 | [T8 `/gm testscrum` (no AI)](tasks/2026-11-14-discord-press-test-scrum.md)                             | Discord                 | low    | Deployed 11-14                                                  | first real run: operator's `/gm testscrum`    |
 | [T9 relationships: open war ↔ glazing](tasks/2026-11-14-discord-press-relationships.md)                | Discord + DB            | medium | Deployed 11-14 (0078)                                           | watch the first game night                    |
-| [E1 live events endpoint + fast EA poll](tasks/2026-11-14-web-live-events-e1.md)                       | Web + Worker + DB + Ops | high   | Merged 11-14; deploying with D4                                 | deploy (D2 + D4 approved)                     |
-| [D4 worker watchdog + time limits](tasks/2026-11-14-worker-loop-watchdog.md)                           | Worker                  | medium | Merged 11-14 14:08                                              | deploying with E1                             |
+| [E1 live events endpoint + fast EA poll](tasks/2026-11-14-web-live-events-e1.md)                       | Web + Worker + DB + Ops | high   | Deployed 11-14 14:12 (0079; tailscale serve 3100)               | engine E2 sender; watch the first game night  |
+| [D4 worker watchdog + time limits](tasks/2026-11-14-worker-loop-watchdog.md)                           | Worker                  | medium | Deployed 11-14 14:12                                            | done                                          |
 | [L1 Press Box: overview + relationships board + log](tasks/2026-11-14-web-press-box-l1-overview.md)    | Web + DB                | medium | Deployed 11-14 14:01 (0080)                                     | operator looks at `/admin/press-box`          |
 | [Backup hardening: missed weekly/monthly, one run at a time](tasks/2026-11-14-ops-backup-hardening.md) | Ops                     | medium | Deployed 11-14 03:42                                            | check the 11-15 03:00 run                     |
 | [L2 Press Box: dossiers + AI profiles](tasks/2026-11-14-web-press-box-l2-dossiers.md)                  | Web + DB                | medium | Running (Lead2's task agent; migration 0081)                    | screenshots to the operator before merge      |
