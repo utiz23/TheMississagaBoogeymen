@@ -28,6 +28,16 @@
    you so pissy?". Today a GM note only gives a topic, in the scrum reporter's own words, and one
    reporter asks everyone in a scrum.
 
+4. **Typed answers in the thread** (operator 2026-11-13: "the ability for people to just send messages
+   to the thread would be better"): a player's message in the scrum thread, while they have an open
+   question, counts as the answer; the Answer button stays as a backup. Needs the Message Content
+   intent on one bot (Wade Barlow; a portal switch, no review under 100 servers). The code reads only
+   scrum threads and stores only the asked player's reply; the privacy text already covers answers.
+5. **Fixes from the first live scrum (game 3439):** the accept window (5 min) is too short on a game
+   night (Stick Menace expired) → Lead: 15 min; old Answer buttons say "Too late" after the next
+   question posts (typed answers remove this); the answer judge is too strict (Silky's "This is the
+   norm Gord. I got 3 points playing D." was marked unusable) → tune with the 11-13 answers as cases.
+
 ## Design (Lead, for the operator to check)
 
 - **Scrum count:** per scrum, draw a target total: 3 (10%), 4 (25%), 5 (50%), 6 (15%). The 3 reporters
@@ -66,3 +76,8 @@
 - 2026-11-13 Lead: written from the operator's feedback after the first trial scrum (game 3437,
   Pettibone: 2 questions + 1 follow-up; answers 2 usable, 1 unusable insult, as designed).
 - 2026-11-13 operator: add GM question shaping (item 3). First live test: Lead set the OT game's scrum reporter to Pettibone and added a GM note for Erb by hand in the database.
+- 2026-11-13 Lead: first LIVE scrum (game 3439, `PRESS_MODE=live` since ~03:10 UTC, `.env` backup
+  `.env.bak-2026-11-13-pre-press-live`): reporter Pettibone (set by hand), 4 GM pings at 03:22 UTC;
+  Silky done (2 q + 1 follow-up), Erb and Ordinary_Samich answering, Stick Menace expired (no accept in
+  5 min). 6 answers: 1 usable, 1 joke, 4 unusable (2 of those were fair answers → judge too strict).
+  Operator: "This is a big hit with the team". Requests 4 and 5 added.
