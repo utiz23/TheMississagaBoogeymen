@@ -23,6 +23,11 @@
 - Interview start: all three: a **GM command**, **automatic**, and **a player asks**.
 - Interview: **one reporter**. Output: **thread + site article**.
 
+3. **GM shapes questions** (operator 2026-11-13, during the first live test): the GM can set an exact
+   question (or a topic) for a player and which reporter asks it, e.g. "Pettibone asks Erb: why are
+   you so pissy?". Today a GM note only gives a topic, in the scrum reporter's own words, and one
+   reporter asks everyone in a scrum.
+
 ## Design (Lead, for the operator to check)
 
 - **Scrum count:** per scrum, draw a target total: 3 (10%), 4 (25%), 5 (50%), 6 (15%). The 3 reporters
@@ -60,3 +65,4 @@
 
 - 2026-11-13 Lead: written from the operator's feedback after the first trial scrum (game 3437,
   Pettibone: 2 questions + 1 follow-up; answers 2 usable, 1 unusable insult, as designed).
+- 2026-11-13 operator: add GM question shaping (item 3). First live test: Lead set the OT game's scrum reporter to Pettibone and added a GM note for Erb by hand in the database.
