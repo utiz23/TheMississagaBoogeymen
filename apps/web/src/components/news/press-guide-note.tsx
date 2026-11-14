@@ -30,7 +30,7 @@ export async function PressGuideNote() {
   return (
     <aside className="space-y-1 border border-border-subtle px-4 py-3 text-sm text-fg-3">
       <p className="font-condensed text-xs font-bold uppercase tracking-widest text-fg-4">
-        How to read the Press Room
+        How to read the News Desk
       </p>
       <p>
         The nine reporters are made up. The scores and stats come from the real games. You choose

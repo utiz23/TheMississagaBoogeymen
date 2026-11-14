@@ -117,7 +117,12 @@ function AccountMenuItems({ session }: { session: Extract<SessionState, { status
   const links = [
     { href: '/account', label: 'Your account' },
     { href: session.playerPath, label: 'Your player card' },
-    ...(session.role === 'admin' ? [{ href: '/admin', label: 'Admin tools' }] : []),
+    ...(session.role === 'admin'
+      ? [
+          { href: '/admin', label: 'Admin tools' },
+          { href: '/admin/press-box', label: 'Press Box' },
+        ]
+      : []),
   ]
 
   return (
@@ -126,7 +131,9 @@ function AccountMenuItems({ session }: { session: Extract<SessionState, { status
         Signed in as <span className="text-fg-2">{session.name}</span>
       </p>
       {links.map(({ href, label }) => {
-        const active = isActive(pathname, href)
+        // Under /admin/press-box only Press Box lights up, not Admin tools too.
+        const active =
+          isActive(pathname, href) && !(href === '/admin' && isActive(pathname, '/admin/press-box'))
         return (
           <Link
             prefetch

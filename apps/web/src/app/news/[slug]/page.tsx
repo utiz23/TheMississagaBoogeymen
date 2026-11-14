@@ -30,9 +30,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const article = await loadArticle(slug)
-  if (article === null) return { title: 'Press Room — Club Stats' }
+  if (article === null) return { title: 'News Desk — Club Stats' }
   return {
-    title: `${article.headline ?? 'Story'} — Press Room`,
+    title: `${article.headline ?? 'Story'} — News Desk`,
     description: article.dek ?? undefined,
   }
 }
@@ -57,7 +57,7 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ sl
           href="/news"
           className="font-condensed text-xs font-bold uppercase tracking-widest text-fg-4 hover:text-fg-1"
         >
-          ← Press Room
+          ← News Desk
         </Link>
         {kicker !== null && (
           <Kicker>

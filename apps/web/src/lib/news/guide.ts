@@ -1,4 +1,4 @@
-/** Where the "How to read the Press Room" page lives. */
+/** Where the "How to read the News Desk" page lives. */
 export const GUIDE_PATH = '/news/guide'
 
 /**
@@ -15,7 +15,7 @@ export function ownProfileHref(
 
 /** The guide's plain-language points, in order (Simplified Technical English). */
 export const guideSteps: readonly string[] = [
-  'The Press Room has nine reporters. They are made up. They do not exist.',
+  'The News Desk has nine reporters. They are made up. They do not exist.',
   'The scores, the stats and the dates come from the real games of the club.',
   'Each reporter has a voice. One is loud, one is calm, one loves numbers. They do not agree with each other. That is on purpose.',
   'Big games get more posts and sometimes an article. A normal night gets a few posts and one night article.',

@@ -18,7 +18,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { reporter: slug } = await params
   const reporter = reporterBySlug(slug)
-  return { title: `${reporter?.name ?? 'Reporter'} — Press Room` }
+  return { title: `${reporter?.name ?? 'Reporter'} — News Desk` }
 }
 
 export default async function ReporterPage({ params }: { params: Promise<{ reporter: string }> }) {
@@ -35,7 +35,7 @@ export default async function ReporterPage({ params }: { params: Promise<{ repor
         href="/news"
         className="font-condensed text-xs font-bold uppercase tracking-widest text-fg-4 hover:text-fg-1"
       >
-        ← Press Room
+        ← News Desk
       </Link>
       <header className="flex items-start gap-4 border-b-2 border-accent pb-4">
         <ReporterAvatar reporter={reporter.id} size="lg" />

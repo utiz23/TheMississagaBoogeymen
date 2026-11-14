@@ -5,7 +5,7 @@ import { PressGuideNote, loadOwnProfileHref } from '@/components/news/press-guid
 import { guideSteps } from '@/lib/news/guide'
 import { PRESS_LEVEL_OPTIONS } from '@/lib/profile-edit'
 
-export const metadata: Metadata = { title: 'How to read the Press Room — Club Stats' }
+export const metadata: Metadata = { title: 'How to read the News Desk — Club Stats' }
 
 // The own-profile link depends on who is signed in.
 export const dynamic = 'force-dynamic'
@@ -19,11 +19,11 @@ export default async function PressGuidePage() {
         href="/news"
         className="font-condensed text-xs font-bold uppercase tracking-widest text-fg-4 hover:text-fg-1"
       >
-        ← Press Room
+        ← News Desk
       </Link>
       <header className="border-b-2 border-accent pb-3">
         <h1 className="font-condensed text-3xl font-black uppercase tracking-wide text-fg-1 sm:text-4xl">
-          How to read the Press Room
+          How to read the News Desk
         </h1>
       </header>
 
