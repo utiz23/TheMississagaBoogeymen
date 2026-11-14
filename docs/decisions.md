@@ -6,9 +6,9 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                      | My advice                                                           | Waiting costs   |
-| --- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------- |
-| D1  | Deploy T3 interviews (backup → migration 0074 → `press`, `news`, `web`)? Merged and checked; deploy alone or together with T4 | Together with T4 (one restart, typed answers in interviews need T4) | Interviews wait |
+| ID  | Question                                                                                                                                                               | My advice                                                     | Waiting costs                                        |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------- |
+| D1  | Deploy T3 interviews + T4 Discord replies together (backup → migrations 0074, 0075 → `press`, `news`, `web`; privacy page dates set that day)? Both merged and checked | Yes, before the next game night (typed answers start working) | Typed answers stay broken; no interviews, no replies |
 
 ## 2. Your to-dos (only you can do these)
 

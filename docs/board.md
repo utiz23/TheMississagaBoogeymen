@@ -1,6 +1,6 @@
 # Board
 
-**Lead chat now:** `Lead` (session tag `08efa5`; task chats send to "Lead"). Task chats: T3 done (`eanhl-team-website-f2`), T4 = `eanhl-team-website-0d` (since 2026-11-13 evening).
+**Lead chat now:** `Lead` (session tag `08efa5`; task chats send to "Lead"). Task chats: T3 done (`eanhl-team-website-f2`), T4 done (`eanhl-team-website-0d`); T5 = the Lead's own task agent (since 2026-11-13 evening).
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
@@ -18,8 +18,8 @@ Limits: 2 task agents at once; 3 open operator decisions. Updated 2026-11-13 by 
 | [T1 typed answers](tasks/2026-11-13-discord-press-typed-answers.md)           | Discord            | medium | Deployed 11-13                                       | done                                                |
 | [T2 panel scrums + `/gm ask`](tasks/2026-11-13-discord-press-panel-gm-ask.md) | Discord + DB       | medium | Deployed 11-13 (0073 on live)                        | watch the next game night                           |
 | [T3 interviews](tasks/2026-11-13-discord-press-interviews.md)                 | Discord + DB + Web | medium | Merged `f3f4bda0` (not deployed)                     | operator OK: backup → 0074 → `press`, `news`, `web` |
-| [T4 Discord replies](tasks/2026-11-13-discord-press-replies.md)               | Discord + Web      | medium | Proposed (after T3)                                  | operator: privacy paragraph                         |
-| [T5 hard lines + feuds](tasks/2026-11-13-discord-press-hard-lines-feuds.md)   | Discord + DB       | medium | Ready (after T3 and T4)                              | Lead starts it after the merges                     |
+| [T4 Discord replies](tasks/2026-11-13-discord-press-replies.md)               | Discord + Web      | medium | Merged `7afe9396` (not deployed)                     | operator OK: deploy with T3                         |
+| [T5 hard lines + feuds](tasks/2026-11-13-discord-press-hard-lines-feuds.md)   | Discord + DB       | medium | Running (Lead's task agent)                          | Lead reviews and merges                             |
 
 ## Branches and worktrees from before v2
 
