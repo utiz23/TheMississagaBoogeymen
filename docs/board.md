@@ -21,6 +21,7 @@ Limits: 2 task agents at once; 3 open operator decisions. Updated 2026-11-13 by 
 | [T4 Discord replies](tasks/2026-11-13-discord-press-replies.md)                         | Discord + Web      | medium | Deployed 11-14 (0075; wire replies need `PRESS_WIRE_REPLIES=1`) | switch on with live mode                      |
 | [T5 hard lines + feuds](tasks/2026-11-13-discord-press-hard-lines-feuds.md)             | Discord + DB       | medium | Deployed 11-14 (0076)                                           | done                                          |
 | [T6 player threads, no Answer button](tasks/2026-11-14-discord-press-player-threads.md) | Discord            | medium | Running (Lead's task agent)                                     | Lead reviews; deploy `press` with operator OK |
+| [T7 bench voices (watched in the call)](tasks/2026-11-14-discord-press-bench-voices.md) | Discord + DB + Web | medium | Ready (after T6)                                                | Lead starts it after T6 merges                |
 
 ## Branches and worktrees from before v2
 
