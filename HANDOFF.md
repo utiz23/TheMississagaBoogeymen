@@ -22,10 +22,12 @@ always the operator's OK. Guide [`workflow-v2.md`](docs/operations/workflow-v2.m
 [`docs/board.md`](docs/board.md); **operator's live page [`docs/decisions.md`](docs/decisions.md)**;
 commit/push rules in `CLAUDE.md`.
 
-**Press bots LIVE in the game channel** (2026-11-13; `PRESS_MODE=live`, 9 reporter bot accounts,
-news cap $100): post-game scrums, `/scrum`, `/gm`. Deployed: release 1 (0072), T1 typed answers, T2
-panel scrums + `/gm ask` (0073). **Merged, not deployed:** T3 interviews (0074), T4 Discord replies +
-typed-answer fix (0075), T5 hard lines + feuds (0076): one deploy, D1 on `docs/decisions.md`.
+**Press bots LIVE in the game channel** (since 2026-11-13; 9 reporter bots, `PRESS_MODE=live`, news cap
+$100, `PRESS_TYPED_ANSWERS=1`, `PRESS_WIRE_REPLIES=1`, coach `PRESS_COACH_USER_IDS`). Live (migrations
+0072–0078): typed answers, one thread per player, 3-reporter panels, `/gm ask|note|interview|testscrum`,
+interviews + Q&A articles, Discord replies, hard lines, relationships (open war ↔ glazing; Father Rink
+never feuds), bench voices from the call, free test scrums. Tasks T1–T10 in `docs/tasks/`. Next:
+**E1** live events (running), then **Press Box** L1–L4 (`/admin/press-box`, design approved).
 
 ## Current Objective / Status
 
@@ -48,9 +50,9 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 ## Latest Verified Checkpoint
 
-**Latest deploys 2026-11-09:** no badge posts (web, discord `761c5186`; rollback
-`:rollback-he-2026-11-09-pre-no-badges`); news desk live (`NEWS_DRY_RUN=0`, webhook set; rollback
-`NEWS_DRY_RUN=1` + `up -d --no-deps news`); web `820bf96a` goalie stars + feed order (`:…-pre-goalie-stars`); worker + discord `ce88ac63` game posts after one pass (`:…-pre-one-pass`).
+**Latest deploys 2026-11-14:** T3–T10 on Hotel-Echo (rollback tags `:rollback-he-2026-11-14-pre-*`;
+backups `~/eanhl-backups/manual/eanhl-pre-00{74..78}*-2026-11-14.dump`). Earlier 11-09/11-13 deploys:
+journal.
 
 **2026-10-26: club-only badges** (web, worker, discord `06992a2`; rollback `:rollback-he-2026-10-26-pre-club-badges`; card dump `~/eanhl-backups/manual/cards-pre-rebase-2026-10-26-1600.dump`). Badges count club games only; NHL 27 card history reset once (`card-recompute --rebase`). [Spec](docs/superpowers/specs/2026-10-26-club-only-badges-design.md).
 
@@ -136,9 +138,9 @@ None.
 
 ## Next 1-3 Actions
 
-1. **Operator OK → deploy T3 + T4 + T5** (backup → 0074, 0075, 0076 → `press`, `news`, `web`; set the
-   privacy/data-collection `lastUpdated` that day). Then watch the next game night: typed answers,
-   panel scrums, interviews, replies, hard lines (`docs/decisions.md` D1).
-2. Read the first nights' press logs (failed writes, off-limits, feud points) and tune.
-3. Open, small: backup hardening (Codex review 10-09), Contribution Wheel hydration warning, card
-   season pace at mid-season. OCR writing to Hotel-Echo is on hold (operator, 10-09).
+1. **E1 live events** (task agent running in the old Lead chat): review, merge, then the operator's OK
+   for the Tailscale-bound port, migration and deploy. Engine side E2 waits for OBS-EC (engine Lead
+   `[LEAD4]`; plan `docs/superpowers/specs/2026-11-14-live-events-interface.md`).
+2. **Press Box L1** (`docs/tasks/2026-11-14-web-press-box-l1-overview.md`), then L2–L4.
+3. Watch the next game night (relationships, own threads, typed answers); open, small: backup hardening,
+   Contribution Wheel warning, card pace at mid-season.
