@@ -120,7 +120,7 @@ export interface LegalChangeNotice {
 }
 
 export const LEGAL_CHANGE_NOTICE: LegalChangeNotice = {
-  text: 'Updated Nov 2026: answers and replies you give reporters in Discord go to an AI service and can be quoted in the News.',
+  text: 'Updated Nov 2026: answers and replies to reporters in Discord go to an AI service; the bots check who is in the team call (not stored).',
   slug: 'privacy',
   showUntil: '2026-12-14',
 }
