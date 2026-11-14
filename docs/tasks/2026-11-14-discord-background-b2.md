@@ -50,7 +50,7 @@ Over time the bots fill in each player's background from B1's question bank. All
 - **May edit:** `apps/discord/src/press/` (interview and scrum question choice, the answer step),
   `apps/discord/src/news/` (fact proposal writer; the night prompt's background block),
   `packages/db/src/queries/` (background queries + tests), `packages/db/src/schema/` and
-  `packages/db/migrations/0083_*.sql` only if a column is needed, `apps/web/src/app/legal/privacy/` (one
+  `packages/db/migrations/0084_*.sql` only if a column is needed (0082 is B1, 0083 is CF1), `apps/web/src/app/legal/privacy/` (one
   sentence + date), `apps/web/src/app/admin/press-box/` (the on/off switch only), this task file.
 
 ## Checks
