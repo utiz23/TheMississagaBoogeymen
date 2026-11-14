@@ -1,24 +1,24 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 03:39 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 03:46 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                                            | My advice | Waiting costs                                                  |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------- |
-| D1  | Deploy backup hardening on Hotel-Echo? Rebuild and restart only the `backup` service (about 1 minute; site, worker and bots not touched). Then I start two backup runs at once to prove the lock, and I check tomorrow's 03:00 run. | Yes, now  | A missed night keeps losing its weekly/monthly copy until then |
+| ID  | Question                                                                                                                                                                                                                                                                             | My advice                                             | Waiting costs                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------- |
+| D2  | Deploy E1 (live events)? Steps: migration 0079 (one new table), two new secrets in Hotel-Echo's `.env`, rebuild `web` + `worker`, then `tailscale serve` on port 3100 (tailnet only). Rule: Codex second opinion first (secrets + a new way in); I give you the one command to type. | Yes, after Codex, at a quiet time (not during a game) | Nothing until the engine's sender (E2) exists; no hurry |
 
 ## 2. Right now
 
-| What                            | State                                                                                                                                                                                            |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                                                                     |
-| T9 relationships + T10 Talk fix | LIVE since 2026-11-14                                                                                                                                                                            |
-| E1 live events endpoint         | built and checked; one fix running: Docker on Hotel-Echo does not wait for Tailscale at boot, so a Tailscale-bound port could stop the whole site. Fix: `tailscale serve` (still Tailscale only) |
-| Press Box L1                    | running (task agent); you get screenshots before the merge                                                                                                                                       |
-| Backup hardening                | merged (tests 33/33); waits for your OK to deploy (see section 1)                                                                                                                                |
+| What                            | State                                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums) |
+| T9 relationships + T10 Talk fix | LIVE since 2026-11-14                                                                                        |
+| E1 live events endpoint         | merged (all checks pass; boot-order fault fixed with `tailscale serve`); deploy is D2                        |
+| Press Box L1                    | running (task agent); you get screenshots before the merge                                                   |
+| Backup hardening                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                    |
 
 ## 3. Your to-dos (only you can do these)
 
@@ -50,6 +50,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 · "D1, approved" → backup hardening deployed 03:42 (rollback tag `:rollback-he-2026-11-14-pre-hardening`).
 - 2026-11-14 · Live goal ticker: "agreed" → a fixed template line, no AI; AI only for big-moment
   comments, intermission interviews and the recap. EA's game post stays the final word.
 - 2026-11-14 · "Proceed with both" → Press Box L1 and backup hardening started (3 task agents with E1).

@@ -1,6 +1,6 @@
 # Task: Backup hardening — weekly/monthly copies after a missed day; one run at a time
 
-- **State:** Merged 2026-11-14 03:39 (`e6ff79a3`); deploy waits for the operator's OK
+- **State:** Deployed 2026-11-14 03:42 on Hotel-Echo (operator: "D1, approved")
 - **Lane:** Ops
 - **Risk:** medium (the nightly backup is the data-safety net; this changes which copies it keeps)
 - **Slug:** backup-hardening (branch `work/backup-hardening`, worktree `.claude/worktrees/backup-hardening`)
@@ -82,8 +82,15 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   checked read-only that the live `backup` container has `flock` (busybox, `/usr/bin/flock`). Added a
   prettier-only commit on the README (it was red on `main` before). Rebased, merged `--ff-only`.
 
-Resume: operator's OK to deploy `backup` on Hotel-Echo (not near 03:00), then run it twice at once to
-see the lock, then check the next 03:00 run.
+- 2026-11-14 03:42 Lead2: deployed (operator "D1, approved"). The 03:00 run had finished (03:01, 5/5).
+  `git pull` to `9ab1a87a`; rollback tag `eanhl-team-website-backup:rollback-he-2026-11-14-pre-hardening`;
+  `build backup` + `up -d --no-deps backup`. The start-up run began 03:42:17; a second run at 03:42:22
+  logged "another backup run is in progress; nothing done", exit 1 (lock works in the real image). The
+  first run: restore 336 = 336 matches, B2 `eanhl-20261114T094217Z.dump`, 5/5 complete 03:43:44, and it
+  made `weekly/eanhl-2026-11-14.dump` (this ISO week had no copy under the old Sunday rule). Monthly
+  unchanged (`2026-11-01` exists).
+
+Resume: check the 2026-11-15 03:00 run (5/5; no new weekly copy, because this week has one).
 
 ## Report (task agent fills when state = Verify)
 

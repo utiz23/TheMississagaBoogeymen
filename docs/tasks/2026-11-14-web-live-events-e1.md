@@ -1,6 +1,6 @@
 # Task: E1 — live events endpoint (Tailscale only) and fast EA polling at the horn
 
-- **State:** Verify (since 2026-11-14 03:31; was Running since ~03:09; task agent inside the old Lead chat `Lead` 08efa5) (operator 2026-11-14: plan approved, E1–E3 now; route left to the Lead: Tailscale only)
+- **State:** Merged 2026-11-14 03:46 (`314854ad`); deploy waits for the operator's OK (D2)
 - **Lane:** Web (endpoint), Worker (fast poll), Database (one migration), Ops (`tailscale serve` step)
 - **Risk:** high (a new listening port on Hotel-Echo; a new writer into the database) — the port and
   the deploy are the operator's OK
@@ -92,8 +92,15 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
   `web` port is gone from compose and `.env.example` (all Docker ports stay on loopback); the runbook
   now has `tailscale serve --bg --tcp=3100 tcp://127.0.0.1:3000` as an operator step. State = Verify.
 
-Resume: Lead2 re-reviews the boot-order fix, repeats the checks, merges; deploy only with the
-operator's OK (migration 0079, `.env` secrets, `tailscale serve` step on Hotel-Echo, `web` + `worker`).
+- 2026-11-14 03:46 Lead2: reviewed the endpoint, auth, loop and quick check line by line; checked on
+  Hotel-Echo (read-only) that docker.service has no After=tailscaled (the defect) and that Tailscale
+  1.104 has `serve --tcp --bg`. Fixed the compose comment wording and a stray `.env.example` line.
+  Rebased; checks again: typecheck db/web/worker/discord clean; web unit 687/687; worker live-checks +
+  quick-check 17/17; db live-events 6/6; prettier clean. Merged `--ff-only`. Spec §3 updated (Tailscale
+  transport, optional `match_type`).
+
+Resume: operator's OK for D2 (Codex second opinion first: secrets + exposure), then the runbook §6
+steps; then send the engine Lead the sender details (secrets go by file, never chat).
 
 ## Report
 

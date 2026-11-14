@@ -29,12 +29,16 @@ that loses the game) without the GM asking.
 
 ## 3. The interface (proposal)
 
-- **Transport:** HTTPS `POST` of one small JSON event to the website,
-  `https://boogeymen.app/api/internal/live-events` (through the existing Cloudflare tunnel), with a
-  bearer token (`LIVE_EVENTS_TOKEN`, in the website's `.env` and the sender's local secret file, never
-  in git or chat) and an HMAC of the body with a timestamp (replay window 2 minutes). Alternative if the
-  operator prefers no public route: the Tailscale address of Hotel-Echo with a loopback-only port
-  forward. Rate limit; the website answers `202` and never blocks the sender.
+- **Transport (as built in E1, 2026-11-14):** HTTP `POST` of one small JSON event to
+  `/api/internal/live-events`, **Tailscale only** (§5 item 1): from the main PC
+  `http://100.98.29.119:3100/api/internal/live-events` (`tailscale serve` on Hotel-Echo forwards tailnet
+  port 3100 to the loopback port of `web`; Docker publishes no extra port); on Hotel-Echo itself
+  `http://127.0.0.1:3000` or `http://web:3000`. The route refuses anything that came through the public
+  Cloudflare tunnel (404). Auth: bearer token `LIVE_EVENTS_TOKEN` and an HMAC-SHA256
+  (`LIVE_EVENTS_HMAC_KEY`) of `"<timestamp>.<raw body>"` with a 2-minute window; both secrets in the
+  website's `.env` and the sender's local secret file, never in git or chat. Limits: 60 a minute, 4 KB.
+  Answers `202` (a resend of the same `id` gives `202` with `duplicate: true`). How to sign:
+  `docs/operations/runbooks/live-events.md`.
 - **Event shape (v1):**
 
 ```json
@@ -45,6 +49,7 @@ that loses the game) without the GM asking.
   "source": "obs | engine",
   "at": "2026-11-14T03:20:41Z",
   "game_title": "nhl27",
+  "match_type": "gameType5 | gameType10 | club_private",
   "period": 3,
   "clock_left_ds": 0,
   "score": { "bgm": 5, "opp": 4 },
@@ -64,7 +69,8 @@ that loses the game) without the GM asking.
 Required: `v`, `id`, `type`, `source`, `at` (wall time; engine events get wall time once live). The
 sender maps the scorebug club abbreviation to `team` (`bgm` | `opp`) and keeps `team_abbr` and
 `side`. Names: `*_name` is the in-game text; `*_gamertag` only when the roster match is sure, else
-`null` (never guessed). `period` 4/5/6 = OT, OT2, OT3 (EASHL has no shootout). `sure` replaces a
+`null` (never guessed). `match_type` (optional, added in E1): the EA match list of
+the game; when set, the worker's quick checks call only that list (1 EA call, not 3). `period` 4/5/6 = OT, OT2, OT3 (EASHL has no shootout). `sure` replaces a
 confidence number (the engine has none). `id` makes resends harmless.
 
 - **The event types, in game order:** `lobby_countdown` (the club countdown lobby, optional; a countdown
