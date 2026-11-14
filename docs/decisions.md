@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 14:05 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 14:08 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -16,8 +16,8 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Press bots                                   | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)            |
 | T9 relationships + T10 Talk fix              | LIVE since 2026-11-14                                                                                                   |
-| E1 live events endpoint                      | deploy HELD until the watchdog fix (D4) is merged; then E1 + the fix deploy together                                    |
-| Worker watchdog (D4)                         | running (task agent): a stuck worker exits and Docker restarts it; time limits on EA requests                           |
+| E1 live events endpoint                      | deploying now with the watchdog (D2 + D4)                                                                               |
+| Worker watchdog (D4)                         | merged 14:08 (tests 28/28 + 25/25); deploying now with E1                                                               |
 | Press Box L1                                 | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights. |
 | Press Box L2 (player dossiers + AI profiles) | running (task agent); you get screenshots before the merge                                                              |
 | Rename /news "Press Room" → "News Desk"      | running (task agent); ships with the next website deploy                                                                |

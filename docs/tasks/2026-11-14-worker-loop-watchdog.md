@@ -1,6 +1,6 @@
 # Task: Worker watchdog and time limits (game collection must never stop)
 
-- **State:** Verify (since 2026-11-14 14:06; task agent of `Lead2`; Opus: game collection safety)
+- **State:** Merged 2026-11-14 14:08 (`82f0333c`); deploy with E1 (operator: D4 "Fix first … Then deploy E1")
 - **Lane:** Worker (`apps/worker/`, `packages/ea-client/`)
 - **Risk:** medium (the ingestion loop; a fault here can lose games)
 - **Slug:** worker-loop-watchdog (branch `work/worker-loop-watchdog`, worktree
@@ -79,7 +79,13 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 14:06 task agent: tests first (red: ea-client 5 of 7 failed; worker tests did not compile), then built: `ea-client` time limit, `watchdog.ts`, `onProgress` hook in the loop, wiring in `index.ts`, `.env.example`. Mutation check: with the progress hook turned off, 4 watchdog tests fail. Rebased on `main` 5b9b2846; all checks pass.
 
-Resume: the Lead reviews line by line (`git diff main...work/worker-loop-watchdog`), then merges; deploy with E1 (D2) needs the operator's OK.
+- 2026-11-14 14:08 Lead2: reviewed line by line (watchdog timer outside the loop; per-attempt EA limit
+  with `AbortSignal.any`, Node 22 live). Rebased; checks again: ea-client 25/25, worker watchdog +
+  live-checks + quick-check 28/28, test:safety 73/73, typecheck clean, prettier clean. Merged
+  `--ff-only`. `CLAUDE.md` env list updated; `docker-compose.yml` still passes the unused
+  `INGEST_CYCLE_TIMEOUT_MS` (harmless; remove with the next Ops change).
+
+Resume: deploy `worker` with E1 (runbook `docs/operations/runbooks/live-events.md` §6).
 
 ## Report (task agent fills when state = Verify)
 

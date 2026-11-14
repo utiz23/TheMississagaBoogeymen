@@ -159,7 +159,8 @@ See `.env.example`. Key vars:
 - `EA_PLATFORM` — `common-gen5`
 - `POLL_INTERVAL_MS` — Worker poll interval (default: 300000)
 - `EA_REQUEST_DELAY_MS` — Throttle between EA API calls (default: 1000)
-- `INGEST_CYCLE_TIMEOUT_MS` — Max time per ingestion cycle (default: 120000)
+- `EA_REQUEST_TIMEOUT_MS` — Time limit for one EA request (default: 30000)
+- `WORKER_WATCHDOG_MS` — No worker-loop progress for this long: the worker exits and Docker restarts it (default: 900000)
 
 ## Design Direction
 
