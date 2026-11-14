@@ -6,9 +6,10 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                                        | My advice                       | Waiting costs                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | --------------------------------------- |
+| D1  | Deploy T7 bench voices (backup → migration 0077 → `press`, `news`, `web`; coach ID in `.env`; privacy date)? Merged and checked | Yes, before the next game night | Joey and the coach cannot join scrums   |
+| D2  | Next game night: start in trial mode for game 1 to test T6 (own threads, no button) and T7 in `#bot-test`, then go live?        | Yes                             | Problems would show in the main channel |
 
 ## 2. Your to-dos (only you can do these)
 
