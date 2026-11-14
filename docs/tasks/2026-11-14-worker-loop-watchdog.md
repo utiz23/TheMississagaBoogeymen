@@ -85,7 +85,7 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   `--ff-only`. `CLAUDE.md` env list updated; `docker-compose.yml` still passes the unused
   `INGEST_CYCLE_TIMEOUT_MS` (harmless; remove with the next Ops change).
 
-- 2026-11-14 14:13 Lead2: deployed with E1 (rollback `:rollback-he-2026-11-14-pre-e1`); worker log
+- 2026-11-14 14:12 Lead2: deployed with E1 (rollback `:rollback-he-2026-11-14-pre-e1`); worker log
   "Starting polling loop. Interval: 300000ms. Watchdog: 900000ms"; first pass 16 s.
 
 Resume: none (watch for a `[watchdog]` line in the worker log; one means a hang was caught).

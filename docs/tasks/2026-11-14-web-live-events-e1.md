@@ -111,7 +111,7 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
   has no timeout either: `INGEST_CYCLE_TIMEOUT_MS` is documented but not wired; no fetch signal; no
   database query timeout); E1 adds more chances. Healthchecks would email; nothing restarts. Deploy held.
 
-- 2026-11-14 14:13 Lead2: deployed with D4 (watchdog). HE `git pull` to `dd944a13`; backup
+- 2026-11-14 14:12 Lead2: deployed with D4 (watchdog). HE `git pull` to `dd944a13`; backup
   `~/eanhl-backups/manual/eanhl-pre-0079-2026-11-14.dump` (29 MB, 88 table-data entries); 0079 applied;
   `.env` copied to `.env.bak-2026-11-14-pre-live-events`, two 64-character secrets added (made on
   Hotel-Echo, never shown); rollback tags `eanhl-team-website-{web,worker}:rollback-he-2026-11-14-pre-e1`;
