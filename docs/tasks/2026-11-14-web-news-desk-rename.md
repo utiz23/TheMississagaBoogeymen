@@ -54,8 +54,9 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 ## Log
 
 - 2026-11-14 14:05 Lead2: written from the operator's request.
+- 2026-11-14 14:07 task agent: branch and worktree made, deps installed. Blocked: `git grep -i "press room" -- apps/web` also hits 2 files outside "May edit": `apps/web/src/lib/news/guide.ts` (line 1 comment; line 18 visible guide text "The Press Room has nine reporters...") and `apps/web/src/components/news/press-guide-note.tsx` (line 33 visible heading "How to read the Press Room", shown on every reporter page). No edit made yet. Lead must add these two files to "May edit" (or say to leave them).
 
-Resume: task agent makes the branch and worktree and renames.
+Resume: Lead adds `apps/web/src/lib/news/guide.ts` and `apps/web/src/components/news/press-guide-note.tsx` to "May edit"; then rename all hits (7 in app/news pages + 2 files), run checks, screenshot.
 
 ## Report (task agent fills when state = Verify)
 
