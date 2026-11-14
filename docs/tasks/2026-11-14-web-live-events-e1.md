@@ -1,6 +1,6 @@
 # Task: E1 — live events endpoint (Tailscale only) and fast EA polling at the horn
 
-- **State:** Running (since 2026-11-14 ~03:09; task agent inside the old Lead chat `Lead` 08efa5) (operator 2026-11-14: plan approved, E1–E3 now; route left to the Lead: Tailscale only)
+- **State:** Verify (since 2026-11-14 03:31; was Running since ~03:09; task agent inside the old Lead chat `Lead` 08efa5) (operator 2026-11-14: plan approved, E1–E3 now; route left to the Lead: Tailscale only)
 - **Lane:** Web (endpoint), Worker (fast poll), Database (one migration), Ops (compose port)
 - **Risk:** high (a new listening port on Hotel-Echo; a new writer into the database) — the port and
   the deploy are the operator's OK
@@ -84,6 +84,91 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
   (so a check calls 1 match list, not 3) to the endpoint validation and the trigger query.
   17 new worker tests pass.
 
-Resume: compose port (Tailscale address), `.env.example`, runbook, then the Report and State = Verify.
+- 2026-11-14 03:31 agent: compose port + web env, `.env.example`, runbook (`ab306a02`). Report
+  written; State = Verify.
+
+Resume: Lead2 reviews the branch (Report below), repeats the checks, merges; deploy only with the
+operator's OK (migration 0079, `.env`, compose port, `web` + `worker`).
 
 ## Report
+
+**What changed** (branch `work/live-events-e1`, rebased on `ca2c4216`):
+
+- **Database:** migration `packages/db/migrations/0079_live_events.sql` (new table `live_events`:
+  `id` text PK, `type`, `source`, `at`, `received_at` default now(), `payload` jsonb; checks on
+  type/source/id length; index on `received_at`). Schema `packages/db/src/schema/live-events.ts`;
+  queries `packages/db/src/queries/live-events.ts` (insert on conflict do nothing, trigger read by
+  `(received_at, id)` cursor, latest active club game, game-ended check, 30-day delete). Touches no
+  other table.
+- **Web:** `POST /api/internal/live-events` (`apps/web/src/app/api/internal/live-events/route.ts`)
+  and `apps/web/src/lib/live-events/` (`auth.ts`, `event.ts`, `rate-limit.ts`, `handler.ts`).
+  Order: public tunnel → 404; secrets unset/short (< 32) → 503; rate limit 60/min → 429 +
+  Retry-After; not JSON → 415; over 4096 bytes (declared or streamed) → 413; bearer, timestamp
+  (±120 s), HMAC → 401 (one answer); v1 invalid → 400 naming the field; stored → 202
+  `{ok, id, duplicate}`; store error → 503. Token compare: SHA-256 of both sides, then
+  `timingSafeEqual`; HMAC compare: `timingSafeEqual` on the decoded digest. Logs: outcome, type and
+  id only.
+- **Worker:** `apps/worker/src/live-checks.ts` (the loop), `quick-check.ts` (one check),
+  `ingest.ts` (`runQuickMatchCheck`; `ingestMatchType` now returns `matchesNew`), `index.ts`
+  (wiring). Normal pass every `POLL_INTERVAL_MS`, unchanged. Events read every 5 s between passes. A
+  `period_end` with period ≥ 3 or a `game_end` starts one series: checks at 0, +1, +2, +4, +8 min;
+  stops early on a new club game (from a check or a normal pass). A check = EA match lists only (3
+  per active title, 1 when the event has `match_type`), 1 s throttle after each call, then (only
+  for a new game) AI goalies + aggregates + card progression, then the `finished_at` stamp (so the
+  Discord poster posts at once). No member stats, club record, season rank, settings or opponent
+  info. A repeat horn/`game_end` during a series starts nothing. Skipped: game already in (a club
+  game ended ≤ 10 min before the event, or a new game seen ≤ 15 min before), stale (> 15 min).
+  Hourly cleanup of events older than 30 days. Without the table: normal passes as before, one log
+  line per 10 min. Worst case per game: 5 checks × 3 calls = 15 EA calls.
+- **v1 addition:** optional `match_type` (`gameType5` | `gameType10` | `club_private`). The task asks
+  for 1 call "when the event says which mode"; §3 had no such field. The spec (not in my paths)
+  should list it.
+
+**How a sender signs a request:** headers `Authorization: Bearer <LIVE_EVENTS_TOKEN>`,
+`X-Live-Events-Timestamp: <unix seconds>`, `X-Live-Events-Signature: sha256=<hex HMAC-SHA256 with
+LIVE_EVENTS_HMAC_KEY of "<timestamp>.<raw body>">`. Runbook `docs/operations/runbooks/live-events.md`
+has the bash/curl and Python examples (placeholders; the bash, Node and Python signatures were
+checked to match).
+
+**Migration + rollback:** `0079_live_events.sql`, hand-applied (command in its header), idempotent.
+Apply before the `web`/`worker` deploy. Rollback after the code rollback:
+`DROP TABLE IF EXISTS "live_events";`. Not applied anywhere.
+
+**Compose change (why Tailscale only):** `web` gets a second port
+`${LIVE_EVENTS_BIND_ADDR:-127.0.0.1}:${LIVE_EVENTS_HOST_PORT:-3100}:3000`. On Hotel-Echo `.env` sets
+`LIVE_EVENTS_BIND_ADDR=100.98.29.119`, so only the tailnet reaches it; the default is loopback (the
+same pattern as `DB_BIND_ADDR`; a host without that address, such as the main PC fallback, still
+starts). The tunnel reaches `web` over the compose network, not this port, and the route refuses
+any request with Cloudflare headers or the `boogeymen.app` host. A sender on Hotel-Echo uses
+`http://web:3000` (container) or `http://127.0.0.1:3000` (host): no port needed. Also added (outside
+"port only", needed for the route to work): `LIVE_EVENTS_TOKEN` and `LIVE_EVENTS_HMAC_KEY` in the
+`web` environment. `.env.example` documents all four.
+
+**Checks (2026-11-14):**
+
+- `pnpm --filter @eanhl/db build`: OK. Typecheck db, web, worker, discord: all clean.
+- web `pnpm test:unit`: 687 pass, 0 fail (15 new in `lib/live-events/`: auth, timestamp/replay,
+  idempotency, size, validation, rate limit, tunnel refusal, unset secrets, logs).
+- worker, no database: `live-checks.test.js` + `quick-check.test.js` 17 pass (schedule 0/+1/+2/+4/+8,
+  early stop by check and by normal pass, no overlap, no second series, triggers, game already in,
+  stale, title/type, missing table, cleanup, only match-list deps); `heartbeat`, `transform`,
+  `derive-team-faceoff-pct`, `extract-shot-locations` 25 pass (the last two need a placeholder
+  `DATABASE_URL`, as before); `test:safety` 73 pass.
+- db `node --test packages/db/dist/queries/__tests__/live-events.test.js`: 6 pass.
+- prettier: every changed file clean (`pnpm format:check` fails only on 8 old files I did not touch).
+- Not run: `docker compose config` (no Docker here; YAML parsed with Python, OK), worker integration
+  tests and the endpoint against a real database (need Docker), lint.
+
+**Not done / open risks:**
+
+- **Boot order:** binding `100.98.29.119` fails if Docker starts `web` before Tailscale is up; then
+  `web` (the whole site) does not start. Check Hotel-Echo's boot order before the deploy (runbook §6).
+- The Tailscale port exposes the whole website (not only this route) to tailnet devices.
+- A quick check that finds the game skips opponent club info, so a new opponent's crest can be
+  missing from the Discord post until the next normal pass fetches it.
+- Rate limit is one in-memory bucket per `web` process, shared by all callers (also unauthenticated
+  ones on the tailnet).
+- Spec §3 should list the new optional `match_type`.
+
+**Git state:** branch `work/live-events-e1`, 5 commits on `main` `ca2c4216` (db `33c57946`, web
+`c4dc4e8c`, worker `74c5b48f`, ops `ab306a02`, this report). Not pushed, not merged, nothing deployed.
