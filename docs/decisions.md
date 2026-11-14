@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 14:03 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 14:04 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -12,14 +12,15 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 2. Right now
 
-| What                            | State                                                                                                                   |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)            |
-| T9 relationships + T10 Talk fix | LIVE since 2026-11-14                                                                                                   |
-| E1 live events endpoint         | deploy HELD until the watchdog fix (D4) is merged; then E1 + the fix deploy together                                    |
-| Worker watchdog (D4)            | running (task agent): a stuck worker exits and Docker restarts it; time limits on EA requests                           |
-| Press Box L1                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights. |
-| Backup hardening                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                               |
+| What                                         | State                                                                                                                   |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Press bots                                   | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)            |
+| T9 relationships + T10 Talk fix              | LIVE since 2026-11-14                                                                                                   |
+| E1 live events endpoint                      | deploy HELD until the watchdog fix (D4) is merged; then E1 + the fix deploy together                                    |
+| Worker watchdog (D4)                         | running (task agent): a stuck worker exits and Docker restarts it; time limits on EA requests                           |
+| Press Box L1                                 | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights. |
+| Press Box L2 (player dossiers + AI profiles) | running (task agent); you get screenshots before the merge                                                              |
+| Backup hardening                             | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                               |
 
 ## 3. Your to-dos (only you can do these)
 
@@ -51,6 +52,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 14:04 · "start L2" → Press Box L2 started (2 task agents with D4).
 - 2026-11-14 13:58 · "D4 yes" → worker watchdog + time limits task started; "D5 yes, now is a quiet time" →
   Press Box L1 deploy.
 - 2026-11-14 13:46 · "I meant D2 and D3" → deploy E1 after a Codex second opinion (running, E1 changes

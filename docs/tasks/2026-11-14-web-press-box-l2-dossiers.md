@@ -1,6 +1,7 @@
 # Task: L2 — Press Box: player dossiers and AI profiles
 
-- **State:** Ready (operator 2026-11-14); starts after L1 is merged
+- **State:** Running (since 2026-11-14 14:04; task agent of `Lead2`; Opus: AI text about players +
+  migration) (operator 2026-11-14 14:04: "start L2")
 - **Lane:** Web, Queries, Database (one migration), Discord (profile writer)
 - **Risk:** medium (AI text about players; actions on players' press)
 - **Slug:** press-box-l2
@@ -34,7 +35,9 @@ migration with rollback.
 
 - **May edit:** `apps/web/src/app/admin/press-box/`, `apps/web/src/components/press-box/`,
   `packages/db/src/queries/` (press-box files + tests), `packages/db/src/schema/`,
-  `packages/db/migrations/<next>_*.sql`, `apps/discord/src/news/` (profile prompt + writer entry only),
+  `packages/db/migrations/0081_*.sql` (0079 is E1's, 0080 is L1's), `apps/discord/src/news/` (profile
+  prompt + writer entry only), `apps/discord/src/press/box-requests*.ts` and the one `pass.ts` step that
+  runs them (new request kinds only),
   this task file.
 
 ## Checks
@@ -49,5 +52,13 @@ All checks pass; screenshots match the mock-up.
 ## Log
 
 - 2026-11-14 Lead: written.
+- 2026-11-14 14:04 Lead2: started after L1 was deployed (14:01). The web app has no Anthropic key and
+  no bot tokens: "Write"/"Refresh" profile and "start an interview" go through L1's request queue
+  (`news_press_box_requests`, read by `apps/discord/src/press/box-requests.ts` in the `press` service),
+  as L1's test scrum does: add request kinds (migration 0081 widens the kind check), the press service
+  does the model call / interview and records the cost in the monthly spend. Then `press` is in the
+  deploy too. Running beside D4 (worker watchdog).
+
+Resume: task agent makes the branch and worktree, reads design §3.2 and the mock-up, then builds.
 
 ## Report
