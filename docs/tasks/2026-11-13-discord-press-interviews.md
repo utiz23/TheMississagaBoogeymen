@@ -1,6 +1,6 @@
 # Task: T3 — in-depth interviews (one reporter, ~7 questions, Q&A article)
 
-- **State:** Ready, starts after T2 (`2026-11-13-discord-press-panel-gm-ask.md`) is merged
+- **State:** Ready (operator 2026-11-13: run in parallel with T2)
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Database (one migration),
   Queries, Web (`/news` interview article)
 - **Risk:** medium (live bots, a new public article type, a migration)
@@ -8,6 +8,22 @@
 - **Operator approval:** 2026-11-13 ("start"; design in
   `2026-11-13-discord-press-panel-scrums-interviews.md` item 2)
 - **Needs a deploy:** migration 0074 (after a fresh backup), `press`, `news`, `web`
+
+## Running in parallel with T2 (read first)
+
+T2 (`2026-11-13-discord-press-panel-gm-ask.md`, branch `work/press-panel`) changes the same press code
+at the same time. To keep the merge clean:
+
+- Put the interview logic in **new files** (e.g. `apps/discord/src/press/interview*.ts`,
+  `packages/db/src/queries/news-interviews.ts`, `packages/db/src/schema/news-interviews.ts`). Keep edits
+  to shared files (`gateway.ts` command list and routing, `store.ts`, `test-fakes.ts`, `config.ts`,
+  `schema/index.ts`) **small and additive**: add, do not reorder or rewrite.
+- Migration **0074** must not depend on 0073 (T2's): only new tables and columns of its own.
+- Do not change scrum behaviour, the answer judge or the question writer (T2 owns them); reuse them.
+- Typed answers: reuse T1's path (`onTypedAnswer` pattern) for interview threads, in your own module.
+- Before Verify: `git rebase main` (T2 may be merged first). Conflicts with T2 are expected to be small;
+  resolve them, re-run every check, and say what you resolved.
+- You report to the operator in this chat; the Lead merges.
 
 ## Goal and visible result
 
