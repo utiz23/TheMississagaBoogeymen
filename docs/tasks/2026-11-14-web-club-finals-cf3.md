@@ -1,6 +1,6 @@
 # Task: CF3 — Club Finals look on the site (games page, game page, home "playoff mode", nav)
 
-- **State:** Ready (operator 2026-11-14 15:27: "Lets go with your advice"); starts after CF1 is merged
+- **State:** Running (since 2026-11-14 15:50; task agent of `Lead2`) (operator 2026-11-14 15:27: "Lets go with your advice")
 - **Lane:** Web (`apps/web/src/`)
 - **Risk:** low-medium (visible design on the main pages; numbers come from CF1, never computed here)
 - **Slug:** club-finals-cf3
@@ -86,7 +86,9 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-14 15:35 Lead2: operator: no Club Finals page; CF1 makes a home component. Item 8 builds on it;
   item 14 dropped.
 
-Resume: start after CF1 is merged.
+- 2026-11-14 15:50 Lead2: started (CF1 merged at `3b2b3300`; its home component is `apps/web/src/components/club-finals/club-finals-card.tsx`, with an "All attempts" dropdown the operator accepted).
+
+Resume: task agent makes the branch and worktree, reads CF1's queries and component, then builds.
 
 ## Report (task agent fills when state = Verify)
 

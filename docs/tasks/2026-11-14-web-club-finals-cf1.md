@@ -1,6 +1,6 @@
 # Task: CF1 — Club Finals: rounds from EA results, game badges, the Club Finals page
 
-- **State:** Verify (since 2026-11-14 15:27, rework 2026-11-14 15:41; started 2026-11-14 15:08; task agent of `Lead2`; Opus: numbers teammates see)
+- **State:** Merged 2026-11-14 15:50 (`3b2b3300`; operator D16 "Its acceptable then"); deploy waits for the operator's OK
 - **Lane:** Worker (derive after each pass), Database (one migration), Queries, Web
 - **Risk:** medium (a number teammates see: round, game number, series score) — a Verifier checks it
 - **Slug:** club-finals-cf1 (branch `work/club-finals-cf1`, worktree `.claude/worktrees/club-finals-cf1`)
@@ -92,7 +92,9 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 15:48 task agent: operator cancelled the streamline; the dropdown stays.
 
-Resume: Verifier re-checks the rework (home component, no route, no nav link); the Lead merges and plans the deploy (migration 0083, worker, web).
+- 2026-11-14 15:50 Lead2: rebased, web/worker typecheck clean, web 727/727; merged `--ff-only`.
+
+Resume: operator's OK to deploy: fresh backup, 0083, `worker` (log "Club Finals nhl27: … games, … attempts"), then `web`.
 
 ## Report (task agent fills when state = Verify)
 
