@@ -77,4 +77,4 @@ Resume: Lead reviews the screenshots and the report, then merges (operator gate)
 - **Not done:** No eliminated card sits beside a normal card in live data (they sit in finals-only rows);
   heights are equal for every card in the list. Opponent crests showed empty in dev (image route), not
   related. Not merged, pushed or deployed.
-- **Git state:** branch `work/club-finals-card-tags`, rebased on `main` (see commit); checks pass.
+- **Git state:** branch `work/club-finals-card-tags`, last commit 25038554 (before this line edit), rebased on `main` at 153d10f8; checks pass.
