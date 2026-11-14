@@ -14,14 +14,14 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 - **Name the Lead chat tab** (for example `website-lead`) and tell the Lead, so task chats can find it.
 - **Press bots (answered 11-13: privacy text OK, open trial, all as built):**
-  1. Create the 9 reporter bot accounts in the Discord developer portal (~30 minutes; runbook
+  1. Create the 9 reporter bot accounts (chosen 11-13 over one central bot: robust, as built) in the Discord developer portal (~30 minutes; runbook
      `docs/operations/runbooks/news-desk-bots-setup.md` on `work/press-bots`). Tokens go only into
      Hotel-Echo's `.env`, never in chat. The Lead can walk you through it.
   2. Optional but advised (live migration + stored player text): a Codex second opinion on the
      branch before release.
   3. Make sure the teammates you want in the trial can see the bot test channel.
-- **Anthropic workspace limit:** set it to $60 a month to match the news desk cap (you said yes on
-  11-09). November so far: $15.17.
+- **Anthropic workspace limit:** set it to $100 a month to match the news desk cap ($100 on
+  Hotel-Echo since 11-13; scrums stop at $80). November so far: $15.17.
 
 ## 3. Can start when you say so
 
