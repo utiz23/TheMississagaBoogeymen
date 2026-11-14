@@ -7,13 +7,18 @@
 #   5. check in with Healthchecks.io — a failed or missing check-in emails the owner
 # Any failure stops the run and sends the log to Healthchecks.io.
 #
+# Only one run at a time: a run that finds another one going logs it and exits
+# without touching any file or sending a Healthchecks.io ping.
+#
 # Run by hand:  docker compose exec backup backup.sh
 set -uo pipefail
 
 KEEP_DAILY=${KEEP_DAILY:-14}
 KEEP_WEEKLY=${KEEP_WEEKLY:-8}
 KEEP_MONTHLY=${KEEP_MONTHLY:-12}
-BACKUP_DIR=/backups
+BACKUP_DIR=${BACKUP_DIR:-/backups}
+# Held for the whole run (see the bottom of this file). Lives inside the container.
+LOCK_FILE=${LOCK_FILE:-/tmp/eanhl-backup.lock}
 # Created once during setup. If it's missing, the backup disk isn't really
 # mounted (e.g. K: unplugged) and we'd be writing somewhere nobody looks.
 TARGET_MARKER="$BACKUP_DIR/.eanhl-backup-target"
@@ -62,12 +67,64 @@ verify_restore() {
   fi
 }
 
+# Days since 1970-01-01 for a date (year, month, day). Plain arithmetic, so no
+# second "date" call and the same answer on every machine.
+days_from_civil() {
+  local y=$1 m=$2 d=$3 era yoe doy doe
+  if ((m <= 2)); then y=$((y - 1)); fi
+  era=$((y / 400))
+  yoe=$((y - era * 400))
+  doy=$(((153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1))
+  doe=$((yoe * 365 + yoe / 4 - yoe / 100 + doy))
+  echo $((era * 146097 + doe - 719468))
+}
+
+# ISO week of a day (YYYY-MM-DD), as "YYYY-Www". Weeks start on Monday; week 1
+# is the week with the year's first Thursday, so early January can belong to
+# last year's last week, and late December to next year's week 1.
+iso_week() {
+  local y=$((10#${1:0:4})) m=$((10#${1:5:2})) d=$((10#${1:8:2}))
+  local n wd thu iso_year jan1 week
+  n=$(days_from_civil "$y" "$m" "$d")
+  wd=$(((n + 3) % 7)) # Monday = 0 (1970-01-01 was a Thursday)
+  thu=$((n - wd + 3)) # the Thursday of this week decides the ISO year
+  iso_year=$((y - 1))
+  while [[ $(days_from_civil $((iso_year + 1)) 1 1) -le $thu ]]; do iso_year=$((iso_year + 1)); done
+  jan1=$(days_from_civil "$iso_year" 1 1)
+  week=$(((thu - jan1) / 7 + 1))
+  printf '%04d-W%02d\n' "$iso_year" "$week"
+}
+
+# Does folder $1 (weekly or monthly) already hold a copy for the same week
+# (or month) as day $2? Read from the file names: eanhl-YYYY-MM-DD.dump.
+# Copies made under the old Sunday / 1st rule count for their own week / month.
+has_copy_for() {
+  local kind=$1 day=$2 want f name d
+  if [[ $kind == weekly ]]; then want=$(iso_week "$day"); else want=${day:0:7}; fi
+  for f in "$BACKUP_DIR/$kind"/eanhl-*.dump; do
+    [[ -e $f ]] || continue
+    name=$(basename "$f")
+    [[ $name =~ ^eanhl-([0-9]{4}-[0-9]{2}-[0-9]{2})\.dump$ ]] || continue
+    d=${BASH_REMATCH[1]}
+    if [[ $kind == weekly ]]; then
+      [[ $(iso_week "$d") == "$want" ]] && return 0
+    else
+      [[ ${d:0:7} == "$want" ]] && return 0
+    fi
+  done
+  return 1
+}
+
+# $2 is the day this run started (YYYY-MM-DD). Every date decision below comes
+# from it; this function never asks the clock again.
+# One weekly copy per ISO week and one monthly copy per month, made by the first
+# run that finds the slot empty. A missed night does not lose the slot.
 save_local() {
   local dump=$1 day=$2 dir
   for dir in daily weekly monthly; do mkdir -p "$BACKUP_DIR/$dir"; done
   place_copy "$dump" "$BACKUP_DIR/daily/eanhl-$day.dump"
-  if [[ $(date +%u) == 7 ]]; then place_copy "$dump" "$BACKUP_DIR/weekly/eanhl-$day.dump"; fi
-  if [[ $(date +%d) == 01 ]]; then place_copy "$dump" "$BACKUP_DIR/monthly/eanhl-$day.dump"; fi
+  if ! has_copy_for weekly "$day"; then place_copy "$dump" "$BACKUP_DIR/weekly/eanhl-$day.dump"; fi
+  if ! has_copy_for monthly "$day"; then place_copy "$dump" "$BACKUP_DIR/monthly/eanhl-$day.dump"; fi
   prune daily "$KEEP_DAILY"
   prune weekly "$KEEP_WEEKLY"
   prune monthly "$KEEP_MONTHLY"
@@ -76,6 +133,8 @@ save_local() {
 # Windows drives (like K:) are locked for a moment while antivirus scans a
 # freshly written file, so a copy or rename can fail with "Permission denied"
 # for a few seconds. Copy to a temporary name, move it into place, and retry.
+# Only this run's own .partial files (they carry this run's process number) are
+# removed; another run's are left alone.
 place_copy() {
   local src=$1 dst=$2 dir tmp try errors=/dev/null
   dir=$(dirname "$dst")
@@ -83,11 +142,12 @@ place_copy() {
     tmp="$dir/.$(basename "$dst").$$.$try.partial"
     if [[ $try -eq 10 ]]; then errors=/dev/stderr; fi # show the real error on the last try
     if cp "$src" "$tmp" 2>"$errors" && mv -f "$tmp" "$dst" 2>"$errors"; then
-      rm -f "$dir"/.*.partial 2>/dev/null || true
+      rm -f "$dir/.$(basename "$dst").$$."*.partial 2>/dev/null || true
       return 0
     fi
     sleep 3
   done
+  rm -f "$dir/.$(basename "$dst").$$."*.partial 2>/dev/null || true
   log "could not write $dst after 10 attempts (error above)"
   return 1
 }
@@ -177,20 +237,32 @@ run_backup() {
   log "5/5 backup complete"
 }
 
-LOG=$(mktemp)
-hc "$HC/start"
-# The subshell gets "stop at the first error"; this outer part must keep going
-# so it can report the failure.
-(
-  set -euo pipefail
-  run_backup
-) 2>&1 | tee "$LOG"
-status=${PIPESTATUS[0]}
-if [[ $status -eq 0 ]]; then
-  hc --data-binary "@$LOG" "$HC"
-else
-  log "BACKUP FAILED (exit code $status)" | tee -a "$LOG"
-  tail -c 20000 "$LOG" | hc --data-binary @- "$HC/fail"
+# Only run when executed, not when the tests source this file to call the functions.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  # One run at a time. The lock is held on file descriptor 9 until this process
+  # ends (the system drops it, even after a crash). A run that finds it taken
+  # does nothing: no files, no Healthchecks.io ping (the running one reports).
+  exec 9>"$LOCK_FILE"
+  if ! flock -n 9; then
+    log "another backup run is in progress; nothing done"
+    exit 1
+  fi
+
+  LOG=$(mktemp)
+  hc "$HC/start"
+  # The subshell gets "stop at the first error"; this outer part must keep going
+  # so it can report the failure.
+  (
+    set -euo pipefail
+    run_backup
+  ) 2>&1 | tee "$LOG"
+  status=${PIPESTATUS[0]}
+  if [[ $status -eq 0 ]]; then
+    hc --data-binary "@$LOG" "$HC"
+  else
+    log "BACKUP FAILED (exit code $status)" | tee -a "$LOG"
+    tail -c 20000 "$LOG" | hc --data-binary @- "$HC/fail"
+  fi
+  rm -f "$LOG"
+  exit "$status"
 fi
-rm -f "$LOG"
-exit "$status"

@@ -18,9 +18,23 @@ that day. A whole run takes about 30 seconds and doesn't interrupt the site.
 | Where | What is kept |
 |---|---|
 | `K:\eanhl-backups\daily\` | last 14 nights |
-| `K:\eanhl-backups\weekly\` | last 8 Sundays |
-| `K:\eanhl-backups\monthly\` | last 12 first-of-the-month copies |
+| `K:\eanhl-backups\weekly\` | last 8 weekly copies (one per week) |
+| `K:\eanhl-backups\monthly\` | last 12 monthly copies (one per month) |
 | Backblaze B2 bucket, folder `eanhl/<year>/` | 90 days (Backblaze's own lifecycle rule hides older copies, then deletes them 7 days later) |
+
+**Weekly and monthly copies.** The first successful run of each week (weeks
+start on Monday) makes that week's weekly copy. The first successful run of
+each month makes that month's monthly copy. So the weekly copy is normally
+Monday's, and a night that was missed does not lose a copy: the next run
+makes it. The program reads the file names in `weekly\` and `monthly\` to
+see if the week or month already has a copy. Old copies made on a Sunday or on
+the 1st count for their own week or month.
+
+**One run at a time.** If you start a backup by hand while another run is
+going (for example the 3:00 a.m. run), the second one writes
+"another backup run is in progress; nothing done", changes no file, sends no
+check-in to Healthchecks.io and stops. The run that was already going reports
+as usual. Wait for it to finish and start yours again.
 
 File names carry the date: `eanhl-2026-10-05.dump` locally,
 `eanhl-20261005T090000Z.dump` (UTC time) in Backblaze.

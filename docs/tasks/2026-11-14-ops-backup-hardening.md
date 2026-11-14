@@ -1,6 +1,6 @@
 # Task: Backup hardening — weekly/monthly copies after a missed day; one run at a time
 
-- **State:** Running (since 2026-11-14 03:22; task agent of `Lead2`)
+- **State:** Verify (task agent done 2026-11-14 03:34)
 - **Lane:** Ops
 - **Risk:** medium (the nightly backup is the data-safety net; this changes which copies it keeps)
 - **Slug:** backup-hardening (branch `work/backup-hardening`, worktree `.claude/worktrees/backup-hardening`)
@@ -72,15 +72,37 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-14 03:22 Lead2: written from the operator's "Proceed with both" (dashboard item "Backup
   hardening"). Items 2 and 4 as offered on 10-09; item 3 is in the same lines, so it is in.
 
-Resume: task agent makes the branch and worktree, then writes the tests first.
+- 2026-11-14 03:34 task agent: branch and worktree made; wrote `ops/nightly-backup/test/backup.test.sh` first; on the old
+  `backup.sh` 19 of 33 checks failed (red as expected).
+- 2026-11-14 03:34 task agent: changed `backup.sh` (ISO-week and month rule read from file names, one date per run, lock with
+  `flock -n` on fd 9, own-`.partial` cleanup, main part runs only when executed) and the README. No Dockerfile
+  change: busybox `flock` is in the Alpine image. 33 of 33 pass. Checks run, Report filled, State = Verify.
+
+Resume: Lead reviews the diff line by line, merges; the deploy is the operator's OK.
 
 ## Report (task agent fills when state = Verify)
 
-- **What changed (visible effect):**
-- **How it was checked (commands, numbers):**
-- **Tried, no gain:**
-- **Not done:**
-- **Git state:** branch, last commit, rebased on `main` at <hash>, checks pass/fail
+- **What changed (visible effect):** `backup.sh`: one weekly copy per ISO week and one monthly copy per
+  month, made by the first successful run that finds the slot empty (read from the file names; old Sunday/1st
+  copies count). The weekly copy is now normally Monday's. All dates in a run come from `day` (taken once);
+  `save_local` makes no `date` call. A lock (`flock -n` on `/tmp/eanhl-backup.lock`, fd 9) allows one run at a
+  time: the second logs "another backup run is in progress; nothing done", touches no backup file, sends no
+  ping, exits 1. `place_copy` removes only its own `.partial` files (name has this run's process number). Main
+  part runs only when the file is executed. `BACKUP_DIR` and `LOCK_FILE` can be set from the environment
+  (defaults `/backups`, `/tmp/eanhl-backup.lock`). README says the rules in plain words. No Dockerfile change.
+- **How it was checked (commands, numbers):** `bash ops/nightly-backup/test/backup.test.sh` in a temp folder:
+  33 of 33 pass (red first: 19 of 33 failed on the old script). Covers weekly/monthly rules, missed Sunday and
+  missed 1st, old Sunday/1st copies, year change (2026-W53, 2020-W53, 2027-W01), iso_week vs GNU `date` on 15
+  dates, prune keeps newest N, one date per run, `.partial` of another run kept, lock held means no change, no
+  ping, exit non-zero. `bash -n` on both scripts: ok. `shellcheck`: not installed. `pnpm format:check`: red on
+  `main` too (8 files, none of mine; my README edit adds no new prettier diff, my test and task file are clean).
+- **Tried, no gain:** none.
+- **Not done:** not run inside the real Alpine image (no Docker here): busybox `flock -n <fd>` and busybox
+  `date`/`printf` behaviour are not tested there (iso_week uses only bash arithmetic, so it does not depend on
+  busybox `date`). Suggest one manual check after the deploy: run `backup.sh` twice at once. Old `.partial`
+  files left by a killed run are no longer swept (the old code swept all); they are small and rare, and a
+  Lead decision. No deploy, no push, no merge.
+- **Git state:** branch `work/backup-hardening`, rebased on `main` at 60eef6a7, checks pass (see above)
 
 ## Verifier result (Verifier fills)
 
