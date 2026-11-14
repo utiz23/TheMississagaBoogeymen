@@ -1,6 +1,6 @@
 # Task: Press bots release 1 (post-game scrums)
 
-- **State:** Running (operator 2026-11-13: privacy text approved; open trial; release all as built)
+- **State:** Merged, deploying (operator 2026-11-13: "approve release"; deploy between games, tonight = trial)
 - **Lane:** Discord (with Queries, Database: migration 0072, Web: privacy text, nickname list; Ops:
   compose service `press`)
 - **Risk:** high (new database tables on live, 9 bots post in the team channel, player answers stored
@@ -84,3 +84,8 @@ webhook. Design: `docs/superpowers/specs/2026-10-25-news-desk-bots-design.md` (a
   `PRESS_LIVE_CHANNEL_ID=1563716468665880576` (the game channel), `PRESS_GM_USER_ID=320600985372196866`,
   `PRESS_MODE=trial`. Check: each token's bot name matches; all 9 see both channels (HTTP 200).
   Nothing deployed or restarted.
+- 2026-11-13 operator: "approve release"; still playing → deploy between games, tonight's remaining games
+  are the trial. Codex second opinion: not run (release approved without it).
+- 2026-11-13 Lead: privacy + data-collection `lastUpdated` 2026-11-13; footer notice "Updated Nov 2026:
+  answers you give reporters in Discord can be quoted in the News; reactions to news posts are
+  counted." until 2026-12-14. Legal tests 24/24.
