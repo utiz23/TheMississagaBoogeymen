@@ -64,7 +64,7 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
       'How this site collects, uses, and retains information, and how to make a request about it.',
     status: 'published',
     effectiveDate: '2026-10-05',
-    lastUpdated: '2026-11-13',
+    lastUpdated: '2026-11-14',
     references: ['data-collection'],
   },
   {
@@ -88,7 +88,7 @@ export const LEGAL_DOCS: readonly LegalDocMeta[] = [
       'The detailed inventory of what this site collects, where it comes from, and how long it is kept.',
     status: 'published',
     effectiveDate: '2026-10-05',
-    lastUpdated: '2026-11-13',
+    lastUpdated: '2026-11-14',
     references: [],
   },
   {
@@ -120,7 +120,7 @@ export interface LegalChangeNotice {
 }
 
 export const LEGAL_CHANGE_NOTICE: LegalChangeNotice = {
-  text: 'Updated Nov 2026: answers you give reporters in Discord can be quoted in the News; reactions to news posts are counted.',
+  text: 'Updated Nov 2026: answers and replies you give reporters in Discord go to an AI service and can be quoted in the News.',
   slug: 'privacy',
   showUntil: '2026-12-14',
 }
