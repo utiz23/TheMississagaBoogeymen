@@ -1,14 +1,15 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 03:46 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 03:52 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                                                                                             | My advice                                             | Waiting costs                                           |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------- |
-| D2  | Deploy E1 (live events)? Steps: migration 0079 (one new table), two new secrets in Hotel-Echo's `.env`, rebuild `web` + `worker`, then `tailscale serve` on port 3100 (tailnet only). Rule: Codex second opinion first (secrets + a new way in); I give you the one command to type. | Yes, after Codex, at a quiet time (not during a game) | Nothing until the engine's sender (E2) exists; no hurry |
+| ID  | Question                                                                                                                                                                                                                                                                                 | My advice                                             | Waiting costs                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| D2  | Deploy E1 (live events)? Steps: migration 0079 (one new table), two new secrets in Hotel-Echo's `.env`, rebuild `web` + `worker`, then `tailscale serve` on port 3100 (tailnet only). Rule: Codex second opinion first (secrets + a new way in); I give you the one command to type.     | Yes, after Codex, at a quiet time (not during a game) | Nothing until the engine's sender (E2) exists; no hurry |
+| D3  | Press Box L1: do the screenshots look right? Files: `overview.png`, `overview-phone.png`, `board-sample-selected.png` (sent to you; the coloured board cells are SAMPLE data, live has no relationships yet). OK = I merge; the deploy (backup, 0080, `web` + `press`) is a separate OK. | Yes: it matches the approved mock-up                  | L2 cannot start until L1 is merged                      |
 
 ## 2. Right now
 
@@ -17,7 +18,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums) |
 | T9 relationships + T10 Talk fix | LIVE since 2026-11-14                                                                                        |
 | E1 live events endpoint         | merged (all checks pass; boot-order fault fixed with `tailscale serve`); deploy is D2                        |
-| Press Box L1                    | running (task agent); you get screenshots before the merge                                                   |
+| Press Box L1                    | built and checked (web 701/701, discord 848/848); waits for your OK on the screenshots (D3)                  |
 | Backup hardening                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                    |
 
 ## 3. Your to-dos (only you can do these)

@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 03:46 CST by Lead2.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 03:52 CST by Lead2.
 
 ## Open tasks
 
@@ -26,7 +26,7 @@ Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. 
 | [T9 relationships: open war ↔ glazing](tasks/2026-11-14-discord-press-relationships.md)                | Discord + DB            | medium | Deployed 11-14 (0078)                                           | watch the first game night                          |
 | [T10 Talk to the press when already in](tasks/2026-11-14-discord-press-talk-button.md)                 | Discord                 | low    | Deployed 11-14                                                  | done                                                |
 | [E1 live events endpoint + fast EA poll](tasks/2026-11-14-web-live-events-e1.md)                       | Web + Worker + DB + Ops | high   | Merged 11-14 (`314854ad`)                                       | D2: Codex 2nd opinion, then deploy with operator OK |
-| [L1 Press Box: overview + relationships board + log](tasks/2026-11-14-web-press-box-l1-overview.md)    | Web + DB                | medium | Running (Lead2's task agent; migration 0080)                    | screenshots to the operator before merge            |
+| [L1 Press Box: overview + relationships board + log](tasks/2026-11-14-web-press-box-l1-overview.md)    | Web + DB                | medium | Verify (Lead checks pass)                                       | D3: operator OKs screenshots, then merge            |
 | [Backup hardening: missed weekly/monthly, one run at a time](tasks/2026-11-14-ops-backup-hardening.md) | Ops                     | medium | Deployed 11-14 03:42                                            | check the 11-15 03:00 run                           |
 | [L2 Press Box: dossiers + AI profiles](tasks/2026-11-14-web-press-box-l2-dossiers.md)                  | Web + DB                | medium | Ready (after L1)                                                |                                                     |
 | [L3 Press Box: storylines + takes editor](tasks/2026-11-14-web-press-box-l3-storylines.md)             | Web + DB                | medium | Ready (after L2)                                                |                                                     |
