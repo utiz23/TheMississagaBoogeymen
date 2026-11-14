@@ -1,6 +1,6 @@
 # Task: T7 — people who watched in the call (the "bench") can talk to the press
 
-- **State:** Verify (task agent done 2026-11-14; the Lead reviews)
+- **State:** Merged (Lead review 2026-11-14); deploy waits for the operator's OK
 - **Lane:** Discord (`apps/discord/src/press/`), Database (one migration if a non-player person needs
   rows), Web (privacy text)
 - **Risk:** medium (new data source: who is in the voice call; non-players in stories)
@@ -69,6 +69,13 @@ All checks pass and the tests pin the rules above.
 
 - 2026-11-14 Lead: written from the operator's request and answers.
 - 2026-11-14 task agent: built on `work/press-bench` (commit 1d7a70ea). Voice intent checked in the Discord docs (Context7): `GUILD_VOICE_STATES` (1 << 7) is not privileged; `GUILD_CREATE` carries the voice states. The one thing outside "May edit" that was needed, `press-main.ts`, is not touched (ruling 73: a process-level bench port set in `startClients`). Rulings 70-77 added. No Docker, no live step, migration not applied, nothing pushed.
+
+- 2026-11-14 Lead review: on c7e1214e; paths inside "May edit" plus rulings 70-77; migration 0077
+  read (player_id nullable on 5 tables, person_role + display_name, named-person checks, partial unique
+  indexes; existing rows unchanged; one transaction; rollback in header). Re-ran: typecheck
+  db/discord/web/worker clean; discord 807/807; news db tests 128/128; web unit 672/672; prettier
+  clean; compose passes `PRESS_COACH_USER_IDS`. Deploy: backup → 0077 → `press`, `news`, `web`;
+  `.env` `PRESS_COACH_USER_IDS=431630903048011777`; privacy `lastUpdated` that day.
 
 ## Report
 
