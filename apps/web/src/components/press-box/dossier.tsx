@@ -352,7 +352,7 @@ export function ProfilePanel({
               {p === null
                 ? 'not written yet'
                 : `written ${formatDataDay(p.writtenAt)} · cost about $${p.costUsd.toFixed(2)} · rules ${p.rulesVersion}`}
-              {' · '}one AI call, about $0.05
+              {' · '}2 AI requests (one writes, one checks the rules), about $0.05 together
             </span>
             <button type="submit" disabled={waiting} className={BTN}>
               {waiting ? 'Waiting for the press service' : p === null ? 'Write' : 'Refresh'}
@@ -364,8 +364,9 @@ export function ProfilePanel({
         <p className="mt-3 text-sm text-fg-4">Leave me out: no profile is written.</p>
       ) : p === null ? (
         <p className="mt-3 text-sm text-fg-4">
-          No profile yet. Press Write: the press service makes one AI call with the desk&apos;s
-          writing rules (hockey only, no crude words, no quotes
+          No profile yet. Press Write: the press service makes 2 AI requests (one writes, one checks
+          the rules), about $0.05 together, with the desk&apos;s writing rules (hockey only, no
+          crude words, no quotes
           {d.identity.pressLevel === 'easy' ? ', no criticism for Go easy' : ''}) and stores the
           text here.
         </p>

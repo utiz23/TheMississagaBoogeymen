@@ -73,6 +73,8 @@ All checks pass; screenshots match the mock-up.
   match-lineups-cpu, run-quality) fail on `main` too: not from L2. Screenshots seen. One label is wrong:
   the profile card says "one AI call", but a click makes 2 model requests (write + review).
 
+- 2026-11-14 14:48 task agent: operator answered D7 to D9 (keep write + review; admin may raise Leave me out). Profile card texts now say "2 AI requests (one writes, one checks the rules), about $0.05 together". No other change.
+
 Resume: operator: screenshots (D7) and the two questions (D8 two requests per profile; D9 may an admin
 raise a "Leave me out" player). Then fix the label if needed, merge; deploy order 0081 → `press` → `web`.
 
