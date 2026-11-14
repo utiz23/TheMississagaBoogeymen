@@ -1,6 +1,6 @@
 # Task: Rename the public "Press Room" pages to "News Desk"
 
-- **State:** Merged 2026-11-14 14:14 (`fd50d4a3`); `web` deploy waits for the operator's OK (D6)
+- **State:** Deployed 2026-11-14 14:15 (operator: "deploy approved")
 - **Lane:** Web
 - **Risk:** low (visible text only)
 - **Slug:** news-desk-rename (branch `work/news-desk-rename`, worktree `.claude/worktrees/news-desk-rename`)
@@ -66,7 +66,10 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-14 14:14 Lead2: reviewed the diff; rebased; web typecheck clean, 701/701, prettier clean, 0
   hits. Merged `--ff-only`.
 
-Resume: operator's OK for a `web` deploy (D6); then the Lead checks `/news` live.
+- 2026-11-14 14:16 Lead2: deployed `web` (HE at `ee30278b`; rollback `:rollback-he-2026-11-14-pre-newsdesk`).
+  Live: `/news` 200 with "News Desk" ×6, `/news/guide` ×11, 0 "Press Room"; `/` 200; live-events public 404. The admin menu item needs a signed-in admin: the operator sees it.
+
+Resume: none.
 
 ## Report (task agent fills when state = Verify)
 
