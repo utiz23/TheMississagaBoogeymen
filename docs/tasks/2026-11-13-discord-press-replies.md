@@ -1,7 +1,7 @@
 # Task: T4 — Discord replies (answers, reporter replies, replies to wire posts)
 
-- **State:** Proposed (operator 2026-11-13 chose all three; starts after T3 is merged; the privacy
-  paragraph for item 3 waits for the operator's approval)
+- **State:** Ready (operator 2026-11-13: all three items; privacy paragraph approved as written); starts
+  after T3 is merged
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Web (privacy text),
   Database only if item 3 needs a small table
 - **Risk:** medium (reads more Discord messages; new AI calls on player text)
@@ -27,7 +27,7 @@
      writing rules (hockey only, no invented teammate quotes, no new facts beyond the sheet).
    - Cost about $0.06 per answer.
 
-## Privacy paragraph (draft; operator approval required before release)
+## Privacy paragraph (approved by the operator 2026-11-13, as written)
 
 > **Replies to reporters in Discord.** If you reply to a reporter's post in our team's Discord channel,
 > the bots may send your reply to Claude AI (Anthropic) so the reporter can answer you. We store the
@@ -60,3 +60,5 @@ answers, and a reply to a wire post gets an in-character answer within the limit
 - 2026-11-13 Lead: written from the operator's choice (all three).
 
 ## Report
+
+- 2026-11-13 operator: privacy paragraph approved as written.
