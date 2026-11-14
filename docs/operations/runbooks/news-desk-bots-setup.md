@@ -64,7 +64,10 @@ on the Wade Barlow application. The other eight applications have no commands.
 1. Open the **Bot** tab.
 2. Check that the bot username is the reporter name. If not, change it.
 3. Upload the same picture as the bot avatar. Click **Save Changes**.
-4. Turn **Public Bot** off. Only you invite these bots.
+4. Turn **Public Bot** off. Only you invite these bots. Discord then shows "Private
+   application cannot have a default authorization link": open **Installation**,
+   set **Install Link** to **None**, click **Save Changes**, and come back to the
+   Bot tab (found 2026-11-13).
 5. Find **Privileged Gateway Intents**. Make sure all three are **off**:
    - **Presence Intent**: off
    - **Server Members Intent**: off
