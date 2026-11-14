@@ -59,6 +59,8 @@ All checks pass and a test drives `/gm testscrum` end to end with zero model cal
 
 - 2026-11-14 Lead review: rebased on 5411b025; paths inside "May edit" plus rulings 78-83; no migration (marker `buzz_level='testscrum'` + a hidden soft-deleted test item). Re-ran: typecheck db/discord/web/worker clean; discord 823/823 (e2e: 0 model calls); news-press 53/53; prettier clean.
 
+- 2026-11-14 first real run (operator): test scrum 7, panel bergstrom/mercer/pettibone, target 5 = 3 questions + 2 follow-ups, 5 typed answers taken, 0 AI calls, own thread "Silky — press scrum" from the ping. Not yet run: bench path, another user in the thread.
+
 ## Report
 
 ### What changed
