@@ -153,7 +153,14 @@ Resume: Verifier re-runs the checks; the Lead shows the operator the screenshots
 
 ## Verifier result (Verifier fills)
 
-- **Ran:**
+- **Ran:** (2026-11-14, own worktree `.claude/worktrees/verify-cf1`, detached at `02b0b4c0`, no code edits, read-only database access.)
+  - Rebuilt the state on my own: read the 38 NHL 27 `gameType10` games (33 with code 10, 5 with code 206) from the live database (read-only), walked them with the rules in a small script (scratchpad `verify-cf1/sim.py`, not in the repo), compared with the engine panel reads (inbox file: 10 reads; plus the 11-12 19:13 read in `club-finals.jsonl`; 11 in all). Each read is matched to the last game that ended before its time. DB times in America/Edmonton line up with the panel clock (reads come 1 to 4 minutes after a game).
+  - Checks on the branch: db build, typecheck db / web / worker / discord, web test:unit, worker `tsc -p .` + `node --test dist/__tests__/club-finals.test.js`, db `club-finals-panel.test.js`, prettier on the changed files (not the .sql). Path check: `git diff --name-only main...work/club-finals-cf1`.
 - **Got:**
-- **Compared with claim:**
-- **Verdict:** pass | fail | pass with notes
+  - Reads compared: 11 (10 inbox + 11-12 19:13). Mismatches: 0 (round, W/L boxes, attempt W-L).
+  - Attempt 1 ended with match 3431 (4scin, OTL 2-3, 11-12 19:08), game 5 of round 4. Round 4 = W (3427), L, L, L (3430 Homie Time), OTL (3431). Attempt 1: reached the final, 13-9, eliminated. Attempt 2: 3432-3435, 0-4, eliminated (3435 DNF). Attempt 3: 3436-3442, running, round 2 at 1-1, attempt 5-2. After 3427 the attempt stood at 13-5 (the panel's best).
+  - Code 206: including the 5 games does NOT change any of the 10/11 panel matches (all reads come after the 206 games, so reads cannot decide it). It breaks the rules instead: attempt 1 would reach "round 5" (no such round) at 16-11, and after 3427 it would be 16-7, not the panel's 13-5. So 206 is left out for a game reason, not a read reason.
+  - Checks: db build ok; typecheck db, web, worker, discord clean; web unit 719/719; worker club-finals 13/13; db club-finals-panel 3/3; prettier clean. `packages/db/src/queries/club-finals.ts` has no test file of its own (the rules are tested in the worker).
+  - Path check: 19 files, all inside "May edit" (worker `club-finals.ts`, `club-finals-sync.ts`, `ingest.ts`, test; migration 0083; db schema and queries incl. the two index files; web club-finals page, games pages, badge/card components, nav link; this task file). Nothing outside.
+- **Compared with claim:** Report numbers agree with mine: 0 mismatches over 11 reads, 3431 ends attempt 1, 13-9 / 0-4 / running 5-2, 206 left out, history table rows spot-checked (3410, 3426, 3431, 3435, 3440, 3441) and match. Not verified by me: migration 0083 SQL on a real database (nobody ran it; Report says so), screenshots (not looked at), the worker's run-time behaviour. One small note: the "11 timed reads" in the Report come from two engine files; the inbox file alone has 10.
+- **Verdict:** pass (migration SQL still unexecuted: run it on a disposable copy or under a fresh backup at deploy)
