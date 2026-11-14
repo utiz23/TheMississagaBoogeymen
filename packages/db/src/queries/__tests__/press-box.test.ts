@@ -318,6 +318,8 @@ void test('schema: audit and request tables; the press settings carry the servic
   assert.deepEqual(req.checks.map((c) => c.name).sort(), [
     'news_press_box_requests_kind_check',
     'news_press_box_requests_status_check',
+    // Release L2 (migration 0081): a profile or interview request names its person.
+    'news_press_box_requests_target_check',
   ])
   const cols = getTableConfig(newsPressSettings).columns.map((c) => c.name)
   assert.ok(cols.includes('press_mode') && cols.includes('press_seen_at'))

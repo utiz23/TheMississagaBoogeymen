@@ -59,6 +59,10 @@ All checks pass; screenshots match the mock-up.
   does the model call / interview and records the cost in the monthly spend. Then `press` is in the
   deploy too. Running beside D4 (worker watchdog).
 
-Resume: task agent makes the branch and worktree, reads design §3.2 and the mock-up, then builds.
+- 2026-11-14 14:08 task agent: worktree `.claude/worktrees/press-box-l2` (branch `work/press-box-l2`) made; install + db/ea-client build done; read design §3.2, mock-up "Player dossier", L1 code. Plan: migration 0081 (profiles table; request kinds profile + interview with target columns), db queries, press-service handlers, web pages.
+
+- 2026-11-14 14:19 task agent: DONE migration 0081 (profiles table, request kinds profile/interview + target columns), schema, `press-box-dossiers.ts` queries (index, dossier read, actions with audit, request queue, profile store), db tests (11 new, 15 old still pass), press service: `news/profile.ts` (writer: one write + one review, no digits/quotes, Go easy rule, Leave me out refused before any call), `press/box-requests-profile.ts` (profile and interview handlers), tests (discord suite 864 pass, typecheck clean). Migration SQL not run: no database on this PC.
+
+Resume: web pages (`/admin/press-box/players`, `/players/[id]`), dossier actions, tab link, tests, screenshots.
 
 ## Report

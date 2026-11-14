@@ -272,9 +272,15 @@ export async function listPressBoxAudit(limit: number): Promise<NewsPressBoxAudi
     .limit(Math.max(1, Math.min(200, limit)))
 }
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
-async function writeAudit(tx: Tx, actor: PressBoxActor, entry: PressBoxAuditEntry, at: Date) {
+/** Writes one audit line inside a transaction (also used by the dossier actions). */
+export async function writeAudit(
+  tx: Tx,
+  actor: PressBoxActor,
+  entry: PressBoxAuditEntry,
+  at: Date,
+) {
   await tx.insert(newsPressBoxAudit).values({
     at,
     actorPlayerId: actor.playerId,
@@ -531,21 +537,43 @@ export function claimPressBoxRequestSql(): SQL {
       select id from news_press_box_requests
       where status = 'pending' order by id limit 1
       for update skip locked)
-    returning r.id, r.kind, r.requested_by`
+    returning r.id, r.kind, r.requested_by, r.target_player_id, r.target_discord_user_id,
+      r.reporter, r.topic`
 }
 
-export async function claimPressBoxRequest(): Promise<{
+/** A request the press service has taken, with who or what it is for (migration 0081). */
+export interface ClaimedPressBoxRequest {
   id: number
   kind: PressBoxRequestKind
   requestedBy: string
-} | null> {
+  targetPlayerId: number | null
+  targetDiscordUserId: string | null
+  reporter: NewsReporterId | null
+  topic: string | null
+}
+
+export async function claimPressBoxRequest(): Promise<ClaimedPressBoxRequest | null> {
   const rows = await db.execute<{
     id: string | number
     kind: PressBoxRequestKind
     requested_by: string
+    target_player_id: string | number | null
+    target_discord_user_id: string | null
+    reporter: NewsReporterId | null
+    topic: string | null
   }>(claimPressBoxRequestSql())
   const r = rows[0]
-  return r === undefined ? null : { id: num(r.id), kind: r.kind, requestedBy: r.requested_by }
+  return r === undefined
+    ? null
+    : {
+        id: num(r.id),
+        kind: r.kind,
+        requestedBy: r.requested_by,
+        targetPlayerId: r.target_player_id === null ? null : num(r.target_player_id),
+        targetDiscordUserId: r.target_discord_user_id,
+        reporter: r.reporter,
+        topic: r.topic,
+      }
 }
 
 /** Writes the outcome of a request (a short private line; no message text). */
