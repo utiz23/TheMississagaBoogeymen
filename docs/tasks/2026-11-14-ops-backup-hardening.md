@@ -1,6 +1,6 @@
 # Task: Backup hardening — weekly/monthly copies after a missed day; one run at a time
 
-- **State:** Verify (task agent done 2026-11-14 03:34)
+- **State:** Merged 2026-11-14 03:39 (`e6ff79a3`); deploy waits for the operator's OK
 - **Lane:** Ops
 - **Risk:** medium (the nightly backup is the data-safety net; this changes which copies it keeps)
 - **Slug:** backup-hardening (branch `work/backup-hardening`, worktree `.claude/worktrees/backup-hardening`)
@@ -78,7 +78,12 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   `flock -n` on fd 9, own-`.partial` cleanup, main part runs only when executed) and the README. No Dockerfile
   change: busybox `flock` is in the Alpine image. 33 of 33 pass. Checks run, Report filled, State = Verify.
 
-Resume: Lead reviews the diff line by line, merges; the deploy is the operator's OK.
+- 2026-11-14 03:39 Lead2: reviewed the diff line by line; re-ran the tests (33/33) and `bash -n`;
+  checked read-only that the live `backup` container has `flock` (busybox, `/usr/bin/flock`). Added a
+  prettier-only commit on the README (it was red on `main` before). Rebased, merged `--ff-only`.
+
+Resume: operator's OK to deploy `backup` on Hotel-Echo (not near 03:00), then run it twice at once to
+see the lock, then check the next 03:00 run.
 
 ## Report (task agent fills when state = Verify)
 

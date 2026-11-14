@@ -1,14 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 03:37 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 03:39 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                                                                                                                                            | My advice | Waiting costs                                                  |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------- |
+| D1  | Deploy backup hardening on Hotel-Echo? Rebuild and restart only the `backup` service (about 1 minute; site, worker and bots not touched). Then I start two backup runs at once to prove the lock, and I check tomorrow's 03:00 run. | Yes, now  | A missed night keeps losing its weekly/monthly copy until then |
 
 ## 2. Right now
 
@@ -18,7 +18,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | T9 relationships + T10 Talk fix | LIVE since 2026-11-14                                                                                                                                                                            |
 | E1 live events endpoint         | built and checked; one fix running: Docker on Hotel-Echo does not wait for Tailscale at boot, so a Tailscale-bound port could stop the whole site. Fix: `tailscale serve` (still Tailscale only) |
 | Press Box L1                    | running (task agent); you get screenshots before the merge                                                                                                                                       |
-| Backup hardening                | done by the task agent (33/33 tests); the Lead is reviewing it                                                                                                                                   |
+| Backup hardening                | merged (tests 33/33); waits for your OK to deploy (see section 1)                                                                                                                                |
 
 ## 3. Your to-dos (only you can do these)
 
