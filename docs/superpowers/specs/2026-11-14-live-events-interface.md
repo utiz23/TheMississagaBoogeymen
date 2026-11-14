@@ -1,7 +1,7 @@
 # Live events — engine/OBS → website interface (draft)
 
-Status: **draft for review** (website Lead 2026-11-14, after a first exchange with the engine Lead
-`[LEAD4]`). Decisions are the operator's; the engine sends nothing to the website until he approves it
+Status: **draft, reviewed by the engine Lead** (website Lead 2026-11-14; corrections from `[LEAD4]`
+the same day are in). Decisions are the operator's; the engine sends nothing to the website until he approves it
 and the engine has a card for it (engine rule). One copy lives in each repo once agreed.
 
 Written for: the operator and both Leads.
@@ -19,7 +19,8 @@ that loses the game) without the GM asking.
   (game starts in ~90 s), the scorebug (game on) and the return to the lobby after the post-game screens
   (game over, seconds after the end). Faults seen on 11-13 (stuck intermission fired the end chime; a
   DNF file ran over 3 games; a last game not recorded); engine card OBS-EC investigates.
-- **The engine:** reads finished recordings only (WSL, main PC), 0.3–1× game length per pass. Live input
+- **The engine:** reads finished recordings only (WSL, main PC); one pass alone ~0.3–1× game length,
+  2–3 h per recording when the machine is loaded. Live input
   is its milestone 8 (no date). It reads per game: scorebug (period, clock, score, shots, PP, empty net),
   goals (time, team, scorer, assists, strength; wide test not yet accepted: 9.4% scorers/assists
   unknown), penalties, final score, post-game screens. Not read: giveaways, takeaways, live +/-, ice time;
@@ -40,8 +41,8 @@ that loses the game) without the GM asking.
 ```json
 {
   "v": 1,
-  "id": "obs-2026-11-14T03:20:41Z-game_end",
-  "type": "game_start | game_end | period_end | goal | penalty | end_of_game",
+  "id": "obs-2026-11-14T03:20:41Z-period_end",
+  "type": "lobby_countdown | game_start | period_end | goal | penalty | end_of_game_screen | game_end",
   "source": "obs | engine",
   "at": "2026-11-14T03:20:41Z",
   "game_title": "nhl27",
@@ -49,35 +50,50 @@ that loses the game) without the GM asking.
   "clock_left_ds": 0,
   "score": { "bgm": 5, "opp": 4 },
   "team": "bgm | opp",
-  "scorer_gamertag": "Stick Menace",
-  "assist_gamertags": ["silkyjoker85"],
+  "team_abbr": "BM",
+  "side": "home | away",
+  "scorer_name": "WAY",
+  "scorer_gamertag": null,
+  "assist_names": ["NARD"],
+  "assist_gamertags": [null],
   "strength": "ev | pp | sh",
-  "confidence": 0.97
+  "ea_match_id": null,
+  "sure": true
 }
 ```
 
-Only `v`, `id`, `type`, `source`, `at` are required; the rest per type. `id` makes resends harmless
-(the website stores each id once). Gamertags, never invented names.
+Required: `v`, `id`, `type`, `source`, `at` (wall time; engine events get wall time once live). The
+sender maps the scorebug club abbreviation to `team` (`bgm` | `opp`) and keeps `team_abbr` and
+`side`. Names: `*_name` is the in-game text; `*_gamertag` only when the roster match is sure, else
+`null` (never guessed). `period` 4/5/6 = OT, OT2, OT3 (EASHL has no shootout). `sure` replaces a
+confidence number (the engine has none). `id` makes resends harmless.
 
+- **The event types, in game order:** `lobby_countdown` (the club countdown lobby, optional; a countdown
+  can lead to no game), `game_start` (the first scorebug, not the countdown), `period_end` (the horn:
+  scorebug gone at 0:00, any period; a tie in the 3rd goes to OT, so it is not yet the game's end),
+  `goal`, `penalty`, `end_of_game_screen` (the engine's read of the END OF GAME screen: final score and
+  box score), `game_end` (back in the lobby after the post-game screens; 2–5 minutes after the horn
+  because the operator pages through them). The match sorter may add `ea_match_id` to `game_end` once EA
+  has the game.
 - **Website side:** stores events in a `live_events` table (append only, 30 days), never shows them
   directly; the worker and the press read them. An event never overrides EA data: EA stays the truth
   for stats; events only make things **faster** or add **moments**.
 
 ## 4. Plan (ordered; each step a card/task with the operator's OK)
 
-| Step   | Who                  | What                                                                                                                                                                                                                                              | Needs                                  |
-| ------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| **E1** | website              | `POST /api/internal/live-events` + `live_events` table + auth; the worker reacts to `game_end` by polling EA at once and every 30 s until the game appears (instead of waiting up to 5 min)                                                       | migration, `web` + `worker` deploy     |
-| **E2** | engine/OBS           | the OBS macro (or the match sorter) sends `game_start` and `game_end`                                                                                                                                                                             | engine card; OBS-EC faults fixed first |
-| **E3** | website              | press: prepare at `game_end` (pick the panel, warm the context) so the recap and pings go out the moment EA has the game; a "game is in, press on the way" line                                                                                   | E1                                     |
-| **E4** | engine (milestone 8) | live `period_end`, `goal`, `penalty` from the engine                                                                                                                                                                                              | engine live input                      |
-| **E5** | website              | intermission interviews at `period_end` (short, one reporter, 2–3 questions, ends at puck drop); a live ticker of goals in the game channel; event-triggered scrums for big moments (OT winner/loser, hat trick, late collapse, shorthanded goal) | E4; giveaways need a new engine reader |
+| Step   | Who                  | What                                                                                                                                                                                                                                              | Needs                                                                                                |
+| ------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **E1** | website              | `POST /api/internal/live-events` + `live_events` table + auth; on a `period_end` in period 3 or later the worker polls EA at once and every 30 s until the game appears (or 15 minutes pass); `game_end` confirms                                 | migration, `web` + `worker` deploy                                                                   |
+| **E2** | engine/OBS           | the OBS match sorter (`eashl_match_sorter.py`, the operator's script on Windows; the ASS macros set a state it reads) sends `game_start`, `period_end` and `game_end` (+ `ea_match_id`); secret in a local file outside git                       | OBS-EC fixed first (false ends/starts on 11-13); an engine Platform card; operator OK for his script |
+| **E3** | website              | press: prepare at the horn (pick the panel, warm the context) so the recap and pings go out the moment EA has the game                                                                                                                            | E1                                                                                                   |
+| **E4** | engine (milestone 8) | live `period_end`, `goal`, `penalty`, `end_of_game_screen` from the engine                                                                                                                                                                        | engine live input                                                                                    |
+| **E5** | website              | intermission interviews at `period_end` (short, one reporter, 2–3 questions, ends at puck drop); a live ticker of goals in the game channel; event-triggered scrums for big moments (OT winner/loser, hat trick, late collapse, shorthanded goal) | E4; giveaways need a new engine reader; "who is on ice" not before M3 acceptance                     |
 
-Expected gain from E1+E2+E3 alone: game post and scrum pings about 1–2 minutes after the end instead of
-1–12 (today's EA delay stays, but no polling wait).
+Expected gain from E1+E2+E3: polling starts at the horn, so the game post and scrum pings go out as soon
+as EA lists the game (often about 1 minute after the end) instead of waiting for the next 5-minute poll.
 
 ## 5. Open questions for the operator
 
-1. Public HTTPS route with token + HMAC, or Tailscale-only?
+1. Public HTTPS route with token + HMAC, or Tailscale-only? (Both work from the main PC.)
 2. E1–E3 now (website first; OBS sender after OBS-EC), and E4–E5 when the engine goes live?
 3. Big-moment triggers: which moments count (list in E5), and how many automatic scrums a night at most?
