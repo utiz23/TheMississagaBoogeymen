@@ -6,11 +6,9 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                             | My advice     | Waiting costs                              |
-| --- | -------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------ |
-| D1  | Press bots: OK the privacy text (two short paragraphs: scrum answers; reactions)?                                    | OK as written | Nothing goes live without it               |
-| D2  | Press bots: one trial night in the bot test channel (only you are pinged), or straight to the game channel?          | Trial night   | Teammates see untested scrums if skipped   |
-| D3  | Press bots: release everything as built (scrums, `/scrum`, GM notes, reaction follow-ups, bots replace the webhook)? | Yes, as built | Cutting parts means removing finished code |
+| ID  | Question  | My advice | Waiting costs |
+| --- | --------- | --------- | ------------- |
+| -   | none open | -         | -             |
 
 ## 2. Your to-dos (only you can do these)
 
