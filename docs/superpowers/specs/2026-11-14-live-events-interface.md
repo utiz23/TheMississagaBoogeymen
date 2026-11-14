@@ -97,6 +97,10 @@ as EA lists the game (often about 1 minute after the end) instead of waiting for
    Lead's call: **Tailscale only** — nothing new on the public internet. The website listens for live
    events on Hotel-Echo's Tailscale address only (a port bound to that address, not to the public
    tunnel); every event still carries the bearer token and the HMAC.
+   **Where the sender runs is open** (operator: the engine "is intended to run on Hotel-Echo when
+   properly deployed, so I am not sure"; today capture and OBS are on the main PC). Both work: from the
+   main PC over Tailscale, or on Hotel-Echo itself over the local Docker network. Neither uses the
+   public tunnel.
 2. **Order:** approved — E1–E3 now (website first; the OBS sender after OBS-EC, with an engine card and
    the operator's OK for his match sorter); E4–E5 when the engine is live.
 3. **Big moments:** the list in E5 is right; adjust later.

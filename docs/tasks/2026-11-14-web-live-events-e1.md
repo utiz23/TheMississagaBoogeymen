@@ -18,10 +18,11 @@ Design: `docs/superpowers/specs/2026-11-14-live-events-interface.md` (approved; 
    body with a timestamp header (replay window 2 minutes; constant-time compare); JSON validated against
    v1 (required `v`, `id`, `type`, `source`, `at`; known types only; size limit 4 KB); idempotent by `id`;
    answers `202` fast; rate limit (e.g. 60/min). Never logs the token, the HMAC or full bodies.
-2. **Reachability:** reachable only through Hotel-Echo's Tailscale address — a compose port bound to the
+2. **Reachability** (the sender may run on the main PC or, later, on Hotel-Echo itself): reachable only through Hotel-Echo's Tailscale address — a compose port bound to the
    Tailscale IP (`100.98.29.119`) for `web`, and the route refuses requests that came through the
    public tunnel (check the `cf-connecting-ip`/`cf-ray` headers or the Host: refuse when present). The
-   Lead applies the compose change; the agent writes it and explains it in the runbook.
+   A sender on Hotel-Echo reaches `web` over the local Docker network (no port needed). The Lead
+   applies the compose change; the agent writes it and explains both paths in the runbook.
 3. **Storage:** `live_events` table (id text primary key, type, source, at, received_at, payload jsonb;
    30-day retention by a small cleanup in the worker). Hand-written migration with rollback.
 4. **Worker fast poll:** on a stored `period_end` with `period >= 3` (or `game_end`), the worker runs an
@@ -53,5 +54,8 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
 ## Log
 
 - 2026-11-14 Lead: written from the approved plan.
+- 2026-11-14 Lead: the sender may run on the main PC or on Hotel-Echo (engine Lead); both paths in.
+
+Resume: start the task agent (Opus: security-sensitive).
 
 ## Report

@@ -140,8 +140,19 @@ pnpm --filter <package> test                        # web: test:unit at least; d
   new Ready task.
 - `HANDOFF.md` stays an index (Handoff Protocol in `CLAUDE.md`). The journal gets a dated entry at each
   stopping point.
-- New Lead chat: the Lead asks for one when its context was compacted, or when it forgets an agreement.
-  Never in the middle of a merge or a deploy. The state lives in files.
+- **Same commit:** after every merge, start, deploy or decision, the task's State, its board row and
+  `docs/decisions.md` change in the **same** commit. A stale state is a bug. (Adopted 2026-11-14 from
+  the engine Lead's report.)
+- **Read the clock** (`TZ=America/Edmonton date`) in the same step that writes a time; never a time
+  from memory.
+- **Task Log `Resume:` lines:** after each step the task Log ends with `Resume: <the next step>`, so any
+  chat (or a helper after a crash or a usage limit) continues from the file.
+- **Helper model:** task agents run on Sonnet by default; Opus only when the task needs it (security,
+  migrations, hard design), said on the task.
+- **New Lead chat:** every week, and sooner when the context was compacted, is very long, or the Lead
+  forgets an agreement. Never in the middle of a merge or a deploy. The old Lead writes the handover
+  (HANDOFF, journal, a P1 paste line); the new Lead updates the board's Lead line first and tells the
+  old Lead to stand down (no merges, starts or edits; its helpers report and stop).
 - Kickoff prompts: `docs/operations/kickoff-prompts.md`.
 
 ## 10. What stays

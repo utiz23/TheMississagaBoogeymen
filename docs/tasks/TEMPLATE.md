@@ -39,7 +39,8 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 ## Log
 
-Newest last. One line each: date, what was done, result.
+Newest last. One line each: date, what was done, result. End with `Resume: <the next step>` (keep
+only the latest Resume line).
 
 ## Report (task agent fills when state = Verify)
 

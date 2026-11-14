@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-13, press bots** (Lead). All tasks: `docs/board.md`.
+Last update: **2026-11-14 03:08 CST** (Lead). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -10,7 +10,16 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------- |
 | D1  | Deploy T9 (relationships: open war ↔ glazing, Rink never feuds) + T10 (Talk to the press fix)? Build images → backup → migration 0078 → `press`, `news`, `web` | Yes, before the next game night | Feuds stay feud-only; Talk to the press stays confusing |
 
-## 2. Your to-dos (only you can do these)
+## 2. Right now
+
+| What                            | State                                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums) |
+| T9 relationships + T10 Talk fix | merged, waiting for D1                                                                                       |
+| E1 live events endpoint         | Ready; the Lead starts it next                                                                               |
+| Press Box L1                    | Ready, after the deploy of T9                                                                                |
+
+## 3. Your to-dos (only you can do these)
 
 - **Name the Lead chat tab** (for example `website-lead`) and tell the Lead, so task chats can find it.
 - **Press bots:** LIVE in the game channel since 11-13 (first live scrum: "a big hit with the team").
@@ -19,7 +28,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 - **Anthropic workspace limit:** set it to $100 a month to match the news desk cap ($100 on
   Hotel-Echo since 11-13; scrums stop at $80). November so far: $15.17.
 
-## 3. Can start when you say so
+## 4. Can start when you say so
 
 | Item                                        | Size  | Note                                                                                 |
 | ------------------------------------------- | ----- | ------------------------------------------------------------------------------------ |
@@ -27,7 +36,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Remove the merged `feat/news-desk` worktree | tiny  | Clean-up only.                                                                       |
 | Contribution Wheel hydration warning        | small | Old warning in the browser console; no visible fault.                                |
 
-## 4. Watch (no action now)
+## 5. Watch (no action now)
 
 - **Game post speed:** since 11-09 the post goes out about 1 minute after the worker saves the game.
   The rest of the wait is EA: on 11-12 the worker saw games 1–12 minutes after they ended (it checks
@@ -37,7 +46,22 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 - **Cards:** re-check the season pace at mid-season; re-tune before NHL 28.
 - **Legal footer notice** (AI news): hides itself on 2026-11-25. Nothing to do.
 
-## 5. Done recently
+## 6. Done recently
 
 - 2026-11-09: no badge posts · goalie stars fix (A + .900) · news desk live, feed in time order, cap
   $60 · game posts after one worker pass · bot test channel off · workflow v2 adopted.
+
+## 7. Decided (newest first, your words)
+
+- 2026-11-14 · Live events route: "this is going to run on hotel echo, otherwise I am not sure, your
+  call" → Lead: Tailscale only (main PC over Tailscale, or Hotel-Echo locally). Plan: "approved". Big
+  moments: "Your list sounds right, we can adjust this later."
+- 2026-11-14 · Father Rink: "should never engage in feuds" (T9 range rule).
+- 2026-11-14 · Glazing: "write the cards" (T9 one scale, open war ↔ glazing).
+- 2026-11-14 · Press Box design and mock-up: "APPROVED." Name: "Press Box".
+- 2026-11-14 · Bench voices: GM + volunteer; "Coach" + Discord name; privacy paragraph approved.
+- 2026-11-14 · One thread per player; reporters reply to the player; "axe the answer button".
+- 2026-11-13 · Hard lines never acknowledged; feuds; "If players want to cool off they can change
+  their status."
+- 2026-11-13 · Press bots: privacy text approved; open trial; all as built; 9 accounts ("robust");
+  news cap $100.
