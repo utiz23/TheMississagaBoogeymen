@@ -88,7 +88,15 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 15:26 task agent: screenshots done (live read-only tunnel + a fixture page for the proposed/confirmed states; login bypass, fixture page, dev server and tunnel all removed again, nothing of them committed). State = Verify.
 
-Resume: Lead merges after the operator sees the screenshots, then deploy in order: migration 0082, press, web.
+- 2026-11-14 15:30 Lead2: reviewed. Every action `requireAdmin` first (confirm/reject/remove through
+  `decide`); 0082 only adds two tables (seeded bank). Paths inside "May edit" (`box-requests.test.ts`
+  accepted as the profile handler's test). Rebased on `main`: typecheck db/web/discord/worker clean; web
+  727/727; discord 870/870; db press-background 17, press-box-dossiers 11, press-box 15 (all pass);
+  prettier clean. Screenshots seen (fixture data: live has no 0082).
+
+Resume: operator: screenshots (D13), admin-typed facts confirmed at once, and whether to import
+camrazz.md's 55 written answers as proposed facts; then merge (after CF1's or before: both edit the
+schema/queries index lines).
 
 ## Report (task agent fills when state = Verify)
 
