@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 15:35 CST by Lead2. Fully done tasks leave the board; their files stay in `docs/tasks/`.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 15:36 CST by Lead2. Fully done tasks leave the board; their files stay in `docs/tasks/`.
 
 ## Open tasks
 
@@ -27,7 +27,7 @@ Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. 
 | [L3 Press Box: storylines + takes editor](tasks/2026-11-14-web-press-box-l3-storylines.md)                | Web + DB                | medium      | Ready (L2 merged: can start)                                    |                                                        |
 | [L4 Press Box: reporter editor](tasks/2026-11-14-web-press-box-l4-reporters.md)                           | Web + DB                | medium      | Ready (after L3)                                                |                                                        |
 | [B1 Player background: bank, facts, admin editor](tasks/2026-11-14-web-background-b1.md)                  | Web + DB + Queries      | medium      | Merged 11-14 15:35                                              | deploy with operator OK (backup, 0082, `press`, `web`) |
-| [B2 Player background: bots ask, propose facts, teammate veto](tasks/2026-11-14-discord-background-b2.md) | Discord + Web           | medium-high | Ready (B1 merged: can start)                                    | privacy sentence + samples are a gate                  |
+| [B2 Player background: bots ask, propose facts, teammate veto](tasks/2026-11-14-discord-background-b2.md) | Discord + Web           | medium-high | Running (Lead2's task agent)                                    | privacy sentence + samples are the operator's gate     |
 | [CF1 Club Finals: rounds, badges, page](tasks/2026-11-14-web-club-finals-cf1.md)                          | Worker + DB + Web       | medium      | Running (rework: home component, no page)                       | Lead re-checks; operator screenshots                   |
 | [CF2 Club Finals in Discord + news weighting](tasks/2026-11-14-discord-club-finals-cf2.md)                | Discord                 | medium      | Ready (after CF1)                                               | operator OKs samples                                   |
 | [CF3 Club Finals look on the site](tasks/2026-11-14-web-club-finals-cf3.md)                               | Web                     | low-medium  | Ready (after CF1)                                               | operator screenshots before merge                      |

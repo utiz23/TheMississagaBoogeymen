@@ -1,6 +1,6 @@
 # Task: B2 — Player background: the bots ask, propose facts; teammate answers need the admin
 
-- **State:** Ready (operator 2026-11-14 15:02: "B1 and B2 ready"); starts after B1 is merged
+- **State:** Running (since 2026-11-14 15:36; task agent of `Lead2`) (operator 2026-11-14 15:02: "B1 and B2 ready")
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Queries, Database (only if a
   column is needed), Web (privacy page: one sentence)
 - **Risk:** medium-high (AI questions and AI-written facts about real teammates; a privacy text change)
@@ -81,7 +81,9 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 15:02 Lead2: operator "B1 and B2 ready".
 
-Resume: B1 merged; start when the Lead starts it.
+- 2026-11-14 15:36 Lead2: started (B1 merged at `4e4ba1fa`).
+
+Resume: task agent makes the branch and worktree, reads B1's tables and the interview/scrum question code.
 
 ## Report (task agent fills when state = Verify)
 
