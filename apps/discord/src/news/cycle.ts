@@ -90,6 +90,7 @@ import {
   buildSystemPrompt,
   reactionItemText,
   type DeskContext,
+  type BackgroundLine,
   type RelationshipStory,
   relationshipSentence,
   type NightPost,
@@ -221,6 +222,14 @@ export interface NewsStore {
    * a database that has no relationship table yet) means no storylines.
    */
   listRelationships?(args: { now: Date; playerIds: readonly number[] }): Promise<RelationshipRow[]>
+  /**
+   * Task background-b2: the CONFIRMED background facts (own facts only) of these players. Optional:
+   * a store without it (or a database with no background table yet) means no background. Never a
+   * proposed or rejected fact; nothing for a "Leave me out" player.
+   */
+  listConfirmedBackground?(
+    playerIds: readonly number[],
+  ): Promise<{ playerId: number; facts: { part: string; text: string }[] }[]>
   /**
    * T9: adds signed relationship points (a big night in a reporter's taste). Optional like the read;
    * a failure is logged and never stops the recap.
@@ -398,17 +407,57 @@ function relationshipTrusted(rels: readonly RelationshipStory[]): TrustedMateria
   )
 }
 
-/** The recap's trusted material for the review: the press material, plus the relationship storylines. */
+/** The review's view of a confirmed background line: an admin-approved fact, never a player's words. */
+function backgroundTrusted(lines: readonly BackgroundLine[]): TrustedMaterial['gmNotes'] {
+  return lines.map(
+    (l) =>
+      `About ${l.player}: ${l.text} (confirmed club background; the text may state it in its own words as hockey context, never as a quote or as the player's words)`,
+  )
+}
+
+/** At most this many background lines per player and in all go to one night recap. */
+export const BACKGROUND_PER_PLAYER = 2
+export const BACKGROUND_PER_RECAP = 10
+
+/**
+ * The confirmed background for a night sheet: only players on the sheet, never a line with a digit
+ * (the recap's number check would refuse it), a few per player, a few in all. Pure.
+ */
+export function backgroundForSheet(
+  rows: readonly { playerId: number; facts: readonly { part: string; text: string }[] }[],
+  facts: NewsFacts,
+): BackgroundLine[] {
+  const names = new Map(facts.people.map((p) => [p.playerId, p.name]))
+  const out: BackgroundLine[] = []
+  for (const r of rows) {
+    const name = names.get(r.playerId)
+    if (name === undefined) continue
+    let n = 0
+    for (const f of r.facts) {
+      if (n >= BACKGROUND_PER_PLAYER || out.length >= BACKGROUND_PER_RECAP) break
+      if (/\d/.test(f.text)) continue
+      out.push({ player: name, text: f.text })
+      n++
+    }
+  }
+  return out
+}
+
+/** The recap's trusted material for the review: the press material, the relationship storylines and the confirmed background. */
 function trustedWithRelationships(
   press: { quotes: readonly PressQuote[]; gmNotes: readonly PressNote[] } | undefined,
   rels: readonly RelationshipStory[],
+  background: readonly BackgroundLine[] = [],
 ): TrustedMaterial | undefined {
-  if (press === undefined && rels.length === 0) return undefined
+  if (press === undefined && rels.length === 0 && background.length === 0) return undefined
   const base: TrustedMaterial =
     press === undefined ? { gmNotes: [], answers: [] } : trustedOf(press)
-  return rels.length === 0
+  return rels.length === 0 && background.length === 0
     ? base
-    : { gmNotes: [...base.gmNotes, ...relationshipTrusted(rels)], answers: base.answers }
+    : {
+        gmNotes: [...base.gmNotes, ...relationshipTrusted(rels), ...backgroundTrusted(background)],
+        answers: base.answers,
+      }
 }
 
 /**
@@ -1441,6 +1490,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     let press: { quotes: PressQuote[]; gmNotes: PressNote[] } | undefined
     /** T5, T9: the writing reporter's relationship storylines (feud, open war, fan, glazing). */
     let rels: RelationshipStory[] = []
+    /** Task background-b2: the confirmed background of the sheet's people (night recaps). */
+    let background: BackgroundLine[] = []
     try {
       const activity = await loadActivity(now)
       let zero = { tonight: [] as string[], previous: [] as string[] }
@@ -1461,6 +1512,17 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         const next = assignFeature(last?.kind ?? null, now, activity, disabled)
         reporterId = next.reporter
         feature = { kind: next.kind, previousPrediction: predictionToJudge(key, last) }
+      }
+      // Confirmed background is flavour too: when it cannot be read, the piece is written without it.
+      if (kind === 'night' && store.listConfirmedBackground !== undefined) {
+        try {
+          background = backgroundForSheet(
+            await store.listConfirmedBackground(facts.people.map((p) => p.playerId)),
+            facts,
+          )
+        } catch (err: unknown) {
+          log(`${tag}: background not read, none used (${message(err)})`)
+        }
       }
       // A relationship is flavour: when it cannot be read, the piece is written without it.
       if (store.listRelationships !== undefined) {
@@ -1483,6 +1545,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         ...(nightPosts === undefined ? {} : { nightPosts }),
         ...(press === undefined ? {} : { press }),
         ...(rels.length === 0 ? {} : { relationships: rels }),
+        ...(background.length === 0 ? {} : { background }),
       }
       const who = reporterId
       mine = (await takesDue(res, now)).filter((t) => takeCritics(t).includes(who))
@@ -1517,9 +1580,9 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           [`By ${REPORTERS[reporterId].name}`, x.headline, x.dek, ...x.paragraphs].join('\n\n'),
         criticizedForReview: (x) => x.criticized,
         takesForReview: mine,
-        ...(trustedWithRelationships(press, rels) === undefined
+        ...(trustedWithRelationships(press, rels, background) === undefined
           ? {}
-          : { trusted: trustedWithRelationships(press, rels)! }),
+          : { trusted: trustedWithRelationships(press, rels, background)! }),
         facts,
       })
       if (written === 'end') return 'end'

@@ -46,6 +46,7 @@ import {
   type PressPersonRole,
 } from '../schema/index.js'
 import { MEMBER_CONDITION } from './club-members.js'
+import { scrumAnswerIsAboutTeammateSql } from './press-background-sql.js'
 import { NEWS_MAX_ATTEMPTS, nightKeySql } from './news.js'
 // Wire-post replies (T4, migration 0075): kept apart from the import list above.
 import { newsWireReplies, type NewNewsWireReply } from '../schema/news-wire-replies.js'
@@ -635,11 +636,32 @@ export interface ScrumAnswerEntry {
   answer: string
   usability: 'usable' | 'joke' | 'unusable'
   reporter: NewsReporterId | null
+  /** The answer to a background question about a teammate: never offered to a writer (0084). */
+  aboutTeammate?: boolean
 }
 
-/** One person's earlier questions and answers, oldest first. */
+/**
+ * One person's earlier questions and answers, oldest first. `aboutTeammate` marks the answer to a
+ * background question about a teammate (migration 0084): the asker treats it as no usable answer.
+ */
 export async function listScrumAnswers(personId: number): Promise<ScrumAnswerEntry[]> {
-  return listScrumAnswersQuery(personId)
+  try {
+    return await db
+      .select({
+        question: newsScrumAnswers.question,
+        answer: newsScrumAnswers.answer,
+        usability: newsScrumAnswers.usability,
+        reporter: newsScrumAnswers.reporter,
+        // Written with the table name (not the column object): a single-table select renders a
+        // column bare, which would bind to the subquery's own table.
+        aboutTeammate: sql<boolean>`${scrumAnswerIsAboutTeammateSql('news_scrum_answers')}`,
+      })
+      .from(newsScrumAnswers)
+      .where(eq(newsScrumAnswers.personId, personId))
+      .orderBy(asc(newsScrumAnswers.id))
+  } catch {
+    return listScrumAnswersQuery(personId)
+  }
 }
 
 /**
@@ -1006,7 +1028,12 @@ export interface PressNote {
  * T7: the person row names an answer's speaker (a bench person or the coach may have no player
  * row) and says in what capacity they spoke (`person_role`).
  */
-export function nightPressMaterialSql(night: string, includeTest: boolean): SQL {
+export function nightPressMaterialSql(
+  night: string,
+  includeTest: boolean,
+  /** Leave out answers to a background question about a teammate (migration 0084; false before it). */
+  withAsks = true,
+): SQL {
   return sql`
     select a.id as answer_id, a.player_id,
       coalesce(sp.display_name, ${DISPLAY_NAME}) as name, sp.person_role as person_role,
@@ -1022,6 +1049,7 @@ export function nightPressMaterialSql(night: string, includeTest: boolean): SQL 
       and coalesce(pp.press_level, 'full') <> 'out'
       and (a.is_test = false or ${includeTest})
       and sc.buzz_level <> ${TEST_SCRUM_BUZZ_SQL}
+      ${withAsks ? sql`and not ${scrumAnswerIsAboutTeammateSql('a')}` : sql``}
     order by a.id asc`
 }
 
@@ -1038,20 +1066,25 @@ export function nightPressNotesSql(night: string, includeTest: boolean): SQL {
     order by g.id asc`
 }
 
+type NightQuoteRow = {
+  answer_id: string | number
+  player_id: string | number | null
+  name: string
+  person_role: PressPersonRole
+  question: string
+  answer: string
+  usability: 'usable' | 'joke'
+  reporter: NewsReporterId
+}
+
 export async function nightPressMaterial(
   night: string,
   includeTest: boolean,
 ): Promise<{ quotes: PressQuote[]; gmNotes: PressNote[] }> {
-  const quotes = await db.execute<{
-    answer_id: string | number
-    player_id: string | number | null
-    name: string
-    person_role: PressPersonRole
-    question: string
-    answer: string
-    usability: 'usable' | 'joke'
-    reporter: NewsReporterId
-  }>(nightPressMaterialSql(night, includeTest))
+  const quotes = await db
+    .execute<NightQuoteRow>(nightPressMaterialSql(night, includeTest))
+    // Before migration 0084 there is no ask table, so no answer about a teammate to leave out.
+    .catch(() => db.execute<NightQuoteRow>(nightPressMaterialSql(night, includeTest, false)))
   const notes = await db.execute<{
     id: string | number
     player_id: string | number | null

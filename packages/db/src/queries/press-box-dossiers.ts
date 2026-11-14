@@ -19,6 +19,10 @@ import {
 import { listPressRoster, listPressRosterSql } from './news-press.js'
 import { writeAudit, type PressBoxActor } from './press-box.js'
 import { NO_BACKGROUND, getConfirmedBackground, type WriterBackground } from './press-background.js'
+import {
+  interviewAnswerIsAboutTeammateSql,
+  scrumAnswerIsAboutTeammateSql,
+} from './press-background-sql.js'
 
 // Press Box player dossiers (admin page /admin/press-box/players, migration 0081, task
 // press-box-l2). Same shape as press-box.ts: pure rules carry the tests; the async functions run
@@ -134,7 +138,7 @@ const keyCondition = (key: DossierKey, scrumAlias: string, interviewAlias: strin
  * Quote rows: the TEXT is selected only for usable and joke answers (a case expression, so an
  * unusable answer's text never leaves the database). Test rows are left out. Newest first.
  */
-export function quotesSql(key: DossierKey, limit: number): SQL {
+export function quotesSql(key: DossierKey, limit: number, withAsks = true): SQL {
   const [scrum, interview] = keyCondition(key, 'a', 'ia')
   return sql`
     select * from (
@@ -145,6 +149,7 @@ export function quotesSql(key: DossierKey, limit: number): SQL {
       from news_scrum_answers a
       join news_scrum_people sp on sp.id = a.person_id
       where not a.is_test and ${scrum}
+        ${withAsks ? sql`and not ${scrumAnswerIsAboutTeammateSql('a')}` : sql``}
       union all
       select 'interview:' || ia.id, 'interview', ia.usability,
         case when ia.usability in ('usable', 'joke') then ia.question end,
@@ -153,6 +158,7 @@ export function quotesSql(key: DossierKey, limit: number): SQL {
       from news_interview_answers ia
       join news_interviews iv on iv.id = ia.interview_id
       where not ia.is_test and ${interview}
+        ${withAsks ? sql`and not ${interviewAnswerIsAboutTeammateSql('ia')}` : sql``}
     ) x
     where x.usability in ('usable', 'joke')
     order by x.at desc, x.id desc
@@ -181,16 +187,20 @@ async function readAnswers(
   key: DossierKey,
   quoteLimit: number,
 ): Promise<{ quotes: DossierQuote[]; counts: AnswerCounts }> {
+  type QuoteRow = {
+    id: string
+    source: 'scrum' | 'interview'
+    usability: AnswerUsability
+    question: string | null
+    answer: string | null
+    reporter: NewsReporterId | null
+    at: Date | string
+  }
   const [quoteRows, countRows] = await Promise.all([
-    db.execute<{
-      id: string
-      source: 'scrum' | 'interview'
-      usability: AnswerUsability
-      question: string | null
-      answer: string | null
-      reporter: NewsReporterId | null
-      at: Date | string
-    }>(quotesSql(key, quoteLimit)),
+    db.execute<QuoteRow>(quotesSql(key, quoteLimit)).catch(
+      // Before migration 0084 there is no ask table, so no answer about a teammate to leave out.
+      () => db.execute<QuoteRow>(quotesSql(key, quoteLimit, false)),
+    ),
     db.execute<{ usability: AnswerUsability; n: string | number }>(answerCountsSql(key)),
   ])
   const quotes = splitAnswers(quoteRows.map((r) => ({ ...r, at: toDate(r.at) }))).quotes

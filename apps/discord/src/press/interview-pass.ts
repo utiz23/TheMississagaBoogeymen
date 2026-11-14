@@ -221,7 +221,9 @@ async function writeArticle(
     deps.log(`${tag} skipped (${why})`)
     return 'skipped'
   }
-  const answers = await st.listInterviewAnswers(iv.id)
+  // An answer about a teammate (a background question) is never printed or counted: only a fact the
+  // admin confirmed may be used.
+  const answers = (await st.listInterviewAnswers(iv.id)).filter((a) => a.aboutTeammate !== true)
   if (!articleAllowed(answers)) return skip('fewer than 3 usable answers')
   const now = deps.now()
   if (!extrasBudgetLeft(await st.monthNewsSpendUsd(now), config.monthlyLimitUsd)) {

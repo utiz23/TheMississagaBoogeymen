@@ -63,6 +63,7 @@ import {
   upsertAlias,
 } from '@eanhl/db/queries'
 import { relationshipDbStore } from './relationship-db.ts'
+import { backgroundDbStore } from './background-db.ts'
 import { interviewDbStore } from './interview-db.ts'
 import { repliesDbStore } from './replies-db.ts'
 import { testScrumDbStore } from './test-scrum-db.ts'
@@ -73,6 +74,8 @@ import type { PressStore } from './pass.ts'
 export const pressDbStore: PressStore = {
   // The interview methods (interview-store.ts): found by `interviewStoreOf`.
   ...interviewDbStore,
+  // The background-question methods (background-store.ts): found by `backgroundStoreOf`.
+  ...backgroundDbStore,
   // The wire-reply methods (replies-store.ts): found by `replyStoreOf`.
   ...repliesDbStore,
   // The test scrum methods (test-scrum-store.ts): found by `testScrumStoreOf`.

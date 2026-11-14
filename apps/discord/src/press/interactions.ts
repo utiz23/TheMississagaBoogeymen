@@ -11,6 +11,8 @@ import { benchForGame, benchGameOf, personColumns, type BenchResult } from './be
 import { escapeMarkdown } from '../message.ts'
 import { containsName } from '../news/fact-check.ts'
 import { FALLBACK_CLOSING, judgeAnswer, type FollowUpMode, type Usability } from './asker.ts'
+import { finishBackgroundAnswer } from './background-ask.ts'
+import { backgroundStoreOf } from './background-store.ts'
 import { fallbackLine } from './fallbacks.ts'
 import { recordMessageSignals, recordRelationship, relationshipLevel } from './relationships.ts'
 import { CODE_ONLY_SCREEN, OFFLIMITS_LOG, screenMessage, screenText } from './hard-lines.ts'
@@ -665,7 +667,7 @@ export async function onAnswerSubmit(
       seed: personSeed(scrum.id, personId) + person.questionsAsked + person.followupsAsked,
     })
   const fixed = verdict.byCode || verdict.replyFailed
-  await store.insertScrumAnswer({
+  const answerId = await store.insertScrumAnswer({
     personId,
     scrumId: scrum.id,
     playerId: person.playerId,
@@ -676,6 +678,20 @@ export async function onAnswerSubmit(
     reporter: asker,
     isTest: scrum.isTest,
   })
+  // Background question (task background-b2): close the ask; a usable answer proposes 0 to 2 facts
+  // (always proposed, never confirmed). A refused answer is unusable, so it proposes nothing.
+  const bs = backgroundStoreOf(store)
+  if (bs !== null && !refused && sheet !== null) {
+    await finishBackgroundAnswer(deps, config, bs, {
+      by: { scrumPersonId: personId },
+      answerId: { scrumAnswerId: answerId },
+      usability: verdict.usability,
+      question,
+      answer,
+      forbiddenNames: sheet.forbiddenNames,
+      record: pressRecorder(store),
+    })
+  }
 
   if (verdict.followUp !== null) {
     await store.updateScrumPerson(personId, {

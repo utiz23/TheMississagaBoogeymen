@@ -1,5 +1,6 @@
 import { nightKey } from '@eanhl/db/news'
 import {
+  getBackgroundQuestionsOn,
   getLatestMatchId,
   getPressBoxNow,
   getPressBoxSettings,
@@ -51,6 +52,7 @@ export async function loadOverview(now: Date) {
     roster,
     latest,
     waitingBackground,
+    backgroundQuestionsOn,
   ] = await Promise.all([
     getPressBoxSettings(),
     listDisabledReporters(),
@@ -65,6 +67,8 @@ export async function loadOverview(now: Date) {
     getLatestMatchId(),
     // Player background (task background-b1): proposed facts the admin has not decided on yet.
     listWaitingBackground(),
+    // Task background-b2: the switch (false when the table is missing).
+    getBackgroundQuestionsOn(),
   ])
   const tonight = (await latestPressNight(new Date(now.getTime() - 6 * 3_600_000))) ?? nightKey(now)
 
@@ -95,6 +99,7 @@ export async function loadOverview(now: Date) {
     audit,
     requests,
     waitingBackground,
+    backgroundQuestionsOn,
     form: hotAndCold(players, title, now),
     milestones: milestonesInReach(players, title).slice(0, 6),
   }

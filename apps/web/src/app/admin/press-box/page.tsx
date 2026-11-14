@@ -9,7 +9,7 @@ import { formatClubDateTime } from '@/lib/format'
 import { NOTICE_TEXT, noticeFromQuery } from './box-actions'
 import { milestoneText } from './form'
 import { EXTRAS_STOP_SHARE, PRESS_SEEN_MAX_MS, loadOverview } from './overview-data'
-import { runTestScrumAction, setHeatAction } from './actions'
+import { runTestScrumAction, setBackgroundQuestionsAction, setHeatAction } from './actions'
 
 const LABEL = 'font-condensed text-[11px] font-semibold uppercase tracking-[0.2em] text-fg-4'
 const PANEL = 'broadcast-panel'
@@ -29,6 +29,7 @@ const KIND_VERB: Readonly<Record<string, string>> = {
   background_edit: 'edited a background fact for',
   background_reject: 'rejected a background fact for',
   background_delete: 'removed a background fact for',
+  background_switch: 'switched background questions',
 }
 const PILL =
   'border border-border px-2 py-0.5 font-condensed text-[11px] font-bold uppercase tracking-[0.14em] text-fg-3'
@@ -201,6 +202,31 @@ export default async function PressBoxOverviewPage({
           {lastRequest.result !== null && ` — ${plainResult(lastRequest.result).split('\n')[0]}`}
         </p>
       )}
+
+      <section
+        aria-label="Background questions switch"
+        className="flex flex-wrap items-center gap-3 border border-border px-4 py-3"
+      >
+        <form action={setBackgroundQuestionsAction} className="flex flex-wrap items-center gap-3">
+          <input type="hidden" name="on" value={d.backgroundQuestionsOn ? '0' : '1'} />
+          <span className={LABEL}>Background questions</span>
+          <span
+            className={`font-condensed text-lg font-black uppercase ${d.backgroundQuestionsOn ? 'text-win' : 'text-fg-4'}`}
+          >
+            {d.backgroundQuestionsOn ? 'On' : 'Off'}
+          </span>
+          <button
+            type="submit"
+            className={`${d.backgroundQuestionsOn ? AUTH_BUTTON_SECONDARY : AUTH_BUTTON_PRIMARY} px-3 py-2`}
+          >
+            {d.backgroundQuestionsOn ? 'Turn off' : 'Turn on'}
+          </button>
+        </form>
+        <span className="text-xs text-fg-4">
+          when on, a reporter may ask one background question per interview, and rarely one in a
+          scrum; every fact they propose waits for you · off by default
+        </span>
+      </section>
 
       {d.waitingBackground.length > 0 && (
         <p

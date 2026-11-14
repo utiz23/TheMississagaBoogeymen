@@ -29,6 +29,12 @@ import {
   relationshipsFor,
 } from './relationships.ts'
 import { OFFLIMITS_LOG, screenMessage } from './hard-lines.ts'
+import {
+  finishBackgroundAnswer,
+  planBackgroundQuestion,
+  type BackgroundPlan,
+} from './background-ask.ts'
+import { backgroundStoreOf } from './background-store.ts'
 import { askInterviewQuestion } from './interview-asker.ts'
 import {
   INTERVIEW_ANSWER_MS,
@@ -45,6 +51,8 @@ import {
   saysItIsOver,
 } from './interview-rules.ts'
 import { interviewStoreOf, type InterviewStore } from './interview-store.ts'
+import type { WriterFact } from '@eanhl/db/queries'
+import { interviewMayAskBackground } from './background-rules.ts'
 import { ANSWER_MAX_CHARS, TEXT, type Reply } from './interactions.ts'
 import { SCRUM_SOURCE_WINDOW_MS, type PressDeps, type PressStore } from './pass.ts'
 import { latestPlayerMessage, rememberPlayerMessage } from './player-latest.ts'
@@ -115,7 +123,8 @@ async function pressOff(deps: PressDeps, config: PressConfig): Promise<boolean> 
 /** Earlier answers as asker history: an unusable answer goes in as no answer. */
 export function interviewHistory(answers: readonly InterviewAnswer[]): ScrumHistoryEntry[] {
   return answers.map((a) =>
-    a.usability === 'unusable' || crudeHit(a.answer)
+    // An answer about a teammate (a background question) is never offered to a writer.
+    a.usability === 'unusable' || crudeHit(a.answer) || a.aboutTeammate === true
       ? { question: a.question, answer: null }
       : { question: a.question, answer: a.answer, usability: a.usability },
   )
@@ -516,6 +525,8 @@ export async function askNext(
   }
   const position = itemsAsked(iv) + 1
   let question: string | null = null
+  let plan: BackgroundPlan | null = null
+  let own: WriterFact[] = []
   let name = iv.name
   try {
     const { res, person } = await sheetFor(deps, iv.night, iv)
@@ -527,25 +538,68 @@ export async function askNext(
     }
     name = person.name
     const relationship = await relationshipLevel(deps, iv.playerId, iv.reporter, person.pressLevel)
-    question = await askInterviewQuestion(
-      deps.call,
-      {
-        facts: res.facts,
-        forbiddenNames: res.forbiddenNames,
-        takes: res.takes,
-        reporter: iv.reporter,
-        player: {
-          name: person.name,
-          pressLevel: person.pressLevel,
-          ...(person.bench === undefined ? {} : { bench: person.bench }),
+    const history = interviewHistory(await st.listInterviewAnswers(id))
+    // Background question (task background-b2): at most one, from the 5th item on, a member only,
+    // and only when the admin switch is on. Any failure asks the ordinary question.
+    const bs = backgroundStoreOf(deps.store)
+    // The confirmed background of the person (admin-approved facts only) for the ordinary writer.
+    if (bs !== null && iv.playerId !== null) {
+      try {
+        own = (await bs.getConfirmedBackground(iv.playerId, person.pressLevel)).own
+      } catch (err: unknown) {
+        deps.log(`[press] interview ${String(id)}: background not read (${reason(err)})`)
+      }
+    }
+    if (bs !== null && iv.personRole === 'player' && iv.playerId !== null) {
+      try {
+        if (
+          interviewMayAskBackground({
+            isMember: true,
+            position,
+            askedInThisInterview: await bs.countBackgroundAsksFor({ interviewId: id }),
+          })
+        ) {
+          plan = await planBackgroundQuestion(deps, bs, {
+            kind: 'interview',
+            by: { interviewId: id },
+            playerId: iv.playerId,
+            name: person.name,
+            pressLevel: person.pressLevel,
+            isTest: iv.isTest,
+            seed: id * 1000 + position,
+            reporter: iv.reporter,
+            res,
+            history,
+            relationship,
+            record: pressRecorder(st),
+          })
+        }
+      } catch (err: unknown) {
+        deps.log(`[press] interview ${String(id)}: background question: ${reason(err)}`)
+      }
+    }
+    question =
+      plan?.text ??
+      (await askInterviewQuestion(
+        deps.call,
+        {
+          facts: res.facts,
+          forbiddenNames: res.forbiddenNames,
+          takes: res.takes,
+          reporter: iv.reporter,
+          player: {
+            name: person.name,
+            pressLevel: person.pressLevel,
+            ...(person.bench === undefined ? {} : { bench: person.bench }),
+          },
+          topic: iv.topic,
+          history,
+          position,
+          relationship,
+          ...(own.length === 0 ? {} : { background: own }),
         },
-        topic: iv.topic,
-        history: interviewHistory(await st.listInterviewAnswers(id)),
-        position,
-        relationship,
-      },
-      pressRecorder(st),
-    )
+        pressRecorder(st),
+      ))
   } catch (err: unknown) {
     deps.log(`[press] interview ${String(id)}: question: ${reason(err)}`)
   }
@@ -565,6 +619,8 @@ export async function askNext(
     at: deps.now(),
   })
   if (!claimed) return false
+  // The background ask is logged once its question is claimed (the posted text is the reporter's).
+  if (plan !== null && text === plan.text) await plan.record()
   await deps.discord.send(
     iv.reporter,
     threadId,
@@ -786,8 +842,8 @@ export async function onInterviewAnswerSubmit(
   const target = lineTarget(iv)
   const mention = iv.discordUserId
 
-  const store = async (usability: Usability): Promise<void> => {
-    await st.insertInterviewAnswer({
+  const store = async (usability: Usability): Promise<number> => {
+    return st.insertInterviewAnswer({
       interviewId: id,
       playerId: iv.playerId,
       reporter: iv.reporter,
@@ -864,7 +920,21 @@ export async function onInterviewAnswerSubmit(
       where: `interview ${String(id)}`,
     })
   }
-  await store(verdict.usability)
+  const answerId = await store(verdict.usability)
+  // Background question (task background-b2): close the ask; a usable answer proposes 0 to 2 facts
+  // (always proposed, never confirmed). A refused answer is unusable, so it proposes nothing.
+  const bs = backgroundStoreOf(deps.store)
+  if (bs !== null && !refused && sheet !== null) {
+    await finishBackgroundAnswer(deps, config, bs, {
+      by: { interviewId: id },
+      answerId: { interviewAnswerId: answerId },
+      usability: verdict.usability,
+      question,
+      answer,
+      forbiddenNames: sheet.res.forbiddenNames,
+      record: pressRecorder(st),
+    })
+  }
 
   if (verdict.followUp !== null) {
     const claimed = await st.claimInterviewFollowup({

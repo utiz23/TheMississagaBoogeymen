@@ -74,6 +74,11 @@ export interface AskContext {
    * feud side is dropped here again (they may be glazed, never feuded).
    */
   relationship?: RelLevel
+  /**
+   * Task background-b2: CONFIRMED background facts about the player (admin-approved; never a
+   * proposed or rejected one; none for "Leave me out"). Context only, never the player's words.
+   */
+  background?: readonly { part: string; text: string }[]
 }
 
 /**
@@ -267,6 +272,13 @@ function contextLines(ctx: AskContext, history: AskContext['history']): string[]
         (t) =>
           `- ${t.take}${t.dataAngle === null ? '' : ` (data angle: ${t.dataAngle})`}${t.mild ? ' (keep it mild)' : ''}`,
       ),
+    )
+  }
+  if (ctx.background !== undefined && ctx.background.length > 0) {
+    lines.push(
+      '',
+      `Confirmed background about ${name} (facts the admin approved; context only: never ${name}'s words, never quote them, never say where they come from; hockey only):`,
+      ...ctx.background.map((f) => `- ${f.text}`),
     )
   }
   lines.push('')
@@ -580,7 +592,7 @@ export async function askQuestion(
   const reporter = REPORTERS[ctx.reporter]
   const allowed = allowedFor(ctx, ctx.gmTopic ?? null)
   const trusted: TrustedMaterial = {
-    gmNotes: ctx.gmNotes,
+    gmNotes: [...ctx.gmNotes, ...(ctx.background ?? []).map((f) => f.text)],
     answers: earlierAnswers(ctx, ctx.history),
   }
   try {

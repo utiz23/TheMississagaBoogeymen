@@ -198,6 +198,35 @@ export interface DeskContext {
    * reporter's view.
    */
   relationships?: readonly RelationshipStory[]
+  /**
+   * Task background-b2: CONFIRMED background facts about players on the sheet (admin-approved;
+   * never a proposed or rejected one; none for "Leave me out"; no digit in any line). Context in
+   * the reporter's own words; never quoted, never a player's words.
+   */
+  background?: readonly BackgroundLine[]
+}
+
+/** One confirmed background fact about a player on the sheet. */
+export interface BackgroundLine {
+  player: string
+  text: string
+}
+
+export const BACKGROUND_START = 'CONFIRMED BACKGROUND (facts the admin approved about the players)'
+export const BACKGROUND_END = 'END OF CONFIRMED BACKGROUND'
+
+/**
+ * The night recap's confirmed background, or null when there is none. These are true club facts,
+ * told as the desk's own background: never quoted, never a player's words, never with a source.
+ */
+export function backgroundBlock(lines: readonly BackgroundLine[] | undefined): string | null {
+  if (lines === undefined || lines.length === 0) return null
+  return [
+    BACKGROUND_START,
+    "Hockey context about players on the sheet. Say it in your own words if it helps the piece; use at most one or two lines; none is required. Never quote a line, never present one as a player's words, never say where it comes from, and never use a line to criticise a player.",
+    ...lines.map((l) => `- About ${l.player}: ${l.text}`),
+    BACKGROUND_END,
+  ].join('\n')
 }
 
 /** One relationship as a storyline: the reporter's view of a player. */
@@ -619,6 +648,8 @@ export function buildArticleUserPrompt(args: {
   if (threads !== null) lines.push('', threads)
   const pressRoom = pressRoomBlock(ctx.press)
   if (pressRoom !== null) lines.push('', pressRoom)
+  const background = backgroundBlock(ctx.background)
+  if (background !== null) lines.push('', background)
   lines.push('', deskContextBlock({ ...ctx, nightPosts: ctx.nightPosts ?? [] }, [reporter.id]))
   return lines.join('\n')
 }

@@ -32,8 +32,10 @@ import {
   listReactionTriggersWithoutJob,
   getReactionItem,
   listRelationships,
+  getConfirmedBackground,
   addRelationshipPoints,
 } from '@eanhl/db/queries'
+import type { WriterFact } from '@eanhl/db/queries'
 import { REPORTER_IDS, type ReporterId } from '@eanhl/db/news'
 import type { NewsStore } from './cycle.ts'
 
@@ -97,4 +99,12 @@ export const newsDbStore: NewsStore = {
   // T5, T9: reporter relationships (migration 0078); a missing table is caught by the caller.
   listRelationships: (args) => listRelationships({ now: args.now, playerIds: args.playerIds }),
   addRelationshipPoints,
+  // Task background-b2: confirmed background facts (migration 0082); a failure is caught by the caller.
+  listConfirmedBackground: async (playerIds) => {
+    const out: { playerId: number; facts: WriterFact[] }[] = []
+    for (const playerId of playerIds) {
+      out.push({ playerId, facts: (await getConfirmedBackground({ playerId }, null)).own })
+    }
+    return out
+  },
 }

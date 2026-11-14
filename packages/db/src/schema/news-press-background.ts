@@ -11,8 +11,8 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
-import { newsInterviewAnswers } from './news-interviews.js'
-import { newsScrumAnswers } from './news-press.js'
+import { newsInterviewAnswers, newsInterviews } from './news-interviews.js'
+import { newsScrumAnswers, newsScrumPeople } from './news-press.js'
 import { players } from './players.js'
 
 /**
@@ -147,3 +147,78 @@ export const newsBackgroundFacts = pgTable(
   ],
 )
 export type NewsBackgroundFactRow = typeof newsBackgroundFacts.$inferSelect
+
+/**
+ * Background questions the bots put to members (migration 0084, task background-b2): one row per
+ * ask. It keys the rules (one per interview, one per scrum panel, one per person per 7 days in
+ * scrums, never the same question twice) and links the ask to the answer that came back, so the
+ * fact proposer knows which bank question the answer belongs to. The posted text is the reporter's
+ * own wording, so this row, not the text, is the link.
+ */
+export const BACKGROUND_ASK_KINDS = ['scrum', 'interview'] as const
+export type BackgroundAskKind = (typeof BACKGROUND_ASK_KINDS)[number]
+
+export const newsBackgroundAsks = pgTable(
+  'news_background_asks',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    questionId: bigint('question_id', { mode: 'number' })
+      .notNull()
+      .references(() => newsBackgroundQuestions.id, { onDelete: 'cascade' }),
+    playerId: integer('player_id')
+      .notNull()
+      .references(() => players.id, { onDelete: 'cascade' }),
+    /** The teammate a teammate question is about (code-picked: only "full" members). */
+    subjectPlayerId: integer('subject_player_id').references(() => players.id, {
+      onDelete: 'cascade',
+    }),
+    kind: text('kind').$type<BackgroundAskKind>().notNull(),
+    scrumPersonId: bigint('scrum_person_id', { mode: 'number' }).references(
+      () => newsScrumPeople.id,
+      { onDelete: 'cascade' },
+    ),
+    interviewId: bigint('interview_id', { mode: 'number' }).references(() => newsInterviews.id, {
+      onDelete: 'cascade',
+    }),
+    isTest: boolean('is_test').notNull().default(false),
+    askedAt: timestamp('asked_at', { withTimezone: true }).notNull().defaultNow(),
+    answeredAt: timestamp('answered_at', { withTimezone: true }),
+    answerScrumId: bigint('answer_scrum_id', { mode: 'number' }).references(
+      () => newsScrumAnswers.id,
+      { onDelete: 'set null' },
+    ),
+    answerInterviewId: bigint('answer_interview_id', { mode: 'number' }).references(
+      () => newsInterviewAnswers.id,
+      { onDelete: 'set null' },
+    ),
+  },
+  (table) => [
+    uniqueIndex('news_background_asks_scrum_person_uniq')
+      .on(table.scrumPersonId)
+      .where(sql`scrum_person_id IS NOT NULL`),
+    uniqueIndex('news_background_asks_interview_uniq')
+      .on(table.interviewId)
+      .where(sql`interview_id IS NOT NULL`),
+    index('news_background_asks_player_idx').on(table.playerId, table.askedAt),
+    check(
+      'news_background_asks_kind_check',
+      sql`(${table.kind} = 'scrum' AND ${table.scrumPersonId} IS NOT NULL AND ${table.interviewId} IS NULL) OR (${table.kind} = 'interview' AND ${table.interviewId} IS NOT NULL AND ${table.scrumPersonId} IS NULL)`,
+    ),
+    check(
+      'news_background_asks_subject_check',
+      sql`${table.subjectPlayerId} IS NULL OR ${table.subjectPlayerId} <> ${table.playerId}`,
+    ),
+  ],
+)
+export type NewsBackgroundAskRow = typeof newsBackgroundAsks.$inferSelect
+
+/** One row (id = 1): the admin switch "background questions on/off" (migration 0084). Default off. */
+export const newsBackgroundSettings = pgTable(
+  'news_background_settings',
+  {
+    id: integer('id').primaryKey().default(1),
+    enabled: boolean('enabled').notNull().default(false),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('news_background_settings_single_row_check', sql`${table.id} = 1`)],
+)

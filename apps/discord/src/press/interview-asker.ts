@@ -67,6 +67,11 @@ export interface InterviewContext {
   position: number
   /** T5, T9: where this reporter stands with the player (absent = neutral; the feud side is dropped for "Go easy"). */
   relationship?: RelLevel
+  /**
+   * Task background-b2: CONFIRMED background facts about the player (admin-approved; never a
+   * proposed or rejected one; none for "Leave me out"). Context only, never the player's words.
+   */
+  background?: readonly { part: string; text: string }[]
 }
 
 /** A question: as many writes as a scrum question (`ASK_MAX_WRITES`, raised by the Lead on 2026-11-13). */
@@ -134,6 +139,13 @@ function questionPrompt(ctx: InterviewContext): string {
         (t) =>
           `- ${t.take}${t.dataAngle === null ? '' : ` (data angle: ${t.dataAngle})`}${t.mild ? ' (keep it mild)' : ''}`,
       ),
+    )
+  }
+  if (ctx.background !== undefined && ctx.background.length > 0) {
+    lines.push(
+      '',
+      `Confirmed background about ${name} (facts the admin approved; context only: never ${name}'s words, never quote them, never say where they come from; hockey only):`,
+      ...ctx.background.map((f) => `- ${f.text}`),
     )
   }
   lines.push('')
@@ -295,7 +307,7 @@ export async function askInterviewQuestion(
       criticizedForReview: () => [],
       takesForReview: interviewTakes(ctx),
       reviewRules: easyRules(ctx),
-      trusted: { gmNotes: [], answers: usable },
+      trusted: { gmNotes: (ctx.background ?? []).map((f) => f.text), answers: usable },
       maxWrites: INTERVIEW_MAX_WRITES,
       facts: ctx.facts,
       record,

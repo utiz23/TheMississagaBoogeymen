@@ -7,6 +7,13 @@ import { escapeMarkdown } from '../message.ts'
 import { costUsd } from '../news/cost.ts'
 import { pressForSheet } from '../news/press-material.ts'
 import { askQuestion, type AskContext, type Recorder, type ScrumHistoryEntry } from './asker.ts'
+import {
+  lostBy,
+  planBackgroundQuestion,
+  scrumAskCounts,
+  type BackgroundPlan,
+} from './background-ask.ts'
+import { backgroundStoreOf } from './background-store.ts'
 import { redactTakes } from '../news/redact.ts'
 import type { PressConfig } from './config.ts'
 import { fallbackLine, stepUpLine } from './fallbacks.ts'
@@ -18,6 +25,8 @@ import {
   type PressLevelNow,
 } from './relationships.ts'
 import type { PressDeps, PressStore } from './pass.ts'
+import type { WriterFact } from '@eanhl/db/queries'
+import { scrumMayAskBackground } from './background-rules.ts'
 import { subjectOf, type Subject } from './subject.ts'
 import { replyingTo } from './reply-ref.ts'
 import { isTestScrum } from './test-scrum-rules.ts'
@@ -91,7 +100,8 @@ export function scrumHistory(
     const by = a.reporter ?? scrumReporter
     const who = by === undefined ? {} : { by }
     // Rule C (T5): a crude answer goes in as no answer, whatever its label says.
-    return a.usability === 'unusable' || crudeHit(a.answer)
+    // An answer about a teammate (a background question) is never offered to a writer.
+    return a.usability === 'unusable' || crudeHit(a.answer) || a.aboutTeammate === true
       ? { question: a.question, answer: null, ...who }
       : { question: a.question, answer: a.answer, usability: a.usability, ...who }
   })
@@ -238,6 +248,8 @@ export async function scrumAskContext(
     gmTopic?: string
     /** T5, T9: where the asking reporter stands with the player (the asker drops the feud side for "Go easy"). */
     relationship?: RelLevel
+    /** Task background-b2: confirmed background facts about the player (own facts only). */
+    background?: readonly { part: string; text: string }[]
   } = {},
 ): Promise<AskContext> {
   const easy = onSheet.pressLevel === 'easy'
@@ -262,6 +274,9 @@ export async function scrumAskContext(
     ...(opts.usedQuestions === undefined ? {} : { usedQuestions: opts.usedQuestions }),
     ...(opts.gmTopic === undefined ? {} : { gmTopic: opts.gmTopic }),
     ...(opts.relationship === undefined ? {} : { relationship: opts.relationship }),
+    ...(opts.background === undefined || opts.background.length === 0
+      ? {}
+      : { background: opts.background }),
   }
 }
 
@@ -303,11 +318,12 @@ export async function startScrumQuestion(
   const status = person.status
   if (status !== 'pinged' && status !== 'asking') return false
   const scrum = person.scrum
-  const { panel } = await ensurePanel(deps, person)
+  const { panel, targetTotal } = await ensurePanel(deps, person)
   const reporter = reporterAt(panel, person.questionsAsked, scrum.reporter)
   const now = deps.now()
   let name = person.name
   let question: string | null = null
+  const bg: { plan: BackgroundPlan | null } = { plan: null }
 
   async function writeQuestion(matchId: number): Promise<string | null | 'off-sheet'> {
     const res = await deps.fetchFacts('game', String(matchId))
@@ -345,6 +361,56 @@ export async function startScrumQuestion(
       reporter,
       onSheet.pressLevel,
     )
+    // Task background-b2: confirmed background (admin-approved facts) for the ordinary writer, and
+    // the rare background question: only as the LAST question of the panel, at most one per person
+    // per 7 days, never after a loss by 3+ goals, only with the admin switch on.
+    const bs = backgroundStoreOf(store)
+    let own: WriterFact[] = []
+    if (bs !== null && person!.playerId !== null) {
+      try {
+        own = (await bs.getConfirmedBackground(person!.playerId, onSheet.pressLevel)).own
+      } catch (err: unknown) {
+        log(`[press] question: person ${String(personId)}: background not read (${reason(err)})`)
+      }
+      try {
+        const counts = await scrumAskCounts(bs, {
+          playerId: person!.playerId,
+          personId,
+          now,
+          isTest: scrum.isTest,
+        })
+        if (
+          person!.personRole === 'player' &&
+          scrumMayAskBackground({
+            isMember: true,
+            isTestScrum: false,
+            questionNumber: person!.questionsAsked + 1,
+            panelLength: panel.length,
+            targetTotalKnown: targetTotal !== null,
+            ...counts,
+            lostBy: lostBy(res.facts, matchId),
+          })
+        ) {
+          bg.plan = await planBackgroundQuestion(deps, bs, {
+            kind: 'scrum',
+            by: { scrumPersonId: personId },
+            playerId: person!.playerId,
+            name: onSheet.name,
+            pressLevel: onSheet.pressLevel,
+            isTest: scrum.isTest,
+            seed: personSeed(scrum.id, personId),
+            reporter,
+            res,
+            history,
+            relationship,
+            record: pressRecorder(store),
+          })
+          if (bg.plan !== null) return bg.plan.text
+        }
+      } catch (err: unknown) {
+        log(`[press] question: person ${String(personId)}: background question: ${reason(err)}`)
+      }
+    }
     let failed = false
     const written = await askQuestion(
       deps.call,
@@ -353,6 +419,7 @@ export async function startScrumQuestion(
         usedQuestions,
         relationship,
         ...(topic === undefined ? {} : { gmTopic: topic }),
+        ...(own.length === 0 ? {} : { background: own }),
       }),
       pressRecorder(store),
       {
@@ -455,6 +522,8 @@ export async function startScrumQuestion(
     at: now,
   })
   if (!claimed) return false
+  // The background ask is logged once its question is claimed (the posted text is the reporter's).
+  if (bg.plan !== null && text === bg.plan.text) await bg.plan.record()
   await discord.send(
     reporter,
     threadId,

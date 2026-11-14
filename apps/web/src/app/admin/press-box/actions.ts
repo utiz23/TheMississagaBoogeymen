@@ -16,6 +16,7 @@ import {
   queuePressBoxRequest,
   queueProfileRequest,
   removeNicknameWithAudit,
+  setBackgroundQuestionsWithAudit,
   setHeatWithAudit,
   setPressLevelWithAudit,
 } from '@eanhl/db/queries'
@@ -28,6 +29,7 @@ import {
   removeBackgroundBox,
   type BackgroundActionDeps,
 } from './background-box-actions'
+import { setBackgroundQuestionsBox } from './background-switch-actions'
 import {
   addNicknameBox,
   gmNoteBox,
@@ -74,6 +76,18 @@ function back(path: string, notice: ActionNotice, extra: string = ''): never {
 
 export async function setHeatAction(formData: FormData): Promise<void> {
   back('/admin/press-box', await setHeatBox(formData, deps))
+}
+
+/** The background questions switch (task background-b2): admin only, logged, default off. */
+export async function setBackgroundQuestionsAction(formData: FormData): Promise<void> {
+  back(
+    '/admin/press-box',
+    (await setBackgroundQuestionsBox(formData, {
+      requireAdmin: deps.requireAdmin,
+      now: deps.now,
+      setBackgroundQuestionsWithAudit,
+    })) as ActionNotice,
+  )
 }
 
 export async function runTestScrumAction(): Promise<void> {

@@ -25,6 +25,7 @@ import {
   type NewsReporterId,
 } from '../schema/index.js'
 import { nightKeySql } from './news.js'
+import { interviewAnswerIsAboutTeammateSql } from './press-background-sql.js'
 
 // Press interview queries (migration 0074). Each query has a `…Sql` / `…Query`
 // builder that a test pins (`__tests__/news-interviews.test.ts`), and an async
@@ -338,6 +339,8 @@ export interface InterviewAnswer {
   question: string
   answer: string
   usability: 'usable' | 'joke' | 'unusable'
+  /** The answer to a background question about a teammate: never offered to a writer (0084). */
+  aboutTeammate?: boolean
 }
 
 export function listInterviewAnswersQuery(interviewId: number) {
@@ -355,7 +358,24 @@ export function listInterviewAnswersQuery(interviewId: number) {
 }
 
 export async function listInterviewAnswers(interviewId: number): Promise<InterviewAnswer[]> {
-  return listInterviewAnswersQuery(interviewId)
+  try {
+    return await db
+      .select({
+        position: newsInterviewAnswers.position,
+        isFollowup: newsInterviewAnswers.isFollowup,
+        question: newsInterviewAnswers.question,
+        answer: newsInterviewAnswers.answer,
+        usability: newsInterviewAnswers.usability,
+        // The table name, not the column object (a single-table select renders columns bare).
+        aboutTeammate: sql<boolean>`${interviewAnswerIsAboutTeammateSql('news_interview_answers')}`,
+      })
+      .from(newsInterviewAnswers)
+      .where(eq(newsInterviewAnswers.interviewId, interviewId))
+      .orderBy(asc(newsInterviewAnswers.position), asc(newsInterviewAnswers.id))
+  } catch {
+    // Before migration 0084 there is no ask table, so no answer about a teammate.
+    return listInterviewAnswersQuery(interviewId)
+  }
 }
 
 /**
