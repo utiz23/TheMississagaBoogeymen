@@ -1,10 +1,10 @@
 # Board
 
-**Lead chat now:** `Lead` (session tag `08efa5`; task chats send to "Lead"). Task chats: T3 done (`eanhl-team-website-f2`), T4 done (`eanhl-team-website-0d`); T5 = the Lead's own task agent (since 2026-11-13 evening).
+**Lead chat now:** `Lead2` (session ref `647652`; started 2026-11-14 03:16 CST as the new Lead; task chats and the engine Lead send to "Lead2"; a new Lead updates this line first). Earlier: `Lead` (ref `08efa5`; 2026-11-13 to 2026-11-14 03:16, stood down; its E1 task agent finishes inside it and reports to Lead2).
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 2 task agents at once; 3 open operator decisions. Updated 2026-11-13 by the Lead.
+Limits: 2 task agents at once; 3 open operator decisions. Updated 2026-11-14 03:16 CST by Lead2.
 
 ## Open tasks
 
@@ -25,7 +25,7 @@ Limits: 2 task agents at once; 3 open operator decisions. Updated 2026-11-13 by 
 | [T8 `/gm testscrum` (no AI)](tasks/2026-11-14-discord-press-test-scrum.md)                          | Discord                 | low    | Deployed 11-14                                                  | first real run: operator's `/gm testscrum`               |
 | [T9 relationships: open war ↔ glazing](tasks/2026-11-14-discord-press-relationships.md)             | Discord + DB            | medium | Deployed 11-14 (0078)                                           | watch the first game night                               |
 | [T10 Talk to the press when already in](tasks/2026-11-14-discord-press-talk-button.md)              | Discord                 | low    | Deployed 11-14                                                  | done                                                     |
-| [E1 live events endpoint + fast EA poll](tasks/2026-11-14-web-live-events-e1.md)                    | Web + Worker + DB + Ops | high   | Ready                                                           | Lead starts it; port, migration, deploy with operator OK |
+| [E1 live events endpoint + fast EA poll](tasks/2026-11-14-web-live-events-e1.md)                    | Web + Worker + DB + Ops | high   | Running (agent in the old Lead chat)                            | review + merge; port, migration, deploy with operator OK |
 | [L1 Press Box: overview + relationships board + log](tasks/2026-11-14-web-press-box-l1-overview.md) | Web + DB                | medium | Ready (after T8, T9)                                            | design approved 11-14                                    |
 | [L2 Press Box: dossiers + AI profiles](tasks/2026-11-14-web-press-box-l2-dossiers.md)               | Web + DB                | medium | Ready (after L1)                                                |                                                          |
 | [L3 Press Box: storylines + takes editor](tasks/2026-11-14-web-press-box-l3-storylines.md)          | Web + DB                | medium | Ready (after L2)                                                |                                                          |

@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 03:13 CST** (Lead). All tasks: `docs/board.md`.
+Last update: **2026-11-14 03:16 CST** (Lead2, the new Lead chat). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -16,15 +16,11 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums) |
 | T9 relationships + T10 Talk fix | LIVE since 2026-11-14                                                                                        |
-| E1 live events endpoint         | running (task agent)                                                                                         |
-| Press Box L1                    | Ready, after the deploy of T9                                                                                |
+| E1 live events endpoint         | running (task agent in the old Lead chat; reports to the new Lead `Lead2`)                                   |
+| Press Box L1                    | Ready; can start now (T8 + T9 deployed). Lead2 starts it when you say go.                                    |
 
 ## 3. Your to-dos (only you can do these)
 
-- **Name the Lead chat tab** (for example `website-lead`) and tell the Lead, so task chats can find it.
-- **Press bots:** LIVE in the game channel since 11-13 (first live scrum: "a big hit with the team").
-  **Turn on "Message Content Intent" for Wade Barlow** (developer portal → Wade Barlow → Bot) and tell
-  the Lead: typed answers (T1) need it. T1 → T2 → T3 are being built.
 - **Anthropic workspace limit:** set it to $100 a month to match the news desk cap ($100 on
   Hotel-Echo since 11-13; scrums stop at $80). November so far: $15.17.
 

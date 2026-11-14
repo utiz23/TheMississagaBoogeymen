@@ -1,6 +1,6 @@
 # Task: E1 — live events endpoint (Tailscale only) and fast EA polling at the horn
 
-- **State:** Ready (operator 2026-11-14: plan approved, E1–E3 now; route left to the Lead: Tailscale only)
+- **State:** Running (since 2026-11-14 ~03:09; task agent inside the old Lead chat `Lead` 08efa5) (operator 2026-11-14: plan approved, E1–E3 now; route left to the Lead: Tailscale only)
 - **Lane:** Web (endpoint), Worker (fast poll), Database (one migration), Ops (compose port)
 - **Risk:** high (a new listening port on Hotel-Echo; a new writer into the database) — the port and
   the deploy are the operator's OK
@@ -55,7 +55,10 @@ All checks pass and the tests pin the rules above; the runbook shows how a sende
 
 - 2026-11-14 Lead: written from the approved plan.
 - 2026-11-14 Lead: the sender may run on the main PC or on Hotel-Echo (engine Lead); both paths in.
+- 2026-11-14 03:16 Lead2: State was still "Ready" here and on the board after the 03:09 "E1 running"
+  commit (that commit changed only the dashboard). Set to Running. Branch `work/live-events-e1` has
+  `bc7eef72` (migration 0079 + queries) and web work not yet committed. New Lead is `Lead2`.
 
-Resume: start the task agent (Opus: security-sensitive).
+Resume: task agent finishes, writes the Report, rebases, sets Verify; Lead2 reviews and merges.
 
 ## Report
