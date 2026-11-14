@@ -26,8 +26,8 @@ commit/push rules in `CLAUDE.md`.
 $100, `PRESS_TYPED_ANSWERS=1`, `PRESS_WIRE_REPLIES=1`, coach `PRESS_COACH_USER_IDS`). Live (migrations
 0072–0078): typed answers, one thread per player, 3-reporter panels, `/gm ask|note|interview|testscrum`,
 interviews + Q&A articles, Discord replies, hard lines, relationships (open war ↔ glazing; Father Rink
-never feuds), bench voices from the call, free test scrums. Tasks T1–T10 in `docs/tasks/`. Next:
-**E1** live events (running), then **Press Box** L1–L4 (`/admin/press-box`, design approved).
+never feuds), bench voices from the call, free test scrums. Tasks T1–T10 in `docs/tasks/`. **E1** live
+events merged (deploy = D2); **Press Box** L1 running, then L2–L4 (`/admin/press-box`).
 
 ## Current Objective / Status
 
@@ -51,16 +51,14 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 ## Latest Verified Checkpoint
 
 **Latest deploys 2026-11-14:** T3–T10 on Hotel-Echo (rollback tags `:rollback-he-2026-11-14-pre-*`;
-backups `~/eanhl-backups/manual/eanhl-pre-00{74..78}*-2026-11-14.dump`). Earlier 11-09/11-13 deploys:
-journal.
+backups `~/eanhl-backups/manual/eanhl-pre-00{74..78}*-2026-11-14.dump`); 03:42 backup hardening
+(`backup` only; `:rollback-he-2026-11-14-pre-hardening`; lock proven live). Earlier: journal.
 
 **2026-10-26: club-only badges** (web, worker, discord `06992a2`; rollback `:rollback-he-2026-10-26-pre-club-badges`; card dump `~/eanhl-backups/manual/cards-pre-rebase-2026-10-26-1600.dump`). Badges count club games only; NHL 27 card history reset once (`card-recompute --rebase`). [Spec](docs/superpowers/specs/2026-10-26-club-only-badges-design.md).
 
 **2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean.
 
-**2026-10-09 — responsive sizes deployed** (`fb40008`, web; rollback `:rollback-he-2026-10-09-pre-responsive`): size tiers; Charts & Visuals and Recent Form removed (`4095e49`, `:…-pre-no-form`).
-
-**2026-10-08 — Awards + migration 0064** (`d038b36`; rollback `:rollback-he-2026-10-08-pre-awards`; 0064 rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`). [Journal](docs/journal/2026-10.md).
+**2026-10-09 responsive sizes** (`fb40008`, `:rollback-he-2026-10-09-pre-responsive`). **2026-10-08 Awards + 0064** (`d038b36`; `:rollback-he-2026-10-08-pre-awards`; 0064 rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`).
 
 **2026-10-08 — player cards, AI goalies, position filter deployed** (`29ee6a2`; migrations 0060–0063; rollbacks `:rollback-he-2026-10-08-pre-{cards,ai-goalies,positions}`, dumps `~/eanhl-backups/pre-*-2026-10-08-*.dump`). Lehmann / Wagner (AI goalies) and pinned Jimmy Cap are players. [Journal](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
 
@@ -68,8 +66,8 @@ journal.
 
 **2026-10-05 — launched; security update + polish deployed** (`67ff9c4`; public checks all passed). Full checkpoint: [archive 2026-10-09](docs/archive/handoff-history-2026-10-09.md), [journal 2026-10-05](docs/journal/2026-10.md).
 
-- **Codex review of the nightly backup done** (2026-10-09): four P2s, none
-  affecting live today; open, operator to decide on fixes (journal 10-09).
+- Nightly backup Codex P2s (10-09): items 2–4 fixed and live 2026-11-14; item 1 (blank
+  `HC_PING_URL` silences alerts) open, live has it set.
 - Parked, local-only branches: `park/codex-claude-bridge`,
   `park/roster-stats-design-inputs` (real player data; not for merging).
 
@@ -138,9 +136,10 @@ None.
 
 ## Next 1-3 Actions
 
-1. **E1 live events** (task agent running in the old Lead chat): review, merge, then the operator's OK
-   for the Tailscale-bound port, migration and deploy. Engine side E2 waits for OBS-EC (engine Lead
-   `[LEAD4]`; plan `docs/superpowers/specs/2026-11-14-live-events-interface.md`).
-2. **Press Box L1** (`docs/tasks/2026-11-14-web-press-box-l1-overview.md`), then L2–L4.
-3. Watch the next game night (relationships, own threads, typed answers); open, small: backup hardening,
-   Contribution Wheel warning, card pace at mid-season.
+1. **D2 — deploy E1** (merged `314854ad`): Codex second opinion first (secrets + a new way in), then
+   runbook §6 (`docs/operations/runbooks/live-events.md`): 0079, two `.env` secrets, `web` + `worker`,
+   `tailscale serve` 3100 (no Docker port on the Tailscale address: Docker does not wait for tailscaled).
+   Engine E2 sender waits for OBS-EC (engine Lead `[LEAD4]`).
+2. **Press Box L1** (Lead2's task agent; screenshots to the operator before merge), then L2–L4.
+3. Check the 11-15 03:00 backup (5/5); watch the next game night; small: Contribution Wheel warning,
+   prettier red on 8 old files, card pace at mid-season.
