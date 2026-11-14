@@ -1,6 +1,6 @@
 # Task: T6 — one thread per player, reporters reply to the player, no Answer button
 
-- **State:** Merged (Lead review 2026-11-14); deploy `press` waits for the operator's explicit OK
+- **State:** Deployed 2026-11-14 (`press`, rollback `:rollback-he-2026-11-14-pre-t6`)
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** medium (live scrum and interview flow)
 - **Slug:** press-player-threads (branch `work/press-player-threads`, worktree
@@ -74,6 +74,8 @@ All checks pass and the tests above pin the behaviour.
 - 2026-11-14 Lead review: rebased on f356aafa (docs only); paths inside "May edit" plus rulings 65-69;
   no migration. Re-ran: typecheck db/discord/web/worker clean; discord 782/782; news-press 49/49;
   prettier clean. Deploy `press` only.
+
+- 2026-11-14 Lead: deployed on the operator's "deploy T6": `press` rebuilt at 76404671; "started (live) … typed answers on". First live scrum is the test (thread from another bot's ping, Barlow join, no button).
 
 ## Report
 

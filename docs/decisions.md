@@ -6,9 +6,9 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                         | My advice                       | Waiting costs                          |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | -------------------------------------- |
-| D1  | Deploy T6 (one thread per player, reporters reply to the player, no Answer button)? `press` only, no migration; merged and checked. The permission check blocked the Lead's deploy, so it needs your explicit OK | Yes, before the next game night | Shared threads and Answer buttons stay |
+| ID  | Question  | My advice | Waiting costs |
+| --- | --------- | --------- | ------------- |
+| -   | none open | -         | -             |
 
 ## 2. Your to-dos (only you can do these)
 
