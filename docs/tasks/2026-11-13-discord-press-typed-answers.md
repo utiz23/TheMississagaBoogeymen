@@ -1,6 +1,6 @@
 # Task: T1 — typed scrum answers, 15-minute accept, softer answer judge
 
-- **State:** Ready (operator 2026-11-13: "start", after the first live scrum)
+- **State:** Verify (task agent done 2026-11-13; the Lead repeats the checks)
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** medium (live bots in the team channel; reads messages in scrum threads)
 - **Slug:** press-typed-answers (branch `work/press-typed-answers`, worktree
@@ -72,4 +72,80 @@ Stop and write "Blocked" in the Log when a schema change is needed, or anything 
 
 ## Log
 
+- 2026-11-13: Work done on `work/press-typed-answers`. All edits are inside "May edit".
+- NEEDS THE LEAD (outside "May edit", not done): `docker-compose.yml` lists every env var of the
+  `press` service by name. Add `PRESS_TYPED_ANSWERS: ${PRESS_TYPED_ANSWERS:-}` to the `press`
+  service, or the flag in `.env` never reaches the container and typed answers stay off.
+- Deliberately NOT changed: `judgeAnswer` still fails closed to unusable when the reporter's reply
+  line fails the code check or the review (an earlier ruling, pinned by a test). See the cause below.
+
 ## Report
+
+**What changed**
+
+1. Typed answers. New `onTypedAnswer` (interactions.ts) finds the person whose question is open for
+   that Discord user in that thread (new db query `findOpenQuestionInThread`) and calls
+   `onAnswerSubmit` with the current counters as `seen`, so the claim, the judge, the storage and the
+   next step are the pop-up path. A typed answer is not echoed (it is already in the thread).
+   Refusals (answered first, window over, empty) are logged, never shown. Gateway: `createMessageRouter`
+   (ignores bots, webhooks, other servers, non-plain messages, outside threads, empty text) and
+   `attachMessages` (new messages only, so edits are never read), on Barlow only.
+2. Intents. `PRESS_TYPED_ANSWERS=1` (exactly `1`; default off) -> `config.typedAnswers`.
+   `clientIntents()` adds `GuildMessages` + `MessageContent` to Barlow only with the flag. If Discord
+   refuses the login for intents (4014 / DisallowedIntents) the log says: turn on Message Content
+   Intent for Wade Barlow or set `PRESS_TYPED_ANSWERS=0`. Barlow keeps retrying (30 s, doubling).
+   Until the switch is on, Barlow (commands and reactions too) is off: set the flag only after the
+   portal switch is on.
+3. Accept window 15 minutes: `PRESS_ACCEPT_MS` and db `PRESS_ACCEPT_WINDOW_MS` = 15 min; the hard-coded
+   `interval '5 minutes'` in `nightHasActiveScrumSql` is now 15 minutes; the test fake used 300_000
+   (now the constant); comments and tests updated. No user-facing text said "5 minutes".
+4. Softer judge: rule 11 and 12 in `JUDGE_RULES` (asker.ts). Fair, blunt or sour hockey answers are
+   usable; banter at the fictional reporter is a joke, never unusable; unusable only for real life,
+   abuse of a real person, slurs, a teammate's private matters, no content; when close, not unusable.
+   `NEWS_RULES_VERSION` -> `2026-11-13.2`.
+5. Logging: every code path that stores an answer unusable without the model's verdict now logs one
+   line (no answer text): no game, budget spent, off the sheet, forbidden name, or judgement failed
+   closed with its reason. Before, the fail-closed path logged nothing.
+6. `.env.example` and the setup runbook (Message Content Intent on for Barlow only, when typed
+   answers are used).
+
+**Cause of the 11-13 unusable verdicts (honest: not provable from this machine)**
+
+The stored value `unusable` is the same on every path, and the old code logged nothing on the
+fail-closed paths. I had no live access (no ssh). There are four ways an answer ends `unusable`:
+(a) the model said unusable (rule 11 was narrow but vague: "abuse", no word on banter);
+(b) `judgeAnswer` failed closed: the model's verdict was fine, but its reply line (closing or
+follow-up) failed the code check or the review twice, or the call threw/refused, and the fallback
+discards the verdict; (c) the answer names a forbidden person (a guest, a "Leave me out" player)
+-> unusable with no model call; (d) budget spent or off the sheet.
+(d) is unlikely (the scrum went on). For Silky's fair answer, (a) is unlikely; (b) or (c) fits better.
+Erb and Ordinary_Samich fit (a) (banter read as "abuse") and (b) (an in-character reply to
+"keep your nose out" is the kind of line a review rejects). Common word in two of the three answers
+is "Gord"; if a forbidden name (gamertag or profile name of a guest) equals a word in them, (c) is the
+cause. To settle it: on the next scrum read the press log. The new lines name the path.
+Suggested decision for the operator/Lead (not done, it reverses the "Fix round 1" ruling): when the
+model gave a valid usable/joke verdict and only the reply text failed, keep the verdict and use
+`FALLBACK_CLOSING`.
+
+**Checks (all in the worktree)**
+
+- `pnpm --filter @eanhl/db build`: ok. Typecheck db, discord, web: all clean.
+- `pnpm --filter @eanhl/discord test`: 583 tests, 583 pass, 0 fail.
+- `node --test packages/db/dist/queries/__tests__/news-press.test.js`: 39 tests, 39 pass.
+- Prettier `--check` on all changed .ts/.md files: clean (`.env.example` has no parser).
+- New tests: typed answer = pop-up result (same rows), no echo; next question after a typed answer;
+  ignored for another user / other thread / no open question / not asking / window over / empty;
+  600 chars cut to 500; typed + pop-up at once store one answer; stale pop-up refused after a typed
+  answer; unusable never echoed; intents only with the flag and only on Barlow; 4014 detection;
+  message router filters; accept window 15 min (10-minute-old ping accepted, 15-minute refused,
+  expiry pass); db SQL for the new query; judge prompt contains the banter rule; fail-closed log.
+- Not run: anything needing Docker, a live Discord login, or the live database.
+
+**Not done / risks**
+
+- `docker-compose.yml` env pass-through (see Log): needed before the flag can work.
+- Barlow's login fails while the flag is on and the portal switch is off. Set the flag only after
+  the operator confirms the switch.
+- No live check of the new prompt on real answers; the rule text is tested, the model's verdicts are not.
+- Deploy: `press` only (shared code under `apps/discord/src/news/` not changed; `packages/db` changed, so
+  the image must be rebuilt anyway).
