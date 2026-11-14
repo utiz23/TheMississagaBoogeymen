@@ -1,6 +1,6 @@
 # Task: CF2 — Club Finals in Discord: game post line, news desk and press weighting
 
-- **State:** Merged 2026-11-14 17:45 (`3f83283a`; operator D21 "approved"); deploy waits for the operator's OK (D22)
+- **State:** Deployed 2026-11-14 17:59 (operator: "deploy now")
 - **Lane:** Discord (`apps/discord/src/`), Queries (read CF1's derived states)
 - **Risk:** medium (what the channel reads on finals nights)
 - **Slug:** club-finals-cf2
@@ -58,7 +58,12 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   code 206) with a scrum open; a `press`/`news` restart could cut the scrum and the night's news. CF2 only
   changes 6v6 Club Finals games, none tonight so far. HE already holds the code (`c23e577c`).
 
-Resume: when the session is over and no scrum is open: rollback tags for `discord`, `news`, `press`; build
+- 2026-11-14 17:59 Lead2: operator "deploy now" (mid-session, accepted). Rollback tags
+  `eanhl-team-website-{discord,news,press}:rollback-he-2026-11-14-pre-cf2`; built and restarted all three.
+  press "started (live) … 9 bots" and "Barlow is in 3 of 3 open threads" (the open scrum kept); news live
+  ($100 cap); discord live.
+
+Resume: watch the next 6v6 Club Finals game's post line, news weight and scrum.
 and `up -d --no-deps discord news press`; check the start lines.
 
 ## Report (task agent fills when state = Verify)

@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 17:55 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 17:59 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -55,6 +55,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 17:58 · "deploy now" → CF2 (Club Finals in Discord) deployed 17:59 mid-session; the open scrum kept.
 - 2026-11-14 17:51 · "D22 D23 deploy" → finals card fix live 17:54; CF2 (Discord) held until tonight's session ends (a scrum was open).
 - 2026-11-14 17:45 · CF2 samples: "approved" → merged.
 - 2026-11-14 17:40 · DNF elimination (CF2): "Yes" → the post shows ELIMINATED; the news desk stays quiet, no scrum ping.
