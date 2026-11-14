@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 17:13 CST by Lead2. Fully done tasks leave the board; their files stay in `docs/tasks/`.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 17:39 CST by Lead2. Fully done tasks leave the board; their files stay in `docs/tasks/`.
 
 ## Open tasks
 
@@ -31,6 +31,7 @@ Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. 
 | [CF1 Club Finals: rounds, badges, page](tasks/2026-11-14-web-club-finals-cf1.md)                          | Worker + DB + Web       | medium      | Deployed 11-14 15:54 (0083)                                     | done                                         |
 | [CF2 Club Finals in Discord + news weighting](tasks/2026-11-14-discord-club-finals-cf2.md)                | Discord                 | medium      | Verify (Lead checks pass)                                       | D21 samples + DNF rule; then merge + deploy  |
 | [CF3 Club Finals look on the site](tasks/2026-11-14-web-club-finals-cf3.md)                               | Web                     | low-medium  | Deployed 11-14 16:47                                            | done                                         |
+| [CF3b finals card: tags in the top row, same height](tasks/2026-11-14-web-club-finals-card-tags.md)       | Web                     | low         | Running (Lead2's task agent)                                    | operator screenshots, then `web` deploy      |
 | [CF4 Club Finals stats](tasks/2026-11-14-web-club-finals-cf4.md)                                          | Worker + DB + Web       | medium      | Proposed                                                        | operator decides (after CF3)                 |
 
 ## Branches and worktrees from before v2

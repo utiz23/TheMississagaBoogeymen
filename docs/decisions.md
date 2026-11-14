@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 17:13 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 17:39 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -55,6 +55,8 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 17:39 · Finals game cards: "the extra stuff is messing with the height of the panel"; "put all the tags
+  in line with the 6s and 3s tag" → fix task CF3b started.
 - 2026-11-14 17:09 · "D20 deploy" → player background B2 deployed 17:12; switch OFF.
 - 2026-11-14 16:45 · "CF3 OK deploy" → finals look live 16:47. "D18-19 yes" → B2 privacy wording + samples approved, B2 merged.
 - 2026-11-14 16:15 · B2: "No cap on interviews. If a player requests an interview it's a random interview-worthy topic" (may be all background); "questions for reporters are approved" (none switched off); "4. yes". CF3: "axe the before and after".
