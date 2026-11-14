@@ -63,7 +63,18 @@ All checks pass; screenshots match the mock-up.
 
 - 2026-11-14 14:19 task agent: DONE migration 0081 (profiles table, request kinds profile/interview + target columns), schema, `press-box-dossiers.ts` queries (index, dossier read, actions with audit, request queue, profile store), db tests (11 new, 15 old still pass), press service: `news/profile.ts` (writer: one write + one review, no digits/quotes, Go easy rule, Leave me out refused before any call), `press/box-requests-profile.ts` (profile and interview handlers), tests (discord suite 864 pass, typecheck clean). Migration SQL not run: no database on this PC.
 
-Resume: web pages (`/admin/press-box/players`, `/players/[id]`), dossier actions, tab link, tests, screenshots.
+- 2026-11-14 14:39 Lead2: reviewed. Every new page and all six dossier actions call `requireAdmin`
+  first; `quotesSql` blanks question/answer for anything not usable/joke and filters those rows out;
+  counts read no answer column. Profile writer: budget check before any call, Leave me out = no read and
+  no call, Go easy = no criticism, no quotes, answers treated as data. 0081 only adds a table, columns
+  and checks (test scrums exempt from the target check; live has 0 request rows). Paths: all inside
+  "May edit". On current `main`: typecheck db/web/discord/worker clean; web 719/719; discord 864/864;
+  db press-box + dossiers 26/26; prettier clean. The 3 failing db `dist` tests (action-tracker-provenance,
+  match-lineups-cpu, run-quality) fail on `main` too: not from L2. Screenshots seen. One label is wrong:
+  the profile card says "one AI call", but a click makes 2 model requests (write + review).
+
+Resume: operator: screenshots (D7) and the two questions (D8 two requests per profile; D9 may an admin
+raise a "Leave me out" player). Then fix the label if needed, merge; deploy order 0081 → `press` → `web`.
 
 ## Report
 
