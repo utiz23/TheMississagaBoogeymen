@@ -19,7 +19,7 @@ Limits: 2 task agents at once; 3 open operator decisions. Updated 2026-11-13 by 
 | [T2 panel scrums + `/gm ask`](tasks/2026-11-13-discord-press-panel-gm-ask.md) | Discord + DB       | medium | Deployed 11-13 (0073 on live)                        | watch the next game night                           |
 | [T3 interviews](tasks/2026-11-13-discord-press-interviews.md)                 | Discord + DB + Web | medium | Merged `f3f4bda0` (not deployed)                     | operator OK: backup → 0074 → `press`, `news`, `web` |
 | [T4 Discord replies](tasks/2026-11-13-discord-press-replies.md)               | Discord + Web      | medium | Merged `7afe9396` (not deployed)                     | operator OK: deploy with T3                         |
-| [T5 hard lines + feuds](tasks/2026-11-13-discord-press-hard-lines-feuds.md)   | Discord + DB       | medium | Running (Lead's task agent)                          | Lead reviews and merges                             |
+| [T5 hard lines + feuds](tasks/2026-11-13-discord-press-hard-lines-feuds.md)   | Discord + DB       | medium | Merged (not deployed)                                | operator OK: deploy with T3 + T4                    |
 
 ## Branches and worktrees from before v2
 
