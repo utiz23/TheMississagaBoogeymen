@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 2 task agents at once; 3 open operator decisions. Updated 2026-11-14 03:16 CST by Lead2.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 03:20 CST by Lead2.
 
 ## Open tasks
 

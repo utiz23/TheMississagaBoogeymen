@@ -134,7 +134,8 @@ pnpm --filter <package> test                        # web: test:unit at least; d
 
 ## 9. Limits and rhythm
 
-- At most 2 task agents at once (the operator has a few hours a week). At most 3 open operator
+- At most 3 task agents at once (operator, 2026-11-14: "I typically run 3 tasks at once"; the Lead may
+  ask the operator for more or fewer when the work calls for it). At most 3 open operator
   decisions; if 3 wait, the Lead starts no task that makes a fourth.
 - `docs/decisions.md` is the operator's live page. The Lead updates it after every merge, decision or
   new Ready task.

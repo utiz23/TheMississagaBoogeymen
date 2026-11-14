@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 03:18 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 03:20 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -49,6 +49,8 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 · Task agents at once: "I typically run 3 tasks at once, but you can petition me for more
+  or less" → limit 3 (was 2); the Lead may ask for more or fewer.
 - 2026-11-14 · EA load at the horn: "lets go with your advice" → E1 checks only the EA match lists at
   the horn and at +1, +2, +4, +8 min (worst case ~15 extra EA calls per game; was every 30 s for
   15 min, ~210). Normal 5-minute pass unchanged.
