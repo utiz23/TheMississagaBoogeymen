@@ -143,6 +143,11 @@ export interface LoopDeps {
   log: (line: string) => void
   /** Tests stop the loop with this; production never stops. */
   shouldStop?: () => boolean
+  /**
+   * Called at the start and the end of every step (normal pass, quick check, event read, database
+   * reads, cleanup, sleep). The watchdog (`watchdog.ts`) restarts the worker when this stops.
+   */
+  onProgress?: (step: string) => void
 }
 
 export class LiveCheckLoop {
@@ -160,6 +165,10 @@ export class LiveCheckLoop {
     this.cursor = { receivedAt: new Date(deps.now() - STALE_EVENT_MS), id: '' }
   }
 
+  private mark(step: string): void {
+    this.deps.onProgress?.(step)
+  }
+
   private stopped(): boolean {
     return this.deps.shouldStop?.() === true
   }
@@ -168,6 +177,7 @@ export class LiveCheckLoop {
     const d = this.deps
     let nextNormalAt = d.now()
     while (!this.stopped()) {
+      this.mark('loop')
       const now = d.now()
       if (now >= nextNormalAt) {
         const counted = this.series !== null && this.series.nextAt <= now
@@ -192,23 +202,31 @@ export class LiveCheckLoop {
       if (this.series !== null && this.series.nextAt <= d.now()) continue
       const wakeAt = Math.min(nextNormalAt, this.series?.nextAt ?? Number.POSITIVE_INFINITY)
       const remaining = wakeAt - d.now()
-      if (remaining > 0) await d.sleep(Math.min(EVENT_CHECK_MS, remaining))
+      if (remaining > 0) {
+        this.mark('sleep')
+        await d.sleep(Math.min(EVENT_CHECK_MS, remaining))
+        this.mark('sleep done')
+      }
     }
   }
 
   private async normalPass(): Promise<void> {
     const d = this.deps
+    this.mark('normal pass')
     try {
       await d.runNormalPass()
     } catch (err) {
       d.log(`[worker] Unhandled error in ingestion cycle: ${errorText(err)}`)
     }
+    this.mark('normal pass done')
     if (d.afterNormalPass) {
+      this.mark('after-cycle step')
       try {
         await d.afterNormalPass()
       } catch (err) {
         d.log(`[worker] after-cycle step failed: ${errorText(err)}`)
       }
+      this.mark('after-cycle step done')
     }
   }
 
@@ -217,6 +235,7 @@ export class LiveCheckLoop {
     const n = series.checksDone + 1
     const total = QUICK_CHECK_OFFSETS_MS.length
     let newGames = 0
+    this.mark('quick check')
     try {
       const r = await d.runQuickCheck(series.request)
       newGames = r.newGames
@@ -230,15 +249,19 @@ export class LiveCheckLoop {
         `[live-events] quick check ${String(n)}/${String(total)} (${series.triggerId}) failed: ${errorText(err)}`,
       )
     }
+    this.mark('quick check done')
     await this.settle({ newGames, counted: true })
   }
 
   private async readLatest(): Promise<number | null> {
+    this.mark('latest game read')
     try {
       return await this.deps.latestMatchId()
     } catch (err) {
       this.deps.log(`[live-events] could not read the latest club game: ${errorText(err)}`)
       return null
+    } finally {
+      this.mark('latest game read done')
     }
   }
 
@@ -264,21 +287,26 @@ export class LiveCheckLoop {
     const now = d.now()
     if (now - this.lastCleanup < CLEANUP_EVERY_MS) return
     this.lastCleanup = now
+    this.mark('cleanup')
     try {
       const n = await d.cleanup(new Date(now - RETENTION_MS))
       if (n > 0) d.log(`[live-events] deleted ${String(n)} events older than 30 days`)
     } catch (err) {
       d.log(`[live-events] cleanup failed: ${errorText(err)}`)
     }
+    this.mark('cleanup done')
   }
 
   /** Reads events stored since the last read; may start a series. */
   private async pollTriggers(): Promise<void> {
     const d = this.deps
     let rows: LiveEventTriggerRow[]
+    this.mark('event read')
     try {
       rows = await d.readTriggers(this.cursor)
+      this.mark('event read done')
     } catch (err) {
+      this.mark('event read done')
       const now = d.now()
       if (now - this.lastReadErrorLog >= READ_ERROR_LOG_EVERY_MS) {
         this.lastReadErrorLog = now
@@ -295,11 +323,13 @@ export class LiveCheckLoop {
       let latestMatchId: number | null = null
       if (this.series === null) {
         const eventTime = Math.min(row.at.getTime(), row.receivedAt.getTime())
+        this.mark('game-in check')
         try {
           gameAlreadyIn = await d.gameEndedSince(new Date(eventTime - GAME_IN_SLACK_MS))
         } catch (err) {
           d.log(`[live-events] could not check for the game: ${errorText(err)}`)
         }
+        this.mark('game-in check done')
         latestMatchId = await this.readLatest()
       }
       const outcome = applyTrigger(this.series, row, {

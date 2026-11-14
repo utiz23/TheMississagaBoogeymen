@@ -5,7 +5,7 @@
  *   - Required spoofed headers (EA API rejects requests without them)
  *   - Per-endpoint exponential backoff with jitter on 429/5xx
  *   - Configurable inter-request delay (throttle)
- *   - Cycle-level timeout via AbortController
+ *   - A per-request time limit (default 30 s, EA_REQUEST_TIMEOUT_MS), combined with any caller signal
  */
 
 const EA_API_BASE = 'https://proclubs.ea.com/api/nhl'
@@ -41,8 +41,33 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 // ─── Core fetch wrapper ───────────────────────────────────────────────────────
 
 export interface EaFetchOptions {
-  /** AbortSignal from the cycle-level timeout controller. */
+  /** The caller's own AbortSignal. Combined with the per-request time limit. */
   signal?: AbortSignal
+  /** Per-request time limit in ms. Default: `getRequestTimeoutMs()` (30 s). */
+  timeoutMs?: number
+}
+
+/** The per-request time limit when nothing is set. */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
+
+/**
+ * Per-request time limit in ms. Configurable via EA_REQUEST_TIMEOUT_MS; a missing, non-numeric or
+ * non-positive value gives the default. The limit covers the headers and the body.
+ */
+export function getRequestTimeoutMs(): number {
+  const parsed = parseInt(process.env.EA_REQUEST_TIMEOUT_MS ?? '', 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_REQUEST_TIMEOUT_MS
+}
+
+/** An EA request that did not finish within its time limit. Counts as a failed request. */
+export class EaTimeoutError extends Error {
+  constructor(
+    public readonly url: string,
+    public readonly timeoutMs: number,
+  ) {
+    super(`EA request timed out after ${String(timeoutMs)}ms: ${url}`)
+    this.name = 'EaTimeoutError'
+  }
 }
 
 export class EaApiError extends Error {
@@ -60,6 +85,8 @@ export class EaApiError extends Error {
  * Fetches a URL from the EA API with retry/backoff.
  * Retries on RETRYABLE_STATUS codes up to MAX_RETRIES times.
  * Non-retryable errors (400, 401, 403, 404) are thrown immediately.
+ * Every attempt has a time limit (headers and body). A timeout throws EaTimeoutError and is not
+ * retried; the caller's own abort throws the AbortError as before.
  *
  * Returns the parsed JSON body on success.
  */
@@ -72,21 +99,27 @@ export async function eaFetch<T>(url: string, options?: EaFetchOptions): Promise
       await sleep(delay)
     }
 
+    const timeoutMs = options?.timeoutMs ?? getRequestTimeoutMs()
+    const timeout = AbortSignal.timeout(timeoutMs)
+    const signal = options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout
+
     let response: Response
     try {
-      response = await fetch(url, {
-        headers: EA_REQUIRED_HEADERS,
-        // exactOptionalPropertyTypes: signal must be AbortSignal | null, not undefined
-        signal: options?.signal ?? null,
-      })
+      response = await fetch(url, { headers: EA_REQUIRED_HEADERS, signal })
     } catch (err) {
-      // Network error or abort — don't retry aborts
-      if (err instanceof Error && err.name === 'AbortError') throw err
-      throw new Error(`Network error fetching ${url}: ${String(err)}`)
+      throw mapFetchError(err, url, timeoutMs, options?.signal, timeout)
     }
 
     if (response.ok) {
-      return response.json() as Promise<T>
+      try {
+        return (await response.json()) as T
+      } catch (err) {
+        // The body can hang or break after the headers arrived; the same time limit covers it.
+        if (timeout.aborted || options?.signal?.aborted) {
+          throw mapFetchError(err, url, timeoutMs, options?.signal, timeout)
+        }
+        throw err
+      }
     }
 
     if (RETRYABLE_STATUS.has(response.status)) {
@@ -103,6 +136,27 @@ export async function eaFetch<T>(url: string, options?: EaFetchOptions): Promise
   }
 
   throw lastError ?? new EaApiError(0, url, 'Max retries exceeded')
+}
+
+/**
+ * Maps a failed fetch: the caller's own abort stays an AbortError (checked first), the time limit
+ * becomes EaTimeoutError, anything else is a network error.
+ */
+function mapFetchError(
+  err: unknown,
+  url: string,
+  timeoutMs: number,
+  callerSignal: AbortSignal | undefined,
+  timeout: AbortSignal,
+): Error {
+  if (callerSignal?.aborted) {
+    return err instanceof Error && err.name === 'AbortError'
+      ? err
+      : new DOMException('The operation was aborted.', 'AbortError')
+  }
+  if (timeout.aborted) return new EaTimeoutError(url, timeoutMs)
+  if (err instanceof Error && err.name === 'AbortError') return err
+  return new Error(`Network error fetching ${url}: ${String(err)}`)
 }
 
 // ─── Throttle ─────────────────────────────────────────────────────────────────

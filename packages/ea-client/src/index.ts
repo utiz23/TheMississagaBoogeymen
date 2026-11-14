@@ -1,4 +1,13 @@
-export { eaFetch, throttle, getApiBaseUrl, getRequestDelayMs, EaApiError } from './client.js'
+export {
+  eaFetch,
+  throttle,
+  getApiBaseUrl,
+  getRequestDelayMs,
+  getRequestTimeoutMs,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  EaApiError,
+  EaTimeoutError,
+} from './client.js'
 export type { EaFetchOptions } from './client.js'
 
 export {
