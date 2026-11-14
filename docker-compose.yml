@@ -203,6 +203,8 @@ services:
       # Typed answers in scrum threads: only 1 turns on Barlow's Message Content intent
       # (the portal switch must be on first, or Discord refuses Barlow's login).
       PRESS_TYPED_ANSWERS: ${PRESS_TYPED_ANSWERS:-}
+      # Replies to reporters' wire posts get an in-character answer (needs PRESS_TYPED_ANSWERS=1).
+      PRESS_WIRE_REPLIES: ${PRESS_WIRE_REPLIES:-}
       PRESS_TOKEN_BARLOW: ${PRESS_TOKEN_BARLOW:-}
       PRESS_TOKEN_VOSS: ${PRESS_TOKEN_VOSS:-}
       PRESS_TOKEN_MERCER: ${PRESS_TOKEN_MERCER:-}
