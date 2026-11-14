@@ -1,6 +1,6 @@
 # Task: CF2 — Club Finals in Discord: game post line, news desk and press weighting
 
-- **State:** Verify (task agent done 2026-11-14 17:07; branch `work/club-finals-cf2`; waits for the operator's OK on the samples) (operator 2026-11-14 15:07: "approve all 4 items")
+- **State:** Merged 2026-11-14 17:45 (`3f83283a`; operator D21 "approved"); deploy waits for the operator's OK (D22)
 - **Lane:** Discord (`apps/discord/src/`), Queries (read CF1's derived states)
 - **Risk:** medium (what the channel reads on finals nights)
 - **Slug:** club-finals-cf2
@@ -51,7 +51,10 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-14 17:07 task agent: branch `work/club-finals-cf2` and worktree made from `main` (a7b4d1cb). Read CF1 (queries, `club-finals-view.ts` words) and the poster, news desk and press code. Built: `apps/discord/src/club-finals.ts` (words, floor, facts, moment tone), poster line, news weighting and writer facts (game posts, game articles, night recap), press big moments + tone line. Tests added. Samples (fakes only) written. State = Verify.
 - Design choices the operator may change (all in `club-finals.ts`): floors normal / big / huge as in the Report; a DNF or "ended early" game keeps staying quiet (spec §12.12-3), so an elimination by DNF (game 3435) is not a big moment; the line says "Attempt N" (the site's word) and the series score after the game, never a before/after pair; the tone lines are in `MOMENT_TONE`.
 
-Resume: Lead repeats the checks on `work/club-finals-cf2`, shows `samples.md` (see the Report) to the operator, merges after the operator's OK; then the deploy of `discord`, `news`, `press` is the operator's call.
+- 2026-11-14 17:45 Lead2: operator "approved" (samples); DNF rule "Yes" (quiet, no ping). Rebased; discord
+  typecheck clean, 957/957; merged `--ff-only`. Deploy asked separately (it changes what posts in #chel).
+
+Resume: operator's OK (D22): deploy `discord`, `news`, `press` together (no migration).
 
 ## Report (task agent fills when state = Verify)
 
