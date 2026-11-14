@@ -1,21 +1,21 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 03:08 CST** (Lead). All tasks: `docs/board.md`.
+Last update: **2026-11-14 03:13 CST** (Lead). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                       | My advice                       | Waiting costs                                           |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------- |
-| D1  | Deploy T9 (relationships: open war ↔ glazing, Rink never feuds) + T10 (Talk to the press fix)? Build images → backup → migration 0078 → `press`, `news`, `web` | Yes, before the next game night | Feuds stay feud-only; Talk to the press stays confusing |
+| ID  | Question  | My advice | Waiting costs |
+| --- | --------- | --------- | ------------- |
+| -   | none open | -         | -             |
 
 ## 2. Right now
 
 | What                            | State                                                                                                        |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Press bots                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums) |
-| T9 relationships + T10 Talk fix | merged, waiting for D1                                                                                       |
+| T9 relationships + T10 Talk fix | LIVE since 2026-11-14                                                                                        |
 | E1 live events endpoint         | running (task agent)                                                                                         |
 | Press Box L1                    | Ready, after the deploy of T9                                                                                |
 
@@ -53,6 +53,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 · "agreed. deploy" → T9 + T10 deployed (0078); new Lead chat after this deploy.
 - 2026-11-14 · Live events route: "this is going to run on hotel echo, otherwise I am not sure, your
   call" → Lead: Tailscale only (main PC over Tailscale, or Hotel-Echo locally). Plan: "approved". Big
   moments: "Your list sounds right, we can adjust this later."

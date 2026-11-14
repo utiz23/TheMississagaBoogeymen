@@ -1,6 +1,6 @@
 # Task: T9 — relationships: one scale from open war to glazing, plus reporter dispositions
 
-- **State:** Merged (Lead review 2026-11-14); deploy waits for the operator's OK
+- **State:** Deployed 2026-11-14 (rollback `:rollback-he-2026-11-14-pre-t9`; backup `eanhl-pre-0078-2026-11-14.dump`; 0078 applied)
 - **Lane:** Discord (`apps/discord/src/press/`, `apps/discord/src/news/`), Database (one migration)
 - **Risk:** medium (tone of posts about players; data model change of T5's feuds)
 - **Slug:** press-relationships

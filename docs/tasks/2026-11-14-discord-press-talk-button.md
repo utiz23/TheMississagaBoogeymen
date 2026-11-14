@@ -1,6 +1,6 @@
 # Task: T10 — "Talk to the press" for someone already in the scrum
 
-- **State:** Merged (Lead review 2026-11-14); deploy `press` waits for the operator's OK
+- **State:** Deployed 2026-11-14 (with T9; rollback `:rollback-he-2026-11-14-pre-t9`)
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** low
 - **Slug:** press-talk-button
