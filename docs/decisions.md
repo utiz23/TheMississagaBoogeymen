@@ -6,9 +6,9 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                           | My advice | Waiting costs                           |
-| --- | ------------------------------------------------------------------------------------------------------------------ | --------- | --------------------------------------- |
-| D1  | After T8: deploy `press` and run `/gm testscrum` in `#bot-test` (free) to test T6 + T7 before the next game night? | Yes       | Problems would show in the main channel |
+| ID  | Question                                                                                                     | My advice                      | Waiting costs                     |
+| --- | ------------------------------------------------------------------------------------------------------------ | ------------------------------ | --------------------------------- |
+| D1  | Deploy T8 (`/gm testscrum`, free test scrums in `#bot-test`)? `press` only, no migration; merged and checked | Yes: then test T6 + T7 with it | You wait for a game night to test |
 
 ## 2. Your to-dos (only you can do these)
 
