@@ -1,14 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 18:50 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 18:55 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                       | My advice            | Waiting costs           |
-| --- | -------------------------------------------------------------------------------------------------------------- | -------------------- | ----------------------- |
-| D26 | Deploy Press Box L3 (storylines + takes editor)? Fresh backup, migration 0085, news + press, then the website. | Yes, at a quiet time | Storylines tab not live |
+| ID  | Question  | My advice | Waiting costs |
+| --- | --------- | --------- | ------------- |
+| -   | none open | -         | -             |
 
 ## 2. Right now
 
@@ -20,7 +20,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                                                                           |
 | Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights.                                                   |
 | Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                                                                                |
-| Press Box L3 (storylines + takes editor)        | merged; deploy is D26. L4 (reporter editor) can start.                                                                                                                    |
+| Press Box L3 (storylines + takes editor)        | LIVE since 18:54 at `/admin/press-box/storylines` (the takes editor moved here from /admin/news).                                                                         |
 | Press Box L4 (reporter editor)                  | running (task agent); you get screenshots and one sample line before the merge                                                                                            |
 | Player background                               | LIVE: B1 (blank fact sheets, your editor) and B2 (17:12). **The switch is OFF**: turn it on in the Press Box overview when you want the bots to ask background questions. |
 | Club Finals                                     | LIVE since 15:54: the Club Finals card on the home page and round badges on games. CF3 (finals look) running; CF2 (Discord + news) after B2.                              |
@@ -57,6 +57,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 18:51 · "deploy Press Box L3." → L3 deployed 18:54 (mid game night; the open scrum kept).
 - 2026-11-14 18:50 · "start L4" → Press Box L4 started. Engine export WX1: Ready must be given in the engine chat.
 - 2026-11-14 18:44 · Goals by period: "go on all 3" → engine export Ready; your 10-09 hold on video data → live
   database lifted for goals + shots per period ("read from video", backup before each import); website task P1 started. L3 screenshots "yes" → L3 merged.

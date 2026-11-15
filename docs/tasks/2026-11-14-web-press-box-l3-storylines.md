@@ -1,6 +1,6 @@
 # Task: L3 — Press Box: storylines, trends, takes and stances editor
 
-- **State:** Merged 2026-11-14 18:46 (`f060cd49`; operator D25 "yes"); deploy waits for the operator's OK
+- **State:** Deployed 2026-11-14 18:54 (operator: "deploy Press Box L3.")
 - **Lane:** Web, Queries, Database (flags), Discord (writers read pins)
 - **Risk:** medium (edits feed the writers)
 - **Slug:** press-box-l3
@@ -47,7 +47,13 @@ All checks pass; screenshots match the mock-up.
   prompt). Checks green (Report). Screenshots taken on the live DB, read-only tunnel (login bypass was
   uncommitted and reverted; server and tunnel stopped; URL file deleted).
 
-Resume: the Lead reviews the branch `work/press-box-l3`, shows the screenshots to the operator, then merges. Deploy
+- 2026-11-14 18:55 Lead2: deployed during a game night (last game 18:39, a scrum open; operator asked). Backup
+  `~/eanhl-backups/manual/eanhl-pre-0085-2026-11-14.dump` (29 MB, 96 table-data entries); 0085 applied
+  (`news_storylines`); rollback tags `eanhl-team-website-{news,press,web}:rollback-he-2026-11-14-pre-l3`; `news` +
+  `press` (press rejoined 3 of 3 open threads: the scrum kept), then `web`. `/` and `/news` 200; storylines and
+  /admin/news 307 → login signed out.
+
+Resume: operator tries a pin on the Storylines tab.
 order is in the Report.
 
 ## Report
