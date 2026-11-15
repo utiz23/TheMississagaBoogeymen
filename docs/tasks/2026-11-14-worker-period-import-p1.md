@@ -165,7 +165,30 @@ Resume: the Lead reviews the report and screenshots, a Verifier re-runs the chec
 
 ## Verifier result (Verifier fills)
 
-- **Ran:**
+- **Ran (2026-11-14, own worktree `.claude/worktrees/verify-p1`, detached at `c7f4f958`, then branch `verify/period-import`):**
+  1. A Python script, written without the branch code, read all 32 files in the engine snapshot and looked up each match on live
+     (read-only `psql` over SSH). Rule: write only if complete = true AND the match exists AND period goals sum = EA score on both sides.
+     (The query in the brief had an ambiguous `id`; I used `m.id`.)
+  2. The branch CLI in dry run on the same folder. The real database connection FAILED: the password in the main checkout's `.env`
+     is refused by Hotel-Echo (`password authentication failed`, tunnel 5443 worked, `default_transaction_read_only=on` was set).
+     I did not look for another password. Instead I ran the branch's compiled planner (`dist/lib/engine-periods.js` `importFolder`,
+     the same code the CLI calls) with a stub store: `findMatch` read live read-only over SSH, `replaceEngineRows` threw if called
+     (never called). The real SQL of the CLI's `dbStore` was not exercised by me.
+  3. Checks: db build; typecheck db, worker, web, discord; worker `node --test dist/__tests__/engine-periods.test.js`; db
+     `dist/queries/__tests__/period-rows.test.js`; web `test:unit`; prettier on the changed files (fixtures excluded).
+  4. `git diff --name-only main...work/period-import` against "May edit".
 - **Got:**
-- **Compared with claim:**
-- **Verdict:** pass | fail | pass with notes
+  - My decisions: 22 write, 10 skip (not complete), 0 refuse (no complete file lacks a match or has a sum mismatch).
+  - Branch planner: 22 INSERT, 6 SKIPPED, 4 REFUSED. The 22 written matches are identical to mine (same 22 EA match ids).
+  - The 4 differences are label only, none written: 3554411060318, 3596775060454, 3604287510034, 3850226150424 are not complete AND their
+    period sums differ from EA (0-2 vs 0-3, 0-2 vs 0-3, 1-1 vs 2-1, 1-2 vs 0-3). The branch calls them REFUSED, my rule called them skip.
+  - Written matches with a period-sum mismatch: 0. Every other match with a mismatch is an incomplete file and is not written.
+  - Live holds 259 `ocr` rows and no `engine_video` rows in `match_period_summaries` (no replace case in this folder).
+  - Checks: all four typechecks 0 errors; worker tests 29/29; db period-rows tests 6/6; web unit 768/768; prettier clean.
+  - Paths: all 25 changed files are inside "May edit" (worker fixtures folder, `EnrichmentSource` type line in the db schema, no migration, no
+    out-of-lane file).
+- **Compared with claim:** the Report's table (22 INSERT / 6 SKIPPED / 4 REFUSED, same match ids and sums) agrees with the planner run row by
+  row. Report claims about checks agree with my runs. The Report says the dry run used a read-only live connection; mine could not (password
+  refused), so I confirm the decision logic only, not the CLI's own SQL.
+- **Verdict:** pass with notes. Notes: (a) CLI SQL (`dbStore`) not verified by me, and `replaceEngineRows` real SQL has no test anywhere;
+  the Lead should check it on the first real run with a fresh backup; (b) the `.env` password on the main PC does not work on Hotel-Echo.
