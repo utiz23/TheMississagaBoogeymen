@@ -255,7 +255,7 @@ void test('stored profile and request shapes', () => {
       col,
     )
   }
-  assert.deepEqual([...PRESS_BOX_REQUEST_KINDS], ['testscrum', 'profile', 'interview'])
+  assert.deepEqual([...PRESS_BOX_REQUEST_KINDS], ['testscrum', 'profile', 'interview', 'preview'])
   for (const k of [
     'press_level',
     'nickname_add',

@@ -25,6 +25,7 @@ import {
 import type { NewsReporterId, PressHeat, PressHeatScope, PressLevel } from '../schema/index.js'
 import { REPORTERS } from '../news/reporters.js'
 import { MEMBER_CONDITION } from './club-members.js'
+import { refreshReporterOverrides } from './reporter-overrides.js'
 
 // Press Box queries (the admin page /admin/press-box, migration 0080, task press-box-l1).
 // The pure rules (`effectiveLevel`, `planRelationshipAction`) carry the tests; the async functions
@@ -687,6 +688,8 @@ async function readCells() {
 export async function listRelationshipBoard(
   now: Date,
 ): Promise<{ players: BoardPlayer[]; cells: BoardCell[] }> {
+  // The levels use each reporter's disposition, which the admin may have changed (Press Box L4).
+  await refreshReporterOverrides()
   const [players, cells] = await Promise.all([
     db.execute<{ id: string | number; name: string; gamertag: string; press_level: PressLevel }>(
       listBoardPlayersSql(),

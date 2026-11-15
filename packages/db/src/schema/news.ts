@@ -139,6 +139,9 @@ export const newsItems = pgTable(
     takesUsed: jsonb('takes_used').$type<number[]>().notNull().default([]),
     /** Part C3b: the version of the writing rules that wrote the item; null on older rows. */
     rulesVersion: text('rules_version'),
+    // `character_version` (migration 0087, Press Box L4) is deliberately NOT a column here: it is
+    // stamped by `insertNewsItem` in a separate best-effort statement and read with raw SQL, so an
+    // insert never fails on a database that has not got the migration yet.
     /**
      * Part C3b: do not send to Discord before this time (a big game's posts go out
      * a few minutes apart). Null = send now. Cleared when the delivery pass claims it.

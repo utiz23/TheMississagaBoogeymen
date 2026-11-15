@@ -211,6 +211,11 @@ export interface NewsStore {
   claimDueNewsItem(id: number): Promise<boolean>
   /** The reporters switched off on /admin/news (C3b.3); a reporter without a row is on. */
   listDisabledReporters(): Promise<ReporterId[]>
+  /**
+   * Press Box L4: reads the reporter character overrides into the process (never throws; a failed
+   * read keeps the last character). Optional: a store without it writes with the code characters.
+   */
+  refreshCharacter?(): Promise<boolean>
   /** A scrum of the night is live (someone is being asked, or was just pinged): the recap waits. */
   nightHasActiveScrum(night: string, includeTest: boolean): Promise<boolean>
   /** The night's usable and joke scrum answers and its active GM notes, oldest first. */
@@ -369,7 +374,12 @@ const message = (err: unknown) => (err instanceof Error ? err.message : String(e
 /** Discord's rate limit: stop sending this pass instead of sending into it. */
 const rateLimited = (err: unknown) => /HTTP 429\b/.test(message(err))
 
-const SYSTEM_PROMPT = buildSystemPrompt(Object.values(REPORTERS))
+/**
+ * The writers' system prompt: the rules, then each reporter's character (the code definition with the
+ * admin's overrides on top, Press Box L4), then the locked rules. Built per call so an edit made on
+ * the Reporters page reaches the next piece; the text is identical until an edit is saved.
+ */
+const systemPrompt = (): string => buildSystemPrompt(Object.values(REPORTERS))
 
 /** The review's view of the press material: the notes as lines, the answers by player. */
 function trustedOf(press: {
@@ -713,7 +723,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     try {
       const r = await writeChecked({
         call: deps.writer,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt(),
         ...args,
         record: (purpose, model, usage) =>
           store.recordNewsUsage({
@@ -810,6 +820,13 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
   }
 
   if (deps.now().getTime() < state.pausedUntil) return summary
+
+  // Press Box L4: the characters the writers read this pass (every item records the version).
+  try {
+    await store.refreshCharacter?.()
+  } catch (err: unknown) {
+    log(`the reporter characters could not be read — the last ones are used (${message(err)})`)
+  }
 
   // The per-reporter switch (C3b.3). A read error stops the writing: a benched reporter
   // must never write because the switch could not be read.

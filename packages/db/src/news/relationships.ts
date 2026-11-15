@@ -25,6 +25,7 @@
  *   (Father Rink: floor = neutral, never on the feud side).
  */
 
+import { getDispositionOverride } from './character.js'
 import { REPORTERS, type ReporterId } from './reporters.js'
 
 export const REL_LEVELS = ['war', 'feud', 'simmering', 'neutral', 'warm', 'fan', 'glazing'] as const
@@ -109,9 +110,9 @@ export function isPositive(level: RelLevel): boolean {
   return indexOf(level) > indexOf('neutral')
 }
 
-/** The reporter's disposition. */
+/** The reporter's disposition: the admin's override (Press Box L4) when there is one, else the code default. */
 export function dispositionOf(reporter: ReporterId): Disposition {
-  return REPORTERS[reporter].disposition
+  return getDispositionOverride(reporter) ?? REPORTERS[reporter].disposition
 }
 
 /** The reporter's range. */

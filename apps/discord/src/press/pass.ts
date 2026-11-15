@@ -64,6 +64,11 @@ import {
 
 /** The database side of the press (`pressDbStore` in store.ts). */
 export interface PressStore {
+  /**
+   * Press Box L4: reads the reporter character overrides into the process (never throws; a failed
+   * read keeps the last character). Optional: a store without it asks with the code characters.
+   */
+  refreshCharacter?(): Promise<boolean>
   getPressSettings(): Promise<NewsPressSettingsRow>
   setMirrorFrom(itemId: number): Promise<boolean>
   newestNewsItemId(): Promise<number | null>
@@ -273,6 +278,11 @@ export async function runPressPass(
       log(`[press] ${name}: ${reason(err)}`)
     }
   }
+
+  // ── 0. Press Box L4: the characters the bots read this pass ───────────────
+  await step('character', async () => {
+    await store.refreshCharacter?.()
+  })
 
   // ── 1. Mirror (trial only): copy new items into the test channel ──────────
   await step('mirror', async () => {

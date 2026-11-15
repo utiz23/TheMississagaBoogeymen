@@ -26,6 +26,7 @@ import {
   nightZeroCalled,
   insertStance,
   listDisabledReporters,
+  refreshReporterOverrides,
   listDueNewsItems,
   claimDueNewsItem,
   nightHasActiveScrum,
@@ -92,6 +93,8 @@ export const newsDbStore: NewsStore = {
   nightZeroCalled,
   insertStance,
   listDisabledReporters,
+  // Press Box L4: the reporter character overrides (migration 0087); a failed read keeps the last character.
+  refreshCharacter: () => refreshReporterOverrides({ maxAgeMs: 0 }),
   listDueNewsItems,
   claimDueNewsItem,
   nightHasActiveScrum,

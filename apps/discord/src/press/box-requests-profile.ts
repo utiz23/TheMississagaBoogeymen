@@ -39,7 +39,7 @@ export interface ProfileStoreMethods {
 
 export interface ClaimedRequest {
   id: number
-  kind: 'testscrum' | 'profile' | 'interview'
+  kind: 'testscrum' | 'profile' | 'interview' | 'preview'
   requestedBy: string
   targetPlayerId?: number | null
   targetDiscordUserId?: string | null

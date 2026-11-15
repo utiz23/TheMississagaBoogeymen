@@ -6,6 +6,7 @@ import {
   type ProfileStoreMethods,
 } from './box-requests-profile.ts'
 import type { PressDeps, PressStore } from './pass.ts'
+import { runPreviewRequest } from './box-requests-preview.ts'
 import { onGmTestScrum } from './test-scrum.ts'
 
 /**
@@ -13,7 +14,7 @@ import { onGmTestScrum } from './test-scrum.ts'
  *
  * The page cannot post to Discord (the bot tokens live here), so a button on the page writes one
  * request row. Every pass this service takes the oldest pending request and does it, then writes
- * a short private result back for the page to show. Today the only kind is `testscrum`: the same
+ * a short private result back for the page to show. The first kind is `testscrum`: the same
  * code as `/gm testscrum` (`onGmTestScrum`), run as the GM with the defaults (the latest game, the
  * GM as the only person asked). It makes no model call.
  *
@@ -79,6 +80,12 @@ async function runOne(
     return runProfileRequest(deps, config, store as ProfileStoreMethods, request)
   }
   if (request.kind === 'interview') return runInterviewRequest(deps, config, request)
+  // Press Box L4: one sample line from one reporter (one model call, nothing posted).
+  if (request.kind === 'preview') return runPreviewRequest(deps, config, request)
+  // Any other kind is NOT a test scrum: an unknown kind must never post to Discord.
+  if (request.kind !== 'testscrum') {
+    return { status: 'failed', result: 'This press service does not know that kind of request.' }
+  }
   try {
     const reply = await onGmTestScrum(deps, config, config.gmUserId, {
       inGuild: true,

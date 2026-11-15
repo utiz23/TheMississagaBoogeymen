@@ -2,6 +2,7 @@ import { REPORTER_IDS, REL_LEVELS, type RelLevel, type ReporterId } from '@eanhl
 import { BACKGROUND_NOTICE_TEXT } from './background-box-actions.ts'
 import { BACKGROUND_SWITCH_NOTICE_TEXT } from './background-switch-actions.ts'
 import { DOSSIER_NOTICE_TEXT } from './dossier-box-actions.ts'
+import { REPORTER_NOTICE_TEXT } from './reporter-box-actions.ts'
 import { STORYLINE_NOTICE_TEXT } from './storyline-box-actions.ts'
 import type {
   PressBoxActor,
@@ -141,6 +142,8 @@ export const NOTICE_TEXT: Readonly<Record<string, string>> = {
   ...BACKGROUND_SWITCH_NOTICE_TEXT,
   // Storylines, stances and takes (release L3).
   ...STORYLINE_NOTICE_TEXT,
+  // The reporter editor (release L4).
+  ...REPORTER_NOTICE_TEXT,
 }
 
 /** The notice code from a query string, or null when it is none of ours. */

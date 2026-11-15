@@ -1,6 +1,6 @@
 # Task: L4 — Press Box: reporter editor (bio, voice, catchphrases, disposition)
 
-- **State:** Running (since 2026-11-14 18:50; task agent of `Lead2`; Opus) (operator 2026-11-14: "start L4")
+- **State:** Verify (2026-11-14 19:20; was Running since 18:50; task agent of `Lead2`; Opus) (operator 2026-11-14: "start L4")
 - **Lane:** Web, Database (overrides), Discord (writers read the merged character)
 - **Risk:** medium (changes the writers' input)
 - **Slug:** press-box-l4
@@ -45,6 +45,35 @@ All checks pass; screenshots match the mock-up; one previewed line shown to the 
 - 2026-11-14 Lead: written.
 - 2026-11-14 18:50 Lead2: started. L3 is merged (not yet deployed): build on its storylines page and text checks. Migration 0087 (0086 is reserved for P1). Live since this was written: Press Box L1–L3 code, B1/B2, Club Finals.
 
-Resume: task agent makes the branch and worktree, reads design §3.5, the mock-up and the reporter definitions in code.
+- 2026-11-14 19:20 task agent: built on branch `work/press-box-l4` (worktree `.claude/worktrees/press-box-l4`). Done, State = Verify. Details in the Report. The operator's gate (screenshots, one previewed line) is open: screenshots and hand-written sample lines are in the scratchpad (see Report).
+
+Resume: Lead re-runs the checks on `work/press-box-l4`, shows the operator the screenshots and a sample line, then merges (`--ff-only`) and prepares the deploy (order in the Report).
 
 ## Report
+
+**What changed**
+
+- Migration `packages/db/migrations/0087_press_box_reporters.sql` (hand-written, idempotent, rollback in the header): table `news_reporter_overrides` (reporter, bio, voice_notes, catchphrases, disposition, character_version, updated_by, updated_at; a NULL field = code default), column `news_items.character_version`, request kind `preview` on `news_press_box_requests`.
+- `packages/db/src/news/character.ts` (pure): the LOCKED rules (`LOCKED_RULES`, `lockedRulesBlock`), the merge of an override over the code character (`mergeCharacter`, `characterOf`), the in-process registry and `characterVersionOf`. `dispositionOf` (relationships) reads the override first.
+- `packages/db/src/queries/press-box-reporters.ts` and `reporter-overrides.ts`: save, reset and preview-request, each one transaction with its `news_press_box_audit` line (kinds `reporter_edit`, `reporter_reset`, `reporter_preview`; field names only, never text); save checks (crude and slur lists, "Leave me out" names, rule-switching text, shapes and limits); reads for the pages (counts only).
+- Writers: `reporterVoice` and `buildSystemPrompt` (discord `news/prompts.ts`) use the merged character and add the locked rules LAST in every writer prompt (news desk system prompt, scrum asker and judge, interviews, wire replies, background questions). `NEWS_RULES_VERSION` 2026-11-14.3 (the prompts changed). News desk and press service read the overrides at the start of each pass (optional `refreshCharacter` on the stores; a failed read keeps the last character). Every item stores the character version of its reporter (`insertNewsItem`, best effort).
+- Preview: `apps/discord/src/news/sample-line.ts` + `press/box-requests-preview.ts`: ONE model call through the desk's `ModelCall`, spend recorded, 80% budget stop, no review, no rewrite, nothing posted. The web page cannot call a model, so the button queues a request (like the AI profile) and the press service writes the line on its next pass.
+- Web: `/admin/press-box/reporters` (nine cards) and `/reporters/[id]` (rail, record, editor, preview, locked rules shown read only). On/off reuses the existing switch (`setReporterEnabledAction` of /admin/news, called from a Press Box wrapper that checks the admin first).
+- Safety fix on the way: the press service ran ANY unknown request kind as a test scrum (it posts to Discord). Unknown kinds now fail with a fixed line.
+
+**Checks (run on the branch after `git rebase main`)** see the numbers in the final message of the task agent; commands: `pnpm --filter @eanhl/db build`, db tests (`pnpm --filter @eanhl/db test` and `dist/queries/__tests__/*.test.js` by name), `pnpm --filter @eanhl/discord typecheck` and `test`, `pnpm --filter web typecheck` and `test:unit`, prettier on the changed files.
+
+**Not done / limits**
+
+- The preview uses the SAVED character (not unsaved text in the form). Save first.
+- Edited catchphrases change the voice text but the code check that counts signature words (`SIGNATURE_WORDS`, post max 1, article max 3) still counts the code words only.
+- An edited bio reaches the writers only when edited (the code bio is not in the prompts today). The public reporter pages (`/news/reporters/...`, outside this task's paths) still show the code bio.
+- The on/off switch writes no audit line (existing behaviour, reused as it is).
+- Scrum, interview and wire-reply rows do not record a character version (only `news_items`).
+- A refused save redirects with a notice: the typed text is not kept.
+- The "profanity" locked line keeps the existing exception (mild words hell, damn, crap for Mercer, Pettibone and Vale, rule 26), because the code allows it.
+- Nothing was written to any database, no model was called, nothing was posted.
+
+**Deploy order** apply 0087 -> deploy `news` and `press` (discord) -> deploy `web` last. The old press service would run a `preview` request as a test scrum, so the web app must go last. Rollback: header of the migration, after the code is rolled back.
+
+**Screenshots** (dev server on the live database, read-only tunnel; login bypass and a fixture for Mara Quill "edited v3" plus a hand-written preview line were temporary, uncommitted and reverted): `/tmp/claude-1000/-home-michal-projects-eanhl-team-website/a2a7873b-2807-4e71-85a1-f9e79d57ba31/scratchpad/shots-l4/` (`list-*`, `editor-quill-*`, `editor-mercer-*`, 1280 and 390). Sample lines (hand-written, no model): `shots-l4/sample-lines.md`.

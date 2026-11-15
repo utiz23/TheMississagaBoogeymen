@@ -23,6 +23,9 @@ import {
   hasOpenPressBoxRequest,
   latestPressNight,
   queueInterviewRequest,
+  queueReporterPreviewWithAudit,
+  resetReporterCharacterWithAudit,
+  saveReporterCharacterWithAudit,
   queuePressBoxRequest,
   queueProfileRequest,
   removeNicknameWithAudit,
@@ -31,6 +34,7 @@ import {
   setPressLevelWithAudit,
 } from '@eanhl/db/queries'
 import { requireAdmin } from '@/lib/auth'
+import { setReporterEnabledAction } from '@/app/admin/news/actions'
 import {
   addBackgroundBox,
   confirmBackgroundBox,
@@ -40,6 +44,14 @@ import {
   type BackgroundActionDeps,
 } from './background-box-actions'
 import { setBackgroundQuestionsBox } from './background-switch-actions'
+import {
+  previewReporterBox,
+  reporterOf,
+  reporterSwitchBox,
+  resetReporterBox,
+  saveReporterBox,
+  type ReporterActionDeps,
+} from './reporter-box-actions'
 import {
   addStanceBox,
   addTakeBox,
@@ -276,4 +288,44 @@ export async function editTakeAction(formData: FormData): Promise<void> {
 
 export async function removeTakeAction(formData: FormData): Promise<void> {
   back(STORYLINES, (await removeTakeBox(formData, storylineDeps)) as ActionNotice)
+}
+
+// ── Reporters (release L4) ──────────────────────────────────────────────────
+
+/**
+ * The same admin check as every Press Box action; the queries check the text and write the audit
+ * line. The on/off switch is the existing one (`setReporterEnabledAction` of /admin/news): the
+ * Reporters page reuses it, it does not add a second switch.
+ */
+const reporterDeps: ReporterActionDeps = {
+  requireAdmin: deps.requireAdmin,
+  now: deps.now,
+  saveReporterCharacterWithAudit,
+  resetReporterCharacterWithAudit,
+  queueReporterPreviewWithAudit,
+  setReporterEnabled: (reporter, enabled) => setReporterEnabledAction(reporter, enabled),
+}
+
+const REPORTERS_PATH = '/admin/press-box/reporters'
+
+/** Back to the reporter's own page (or the list when the form named no reporter). */
+function reporterBack(formData: FormData, notice: ActionNotice): never {
+  const id = reporterOf(formData)
+  back(id === null ? REPORTERS_PATH : `${REPORTERS_PATH}/${id}`, notice)
+}
+
+export async function saveReporterAction(formData: FormData): Promise<void> {
+  reporterBack(formData, (await saveReporterBox(formData, reporterDeps)) as ActionNotice)
+}
+
+export async function resetReporterAction(formData: FormData): Promise<void> {
+  reporterBack(formData, (await resetReporterBox(formData, reporterDeps)) as ActionNotice)
+}
+
+export async function previewReporterAction(formData: FormData): Promise<void> {
+  reporterBack(formData, (await previewReporterBox(formData, reporterDeps)) as ActionNotice)
+}
+
+export async function reporterSwitchAction(formData: FormData): Promise<void> {
+  reporterBack(formData, (await reporterSwitchBox(formData, reporterDeps)) as ActionNotice)
 }

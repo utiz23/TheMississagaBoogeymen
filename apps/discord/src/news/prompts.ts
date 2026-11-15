@@ -2,6 +2,9 @@ import {
   REPORTERS,
   REPORTER_IDS,
   compareMilestones,
+  getReporterOverride,
+  lockedRulesBlock,
+  mergeCharacter,
   nightLabel,
   pairAttitude,
   type FeatureKind,
@@ -132,12 +135,30 @@ export const SYSTEM_RULES: readonly string[] = [
   '39. Relationships: a request may list where a reporter stands with a player: a feud (the reporter is cool and sharp about the player) or favour (the reporter is a fan, or glazing the player). Only that reporter may mention it, in one short line, as the reporter\'s own view ("Mercer and Erb are not on speaking terms", "Bergstrom is on the Erb bandwagon"), never as a fact about the player. A fan or glazing reporter may praise the player over the top in tone, but the praise is tone only: every number, stat and play still comes from the fact sheet, and you never invent or inflate one, never call a play better than the sheet shows, never give the player a stat the sheet does not. Never say what was said or done, never name an insult or a compliment, never quote or paraphrase it. A relationship stays professional and about hockey: the numbers on the sheet, never real life, looks, family, work or the person, never profanity. At most one relationship line per piece. A request without a relationship has none: invent no feud, rivalry, bad blood, fandom or bandwagon.',
 ]
 
-/** One reporter's voice as the system prompt shows it (also the scrum asker's). */
-export function reporterVoice(r: Reporter): string {
-  return `${r.name} (id "${r.id}"), ${r.outlet}\n${r.voice}`
+/**
+ * One reporter's character as a prompt shows it: name, outlet and the voice, with the admin's
+ * overrides on top (Press Box L4: bio, voice notes, catchphrases; `mergeCharacter`). The text is the
+ * code's own until an edit is saved. No locked rules here: `reporterVoice` and `buildSystemPrompt`
+ * add them after the character.
+ */
+export function reporterCharacter(r: Reporter): string {
+  const c = mergeCharacter(r, getReporterOverride(r.id))
+  return `${c.name} (id "${c.id}"), ${c.outlet}\n${c.voice}`
 }
 
-/** Stable text (cached by the API): the desk's purpose, the rules, then each reporter's voice. */
+/**
+ * One reporter's voice as a press bot's prompt shows it (the scrum asker, interviews, wire replies,
+ * background questions): the character, then the LOCKED rules. The locked rules come last on
+ * purpose: nothing in an edited character can change them.
+ */
+export function reporterVoice(r: Reporter): string {
+  return `${reporterCharacter(r)}\n\n${lockedRulesBlock()}`
+}
+
+/**
+ * Stable text (cached by the API): the desk's purpose, the rules, then each reporter's character,
+ * then the locked rules once, last.
+ */
 export function buildSystemPrompt(reporters: Reporter[]): string {
   const rules = [
     "You write for the Boogeymen News Desk. The Boogeymen are a small club of friends who play EA NHL Pro Clubs together. The desk has fictional reporters. You write short posts and articles about the club's games, for the club's Discord and website. The readers are the players themselves, so the tone is playful and sharp, but the facts must be right.",
@@ -145,9 +166,9 @@ export function buildSystemPrompt(reporters: Reporter[]): string {
     ...SYSTEM_RULES,
   ].join('\n\n')
 
-  const voices = reporters.map(reporterVoice).join('\n\n---\n\n')
+  const voices = reporters.map(reporterCharacter).join('\n\n---\n\n')
 
-  return `${rules}\n\nTHE REPORTERS\n\n${voices}`
+  return `${rules}\n\nTHE REPORTERS\n\n${voices}\n\n${lockedRulesBlock()}`
 }
 
 // ── Request context (C3a.3) ─────────────────────────────────────────────────

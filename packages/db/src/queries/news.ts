@@ -36,6 +36,7 @@ import {
   type PressLevelSetBy,
 } from '../schema/index.js'
 import { correctionItem } from '../news/correction.js'
+import { characterVersionOf } from '../news/character.js'
 import { NEWS_RULES_VERSION } from '../news/rules-version.js'
 import type { FeatureKind } from '../news/features.js'
 import { MEMBER_CONDITION } from './club-members.js'
@@ -231,6 +232,19 @@ export async function insertNewsItem(item: NewNewsItem): Promise<number> {
   const rows = await db.insert(newsItems).values(item).returning({ id: newsItems.id })
   const row = rows[0]
   if (!row) throw new Error('insertNewsItem: no row returned')
+  // Press Box L4: record the character version the reporter was written with (null when this process
+  // never read the overrides, so nothing is claimed). A separate best-effort statement: the item is
+  // already stored, and a database without migration 0087 simply has no such column.
+  const version = characterVersionOf(item.reporter)
+  if (version !== null) {
+    try {
+      await db.execute(
+        sql`update news_items set character_version = ${version} where id = ${row.id}`,
+      )
+    } catch {
+      // No column yet (migration 0087 not applied): the item stays without a version.
+    }
+  }
   return row.id
 }
 

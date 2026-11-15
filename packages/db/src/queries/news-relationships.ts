@@ -2,6 +2,7 @@ import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../client.js'
 import { REL_HALF_LIFE_DAYS, REL_MAX_POINTS, type RelLevel } from '../news/relationships.js'
 import { effectiveLevel, shownPoints } from './press-box.js'
+import { refreshReporterOverrides } from './reporter-overrides.js'
 import type { NewsReporterId } from '../schema/index.js'
 
 // Reporter relationship queries (T9, migration 0078; T5's feud queries, signed). `addRelationshipPointsSql`
@@ -93,6 +94,8 @@ export async function listRelationships(args: {
 }): Promise<RelationshipRow[]> {
   const ids = args.playerIds ?? null
   if (ids !== null && ids.length === 0) return []
+  // The levels use each reporter's disposition, which the admin may have changed (Press Box L4).
+  await refreshReporterOverrides()
   const rows = await db.execute<{
     player_id: string | number
     name: string

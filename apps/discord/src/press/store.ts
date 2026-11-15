@@ -39,6 +39,7 @@ import {
   latestPressNight,
   latestScrumItem,
   listAdminNewsItems,
+  refreshReporterOverrides,
   listDisabledReporters,
   listExpiredPings,
   listExpiredQuestions,
@@ -107,6 +108,8 @@ export const pressDbStore: PressStore = {
   insertGmAsk,
   consumeNextHeat,
   listDisabledReporters,
+  // Press Box L4: the reporter character overrides (migration 0087); a failed read keeps the last character.
+  refreshCharacter: () => refreshReporterOverrides({ maxAgeMs: 0 }),
   lastScrumReporter,
   insertScrum,
   insertScrumPerson,

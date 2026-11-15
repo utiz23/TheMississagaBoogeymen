@@ -6,6 +6,7 @@ import {
   integer,
   numeric,
   pgTable,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -57,6 +58,9 @@ export const PRESS_BOX_AUDIT_KINDS = [
   'stance_add',
   'stance_edit',
   'stance_remove',
+  'reporter_edit',
+  'reporter_reset',
+  'reporter_preview',
 ] as const
 export type PressBoxAuditKind = (typeof PRESS_BOX_AUDIT_KINDS)[number]
 
@@ -78,7 +82,7 @@ export const newsPressBoxAudit = pgTable(
 export type NewsPressBoxAuditRow = typeof newsPressBoxAudit.$inferSelect
 export type NewNewsPressBoxAudit = typeof newsPressBoxAudit.$inferInsert
 
-export const PRESS_BOX_REQUEST_KINDS = ['testscrum', 'profile', 'interview'] as const
+export const PRESS_BOX_REQUEST_KINDS = ['testscrum', 'profile', 'interview', 'preview'] as const
 export type PressBoxRequestKind = (typeof PRESS_BOX_REQUEST_KINDS)[number]
 export const PRESS_BOX_REQUEST_STATUSES = ['pending', 'running', 'done', 'failed'] as const
 export type PressBoxRequestStatus = (typeof PRESS_BOX_REQUEST_STATUSES)[number]
@@ -98,7 +102,7 @@ export const newsPressBoxRequests = pgTable(
       onDelete: 'cascade',
     }),
     targetDiscordUserId: text('target_discord_user_id'),
-    /** An `interview` request: the reporter the GM chose (null = the press service chooses). */
+    /** An `interview` request: the reporter the GM chose (null = the press service chooses). A `preview` request: the reporter whose sample line is wanted. */
     reporter: text('reporter').$type<NewsReporterId>(),
     /** An `interview` request: the GM's topic (null = none). */
     topic: text('topic'),
@@ -107,11 +111,11 @@ export const newsPressBoxRequests = pgTable(
     index('news_press_box_requests_status_idx').on(table.status, table.id),
     check(
       'news_press_box_requests_kind_check',
-      sql`${table.kind} IN ('testscrum', 'profile', 'interview')`,
+      sql`${table.kind} IN ('testscrum', 'profile', 'interview', 'preview')`,
     ),
     check(
       'news_press_box_requests_target_check',
-      sql`${table.kind} = 'testscrum' OR ${table.targetPlayerId} IS NOT NULL OR ${table.targetDiscordUserId} IS NOT NULL`,
+      sql`${table.kind} IN ('testscrum', 'preview') OR ${table.targetPlayerId} IS NOT NULL OR ${table.targetDiscordUserId} IS NOT NULL`,
     ),
     check(
       'news_press_box_requests_status_check',
@@ -156,3 +160,34 @@ export const newsPlayerProfiles = pgTable(
   ],
 )
 export type NewsPlayerProfileRow = typeof newsPlayerProfiles.$inferSelect
+
+/**
+ * What the admin changed on a reporter's character (migration 0087, Press Box L4), over the
+ * definitions in code. A null field = the code default. `characterVersion` counts every save and
+ * every reset (no row = version 0). The locked safety rules are never stored here.
+ */
+export const newsReporterOverrides = pgTable(
+  'news_reporter_overrides',
+  {
+    reporter: text('reporter').$type<NewsReporterId>().primaryKey(),
+    bio: text('bio'),
+    voiceNotes: text('voice_notes'),
+    catchphrases: text('catchphrases').array().$type<string[]>(),
+    disposition: smallint('disposition'),
+    characterVersion: integer('character_version').notNull().default(1),
+    updatedBy: text('updated_by').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      'news_reporter_overrides_reporter_check',
+      sql`${table.reporter} IN ('barlow', 'voss', 'mercer', 'halberd', 'vale', 'quill', 'rink', 'pettibone', 'bergstrom')`,
+    ),
+    check(
+      'news_reporter_overrides_disposition_check',
+      sql`${table.disposition} IS NULL OR ${table.disposition} BETWEEN -2 AND 2`,
+    ),
+    check('news_reporter_overrides_version_check', sql`${table.characterVersion} >= 1`),
+  ],
+)
+export type NewsReporterOverrideRow = typeof newsReporterOverrides.$inferSelect

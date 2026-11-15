@@ -1,6 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { REPORTERS, REPORTER_IDS, pairAttitude, type NewsFacts } from '@eanhl/db/news'
+import {
+  REPORTERS,
+  REPORTER_IDS,
+  lockedRulesBlock,
+  pairAttitude,
+  type NewsFacts,
+} from '@eanhl/db/news'
 import { REPLY_JABS } from './fact-check.ts'
 import {
   buildArticleUserPrompt,
@@ -902,10 +908,13 @@ void test('review prompt with trusted material: true events, answers, problem 14
   )
 })
 
-void test('buildSystemPrompt is unchanged by the reporterVoice helper', () => {
+void test('buildSystemPrompt and reporterVoice: the character text is the code voice, the locked rules follow it (Press Box L4)', () => {
   const r = REPORTERS.quill
-  assert.ok(buildSystemPrompt([r]).endsWith(`THE REPORTERS\n\n${reporterVoice(r)}`))
-  assert.equal(reporterVoice(r), `${r.name} (id "${r.id}"), ${r.outlet}\n${r.voice}`)
+  const character = `${r.name} (id "${r.id}"), ${r.outlet}\n${r.voice}`
+  assert.ok(
+    buildSystemPrompt([r]).endsWith(`THE REPORTERS\n\n${character}\n\n${lockedRulesBlock()}`),
+  )
+  assert.equal(reporterVoice(r), `${character}\n\n${lockedRulesBlock()}`)
 })
 
 void test('fencedAnswer: a fence inside an answer cannot close the fence early', () => {
