@@ -26,10 +26,10 @@ commit/push rules in `CLAUDE.md`.
 $100, `PRESS_TYPED_ANSWERS=1`, `PRESS_WIRE_REPLIES=1`, coach `PRESS_COACH_USER_IDS`). Live (migrations
 0072–0078): typed answers, one thread per player, 3-reporter panels, `/gm ask|note|interview|testscrum`,
 interviews + Q&A articles, Discord replies, hard lines, relationships (open war ↔ glazing; Father Rink
-never feuds), bench voices from the call, free test scrums. Tasks T1–T10 in `docs/tasks/`. Also live
-(11-14, 0079–0083): **E1** live events (Tailscale only) + worker watchdog; **Press Box** L1–L2
-(`/admin/press-box`); player background B1; **Club Finals** CF1 (home card, game badges). Running: B2,
-CF3. Next: CF2, L3, L4.
+never feuds), bench voices from the call, free test scrums. Also live 11-14 (0079–0087): **E1** live
+events (Tailscale) + worker watchdog; **Press Box** L1–L4 (`/admin/press-box`); player background
+B1–B2 (switch OFF); **Club Finals** CF1–CF3 + CF2 (site + Discord); `/gm ask` brief by default;
+**goals by period** for NHL 27 (engine export WX1 → `import-engine-periods`, 22 games). Tasks: board.
 
 ## Current Objective / Status
 
@@ -54,11 +54,12 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 **Latest deploys 2026-11-14** (all on Hotel-Echo; rollback tags `:rollback-he-2026-11-14-pre-*`; backups
 `~/eanhl-backups/manual/eanhl-pre-00NN-2026-11-14.dump`): T3–T10; backup hardening; E1 + watchdog (14:12);
-News Desk rename; L1, L2; B1; CF1 (15:54). Detail: journal 11-14.
+News Desk; L1–L4; B1–B2; CF1–CF3b; gm-ask fix; P1 + first period import (19:53; undo = delete
+`source = 'engine_video'` rows). Detail: journal 11-14.
 
 **2026-10-26: club-only badges** (web, worker, discord `06992a2`; rollback `:rollback-he-2026-10-26-pre-club-badges`; card dump `~/eanhl-backups/manual/cards-pre-rebase-2026-10-26-1600.dump`). Badges count club games only; NHL 27 card history reset once (`card-recompute --rebase`). [Spec](docs/superpowers/specs/2026-10-26-club-only-badges-design.md).
 
-**2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; migrations 0065 + 0066 on live/test/preview). Steps: logins `7b76804`, EQUIP `f24507f`, Discord picture `354f2da`, profile edit `7aa6599`, admin hub `7984070`, mythics `3616aab`, trophy editor `86a902b`. Rollback tags `:rollback-he-2026-10-09-pre-{logins,equip,avatar,profile-edit,admin-hub,mythics,awards-db}`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables. Each release operator-verified on localhost; security review clean.
+**2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; 0065 + 0066; rollback tags `:rollback-he-2026-10-09-pre-*`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables). Steps and commits: [journal 10-09](docs/journal/2026-10.md).
 
 **2026-10-09 responsive sizes** (`fb40008`, `:rollback-he-2026-10-09-pre-responsive`). **2026-10-08 Awards + 0064** (`d038b36`; `:rollback-he-2026-10-08-pre-awards`; 0064 rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`).
 
@@ -138,8 +139,10 @@ None.
 
 ## Next 1-3 Actions
 
-1. **B2** (bots ask background questions; teammate facts need the admin): privacy sentence + samples are
-   the operator's gate; switch stays off until the operator turns it on. Then **CF2** (Discord, news).
-2. **CF3** (finals look on the site): operator screenshots, then deploy. CF4 (finals stats) proposed.
-3. Check the 11-15 03:00 backup; watch the next game night (Club Finals derive, quick checks); engine
-   E2 sender (secrets by file when it names a path); small: Contribution Wheel, prettier on old files.
+1. **Next period import** when the engine re-runs WX1 for the 11-13/11-14 games: runbook
+   `docs/operations/runbooks/engine-period-import.md` (backup, dry run, apply) with the operator's OK.
+   Shots stay hidden until the engine checks 3852785320026 (16-20 vs EA 12-18).
+2. Operator's choices waiting: background switch (Press Box overview, OFF); pin a storyline; CF4 (finals
+   stats) proposed. Engine E2 sender: secrets by file when it names a path.
+3. Check the 11-15 03:00 backup; watch the next finals game (post line, news weight, scrum); small:
+   Contribution Wheel, prettier on old files.
