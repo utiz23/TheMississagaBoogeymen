@@ -1,6 +1,6 @@
 # Task: L3 — Press Box: storylines, trends, takes and stances editor
 
-- **State:** Ready (operator 2026-11-14); starts after L2 is merged
+- **State:** Running (since 2026-11-14 18:00; task agent of `Lead2`; Opus) (operator 2026-11-14: "start L3")
 - **Lane:** Web, Queries, Database (flags), Discord (writers read pins)
 - **Risk:** medium (edits feed the writers)
 - **Slug:** press-box-l3
@@ -23,7 +23,7 @@ Design §3.4; mock-up "Storylines & trends". `/admin/press-box/storylines`:
 
 - **May edit:** `apps/web/src/app/admin/press-box/`, `apps/web/src/app/admin/news/` (takes section →
   link), `apps/web/src/components/press-box/`, `packages/db/src/queries/` (+ tests),
-  `packages/db/src/schema/`, `packages/db/migrations/<next>_*.sql`, `apps/discord/src/news/` and
+  `packages/db/src/schema/`, `packages/db/migrations/0085_*.sql` (0084 is the newest), `apps/discord/src/news/` and
   `apps/discord/src/press/` (read the pinned storyline only), this task file.
 
 ## Checks
@@ -38,5 +38,10 @@ All checks pass; screenshots match the mock-up.
 ## Log
 
 - 2026-11-14 Lead: written.
+- 2026-11-14 18:00 Lead2: started. Live since this task was written: L1, L2, B1/B2 (player background:
+  confirmed facts reach writers; GM notes), Club Finals CF1–CF3 + CF2 (finals moments in news and press).
+  Pinned storylines and takes must sit beside those inputs, not replace them.
+
+Resume: task agent makes the branch and worktree, reads design §3.4, the mock-up and the current takes code.
 
 ## Report

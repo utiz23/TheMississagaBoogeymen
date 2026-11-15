@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 17:59 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 18:00 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -20,6 +20,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                                                                           |
 | Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights.                                                   |
 | Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                                                                                |
+| Press Box L3 (storylines + takes editor)        | running (task agent); you get screenshots before the merge                                                                                                                |
 | Player background                               | LIVE: B1 (blank fact sheets, your editor) and B2 (17:12). **The switch is OFF**: turn it on in the Press Box overview when you want the bots to ask background questions. |
 | Club Finals                                     | LIVE since 15:54: the Club Finals card on the home page and round badges on games. CF3 (finals look) running; CF2 (Discord + news) after B2.                              |
 | News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                                                                          |
@@ -55,6 +56,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 18:00 · "start L3" → Press Box L3 started.
 - 2026-11-14 17:58 · "deploy now" → CF2 (Club Finals in Discord) deployed 17:59 mid-session; the open scrum kept.
 - 2026-11-14 17:51 · "D22 D23 deploy" → finals card fix live 17:54; CF2 (Discord) held until tonight's session ends (a scrum was open).
 - 2026-11-14 17:45 · CF2 samples: "approved" → merged.
