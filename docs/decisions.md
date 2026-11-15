@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 19:40 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 19:44 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -58,6 +58,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 19:44 · Games played on JoeyFlopfish's account earlier this month: "leave those stats for him" (no stat move). Storyline "Joeyflopfish IR" saved without digits. "D31 Yes to all 3" → after the layout changes land.
 - 2026-11-14 19:32 · "deployt" (D30) → Press Box L4 deployed 19:36.
 - 2026-11-14 19:25 · "All approved" → /gm ask fix deployed (19:27) and yoma's old request closed; L4 merged with the mild-words exception kept.
 - 2026-11-14 19:24 · D27 "yes" → game cards get a one-line goals strip (full table on the game page and home); goals only, shots hidden for now.
