@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 18:55 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 19:12 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -22,6 +22,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                                                                                |
 | Press Box L3 (storylines + takes editor)        | LIVE since 18:54 at `/admin/press-box/storylines` (the takes editor moved here from /admin/news).                                                                         |
 | Press Box L4 (reporter editor)                  | running (task agent); you get screenshots and one sample line before the merge                                                                                            |
+| /gm ask fix                                     | running: your text becomes a private brief by default; the reporter asks in his own words; word for word only with `exact`. Samples before deploy.                        |
 | Player background                               | LIVE: B1 (blank fact sheets, your editor) and B2 (17:12). **The switch is OFF**: turn it on in the Press Box overview when you want the bots to ask background questions. |
 | Club Finals                                     | LIVE since 15:54: the Club Finals card on the home page and round badges on games. CF3 (finals look) running; CF2 (Discord + news) after B2.                              |
 | News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                                                                          |
@@ -57,6 +58,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 19:12 · "the gm interview prompt did not work as intended" (your brief was posted word for word: `exact` defaulted to on) → fix task started.
 - 2026-11-14 18:51 · "deploy Press Box L3." → L3 deployed 18:54 (mid game night; the open scrum kept).
 - 2026-11-14 18:50 · "start L4" → Press Box L4 started. Engine export WX1: Ready must be given in the engine chat.
 - 2026-11-14 18:44 · Goals by period: "go on all 3" → engine export Ready; your 10-09 hold on video data → live
