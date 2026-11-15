@@ -86,8 +86,12 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   from video"; 3448 (not imported) none; /games cards none. Undo: `DELETE FROM match_period_summaries WHERE
 source = 'engine_video'` (or per match).
 
-Resume: next import when the engine re-runs its export (11-13/11-14 games in its queue): same runbook steps
-with the operator's OK.
+- 2026-11-14 19:55 Lead2: shots gap explained (engine Lead, checked on the video; Lead saw the frame): match
+  3852785320026's own END OF GAME screen reads "TOTAL SHOTS" BM 16 – DIK 20 = the engine export; EA's 12-18 is a
+  different count (likely shots on goal vs the screen's total shots). Shots stay hidden (operator wants the box
+  simple); option offered: show them only as "total shots (in-game screen)" on the game page.
+  Resume: next import when the engine re-runs its export (11-13/11-14 games in its queue): same runbook steps
+  with the operator's OK.
 
 ## Report (task agent fills when state = Verify)
 
