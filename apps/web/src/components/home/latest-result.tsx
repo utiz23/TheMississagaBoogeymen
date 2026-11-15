@@ -189,7 +189,7 @@ export function LatestResult({
         {/* Goals by period, read from video (only when the goals add up to EA's score; goals only, D27) */}
         {periods !== null && periods.length > 0 ? (
           <div className="mx-auto max-w-sm border-t border-border/60 px-7 py-3">
-            <PeriodGoalsTable rows={periods} />
+            <PeriodGoalsTable rows={periods} opponentAbbrev={opponentAbbrev} />
           </div>
         ) : null}
 

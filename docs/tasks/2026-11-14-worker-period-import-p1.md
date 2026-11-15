@@ -74,6 +74,7 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-14 19:20 task agent: rebased on main, checks pass, State = Verify. Not merged, pushed or deployed.
 
 - 2026-11-14 19:32 task agent: operator decision D27 (via Lead2, 2026-11-14): (a) /games cards show ONE compact goals line ("1st 2–1 · 2nd 1–1 · 3rd 2–1 · OT 1–0") with the small "read from video" label, no blank spacer, a card without data keeps today's height; the full period table stays on the game page and the home panel; (b) goals only for now: no shots per period shown anywhere; shots are still imported and stored with shots review = pending_review. Done: card line, goals-only home table, shots review always pending_review (constant `ENGINE_SHOTS_REVIEW_STATUS`), read side returns no shots to the cards, new screenshots, heights measured. The importer's decision logic (checks, score rule) is unchanged.
+- 2026-11-14 19:44 task agent: operator (via Lead2, ~19:45-19:47): "axe the box score from the game cards as they are too crowded and makes them too tall." and "I remember there just being a box placeholder. It was simple. What we have now is a bit too much." Done: the goals line is gone from the /games cards (cards are back to today's 277 px everywhere; `ScoreCard` and the games page are identical to `main` again); the home latest-game panel now shows the simple classic box (BGM row and EA's opponent abbreviation row, one column per period, TOT, goals only, one small "Read from video" note top right, no heading); the game page Box Score is unchanged. `getEnginePeriodStrips` stays (the home page uses it). The importer is untouched.
 
 Resume: the Lead reviews the report and screenshots, a Verifier re-runs the checks, the Lead merges after the operator gate; a deploy of `worker` + `web` and each import run need the operator's OK and a backup (runbook).
 
@@ -90,25 +91,23 @@ Resume: the Lead reviews the report and screenshots, a Verifier re-runs the chec
     only: shots are stored but hidden); faceoffs empty and `pending_review`; legacy `review_status` = `reviewed` (transitional). The site never reads
     the legacy column. Idempotent: delete + insert of that match's `engine_video` rows in one transaction; unchanged numbers write nothing.
   - Read side (`getMatchPeriodSummaries`): engine rows show only if their goals add up to EA's final (second check) and only when no other source
-    has a visible row (OCR/EA/manual win, so nothing that shows today changes). New `getEnginePeriodStrips(matchIds)` for the cards.
-  - Web (after D27, goals only): game page Box Score shows the small label "Read from video" (everyone; the admin chip says "Engine · video") and
-    drops the empty FO and Shots tabs for engine rows (shots are masked by their pending review); home latest-game panel: a 3-row goals table with the
-    label; /games cards: ONE goals line ("1ST 2–1 2ND 1–1 ..." with "Read from video" on the right), only on cards that have data.
+    has a visible row (OCR/EA/manual win, so nothing that shows today changes). New `getEnginePeriodStrips(matchIds)` (goals only) for the home panel.
+  - Web (after D27 and the operator's "too crowded" change, goals only): game page Box Score shows the small label "Read from video" (everyone; the admin chip
+    says "Engine · video") and drops the empty FO and Shots tabs for engine rows (shots are masked by their pending review); home latest-game panel: the
+    same simple classic box (BGM row + EA's opponent abbreviation row x period columns + TOT, goals only, one "Read from video" note top right); the
+    /games cards show nothing (unchanged from main).
   - **D27 shots rule:** shots are still imported and stored (`ENGINE_SHOTS_REVIEW_STATUS = 'pending_review'`), so `getMatchPeriodSummaries` masks them and no page
     shows them; `getEnginePeriodStrips` returns goals only. Flip the constant and re-run the import to show them later.
   - Runbook: `docs/operations/runbooks/engine-period-import.md`.
   - **Effect on other readers:** news desk and Discord use `getMatchPeriodSummaries` only to detect overtime (`wentToOvertime`); engine OT rows now count
     there too (correct, and only for imported games).
-- **Card heights (CF3b), D27 version, Playwright getBoundingClientRect, sample goals on 3 of 9 cards (a data card and a no-data card in the same
-  row, finals and normal, one 5-period line):** at 1280 (3 per row): a row with any data card = 305 px for every card in it (the CSS grid stretches
-  the no-data card; there is no spacer element, so that card has 28 px of empty space at its bottom); a row with no data = 277 px (today's height).
-  Finals cards and normal cards are equal in the same state (277 or 305). At 390 (one card per row): data card 305 px, no-data card 277 px (today's
-  height). The line adds 28 px (12 margin + 16 line). Equal heights hold within every row, so no one-line reserve is needed. The 5-period line (OT2)
-  does not overflow at 1280 or 390.
+- **Card heights (CF3b), after the operator removed the card line:** one /games page measured with Playwright getBoundingClientRect at 1280 and 390: all 9
+  cards are 277 px (finals and normal), exactly today's height. The /games code is identical to `main`. (The earlier D27 card line made data cards 305 px:
+  superseded and removed.)
 - **How it was checked (commands, numbers):** `pnpm --filter @eanhl/db build`; typecheck db, worker, web, discord: 0 errors; new tests: worker
   `node --test apps/worker/dist/__tests__/engine-periods.test.js` 30 pass (score-sum refusal, incomplete, unknown schema, idempotent replace, OT,
   other sources untouched, dry run writes nothing, null shots, real sample file, cut recording, opponent abbreviation); db
-  `packages/db/dist/queries/__tests__/period-rows.test.js` 6 pass; web `test:unit` 771 pass (3 new: card line text); prettier clean on all changed files. Not run: worker
+  `packages/db/dist/queries/__tests__/period-rows.test.js` 6 pass; web `test:unit` 780 pass; prettier clean on all changed files. Not run: worker
   integration tests (they need the verification database; no Docker on the main PC) and the real SQL of `replaceEngineRows` (the tests use an
   in-memory store with the same rules; the read queries ran against live read-only in the dry run). `pnpm lint` not used (red repo-wide).
 - **Dry-run table (real files; engine snapshot 1, 32 files; read-only live connection with `default_transaction_read_only=on`; `--apply` never run).**
@@ -152,12 +151,12 @@ Resume: the Lead reviews the report and screenshots, a Verifier re-runs the chec
 | 3852785320026      | 3439  | 5-4      | 5-4        | 4       | 16-20 vs EA 12-18          | INSERT                                       |
 | 3854340900368      | 3440  | 5-3      | 5-3        | 3       | 19-14 vs EA 16-14          | INSERT                                       |
 
-- **Screenshots (D27 version; sample goals in memory only; the temporary patch was in the git-ignored `packages/db/dist` and is reverted by a rebuild;
-  nothing committed; dev server on port 3800 and tunnel 5441 stopped):** `/tmp/claude-1000/-home-michal-projects-eanhl-team-website/a2a7873b-2807-4e71-85a1-f9e79d57ba31/scratchpad/shots-p1/`
-  `games-cards-v2-1280.png`, `games-cards-v2-390.png`, `home-latest-v2-1280.png`, `game-3446-boxscore-v2-1280.png` (OT column, Goals tab only),
-  `dryrun-real-snapshot-1.txt`. The older v1 pictures in the same folder show the superseded 3-row card table.
+- **Screenshots (sample goals in memory only; the temporary patch was in the git-ignored `packages/db/dist` and is reverted by a rebuild; nothing committed;
+  dev server on port 3800 and tunnel 5441 stopped):** `/tmp/claude-1000/-home-michal-projects-eanhl-team-website/a2a7873b-2807-4e71-85a1-f9e79d57ba31/scratchpad/shots-p1/`
+  `games-cards-v3-1280.png`, `home-latest-v3-1280.png`, `home-latest-v3-390.png`, `game-3446-boxscore-v2-1280.png` (game page box, unchanged),
+  `dryrun-real-snapshot-1.txt`. The v1 and v2 pictures show superseded card designs.
 - **Not done:** merge, push, deploy, any `--apply`. Faceoffs and player names (later steps). Screenshots with a null-shot period. The importer
-  trusts `our_side` only as a warning. Open choice for the Lead: card height (see above); engine rows yield to OCR rows when both exist.
+  trusts `our_side` only as a warning. Open choice for the Lead: engine rows yield to OCR rows when both exist.
 - **Paths outside "May edit":** none. (`packages/db/src/schema/match-enrichments.ts` is inside it: one type line, no migration.)
 - **Deploy order:** (1) `worker` image (CLI) and `web` image together (the web needs the new db package; no migration); (2) operator OK + fresh
   backup; (3) copy the folder, dry run, read the table; (4) operator OK, `--apply`; (5) check. Nothing is shown until step 4.

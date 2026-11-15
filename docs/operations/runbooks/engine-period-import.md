@@ -11,8 +11,7 @@ Readers: the operator and the website Lead.
   file per game on the main PC: `~/projects/eanhl-live-engine/out/website-export/periods/<ea_match_id>.json`.
 - The worker CLI `import-engine-periods` reads a folder of these files and writes the numbers to the
   table `match_period_summaries` with `source = 'engine_video'`.
-- The site then shows "goals by period" on the game page, on the home latest-game panel and on the
-  `/games` cards, with the small label "Read from video".
+- The site then shows "goals by period" on the game page, on the home latest-game panel, with the small label "Read from video".
 - EA data and rows of other sources (`ocr`, `ea`, `manual`) are never changed.
 
 ## 2. The rules the CLI enforces
@@ -92,7 +91,7 @@ Readers: the operator and the website Lead.
    ```
 
    `gf`/`ga` must equal `score_for`/`score_against` on every line. Then open two of the games on the
-   site: the game page, the home latest-game panel (if it is one of them) and a `/games` card.
+   site: the game page (box score "Goals") and the home latest-game panel (if it is one of them). The `/games` cards do not show periods.
 
 7. **Clean up**: `ssh hotel-echo 'rm -rf ~/periods-import'` and remove `/tmp/periods` in the container (it is
    lost at the next redeploy anyway).

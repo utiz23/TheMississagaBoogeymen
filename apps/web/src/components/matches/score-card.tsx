@@ -1,9 +1,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Match, MatchResult } from '@eanhl/db'
-import type { ClubFinalsBadge, EnginePeriodStripRow } from '@eanhl/db/queries'
+import type { ClubFinalsBadge } from '@eanhl/db/queries'
 import { ClubFinalsTags } from '@/components/matches/club-finals-badge'
-import { PeriodGoalsLine } from '@/components/matches/period-strip'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { OcrPill } from '@/components/ui/ocr-pill'
 import { ResultPill } from '@/components/ui/result-pill'
@@ -72,11 +71,6 @@ interface ScoreCardProps {
   ocrCoverage?: OcrCoverageStreams | undefined
   /** Club Finals round, game and marks, when this game has a derived row. */
   clubFinals?: ClubFinalsBadge | undefined
-  /**
-   * Goals by period read from video (goals only, D27). Null/omitted: no data for this game,
-   * and the card shows nothing extra and keeps its normal height.
-   */
-  periods?: readonly EnginePeriodStripRow[] | null | undefined
 }
 
 /** Stat labels read at fg-5 (~4.6:1), the site's floor for small text. */
@@ -130,7 +124,6 @@ export function ScoreCard({
   href,
   ocrCoverage,
   clubFinals,
-  periods,
 }: ScoreCardProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
 
@@ -314,12 +307,6 @@ export function ScoreCard({
           />
           <DtWStat bgmRaw={dtw} />
         </div>
-
-        {periods !== null && periods !== undefined && periods.length > 0 ? (
-          <div className="mt-3">
-            <PeriodGoalsLine rows={periods} />
-          </div>
-        ) : null}
       </div>
     </Link>
   )

@@ -9,9 +9,7 @@ import {
   getOcrCoverageForMatches,
   getClubFinalsBadges,
   getClubFinalsOverview,
-  getEnginePeriodStrips,
   type ClubFinalsBadge,
-  type EnginePeriodStripRow,
   type MatchOcrCoverage,
 } from '@eanhl/db/queries'
 import type { GameMode, MatchResult } from '@eanhl/db'
@@ -226,12 +224,6 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
     () => new Map<number, ClubFinalsBadge>(),
   )
 
-  // Goals by period read from video (P1, goals only per D27): one small line on the card, only
-  // for games whose period goals add up to EA's score. Fails soft: no line, the cards stay as they were.
-  const periodStrips = await getEnginePeriodStrips(pageIds).catch(
-    () => new Map<number, EnginePeriodStripRow[]>(),
-  )
-
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   // Clamp page to valid range — handles stale bookmarks
   const clampedPage = Math.min(page, totalPages)
@@ -329,7 +321,6 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
                           opponentCrestUseBaseAsset={opponent?.useBaseAsset ?? null}
                           ocrCoverage={ocrCoverage.get(match.id)}
                           clubFinals={badge}
-                          periods={periodStrips.get(match.id) ?? null}
                         />
                       </Fragment>
                     )

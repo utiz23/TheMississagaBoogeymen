@@ -147,7 +147,7 @@ export async function getMatchPeriodSummaries(matchId: number) {
   )
 }
 
-/** One period of the compact "goals by period" strip on cards (goals only, D27). */
+/** One period of the "goals by period" table on the home latest-game panel (goals only, D27). */
 export interface EnginePeriodStripRow {
   periodNumber: number
   goalsFor: number
@@ -155,8 +155,8 @@ export interface EnginePeriodStripRow {
 }
 
 /**
- * Per-period GOALS read from video, for many matches at once (home latest game panel and
- * /games cards). Goals only (operator decision D27): shots are never returned here. Only
+ * Per-period GOALS read from video, for many matches at once (used by the home latest game
+ * panel; the /games cards do not show it). Goals only (operator decision D27): shots are never returned here. Only
  * `engine_video` rows whose goals family is `reviewed`, and only for matches whose period
  * goals add up to EA's final score. A match that fails either test is absent from the map.
  */
