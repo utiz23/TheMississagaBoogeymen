@@ -1,14 +1,15 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 19:18 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 19:24 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                                                                                                                                                                              | My advice                          | Waiting costs                  |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------ |
-| D27 | Goals by period (P1): (a) the game cards: the 3-row period table makes every card 109 px taller and leaves blank space on cards without data. Use a one-line strip on cards ("1st 2–1 · 2nd 1–1 · 3rd 2–1"), full table only on the game page? (b) shots per period from video do not always match EA's shots (one game: 16–20 vs EA 12–18): show goals only for now? | (a) one-line strip; (b) goals only | Nothing shows until the import |
+| ID  | Question                                                                                                                                                                                                                                                            | My advice               | Waiting costs                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------- |
+| D28 | /gm ask fix: your text is a private brief by default; the reporter asks in their own words; word for word only with `exact`. OK = merge + deploy the press bots (seconds). Also: mark tonight's old word-for-word request (game 3448) as done in the live database? | Yes to both             | The next /gm ask could again post a brief word for word |
+| D29 | Press Box L4 (reporter editor): screenshots OK? And the locked "no profanity" rule keeps today's exception (mild "hell, damn, crap" for Mercer, Pettibone and Vale). Keep it?                                                                                       | Yes; keep the exception | L4 not live                                             |
 
 ## 2. Right now
 
@@ -58,6 +59,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 19:24 · D27 "yes" → game cards get a one-line goals strip (full table on the game page and home); goals only, shots hidden for now.
 - 2026-11-14 19:12 · "the gm interview prompt did not work as intended" (your brief was posted word for word: `exact` defaulted to on) → fix task started.
 - 2026-11-14 18:51 · "deploy Press Box L3." → L3 deployed 18:54 (mid game night; the open scrum kept).
 - 2026-11-14 18:50 · "start L4" → Press Box L4 started. Engine export WX1: Ready must be given in the engine chat.
