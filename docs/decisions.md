@@ -1,14 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 19:12 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 19:18 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                                                                                                                                                                                                                                                                              | My advice                          | Waiting costs                  |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------ |
+| D27 | Goals by period (P1): (a) the game cards: the 3-row period table makes every card 109 px taller and leaves blank space on cards without data. Use a one-line strip on cards ("1st 2–1 · 2nd 1–1 · 3rd 2–1"), full table only on the game page? (b) shots per period from video do not always match EA's shots (one game: 16–20 vs EA 12–18): show goals only for now? | (a) one-line strip; (b) goals only | Nothing shows until the import |
 
 ## 2. Right now
 
