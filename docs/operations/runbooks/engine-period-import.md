@@ -28,7 +28,7 @@ Readers: the operator and the website Lead.
 | The engine's `end_of_game_check` is never trusted alone: a file that is not complete AND does not add up to EA's final is shown `REFUSED` (cut recordings say "pass" too) | File refused (never written)                     |
 | The file name is `<ea_match_id>.json` and the content has the same id; one file per match                                                                                 | File refused                                     |
 
-- A match that passes gets goals and shots rows with their review columns set to `reviewed`. Faceoffs
+- A match that passes gets rows with the goals review set to `reviewed` and the shots review `pending_review`. Faceoffs
   stay empty and `pending_review`. A match that fails gets no rows at all.
 - The site checks the goal sum again when it reads (`getMatchPeriodSummaries`, `getEnginePeriodStrips`).
   A match whose engine rows do not add up to the EA final is shown without them.
@@ -36,6 +36,8 @@ Readers: the operator and the website Lead.
   not the engine rows.
 - The opponent's name or abbreviation in the file is never read, shown or stored (it can be misread, for
   example PIK for DIK). The site always shows EA's opponent from our `matches` table.
+- Goals only for now (operator decision D27): shots are stored but their review stays `pending_review`, so no page shows them.
+  To show them later, change `ENGINE_SHOTS_REVIEW_STATUS` and re-run the import.
 - A period with no usable shot count (`shots_bm` / `shots_opp` null) is stored as null and shown as a dash.
   Goals of that match still import.
 - Warnings in the table (never a refusal): `our_side` differs from EA home/away, more goals than shots
