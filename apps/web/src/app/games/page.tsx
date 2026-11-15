@@ -226,13 +226,11 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
     () => new Map<number, ClubFinalsBadge>(),
   )
 
-  // Goals and shots by period read from video (P1): a small strip on the card, only for games
-  // whose period goals add up to EA's score. Fails soft: no strips, the cards stay as they were.
+  // Goals by period read from video (P1, goals only per D27): one small line on the card, only
+  // for games whose period goals add up to EA's score. Fails soft: no line, the cards stay as they were.
   const periodStrips = await getEnginePeriodStrips(pageIds).catch(
     () => new Map<number, EnginePeriodStripRow[]>(),
   )
-  // When any card on the page has a strip, a card without one keeps the same height (CF3b).
-  const reservePeriodSlot = periodStrips.size > 0
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   // Clamp page to valid range — handles stale bookmarks
@@ -332,7 +330,6 @@ export default async function GamesPage({ searchParams }: { searchParams: Search
                           ocrCoverage={ocrCoverage.get(match.id)}
                           clubFinals={badge}
                           periods={periodStrips.get(match.id) ?? null}
-                          reservePeriodSlot={reservePeriodSlot}
                         />
                       </Fragment>
                     )

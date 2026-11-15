@@ -24,6 +24,15 @@
 export const ENGINE_PERIODS_SCHEMA_VERSION = 1
 export const ENGINE_VIDEO_SOURCE = 'engine_video' as const
 
+/**
+ * Review status written for the SHOTS family of every engine row (operator decision D27,
+ * 2026-11-14: goals only for now). Shots are still imported and stored, but stay
+ * 'pending_review', so the read side (`getMatchPeriodSummaries`) masks them and no page shows
+ * them. Goals are 'reviewed' only because the score check passed. A later decision can flip
+ * this constant and re-run the import.
+ */
+export const ENGINE_SHOTS_REVIEW_STATUS = 'pending_review' as const
+
 /** Wire field names of the engine file (agreed shape, schema_version 1). Rename here only. */
 export const FIELDS = {
   schemaVersion: 'schema_version',

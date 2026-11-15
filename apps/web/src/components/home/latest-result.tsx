@@ -3,7 +3,7 @@ import Image from 'next/image'
 import type { Match, MatchType } from '@eanhl/db'
 import type { ClubFinalsBadge, EnginePeriodStripRow } from '@eanhl/db/queries'
 import { ClubFinalsStrip } from '@/components/matches/club-finals-badge'
-import { PeriodStrip } from '@/components/matches/period-strip'
+import { PeriodGoalsTable } from '@/components/matches/period-strip'
 import {
   formatMatchDate,
   formatMatchTime,
@@ -45,7 +45,7 @@ interface LatestResultProps {
   divisionName: string | null
   /** Club Finals round, game and marks, when the latest game has a derived row (CF3). */
   clubFinals?: ClubFinalsBadge | null
-  /** Goals and shots by period read from video (P1). Null: no data for this game. */
+  /** Goals by period read from video (P1, goals only). Null: no data for this game. */
   periods?: readonly EnginePeriodStripRow[] | null
 }
 
@@ -186,10 +186,10 @@ export function LatestResult({
           </TeamSide>
         </div>
 
-        {/* Goals and shots by period, read from video (only when the goals add up to EA's score) */}
+        {/* Goals by period, read from video (only when the goals add up to EA's score; goals only, D27) */}
         {periods !== null && periods.length > 0 ? (
           <div className="mx-auto max-w-sm border-t border-border/60 px-7 py-3">
-            <PeriodStrip rows={periods} />
+            <PeriodGoalsTable rows={periods} />
           </div>
         ) : null}
 

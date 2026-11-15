@@ -147,21 +147,18 @@ export async function getMatchPeriodSummaries(matchId: number) {
   )
 }
 
-/** One period of the compact "goals and shots by period" strip on cards. */
+/** One period of the compact "goals by period" strip on cards (goals only, D27). */
 export interface EnginePeriodStripRow {
   periodNumber: number
   goalsFor: number
   goalsAgainst: number
-  /** null: no usable shot count for this period (the card shows a dash). */
-  shotsFor: number | null
-  shotsAgainst: number | null
 }
 
 /**
- * Per-period goals and shots read from video, for many matches at once (home latest
- * game panel and /games cards). Only `engine_video` rows whose goals family is `reviewed`
- * (shots show only where their own family is reviewed), and only for matches whose period goals add up to
- * EA's final score. A match that fails either test is absent from the map.
+ * Per-period GOALS read from video, for many matches at once (home latest game panel and
+ * /games cards). Goals only (operator decision D27): shots are never returned here. Only
+ * `engine_video` rows whose goals family is `reviewed`, and only for matches whose period
+ * goals add up to EA's final score. A match that fails either test is absent from the map.
  */
 export async function getEnginePeriodStrips(
   matchIds: readonly number[],
@@ -174,9 +171,6 @@ export async function getEnginePeriodStrips(
       periodNumber: matchPeriodSummaries.periodNumber,
       goalsFor: matchPeriodSummaries.goalsFor,
       goalsAgainst: matchPeriodSummaries.goalsAgainst,
-      shotsFor: matchPeriodSummaries.shotsFor,
-      shotsAgainst: matchPeriodSummaries.shotsAgainst,
-      shotsStatus: matchPeriodSummaries.shotsReviewStatus,
       scoreFor: matches.scoreFor,
       scoreAgainst: matches.scoreAgainst,
     })
@@ -200,17 +194,11 @@ export async function getEnginePeriodStrips(
     const first = list[0]
     if (first === undefined) continue
     if (!periodGoalsMatchFinal(list, first.scoreFor, first.scoreAgainst)) continue
-    const strip: EnginePeriodStripRow[] = list.map((r) => {
-      // A shots value counts only when its own family is reviewed.
-      const shotsOk = r.shotsStatus === 'reviewed'
-      return {
-        periodNumber: r.periodNumber,
-        goalsFor: r.goalsFor ?? 0,
-        goalsAgainst: r.goalsAgainst ?? 0,
-        shotsFor: shotsOk ? r.shotsFor : null,
-        shotsAgainst: shotsOk ? r.shotsAgainst : null,
-      }
-    })
+    const strip: EnginePeriodStripRow[] = list.map((r) => ({
+      periodNumber: r.periodNumber,
+      goalsFor: r.goalsFor ?? 0,
+      goalsAgainst: r.goalsAgainst ?? 0,
+    }))
     if (strip.length > 0) out.set(matchId, strip)
   }
   return out

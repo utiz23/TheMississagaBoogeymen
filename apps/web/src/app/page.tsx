@@ -157,7 +157,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     lastMatch === null ? Promise.resolve(null) : getClubFinalsBadge(lastMatch.id).catch(() => null),
     getClubFinalsBadges(finalsBadgeIds).catch(() => new Map<number, ClubFinalsBadge>()),
   ])
-  // Goals and shots by period read from video (P1) for the latest game; fails soft.
+  // Goals by period read from video (P1, goals only) for the latest game; fails soft.
   const lastMatchPeriods =
     lastMatch === null
       ? null

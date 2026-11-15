@@ -15,6 +15,7 @@ import { join } from 'node:path'
 import { and, eq } from 'drizzle-orm'
 import { db, sql as dbSql, gameTitles, matchPeriodSummaries, matches } from '@eanhl/db'
 import {
+  ENGINE_SHOTS_REVIEW_STATUS,
   ENGINE_VIDEO_SOURCE,
   formatTable,
   importFolder,
@@ -79,20 +80,15 @@ const dbStore: PeriodStore = {
     return rows.map(
       ({ goalsStatus, shotsStatus, ...r }): EnginePeriodRowValues => ({
         ...r,
-        // Shots count as reviewed only when the row has shots to review.
-        reviewed:
-          goalsStatus === 'reviewed' &&
-          (shotsStatus === 'reviewed' || (r.shotsFor === null && r.shotsAgainst === null)),
         goalsFor: r.goalsFor ?? -1,
         goalsAgainst: r.goalsAgainst ?? -1,
+        // Only the goals family is reviewed (D27: shots stay hidden, see ENGINE_SHOTS_REVIEW_STATUS).
+        reviewed: goalsStatus === 'reviewed' && shotsStatus === ENGINE_SHOTS_REVIEW_STATUS,
       }),
     )
   },
 
   async replaceEngineRows(matchId, rows) {
-    // Shots are 'reviewed' when the period has a shot count; a period with none (null) has
-    // nothing to show, so its shots family stays 'pending_review'.
-    const hasShots = (r: EnginePeriodRowValues) => r.shotsFor !== null && r.shotsAgainst !== null
     return db.transaction(async (tx) => {
       // Only this match's engine_video rows. Rows of any other source are never touched.
       const deleted = await tx
@@ -124,7 +120,7 @@ const dbStore: PeriodStore = {
             // empty and unreviewed.
             reviewStatus: 'reviewed' as const,
             goalsReviewStatus: 'reviewed' as const,
-            shotsReviewStatus: hasShots(r) ? ('reviewed' as const) : ('pending_review' as const),
+            shotsReviewStatus: ENGINE_SHOTS_REVIEW_STATUS,
             faceoffsReviewStatus: 'pending_review' as const,
             bgmAttackDirection: null,
           })),

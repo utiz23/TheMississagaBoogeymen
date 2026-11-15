@@ -10,6 +10,7 @@ import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import {
+  ENGINE_SHOTS_REVIEW_STATUS,
   ENGINE_VIDEO_SOURCE,
   FIELDS,
   formatTable,
@@ -45,9 +46,7 @@ class FakeStore implements PeriodStore {
         .filter((r) => r.matchId === matchId && r.source === ENGINE_VIDEO_SOURCE)
         .map((r) => ({
           ...r,
-          reviewed:
-            r.goalsStatus === 'reviewed' &&
-            (r.shotsStatus === 'reviewed' || (r.shotsFor === null && r.shotsAgainst === null)),
+          reviewed: r.goalsStatus === 'reviewed' && r.shotsStatus === ENGINE_SHOTS_REVIEW_STATUS,
         })),
     )
   }
@@ -64,7 +63,7 @@ class FakeStore implements PeriodStore {
         matchId,
         source: ENGINE_VIDEO_SOURCE,
         goalsStatus: 'reviewed',
-        shotsStatus: r.shotsFor !== null && r.shotsAgainst !== null ? 'reviewed' : 'pending_review',
+        shotsStatus: ENGINE_SHOTS_REVIEW_STATUS,
       })
     }
     return Promise.resolve({ deleted, inserted: rows.length })
@@ -613,4 +612,23 @@ void test('the opponent abbreviation is never read, shown or stored (it can be m
   const { opp_abbr: _drop, ...without } = f
   assert.equal(parseEnginePeriodsFile(without).kind, 'ok')
   assert.equal(parseEnginePeriodsFile({ ...f, opp_abbr: 42 }).kind, 'ok')
+})
+
+void test('D27: shots are stored but their review stays pending, goals are reviewed', async () => {
+  assert.equal(ENGINE_SHOTS_REVIEW_STATUS, 'pending_review')
+  const store = new FakeStore({ '111': match(7, 5, 3) })
+  await run(store, GOOD(), true)
+  assert.equal(store.rows.length, 3)
+  assert.ok(store.rows.every((r) => r.goalsStatus === 'reviewed'))
+  assert.ok(store.rows.every((r) => r.shotsStatus === 'pending_review'))
+  assert.deepEqual(
+    store.rows.map((r) => [r.shotsFor, r.shotsAgainst]),
+    [
+      [4, 6],
+      [4, 6],
+      [4, 6],
+    ],
+  ) // the shots are still there, for later
+  // A re-run with the same file is still "unchanged" (pending shots are the normal state).
+  assert.equal((await run(store, GOOD(), true)).action, 'unchanged')
 })
