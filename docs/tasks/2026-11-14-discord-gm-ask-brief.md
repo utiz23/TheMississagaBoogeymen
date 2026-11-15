@@ -1,6 +1,6 @@
 # Task: /gm ask — the GM's text is a private brief by default, never posted
 
-- **State:** Verify (task agent done 2026-11-14 19:20; was Running since 19:12, task agent of `Lead2`)
+- **State:** Deployed 2026-11-14 19:27 (operator: "All approved")
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** medium (what reporters post to players)
 - **Slug:** gm-ask-brief (branch `work/gm-ask-brief`)
@@ -61,7 +61,11 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-14 19:20 task agent: branch `work/gm-ask-brief` in `.claude/worktrees/gm-ask-brief`. Failing tests written first (default is brief; live case never posts; reply text); then the fix. Done: `exact` default false (gm.ts); new `press/brief.ts` check (5+ words in a row from the brief, instruction phrasing, third person about the player); wired into `askQuestion` (writer prompt now says "private brief", review rule added) and into the `/gm interview` question writer; the interview article may not repeat the topic either. Samples written. Finding: the only path that posts the GM's text is `question.ts` (the exact branch); every other path goes through the writer and its checks, then the fallback pool.
 
-Resume: Lead reviews the Report, repeats the checks, shows the operator `samples-gm-ask/samples.md` (operator gate before merge), then merges and deploys `press`.
+- 2026-11-14 19:30 Lead2: merged (`4e975605`); `press` deployed (rollback `:rollback-he-2026-11-14-pre-gmask`; rejoined
+  4 of 4 open threads; commands re-registered). Live row `news_gm_asks` id 1 (yoma, game 3448, exact) set to
+  `cancelled` (operator OK; undo: `status = 'active'` on id 1).
+
+Resume: none (watch the next /gm ask).
 
 ## Report (task agent fills when state = Verify)
 

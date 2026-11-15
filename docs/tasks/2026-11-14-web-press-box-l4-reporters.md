@@ -1,6 +1,6 @@
 # Task: L4 — Press Box: reporter editor (bio, voice, catchphrases, disposition)
 
-- **State:** Verify (2026-11-14 19:20; was Running since 18:50; task agent of `Lead2`; Opus) (operator 2026-11-14: "start L4")
+- **State:** Merged 2026-11-14 19:30 (operator D29 "All approved": screenshots OK; keep the mild-words exception); deploy waits for the operator's OK
 - **Lane:** Web, Database (overrides), Discord (writers read the merged character)
 - **Risk:** medium (changes the writers' input)
 - **Slug:** press-box-l4
@@ -47,7 +47,10 @@ All checks pass; screenshots match the mock-up; one previewed line shown to the 
 
 - 2026-11-14 19:20 task agent: built on branch `work/press-box-l4` (worktree `.claude/worktrees/press-box-l4`). Done, State = Verify. Details in the Report. The operator's gate (screenshots, one previewed line) is open: screenshots and hand-written sample lines are in the scratchpad (see Report).
 
-Resume: Lead re-runs the checks on `work/press-box-l4`, shows the operator the screenshots and a sample line, then merges (`--ff-only`) and prepares the deploy (order in the Report).
+- 2026-11-14 19:30 Lead2: rebased on the gm-ask fix; checks on the combined code: typecheck db/discord/worker
+  clean, web 0 errors outside `.next`; web 779/779; discord 1000/1000; db 24/24; prettier clean. Merged.
+
+Resume: operator's OK to deploy: backup, 0087, `news` + `press`, then `web` (never web or an old press first).
 
 ## Report
 

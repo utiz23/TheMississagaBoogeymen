@@ -1,15 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 19:24 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 19:30 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                                                                            | My advice               | Waiting costs                                           |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------- |
-| D28 | /gm ask fix: your text is a private brief by default; the reporter asks in their own words; word for word only with `exact`. OK = merge + deploy the press bots (seconds). Also: mark tonight's old word-for-word request (game 3448) as done in the live database? | Yes to both             | The next /gm ask could again post a brief word for word |
-| D29 | Press Box L4 (reporter editor): screenshots OK? And the locked "no profanity" rule keeps today's exception (mild "hell, damn, crap" for Mercer, Pettibone and Vale). Keep it?                                                                                       | Yes; keep the exception | L4 not live                                             |
+| ID  | Question                                                                                                                                                                                | My advice            | Waiting costs            |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------ |
+| D30 | Deploy Press Box L4 (reporter editor)? Fresh backup, migration 0087, news + press, then the website. Every writer prompt gets the locked rules at the end (rules version 2026-11-14.3). | Yes, at a quiet time | Reporter editor not live |
 
 ## 2. Right now
 
@@ -22,8 +21,8 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights.                                                   |
 | Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                                                                                |
 | Press Box L3 (storylines + takes editor)        | LIVE since 18:54 at `/admin/press-box/storylines` (the takes editor moved here from /admin/news).                                                                         |
-| Press Box L4 (reporter editor)                  | running (task agent); you get screenshots and one sample line before the merge                                                                                            |
-| /gm ask fix                                     | running: your text becomes a private brief by default; the reporter asks in his own words; word for word only with `exact`. Samples before deploy.                        |
+| Press Box L4 (reporter editor)                  | merged; deploy is D30                                                                                                                                                     |
+| /gm ask fix                                     | LIVE since 19:27: your text is a private brief by default; word for word only with `exact`. Yoma's old request is closed.                                                 |
 | Player background                               | LIVE: B1 (blank fact sheets, your editor) and B2 (17:12). **The switch is OFF**: turn it on in the Press Box overview when you want the bots to ask background questions. |
 | Club Finals                                     | LIVE since 15:54: the Club Finals card on the home page and round badges on games. CF3 (finals look) running; CF2 (Discord + news) after B2.                              |
 | News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                                                                          |
@@ -59,6 +58,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 19:25 · "All approved" → /gm ask fix deployed (19:27) and yoma's old request closed; L4 merged with the mild-words exception kept.
 - 2026-11-14 19:24 · D27 "yes" → game cards get a one-line goals strip (full table on the game page and home); goals only, shots hidden for now.
 - 2026-11-14 19:12 · "the gm interview prompt did not work as intended" (your brief was posted word for word: `exact` defaulted to on) → fix task started.
 - 2026-11-14 18:51 · "deploy Press Box L3." → L3 deployed 18:54 (mid game night; the open scrum kept).
