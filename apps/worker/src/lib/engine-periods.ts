@@ -33,16 +33,18 @@ export const FIELDS = {
   game: 'game',
   ourSide: 'our_side',
   ourAbbr: 'our_abbr',
-  oppAbbr: 'opp_abbr',
   final: 'final',
   endOfGameCheck: 'end_of_game_check',
   periods: 'periods',
   periodNumber: 'period',
-  goals: 'goals',
-  shots: 'shots',
+  periodGoalsUs: 'goals_bm',
+  periodGoalsThem: 'goals_opp',
+  periodShotsUs: 'shots_bm',
+  periodShotsThem: 'shots_opp',
+  /** Keys of `final` ({ bm, opp }). */
   us: 'bm',
   them: 'opp',
-  goalList: 'goal_list',
+  goalList: 'goals',
   goalPeriod: 'period',
   goalTeam: 'team',
   goalSure: 'sure',
@@ -67,8 +69,9 @@ export interface EnginePeriod {
   period: number
   goalsFor: number
   goalsAgainst: number
-  shotsFor: number
-  shotsAgainst: number
+  /** null: the engine has no usable shot count for this period (the site shows a dash). */
+  shotsFor: number | null
+  shotsAgainst: number | null
 }
 
 export interface EnginePeriodsFile {
@@ -76,22 +79,33 @@ export interface EnginePeriodsFile {
   eaMatchId: string
   ourSide: 'home' | 'away'
   ourAbbr: string
-  oppAbbr: string
   finalFor: number
   finalAgainst: number
   periods: EnginePeriod[]
+  /** The engine's own END OF GAME check, as text ('pass', 'not seen', ...). */
+  endOfGameCheck: string | null
   /** Goals in the goal list, by period and team (step 1 reads counts only). */
   goalListCounts: { period: number; team: 'us' | 'them' }[] | null
   sourceCommit: string
   recording: string | null
-  game: number | null
+  game: string | null
   exportedAt: string | null
 }
 
 export type ParseResult =
   | { kind: 'ok'; file: EnginePeriodsFile }
   /** Valid envelope, `complete` is false: skipped, not an error. */
-  | { kind: 'incomplete'; gameTitle: string | null; eaMatchId: string | null }
+  /**
+   * Valid envelope, `complete` is false: never written. `file` is the full parse of the same
+   * content when it is otherwise valid, so the planner can still run EA's score check on it
+   * (the engine's own end_of_game_check can say "pass" on a cut recording).
+   */
+  | {
+      kind: 'incomplete'
+      gameTitle: string | null
+      eaMatchId: string | null
+      file: EnginePeriodsFile | null
+    }
   | { kind: 'invalid'; errors: string[]; eaMatchId: string | null }
 
 type Obj = Record<string, unknown>
@@ -110,26 +124,14 @@ function eaMatchIdOf(v: unknown): string | null {
   return null
 }
 
-function nonEmptyString(v: unknown): string | null {
-  return typeof v === 'string' && v.trim() !== '' ? v : null
+/** A shot count: a whole number, or null (no usable count). `undefined` = invalid. */
+function shotCount(v: unknown): number | null | undefined {
+  if (v === null) return null
+  return nonNegInt(v) ?? undefined
 }
 
-function pair(
-  parent: Obj,
-  key: string,
-  where: string,
-  errors: string[],
-): { us: number; them: number } | null {
-  const o = parent[key]
-  if (!isObj(o)) {
-    errors.push(`${where}.${key}: missing or not an object`)
-    return null
-  }
-  const us = nonNegInt(o[FIELDS.us])
-  const them = nonNegInt(o[FIELDS.them])
-  if (us === null) errors.push(`${where}.${key}.${FIELDS.us}: not a whole number >= 0`)
-  if (them === null) errors.push(`${where}.${key}.${FIELDS.them}: not a whole number >= 0`)
-  return us === null || them === null ? null : { us, them }
+function nonEmptyString(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() !== '' ? v : null
 }
 
 /** Strict parse of one engine file. Never throws. */
@@ -156,7 +158,13 @@ export function parseEnginePeriodsFile(raw: unknown): ParseResult {
     }
   }
   if (!complete) {
-    return { kind: 'incomplete', gameTitle: nonEmptyString(raw[FIELDS.gameTitle]), eaMatchId }
+    const asComplete = parseEnginePeriodsFile({ ...raw, [FIELDS.complete]: true })
+    return {
+      kind: 'incomplete',
+      gameTitle: nonEmptyString(raw[FIELDS.gameTitle]),
+      eaMatchId,
+      file: asComplete.kind === 'ok' ? asComplete.file : null,
+    }
   }
 
   const errors: string[] = []
@@ -170,9 +178,7 @@ export function parseEnginePeriodsFile(raw: unknown): ParseResult {
     errors.push(`${FIELDS.ourSide}: must be "home" or "away"`)
   }
   const ourAbbr = nonEmptyString(raw[FIELDS.ourAbbr])
-  const oppAbbr = nonEmptyString(raw[FIELDS.oppAbbr])
   if (ourAbbr === null) errors.push(`${FIELDS.ourAbbr}: missing`)
-  if (oppAbbr === null) errors.push(`${FIELDS.oppAbbr}: missing`)
   const sourceCommit = nonEmptyString(raw[FIELDS.sourceCommit])
   if (sourceCommit === null) errors.push(`${FIELDS.sourceCommit}: missing`)
 
@@ -188,11 +194,15 @@ export function parseEnginePeriodsFile(raw: unknown): ParseResult {
     if (finalAgainst === null)
       errors.push(`${FIELDS.final}.${FIELDS.them}: not a whole number >= 0`)
   }
-  // The engine's own END OF GAME check: an explicit false is a refusal. The shape of a
-  // passing value is the engine's business (boolean, or an object with a boolean `ok` / `passed`).
+  // The engine's own END OF GAME check: 'pass' on every complete file so far; 'not seen' is
+  // possible on incomplete ones. An explicit failure is a refusal; anything else is reported.
   const eog = raw[FIELDS.endOfGameCheck]
-  if (eog === false || (isObj(eog) && (eog.ok === false || eog.passed === false))) {
-    errors.push(`${FIELDS.endOfGameCheck}: the engine's own check failed`)
+  let endOfGameCheck: string | null = null
+  if (typeof eog === 'string') endOfGameCheck = eog
+  else if (eog === true) endOfGameCheck = 'pass'
+  else if (eog === false) endOfGameCheck = 'fail'
+  if (endOfGameCheck !== null && /^(fail|failed|mismatch)$/i.test(endOfGameCheck)) {
+    errors.push(`${FIELDS.endOfGameCheck}: the engine's own check failed ("${endOfGameCheck}")`)
   }
 
   const periods: EnginePeriod[] = []
@@ -213,15 +223,35 @@ export function parseEnginePeriodsFile(raw: unknown): ParseResult {
         )
         return
       }
-      const goals = pair(p, FIELDS.goals, where, errors)
-      const shots = pair(p, FIELDS.shots, where, errors)
-      if (goals === null || shots === null) return
+      const goalsUs = nonNegInt(p[FIELDS.periodGoalsUs])
+      const goalsThem = nonNegInt(p[FIELDS.periodGoalsThem])
+      if (goalsUs === null) errors.push(`${where}.${FIELDS.periodGoalsUs}: not a whole number >= 0`)
+      if (goalsThem === null) {
+        errors.push(`${where}.${FIELDS.periodGoalsThem}: not a whole number >= 0`)
+      }
+      // Shots may be null (no usable count for that period); anything else must be a count.
+      const shotsUs = shotCount(p[FIELDS.periodShotsUs])
+      const shotsThem = shotCount(p[FIELDS.periodShotsThem])
+      if (shotsUs === undefined) {
+        errors.push(`${where}.${FIELDS.periodShotsUs}: not null or a whole number >= 0`)
+      }
+      if (shotsThem === undefined) {
+        errors.push(`${where}.${FIELDS.periodShotsThem}: not null or a whole number >= 0`)
+      }
+      if (
+        goalsUs === null ||
+        goalsThem === null ||
+        shotsUs === undefined ||
+        shotsThem === undefined
+      ) {
+        return
+      }
       periods.push({
         period: n,
-        goalsFor: goals.us,
-        goalsAgainst: goals.them,
-        shotsFor: shots.us,
-        shotsAgainst: shots.them,
+        goalsFor: goalsUs,
+        goalsAgainst: goalsThem,
+        shotsFor: shotsUs,
+        shotsAgainst: shotsThem,
       })
     })
     // Periods 1..N with no gap and no duplicate (N >= 1: a game can end early).
@@ -245,7 +275,6 @@ export function parseEnginePeriodsFile(raw: unknown): ParseResult {
   if (Array.isArray(rawGoals)) {
     const counted: { period: number; team: 'us' | 'them' }[] = []
     const usNames = [FIELDS.us, ourAbbr?.toLowerCase()]
-    const themNames = [FIELDS.them, oppAbbr?.toLowerCase()]
     let readable = true
     for (const g of rawGoals as unknown[]) {
       const n = isObj(g) ? g[FIELDS.goalPeriod] : undefined
@@ -261,25 +290,25 @@ export function parseEnginePeriodsFile(raw: unknown): ParseResult {
         readable = false
         break
       }
-      if (usNames.includes(team)) counted.push({ period: n, team: 'us' })
-      else if (themNames.includes(team)) counted.push({ period: n, team: 'them' })
-      else {
-        readable = false
-        break
-      }
+      // The opponent's abbreviation is never read (it can be misread; the site always uses
+      // EA's opponent from our matches table). Any team that is not ours counts as theirs.
+      counted.push({ period: n, team: usNames.includes(team) ? 'us' : 'them' })
     }
     // An empty list means "not provided" (step 1 does not need it), not "zero goals".
     if (readable && counted.length > 0) goalListCounts = counted
   }
 
-  const game = raw[FIELDS.game]
+  // `game`: which game of a multi-game recording ("game-03" today); text or a number.
+  const rawGame = raw[FIELDS.game]
   if (
-    game !== undefined &&
-    game !== null &&
-    (typeof game !== 'number' || !Number.isInteger(game) || game < 1)
+    rawGame !== undefined &&
+    rawGame !== null &&
+    typeof rawGame !== 'string' &&
+    typeof rawGame !== 'number'
   ) {
-    errors.push(`${FIELDS.game}: not a whole number >= 1`)
+    errors.push(`${FIELDS.game}: not text or a number`)
   }
+  const game = typeof rawGame === 'string' || typeof rawGame === 'number' ? String(rawGame) : null
   const recording = raw[FIELDS.recording]
   const exportedAt = raw[FIELDS.exportedAt]
   if (
@@ -296,7 +325,6 @@ export function parseEnginePeriodsFile(raw: unknown): ParseResult {
     eaMatchId === null ||
     (ourSide !== 'home' && ourSide !== 'away') ||
     ourAbbr === null ||
-    oppAbbr === null ||
     sourceCommit === null ||
     finalFor === null ||
     finalAgainst === null
@@ -311,14 +339,14 @@ export function parseEnginePeriodsFile(raw: unknown): ParseResult {
       eaMatchId,
       ourSide,
       ourAbbr,
-      oppAbbr,
       finalFor,
       finalAgainst,
       periods: [...periods].sort((a, b) => a.period - b.period),
+      endOfGameCheck,
       goalListCounts,
       sourceCommit,
       recording: typeof recording === 'string' ? recording : null,
-      game: typeof game === 'number' ? game : null,
+      game,
       exportedAt: typeof exportedAt === 'string' ? exportedAt : null,
     },
   }
@@ -342,8 +370,9 @@ export interface EnginePeriodRowValues {
   periodLabel: string
   goalsFor: number
   goalsAgainst: number
-  shotsFor: number
-  shotsAgainst: number
+  /** null: no usable shot count for this period. */
+  shotsFor: number | null
+  shotsAgainst: number | null
   /** Set on rows read back from the store: false when goals or shots are not 'reviewed'. */
   reviewed?: boolean
 }
@@ -457,6 +486,24 @@ export async function processParsed(
     out.gameTitle = parsed.gameTitle
     out.action = 'skipped'
     out.reason = 'not complete (engine says complete = false)'
+    // Never written. But when the content can be read, check it against EA's final too: a
+    // file that is incomplete AND does not add up is shown as refused, with both reasons.
+    const f = parsed.file
+    if (f !== null) {
+      const { match } = await store.findMatch(f.gameTitle, f.eaMatchId)
+      if (match !== null) {
+        const sf = f.periods.reduce((n, p) => n + p.goalsFor, 0)
+        const sa = f.periods.reduce((n, p) => n + p.goalsAgainst, 0)
+        if (sf !== match.scoreFor || sa !== match.scoreAgainst) {
+          out.matchId = match.id
+          out.eaFinal = `${String(match.scoreFor)}-${String(match.scoreAgainst)}`
+          out.periodSum = `${String(sf)}-${String(sa)}`
+          out.periods = f.periods.length
+          out.action = 'refused'
+          out.reason = `not complete, and period goals ${out.periodSum} do not add up to EA final ${out.eaFinal} (the file's own end_of_game_check says "${f.endOfGameCheck ?? '?'}": never trusted alone)`
+        }
+      }
+    }
     return out
   }
 
@@ -477,8 +524,9 @@ export async function processParsed(
   const sumFor = f.periods.reduce((n, p) => n + p.goalsFor, 0)
   const sumAgainst = f.periods.reduce((n, p) => n + p.goalsAgainst, 0)
   out.periodSum = `${String(sumFor)}-${String(sumAgainst)}`
-  const shotsFor = f.periods.reduce((n, p) => n + p.shotsFor, 0)
-  const shotsAgainst = f.periods.reduce((n, p) => n + p.shotsAgainst, 0)
+  const shotsFor = f.periods.reduce((n, p) => n + (p.shotsFor ?? 0), 0)
+  const shotsAgainst = f.periods.reduce((n, p) => n + (p.shotsAgainst ?? 0), 0)
+  const shotGaps = f.periods.filter((p) => p.shotsFor === null || p.shotsAgainst === null).length
 
   const { titleKnown, match } = await store.findMatch(f.gameTitle, f.eaMatchId)
   if (!titleKnown) {
@@ -491,7 +539,7 @@ export async function processParsed(
   }
   out.matchId = match.id
   out.eaFinal = `${String(match.scoreFor)}-${String(match.scoreAgainst)}`
-  out.shots = `${String(shotsFor)}-${String(shotsAgainst)} vs EA ${String(match.shotsFor)}-${String(match.shotsAgainst)}`
+  out.shots = `${String(shotsFor)}-${String(shotsAgainst)} vs EA ${String(match.shotsFor)}-${String(match.shotsAgainst)}${shotGaps > 0 ? ` (${String(shotGaps)} period(s) without shots)` : ''}`
 
   // THE RULE: the period goals must add up to OUR database's EA final score.
   if (sumFor !== match.scoreFor || sumAgainst !== match.scoreAgainst) {
@@ -505,11 +553,17 @@ export async function processParsed(
   }
 
   // Warnings: never a gate.
+  if (f.endOfGameCheck !== null && f.endOfGameCheck !== 'pass') {
+    out.warnings.push(`end_of_game_check is "${f.endOfGameCheck}"`)
+  }
   if (match.bgmWasHome !== null && match.bgmWasHome !== (f.ourSide === 'home')) {
     out.warnings.push(`our_side "${f.ourSide}" differs from EA home/away`)
   }
   for (const p of f.periods) {
-    if (p.goalsFor > p.shotsFor || p.goalsAgainst > p.shotsAgainst) {
+    if (
+      (p.shotsFor !== null && p.goalsFor > p.shotsFor) ||
+      (p.shotsAgainst !== null && p.goalsAgainst > p.shotsAgainst)
+    ) {
       out.warnings.push(`period ${String(p.period)}: more goals than shots`)
     }
   }

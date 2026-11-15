@@ -45,7 +45,9 @@ class FakeStore implements PeriodStore {
         .filter((r) => r.matchId === matchId && r.source === ENGINE_VIDEO_SOURCE)
         .map((r) => ({
           ...r,
-          reviewed: r.goalsStatus === 'reviewed' && r.shotsStatus === 'reviewed',
+          reviewed:
+            r.goalsStatus === 'reviewed' &&
+            (r.shotsStatus === 'reviewed' || (r.shotsFor === null && r.shotsAgainst === null)),
         })),
     )
   }
@@ -62,7 +64,7 @@ class FakeStore implements PeriodStore {
         matchId,
         source: ENGINE_VIDEO_SOURCE,
         goalsStatus: 'reviewed',
-        shotsStatus: 'reviewed',
+        shotsStatus: r.shotsFor !== null && r.shotsAgainst !== null ? 'reviewed' : 'pending_review',
       })
     }
     return Promise.resolve({ deleted, inserted: rows.length })
@@ -85,10 +87,10 @@ const match = (
   ...extra,
 })
 
-/** A valid file: periods are [goalsBm, goalsOpp, shotsBm, shotsOpp]. */
+/** A valid file in the real engine shape: periods are [goalsBm, goalsOpp, shotsBm, shotsOpp]. */
 function file(
   eaMatchId: string,
-  periods: [number, number, number, number][],
+  periods: [number, number, number | null, number | null][],
   final: [number, number],
   extra: Record<string, unknown> = {},
 ): Record<string, unknown> {
@@ -96,22 +98,26 @@ function file(
     schema_version: 1,
     game_title: 'nhl27',
     ea_match_id: eaMatchId,
-    recording: 'r.mkv',
-    game: 1,
+    recording: '2026-11-13_20-01-34',
+    game: 'game-03',
     our_side: 'away',
     our_abbr: 'BM',
     opp_abbr: 'OPP',
     final: { bm: final[0], opp: final[1] },
-    end_of_game_check: { ok: true },
+    end_of_game_check: 'pass',
     periods: periods.map((p, i) => ({
       period: i + 1,
-      goals: { bm: p[0], opp: p[1] },
-      shots: { bm: p[2], opp: p[3] },
+      goals_bm: p[0],
+      goals_opp: p[1],
+      shots_bm: p[2],
+      shots_opp: p[3],
     })),
-    goal_list: [],
+    goals: [],
     source_commit: 'abc1234',
+    source_commit_basis: 'main at the run start (estimated)',
+    source_run: 'out/club-1113',
+    exported_at: '2026-11-15T00:55:20Z',
     complete: true,
-    exported_at: '2026-11-14T20:00:00Z',
     ...extra,
   }
 }
@@ -176,22 +182,30 @@ void test('strict: bad types, a missing field, a period gap and a duplicate are 
   assert.equal(bad({ end_of_game_check: false }), 'invalid')
   const p = (n: number, g: number) => ({
     period: n,
-    goals: { bm: g, opp: 0 },
-    shots: { bm: 3, opp: 3 },
+    goals_bm: g,
+    goals_opp: 0,
+    shots_bm: 3,
+    shots_opp: 3,
   })
   assert.equal(bad({ periods: [p(1, 1), p(3, 1)] }), 'invalid') // gap
   assert.equal(bad({ periods: [p(1, 1), p(1, 1)] }), 'invalid') // duplicate
   assert.equal(bad({ periods: [p(0, 1)] }), 'invalid')
   assert.equal(bad({ periods: [p(7, 1)] }), 'invalid')
-  assert.equal(
-    bad({ periods: [{ period: 1, goals: { bm: -1, opp: 0 }, shots: { bm: 3, opp: 3 } }] }),
-    'invalid',
-  )
-  assert.equal(
-    bad({ periods: [{ period: 1, goals: { bm: 1.5, opp: 0 }, shots: { bm: 3, opp: 3 } }] }),
-    'invalid',
-  )
-  assert.equal(bad({ periods: [{ period: 1, goals: { bm: 1, opp: 0 } }] }), 'invalid') // no shots
+  const q = (patch: Record<string, unknown>) => ({
+    period: 1,
+    goals_bm: 1,
+    goals_opp: 0,
+    shots_bm: 3,
+    shots_opp: 3,
+    ...patch,
+  })
+  assert.equal(bad({ periods: [q({ goals_bm: -1 })] }), 'invalid')
+  assert.equal(bad({ periods: [q({ goals_bm: 1.5 })] }), 'invalid')
+  assert.equal(bad({ periods: [q({ goals_opp: null })] }), 'invalid') // goals are never null
+  assert.equal(bad({ periods: [q({ shots_bm: 'x' })] }), 'invalid')
+  assert.equal(bad({ periods: [q({ shots_opp: undefined })] }), 'invalid') // key missing
+  assert.equal(bad({ end_of_game_check: 'fail' }), 'invalid')
+  assert.equal(bad({ game: { a: 1 } }), 'invalid')
 })
 
 void test('a numeric ea_match_id is accepted and kept as text', () => {
@@ -399,7 +413,7 @@ void test('warnings: side mismatch, more goals than shots, goal list differs, DN
     [5, 3],
     {
       our_side: 'home',
-      goal_list: [{ period: 1, clock: '10:00', team: 'bm' }],
+      goals: [{ period: 1, clock_left_ds: 6000, team: 'BM' }],
     },
   )
   const store = new FakeStore({ '111': match(7, 5, 3, { bgmWasHome: false, result: 'DNF' }) })
@@ -453,13 +467,17 @@ void test('fixture folder: dry run writes nothing, each file gets the expected v
       name,
       json: { ok: true as const, value: JSON.parse(readFileSync(dir + name, 'utf8')) as unknown },
     }))
-  assert.equal(entries.length, 6)
+  assert.equal(entries.length, 8)
   const store = new FakeStore({
     '3900836070187': match(3448, 5, 3, { shotsFor: 12, shotsAgainst: 18 }),
     '3898840100293': match(3447, 4, 0),
     '3898658310239': match(3446, 5, 2),
     '3898514700085': match(3445, 3, 0),
     '3899000000001': match(1, 1, 1),
+    '3852785320026': match(9, 5, 4, { result: 'OTL' }),
+    // A cut recording: the file says end_of_game_check "pass" and complete false, but its
+    // goals do not add up to EA's final (3-1 here).
+    '3850226150424': match(10, 3, 1),
   })
   const out = await importFolder(entries, store, { apply: false })
   const by = Object.fromEntries(out.map((o) => [o.source, o.action]))
@@ -467,10 +485,132 @@ void test('fixture folder: dry run writes nothing, each file gets the expected v
     '3898514700085.json': 'skipped',
     '3898658310239.json': 'refused',
     '3898840100293.json': 'insert',
+    '3850226150424.json': 'refused',
+    '3852785320026.json': 'insert',
     '3899000000001.json': 'refused',
     '3900836070187.json': 'insert',
     '3999999999999.json': 'refused',
   })
   assert.equal(store.writes, 0)
   assert.equal(store.rows.length, 0)
+})
+
+void test('unknown extra keys are allowed (the real files carry source_run and source_commit_basis)', () => {
+  const r = parseEnginePeriodsFile({ ...GOOD(), brand_new_field: { x: 1 } })
+  assert.equal(r.kind, 'ok')
+})
+
+void test('a period with null shots is stored as null, never 0, and goals still import', async () => {
+  const store = new FakeStore({ '111': match(7, 5, 3) })
+  const f = file(
+    '111',
+    [
+      [2, 1, 4, 6],
+      [1, 1, null, null],
+      [2, 1, 4, 6],
+    ],
+    [5, 3],
+  )
+  const out = await run(store, f, true)
+  assert.equal(out.action, 'insert')
+  assert.equal(store.rows.find((r) => r.periodNumber === 2)?.shotsFor, null)
+  assert.match(out.shots ?? '', /1 period\(s\) without shots/)
+})
+
+void test('the real sample file (2026-11-13, W 5-4 in OT, 4 periods) imports against a 5-4 match', async () => {
+  const dir = fileURLToPath(
+    new URL('../../src/__tests__/fixtures/engine-periods/', import.meta.url),
+  )
+  const raw = JSON.parse(readFileSync(dir + '3852785320026.json', 'utf8')) as unknown
+  const store = new FakeStore({ '3852785320026': match(9, 5, 4, { result: 'OTL' }) })
+  const out = await run(store, raw, true, '3852785320026')
+  assert.equal(out.action, 'insert')
+  assert.deepEqual(
+    store.rows.map((r) => [r.periodLabel, r.goalsFor, r.goalsAgainst, r.shotsFor, r.shotsAgainst]),
+    [
+      ['1st', 1, 0, 6, 2],
+      ['2nd', 1, 0, 1, 5],
+      ['3rd', 2, 4, 4, 10],
+      ['OT', 1, 0, 5, 3],
+    ],
+  )
+  // Against a different EA score the same file is refused.
+  const store2 = new FakeStore({ '3852785320026': match(9, 5, 3) })
+  assert.equal((await run(store2, raw, true)).action, 'refused')
+  assert.equal(store2.writes, 0)
+})
+
+void test('end_of_game_check "pass" is never trusted alone: complete true but final differs from EA is refused', async () => {
+  const store = new FakeStore({ '111': match(7, 4, 3) })
+  const out = await run(store, GOOD(), true) // file says 5-3 and "pass"
+  assert.equal(out.action, 'refused')
+  assert.equal(store.writes, 0)
+})
+
+void test('a cut recording (complete false, "pass", goals differ from EA) is shown as refused, never written', async () => {
+  const cut = file(
+    '111',
+    [
+      [0, 1, 0, 2],
+      [0, 1, 5, 2],
+      [0, 0, null, null],
+    ],
+    [0, 2],
+    {
+      complete: false,
+      end_of_game_check: 'pass',
+    },
+  )
+  const store = new FakeStore({ '111': match(7, 3, 2) })
+  const out = await run(store, cut, true)
+  assert.equal(out.action, 'refused')
+  assert.match(out.reason, /not complete/)
+  assert.match(out.reason, /do not add up/)
+  assert.equal(store.writes, 0)
+  assert.equal(store.rows.length, 0)
+})
+
+void test('an incomplete file whose goals do add up is skipped, not refused, and never written', async () => {
+  const cut = file(
+    '111',
+    [
+      [2, 1, 4, 6],
+      [1, 1, 4, 6],
+      [2, 1, 4, 6],
+    ],
+    [5, 3],
+    { complete: false },
+  )
+  const store = new FakeStore({ '111': match(7, 5, 3) })
+  const out = await run(store, cut, true)
+  assert.equal(out.action, 'skipped')
+  assert.equal(store.writes, 0)
+})
+
+void test('the opponent abbreviation is never read, shown or stored (it can be misread)', async () => {
+  const f = file(
+    '111',
+    [
+      [2, 1, 4, 6],
+      [1, 1, 4, 6],
+      [2, 1, 4, 6],
+    ],
+    [5, 3],
+    {
+      opp_abbr: 'PIK',
+      goals: [{ period: 1, clock_left_ds: 6000, team: 'PIK' }],
+    },
+  )
+  const store = new FakeStore({ '111': match(7, 5, 3) })
+  const out = await run(store, f, true)
+  assert.equal(out.action, 'insert')
+  assert.ok(!JSON.stringify(out).includes('PIK'))
+  assert.ok(!formatTable([out]).includes('PIK'))
+  assert.ok(!JSON.stringify(store.rows).includes('PIK'))
+  const parsed = parseEnginePeriodsFile(f)
+  assert.ok(parsed.kind === 'ok' && !JSON.stringify(parsed.file).includes('PIK'))
+  // A missing or garbage opp_abbr does not block the import.
+  const { opp_abbr: _drop, ...without } = f
+  assert.equal(parseEnginePeriodsFile(without).kind, 'ok')
+  assert.equal(parseEnginePeriodsFile({ ...f, opp_abbr: 42 }).kind, 'ok')
 })

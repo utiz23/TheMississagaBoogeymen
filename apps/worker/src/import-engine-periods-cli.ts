@@ -79,16 +79,20 @@ const dbStore: PeriodStore = {
     return rows.map(
       ({ goalsStatus, shotsStatus, ...r }): EnginePeriodRowValues => ({
         ...r,
-        reviewed: goalsStatus === 'reviewed' && shotsStatus === 'reviewed',
+        // Shots count as reviewed only when the row has shots to review.
+        reviewed:
+          goalsStatus === 'reviewed' &&
+          (shotsStatus === 'reviewed' || (r.shotsFor === null && r.shotsAgainst === null)),
         goalsFor: r.goalsFor ?? -1,
         goalsAgainst: r.goalsAgainst ?? -1,
-        shotsFor: r.shotsFor ?? -1,
-        shotsAgainst: r.shotsAgainst ?? -1,
       }),
     )
   },
 
   async replaceEngineRows(matchId, rows) {
+    // Shots are 'reviewed' when the period has a shot count; a period with none (null) has
+    // nothing to show, so its shots family stays 'pending_review'.
+    const hasShots = (r: EnginePeriodRowValues) => r.shotsFor !== null && r.shotsAgainst !== null
     return db.transaction(async (tx) => {
       // Only this match's engine_video rows. Rows of any other source are never touched.
       const deleted = await tx
@@ -115,12 +119,12 @@ const dbStore: PeriodStore = {
             faceoffsAgainst: null,
             source: ENGINE_VIDEO_SOURCE,
             ocrExtractionId: null,
-            // Goals and shots were authorized by the score check in lib/engine-periods.ts.
+            // Goals (and shots, where counted) were authorized by the score check in lib/engine-periods.ts.
             // Legacy review_status is transitional metadata (migration 0056); faceoffs stay
             // empty and unreviewed.
             reviewStatus: 'reviewed' as const,
             goalsReviewStatus: 'reviewed' as const,
-            shotsReviewStatus: 'reviewed' as const,
+            shotsReviewStatus: hasShots(r) ? ('reviewed' as const) : ('pending_review' as const),
             faceoffsReviewStatus: 'pending_review' as const,
             bgmAttackDirection: null,
           })),

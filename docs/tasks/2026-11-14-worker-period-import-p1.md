@@ -1,6 +1,6 @@
 # Task: P1 — NHL 27 goals and shots by period from the engine's video readings (import + box)
 
-- **State:** Running (since 2026-11-14 18:47; task agent of `Lead2`; Opus: live data + numbers teammates see)
+- **State:** Verify (since 2026-11-14 19:20; task agent of `Lead2`; Opus: live data + numbers teammates see)
 - **Lane:** Worker (import CLI), Queries, Web (the period box), Database (only if a column is needed: 0086)
 - **Risk:** medium-high (writes to the live database; numbers teammates see) — a Verifier checks the import
 - **Slug:** period-import (branch `work/period-import`, worktree `.claude/worktrees/period-import`)
@@ -68,16 +68,94 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-14 18:47 Lead2: written and started (operator "go on all 3"). Engine export card Ready on the engine side;
   the engine Lead sends the folder, the file pattern and a sample file.
 
-Resume: task agent makes the branch and worktree, reads match_period_summaries and how the site reads it
-(0056 publication columns), builds the CLI with tests against a hand-made fixture of the agreed shape.
+- 2026-11-14 18:55 task agent: branch and worktree made; built the CLI, the db rules, the period strip and the box label against a hand-made fixture.
+- 2026-11-14 19:05 task agent: screenshots (sample rows in memory, patch reverted) and card heights measured.
+- 2026-11-14 19:12 task agent: Lead2 sent the real engine shape (flat period keys, shots may be null, goal list key `goals`, `end_of_game_check` is text) and two engine Verifier rules. Parser aligned; both rules have tests. Dry run on the real 32-file snapshot (read-only live connection, never `--apply`).
+- 2026-11-14 19:20 task agent: rebased on main, checks pass, State = Verify. Not merged, pushed or deployed.
+
+Resume: the Lead reviews the report and screenshots, a Verifier re-runs the checks, the Lead merges after the operator gate; a deploy of `worker` + `web` and each import run need the operator's OK and a backup (runbook).
 
 ## Report (task agent fills when state = Verify)
 
 - **What changed (visible effect):**
-- **How it was checked (commands, numbers):**
-- **Dry-run table (real files):**
-- **Not done:**
-- **Git state:** branch, last commit, rebased on `main` at <hash>, checks pass/fail
+  - Worker CLI `import-engine-periods --dir <folder>` (dry run by default, `--apply` writes; nothing was ever applied). Rules in
+    `apps/worker/src/lib/engine-periods.ts`; wire field names in one table (`FIELDS`). Only `complete: true`; schema_version 1 only; every
+    field strict (extra keys allowed); the period goals must equal OUR database's EA final on both sides; the file's own `final` must agree; one
+    file per match, file name = EA match id. `end_of_game_check` is never trusted alone: a not-complete file whose goals differ from EA is shown
+    REFUSED. The opponent abbreviation in the file is never read, shown or stored. A null shot count is stored as null and shown as a dash.
+  - **Source value:** `engine_video` (type added to `EnrichmentSource`; no migration, the column has no CHECK). **Review rule:** goals review =
+    `reviewed` only because the checks passed (a match that fails gets no rows at all); shots review = `reviewed` for a period that has a shot
+    count, else `pending_review`; faceoffs empty and `pending_review`; legacy `review_status` = `reviewed` (transitional). The site never reads
+    the legacy column. Idempotent: delete + insert of that match's `engine_video` rows in one transaction; unchanged numbers write nothing.
+  - Read side (`getMatchPeriodSummaries`): engine rows show only if their goals add up to EA's final (second check) and only when no other source
+    has a visible row (OCR/EA/manual win, so nothing that shows today changes). New `getEnginePeriodStrips(matchIds)` for the cards.
+  - Web: game page Box Score shows the small label "Read from video" (everyone; the admin chip says "Engine · video") and drops the empty FO tab for
+    engine rows; compact "By period" strip (goals and shots, "Read from video") on the home latest-game panel and on every /games card that has data.
+  - Runbook: `docs/operations/runbooks/engine-period-import.md`.
+  - **Effect on other readers:** news desk and Discord use `getMatchPeriodSummaries` only to detect overtime (`wentToOvertime`); engine OT rows now count
+    there too (correct, and only for imported games).
+- **Card heights (CF3b), measured with Playwright getBoundingClientRect, 12 cards, widths 1280 / 1024 / 390, sample rows on 3 of them:** before this
+  task every card is 277 px; with the strip slot every card is 386 px (all 12 equal at all three widths). The strip block adds 109 px. Cards with no
+  data on a page that has any strip get an empty spacer of the same height (blank area at the bottom of those cards). On a page with no data the
+  cards are unchanged (277 px). Choice for the Lead: if taller cards or blank spacers are unwanted, the strip can be dropped from the cards.
+- **How it was checked (commands, numbers):** `pnpm --filter @eanhl/db build`; typecheck db, worker, web, discord: 0 errors; new tests: worker
+  `node --test apps/worker/dist/__tests__/engine-periods.test.js` 29 pass (score-sum refusal, incomplete, unknown schema, idempotent replace, OT,
+  other sources untouched, dry run writes nothing, null shots, real sample file, cut recording, opponent abbreviation); db
+  `packages/db/dist/queries/__tests__/period-rows.test.js` 6 pass; web `test:unit` 768 pass; prettier clean on all changed files. Not run: worker
+  integration tests (they need the verification database; no Docker on the main PC) and the real SQL of `replaceEngineRows` (the tests use an
+  in-memory store with the same rules; the read queries ran against live read-only in the dry run). `pnpm lint` not used (red repo-wide).
+- **Dry-run table (real files; engine snapshot 1, 32 files; read-only live connection with `default_transaction_read_only=on`; `--apply` never run).**
+  22 would be written, 0 replaced, 6 skipped (not complete), 4 refused (not complete and the goals differ from EA's final: 3554411060318,
+  3596775060454, 3850226150424 and 3604287510034). 0 written matches with a period-sum mismatch. No NHL 27 match has rows from another source yet.
+  Shots (info only): the engine's period shots are usually equal to or a little above EA's whole-game shots; the biggest gap is 3852785320026
+  (16-20 vs EA 12-18). No other warnings.
+
+| file (ea match id) | match | EA final | period sum | periods | shots, period vs EA (info) | action                                       |
+| ------------------ | ----- | -------- | ---------- | ------- | -------------------------- | -------------------------------------------- |
+| 3492792920262      | 3405  | 4-0      | 4-0        | 3       | 12-12 vs EA 12-10          | INSERT                                       |
+| 3498363310454      | 3407  | 4-7      | 4-7        | 3       | 24-23 vs EA 23-21          | INSERT                                       |
+| 3498685780072      | 3408  | 2-1      | 2-1        | 4       | 16-16 vs EA 15-14          | INSERT                                       |
+| 3500006670236      | -     | -        | -          | -       | -                          | SKIPPED                                      |
+| 3552140390158      | 3409  | 3-2      | 3-2        | 4       | 32-8 vs EA 30-5            | INSERT                                       |
+| 3554189990028      | 3410  | 2-0      | 2-0        | 3       | 24-8 vs EA 21-8            | INSERT                                       |
+| 3554411060318      | 3411  | 0-3      | 0-2        | 3       | -                          | REFUSED (not complete; goals differ from EA) |
+| 3554581060482      | 3413  | 6-0      | 6-0        | 3       | 18-15 vs EA 17-15          | INSERT                                       |
+| 3554816600479      | -     | -        | -          | -       | -                          | SKIPPED                                      |
+| 3558160170038      | -     | -        | -          | -       | -                          | SKIPPED                                      |
+| 3558333060492      | -     | -        | -          | -       | -                          | SKIPPED                                      |
+| 3596319670132      | 3417  | 5-2      | 5-2        | 3       | 20-11 vs EA 17-11          | INSERT                                       |
+| 3596487640036      | 3418  | 6-5      | 6-5        | 4       | 33-19 vs EA 33-18          | INSERT                                       |
+| 3596775060454      | 3419  | 0-3      | 0-2        | 3       | -                          | REFUSED (not complete; goals differ from EA) |
+| 3596922560179      | 3420  | 3-2      | 3-2        | 4       | 19-22 vs EA 16-21          | INSERT                                       |
+| 3604065240262      | 3421  | 2-1      | 2-1        | 3       | 21-8 vs EA 21-8            | INSERT                                       |
+| 3604287510034      | 3422  | 2-1      | 1-1        | 4       | -                          | REFUSED (not complete; goals differ from EA) |
+| 3604556180147      | -     | -        | -          | -       | -                          | SKIPPED                                      |
+| 3644138390015      | 3424  | 5-4      | 5-4        | 3       | 18-17 vs EA 17-16          | INSERT                                       |
+| 3648829380332      | 3427  | 5-0      | 5-0        | 3       | 19-14 vs EA 16-13          | INSERT                                       |
+| 3650544500475      | -     | -        | -          | -       | -                          | SKIPPED                                      |
+| 3652099250174      | 3428  | 2-4      | 2-4        | 3       | 29-16 vs EA 29-16          | INSERT                                       |
+| 3792882800443      | 3430  | 0-2      | 0-2        | 3       | 10-20 vs EA 10-18          | INSERT                                       |
+| 3796060490477      | 3431  | 2-3      | 2-3        | 4       | 20-19 vs EA 19-18          | INSERT                                       |
+| 3796370390149      | 3432  | 1-4      | 1-4        | 3       | 20-12 vs EA 18-12          | INSERT                                       |
+| 3844560090192      | 3433  | 0-2      | 0-2        | 3       | 12-11 vs EA 12-9           | INSERT                                       |
+| 3846709990491      | 3434  | 2-3      | 2-3        | 3       | 11-19 vs EA 9-18           | INSERT                                       |
+| 3850226150424      | 3435  | 0-3      | 1-2        | 3       | -                          | REFUSED (not complete; goals differ from EA) |
+| 3850696310094      | 3438  | 2-3      | 2-3        | 3       | 12-11 vs EA 12-11          | INSERT                                       |
+| 3852264700442      | 3437  | 4-2      | 4-2        | 3       | 22-10 vs EA 20-8           | INSERT                                       |
+| 3852785320026      | 3439  | 5-4      | 5-4        | 4       | 16-20 vs EA 12-18          | INSERT                                       |
+| 3854340900368      | 3440  | 5-3      | 5-3        | 3       | 19-14 vs EA 16-14          | INSERT                                       |
+
+- **Screenshots (sample rows in memory only; the temporary patch was in the git-ignored `packages/db/dist` and is reverted by a rebuild; nothing
+  committed; dev server on port 3800 and tunnel 5441 stopped):** `/tmp/claude-1000/-home-michal-projects-eanhl-team-website/a2a7873b-2807-4e71-85a1-f9e79d57ba31/scratchpad/shots-p1/`
+  `games-cards-1280.png`, `games-cards-390.png`, `home-latest-1280.png`, `home-latest-390.png`, `game-3448-boxscore-{1280,390}.png`,
+  `game-3446-boxscore-{1280,390}.png` (OT column), `dryrun-real-snapshot-1.txt`. The shots were taken before the null-shot dash and the
+  not-complete refusal were added; those two changes do not alter the layout.
+- **Not done:** merge, push, deploy, any `--apply`. Faceoffs and player names (later steps). Screenshots with a null-shot period. The importer
+  trusts `our_side` only as a warning. Open choice for the Lead: card height (see above); engine rows yield to OCR rows when both exist.
+- **Paths outside "May edit":** none. (`packages/db/src/schema/match-enrichments.ts` is inside it: one type line, no migration.)
+- **Deploy order:** (1) `worker` image (CLI) and `web` image together (the web needs the new db package; no migration); (2) operator OK + fresh
+  backup; (3) copy the folder, dry run, read the table; (4) operator OK, `--apply`; (5) check. Nothing is shown until step 4.
+- **Git state:** branch `work/period-import`, rebased on `main` (see the last commit), checks pass. Not pushed.
 
 ## Verifier result (Verifier fills)
 

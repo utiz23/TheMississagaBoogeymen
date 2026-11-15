@@ -23,7 +23,12 @@ export function PeriodStripSpacer() {
 
 export function PeriodStrip({ rows }: { rows: readonly EnginePeriodStripRow[] }) {
   const cols = `34px repeat(${String(rows.length)}, minmax(0, 1fr)) 44px`
-  const sum = (pick: (r: EnginePeriodStripRow) => number) => rows.reduce((n, r) => n + pick(r), 0)
+  // A total exists only when every period has a count (a period with none shows a dash).
+  const sum = (pick: (r: EnginePeriodStripRow) => number | null): number | null =>
+    rows.reduce<number | null>((n, r) => {
+      const v = pick(r)
+      return n === null || v === null ? null : n + v
+    }, 0)
   return (
     <div
       className="flex flex-col justify-between overflow-hidden"
@@ -72,8 +77,8 @@ function StripRow({
 }: {
   label: string
   cols: string
-  cells: [number, number][]
-  total: [number, number]
+  cells: [number | null, number | null][]
+  total: [number | null, number | null]
 }) {
   return (
     <div className="grid items-center" style={{ gridTemplateColumns: cols, height: ROW_PX }}>
@@ -86,7 +91,18 @@ function StripRow({
   )
 }
 
-function Pair({ us, them, bold = false }: { us: number; them: number; bold?: boolean }) {
+function Pair({
+  us,
+  them,
+  bold = false,
+}: {
+  us: number | null
+  them: number | null
+  bold?: boolean
+}) {
+  if (us === null || them === null) {
+    return <span className="text-center font-condensed text-[12px] text-fg-5">–</span>
+  }
   return (
     <span className="whitespace-nowrap text-center font-condensed text-[12px] tabular-nums">
       <span className={`${bold ? 'font-black' : 'font-bold'} text-zinc-100`}>{String(us)}</span>

@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "game_title": "nhl27",
+  "ea_match_id": "3852785320026",
+  "recording": "2026-11-13_20-01-34",
+  "game": "game-03",
+  "our_side": "home",
+  "our_abbr": "BM",
+  "opp_abbr": "DIK",
+  "final": {
+    "bm": 5,
+    "opp": 4
+  },
+  "end_of_game_check": "pass",
+  "periods": [
+    {
+      "period": 1,
+      "goals_bm": 1,
+      "goals_opp": 0,
+      "shots_bm": 6,
+      "shots_opp": 2
+    },
+    {
+      "period": 2,
+      "goals_bm": 1,
+      "goals_opp": 0,
+      "shots_bm": 1,
+      "shots_opp": 5
+    },
+    {
+      "period": 3,
+      "goals_bm": 2,
+      "goals_opp": 4,
+      "shots_bm": 4,
+      "shots_opp": 10
+    },
+    {
+      "period": 4,
+      "goals_bm": 1,
+      "goals_opp": 0,
+      "shots_bm": 5,
+      "shots_opp": 3
+    }
+  ],
+  "goals": [
+    {
+      "period": 1,
+      "clock_left_ds": 9400,
+      "team": "BM",
+      "scorer_name": "DINGLE",
+      "scorer_gamertag": null,
+      "assists": ["RANTANEN", "BEAVERSON"],
+      "assist_gamertags": [null, null],
+      "strength": "even",
+      "sure": true
+    },
+    {
+      "period": 2,
+      "clock_left_ds": 5260,
+      "team": "BM",
+      "scorer_name": "BEAVERSON",
+      "scorer_gamertag": null,
+      "assists": ["SILKY"],
+      "assist_gamertags": [null],
+      "strength": "even",
+      "sure": true
+    },
+    {
+      "period": 3,
+      "clock_left_ds": 10150,
+      "team": "DIK",
+      "scorer_name": "ICK",
+      "scorer_gamertag": "GOODFELLA_814",
+      "assists": [],
+      "assist_gamertags": [],
+      "strength": "even",
+      "sure": true
+    },
+    {
+      "period": 3,
+      "clock_left_ds": 9790,
+      "team": "BM",
+      "scorer_name": "RANTANEN",
+      "scorer_gamertag": "STICK MENACE",
+      "assists": ["BEAVERSON", "SILKY"],
+      "assist_gamertags": [null, null],
+      "strength": "even",
+      "sure": true
+    },
+    {
+      "period": 3,
+      "clock_left_ds": 5550,
+      "team": "DIK",
+      "scorer_name": "ICK",
+      "scorer_gamertag": "GOODFELLA_814",
+      "assists": ["PETER"],
+      "assist_gamertags": [null],
+      "strength": "even",
+      "sure": true
+    },
+    {
+      "period": 3,
+      "clock_left_ds": 2690,
+      "team": "BM",
+      "scorer_name": "RANTANEN",
+      "scorer_gamertag": "STICK MENACE",
+      "assists": [],
+      "assist_gamertags": [],
+      "strength": "even",
+      "sure": false
+    },
+    {
+      "period": 3,
+      "clock_left_ds": 1510,
+      "team": "DIK",
+      "scorer_name": "PETER",
+      "scorer_gamertag": null,
+      "assists": ["ICK", "GILFSLAYER"],
+      "assist_gamertags": [null, null],
+      "strength": "even",
+      "sure": true
+    },
+    {
+      "period": 3,
+      "clock_left_ds": 59,
+      "team": "DIK",
+      "scorer_name": "ICK",
+      "scorer_gamertag": "GOODFELLA 814",
+      "assists": ["PETER"],
+      "assist_gamertags": [null],
+      "strength": "even",
+      "sure": true
+    },
+    {
+      "period": 4,
+      "clock_left_ds": 89,
+      "team": "BM",
+      "scorer_name": "SILKY",
+      "scorer_gamertag": "SILKYJOKER85",
+      "assists": ["BEAVERSON", "DINGLE"],
+      "assist_gamertags": [null, null],
+      "strength": "even",
+      "sure": false
+    }
+  ],
+  "source_commit": "a9bcbd896",
+  "source_commit_basis": "main at the run start (estimated)",
+  "source_run": "out/club-1113",
+  "exported_at": "2026-11-15T00:55:20Z",
+  "complete": true
+}

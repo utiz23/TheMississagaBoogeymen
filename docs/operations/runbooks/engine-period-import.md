@@ -17,15 +17,16 @@ Readers: the operator and the website Lead.
 
 ## 2. The rules the CLI enforces
 
-| Rule                                                                                      | If it fails                                      |
-| ----------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `schema_version` is 1                                                                     | File refused                                     |
-| `complete` is true                                                                        | File skipped (not an error)                      |
-| Every field is the right type; periods are 1..N with no gap; N is at most 6 (OT3)         | File refused                                     |
-| The game title exists and the match (title + EA match id) exists in our database          | File refused                                     |
-| The period goals add up to **our database's EA final score**, on both sides               | File refused, **nothing written for that match** |
-| The file's own `final` equals its period goal sums                                        | File refused                                     |
-| The file name is `<ea_match_id>.json` and the content has the same id; one file per match | File refused                                     |
+| Rule                                                                                                                                                                      | If it fails                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `schema_version` is 1                                                                                                                                                     | File refused                                     |
+| `complete` is true                                                                                                                                                        | File skipped (not an error)                      |
+| Every field is the right type; periods are 1..N with no gap; N is at most 6 (OT3)                                                                                         | File refused                                     |
+| The game title exists and the match (title + EA match id) exists in our database                                                                                          | File refused                                     |
+| The period goals add up to **our database's EA final score**, on both sides                                                                                               | File refused, **nothing written for that match** |
+| The file's own `final` equals its period goal sums                                                                                                                        | File refused                                     |
+| The engine's `end_of_game_check` is never trusted alone: a file that is not complete AND does not add up to EA's final is shown `REFUSED` (cut recordings say "pass" too) | File refused (never written)                     |
+| The file name is `<ea_match_id>.json` and the content has the same id; one file per match                                                                                 | File refused                                     |
 
 - A match that passes gets goals and shots rows with their review columns set to `reviewed`. Faceoffs
   stay empty and `pending_review`. A match that fails gets no rows at all.
@@ -33,6 +34,10 @@ Readers: the operator and the website Lead.
   A match whose engine rows do not add up to the EA final is shown without them.
 - Rows of another source win: if a match also has reviewed OCR/EA rows, the game page shows those and
   not the engine rows.
+- The opponent's name or abbreviation in the file is never read, shown or stored (it can be misread, for
+  example PIK for DIK). The site always shows EA's opponent from our `matches` table.
+- A period with no usable shot count (`shots_bm` / `shots_opp` null) is stored as null and shown as a dash.
+  Goals of that match still import.
 - Warnings in the table (never a refusal): `our_side` differs from EA home/away, more goals than shots
   in a period, the goal list differs from the goal counts, EA result is DNF. The column "shots (info)"
   compares the period shots with EA's whole-game shots. They can differ (EA counts shots its own way).

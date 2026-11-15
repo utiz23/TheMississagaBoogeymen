@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "game_title": "nhl27",
+  "ea_match_id": "3850226150424",
+  "recording": "2026-11-13_19-37-12",
+  "game": "game-01",
+  "our_side": "away",
+  "our_abbr": "BM",
+  "opp_abbr": "L50",
+  "final": {
+    "bm": 1,
+    "opp": 2
+  },
+  "end_of_game_check": "pass",
+  "periods": [
+    {
+      "period": 1,
+      "goals_bm": 1,
+      "goals_opp": 0,
+      "shots_bm": 2,
+      "shots_opp": 5
+    },
+    {
+      "period": 2,
+      "goals_bm": 0,
+      "goals_opp": 2,
+      "shots_bm": 0,
+      "shots_opp": 1
+    },
+    {
+      "period": 3,
+      "goals_bm": 0,
+      "goals_opp": 0,
+      "shots_bm": null,
+      "shots_opp": null
+    }
+  ],
+  "goals": [
+    {
+      "period": 1,
+      "clock_left_ds": 2110,
+      "team": "BM",
+      "scorer_name": "DINGLE",
+      "scorer_gamertag": "HENRYTHEBOBJR",
+      "assists": [],
+      "assist_gamertags": [],
+      "strength": "even",
+      "sure": true
+    },
+    {
+      "period": 2,
+      "clock_left_ds": 10740,
+      "team": "L50",
+      "scorer_name": "TREMBLAY",
+      "scorer_gamertag": "BIGGIE CANT UC",
+      "assists": ["KEN"],
+      "assist_gamertags": [null],
+      "strength": "even",
+      "sure": true
+    },
+    {
+      "period": 2,
+      "clock_left_ds": 9220,
+      "team": "L50",
+      "scorer_name": "TREMBLAY",
+      "scorer_gamertag": "BIGGIE CANT U C",
+      "assists": ["LATENDRESSE", "KEN"],
+      "assist_gamertags": [null, null],
+      "strength": "even",
+      "sure": false
+    }
+  ],
+  "source_commit": "a9bcbd896",
+  "source_commit_basis": "main at the run start (estimated)",
+  "source_run": "out/club-1113",
+  "exported_at": "2026-11-15T00:55:20Z",
+  "complete": false
+}
