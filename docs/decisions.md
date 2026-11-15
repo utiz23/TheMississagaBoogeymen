@@ -1,14 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 19:37 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 19:40 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                                                                                                                                                       | My advice    | Waiting costs              |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | -------------------------- |
+| D31 | Goals by period (P1): screenshots OK (one goals line on cards, table on home + game page, "read from video")? If yes, 3 steps: merge; deploy worker + website; then the first import of 22 NHL 27 games (fresh backup, dry run, apply, check). | Yes to all 3 | The period box stays empty |
 
 ## 2. Right now
 
