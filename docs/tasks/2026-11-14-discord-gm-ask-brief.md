@@ -79,4 +79,4 @@ Resume: Lead reviews the Report, repeats the checks, shows the operator `samples
   - The background-question path (`bg.plan`) can still replace question 1 of a GM-asked player and then the brief is silently unused (nothing is posted from it). Pre-existing, not touched.
   - Deploy: `press` only (shared code unchanged outside `apps/discord/src/press/`). `/gm ask` command definition changed (option descriptions): re-registered when `press` starts. Any `news_gm_asks` row still `active` with `exact = true` and not yet asked will still be posted word for word (the GM chose it under the old default): the Lead may check live (read-only) before the deploy.
   - Not run: anything needing the real model or a live Discord login.
-- **Git state:** branch `work/gm-ask-brief`, rebased on `main` at MAINHASH, checks pass.
+- **Git state:** branch `work/gm-ask-brief`, rebased on `main` at e3e456e7, checks pass.
