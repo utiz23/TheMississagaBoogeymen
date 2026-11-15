@@ -20,6 +20,7 @@ import type {
   NewsScrumPersonRow,
   NewsScrumRow,
   NewsJobKind,
+  PinnedStoryline,
   PressRosterEntry,
   ReactionItem,
   RecapItemWithoutScrum,
@@ -215,6 +216,12 @@ export class FakeStore implements PressStore {
     this.clubFinalsError !== null
       ? Promise.reject(this.clubFinalsError)
       : Promise.resolve(this.clubFinals.get(matchId) ?? null)
+  /** The pinned storyline (Press Box L3); none by default. */
+  pinned: PinnedStoryline | null = null
+  /** When set, the pinned storyline read fails with this error. */
+  pinnedError: Error | null = null
+  getPinnedStoryline = () =>
+    this.pinnedError !== null ? Promise.reject(this.pinnedError) : Promise.resolve(this.pinned)
   listRecapItemsWithoutScrum = (args: { since: Date; mode: 'trial' | 'live'; limit: number }) => {
     const out: RecapItemWithoutScrum[] = []
     for (const n of [...this.items].sort((a, b) => a.id - b.id)) {

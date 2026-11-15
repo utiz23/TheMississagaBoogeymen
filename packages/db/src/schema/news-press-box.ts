@@ -47,6 +47,16 @@ export const PRESS_BOX_AUDIT_KINDS = [
   'background_reject',
   'background_delete',
   'background_switch',
+  'storyline_new',
+  'storyline_pin',
+  'storyline_unpin',
+  'storyline_close',
+  'take_add',
+  'take_edit',
+  'take_remove',
+  'stance_add',
+  'stance_edit',
+  'stance_remove',
 ] as const
 export type PressBoxAuditKind = (typeof PRESS_BOX_AUDIT_KINDS)[number]
 

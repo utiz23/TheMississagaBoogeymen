@@ -14,6 +14,7 @@ import type {
   NewsScrumPersonRow,
   NewsPressSettingsRow,
   NewsScrumRow,
+  PinnedStoryline,
   PressNote,
   PressRosterEntry,
   PressQuote,
@@ -76,6 +77,12 @@ export interface PressStore {
    * without it means no Club Finals moments (the scrum is as before).
    */
   getClubFinalsBadge?(matchId: number): Promise<ClubFinalsFacts | null>
+  /**
+   * Press Box L3: the storyline the GM pinned (never a closed or unpinned one), or null. Optional: a
+   * store without it (or a database with no storyline table yet) means no suggested angle in the
+   * scrum questions.
+   */
+  getPinnedStoryline?(): Promise<PinnedStoryline | null>
   listRecapItemsWithoutScrum(args: {
     since: Date
     mode: 'trial' | 'live'

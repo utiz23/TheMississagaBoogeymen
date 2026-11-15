@@ -7,7 +7,17 @@ import {
   addBackgroundFactWithAudit,
   addGmNoteWithAudit,
   addNicknameWithAudit,
+  addStanceWithAudit,
+  addTakeWithAudit,
   applyRelationshipAction,
+  closeStorylineWithAudit,
+  createStorylineWithAudit,
+  editStanceWithAudit,
+  editTakeWithAudit,
+  pinStorylineWithAudit,
+  removeStanceWithAudit,
+  removeTakeWithAudit,
+  unpinStorylineWithAudit,
   decideBackgroundFactWithAudit,
   editBackgroundFactWithAudit,
   hasOpenPressBoxRequest,
@@ -30,6 +40,19 @@ import {
   type BackgroundActionDeps,
 } from './background-box-actions'
 import { setBackgroundQuestionsBox } from './background-switch-actions'
+import {
+  addStanceBox,
+  addTakeBox,
+  closeStorylineBox,
+  createStorylineBox,
+  editStanceBox,
+  editTakeBox,
+  pinStorylineBox,
+  removeStanceBox,
+  removeTakeBox,
+  unpinStorylineBox,
+  type StorylineActionDeps,
+} from './storyline-box-actions'
 import {
   addNicknameBox,
   gmNoteBox,
@@ -193,4 +216,64 @@ export async function removeBackgroundAction(formData: FormData): Promise<void> 
 
 export async function editBackgroundAction(formData: FormData): Promise<void> {
   backToDossier(formData, await editBackgroundBox(formData, backgroundDeps))
+}
+
+// ── Storylines, stances and takes (release L3) ──────────────────────────────
+
+/** The same admin check as every Press Box action; the queries check the text and write the audit line. */
+const storylineDeps: StorylineActionDeps = {
+  requireAdmin: deps.requireAdmin,
+  now: deps.now,
+  createStorylineWithAudit,
+  pinStorylineWithAudit,
+  unpinStorylineWithAudit,
+  closeStorylineWithAudit,
+  addStanceWithAudit,
+  editStanceWithAudit,
+  removeStanceWithAudit,
+  addTakeWithAudit,
+  editTakeWithAudit,
+  removeTakeWithAudit,
+}
+
+const STORYLINES = '/admin/press-box/storylines'
+
+export async function createStorylineAction(formData: FormData): Promise<void> {
+  back(STORYLINES, (await createStorylineBox(formData, storylineDeps)) as ActionNotice)
+}
+
+export async function pinStorylineAction(formData: FormData): Promise<void> {
+  back(STORYLINES, (await pinStorylineBox(formData, storylineDeps)) as ActionNotice)
+}
+
+export async function unpinStorylineAction(formData: FormData): Promise<void> {
+  back(STORYLINES, (await unpinStorylineBox(formData, storylineDeps)) as ActionNotice)
+}
+
+export async function closeStorylineAction(formData: FormData): Promise<void> {
+  back(STORYLINES, (await closeStorylineBox(formData, storylineDeps)) as ActionNotice)
+}
+
+export async function addStanceAction(formData: FormData): Promise<void> {
+  back(STORYLINES, (await addStanceBox(formData, storylineDeps)) as ActionNotice)
+}
+
+export async function editStanceAction(formData: FormData): Promise<void> {
+  back(STORYLINES, (await editStanceBox(formData, storylineDeps)) as ActionNotice)
+}
+
+export async function removeStanceAction(formData: FormData): Promise<void> {
+  back(STORYLINES, (await removeStanceBox(formData, storylineDeps)) as ActionNotice)
+}
+
+export async function addTakeAction(formData: FormData): Promise<void> {
+  back(STORYLINES, (await addTakeBox(formData, storylineDeps)) as ActionNotice)
+}
+
+export async function editTakeAction(formData: FormData): Promise<void> {
+  back(STORYLINES, (await editTakeBox(formData, storylineDeps)) as ActionNotice)
+}
+
+export async function removeTakeAction(formData: FormData): Promise<void> {
+  back(STORYLINES, (await removeTakeBox(formData, storylineDeps)) as ActionNotice)
 }

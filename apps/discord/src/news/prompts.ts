@@ -12,7 +12,7 @@ import {
   type Reporter,
   type ReporterId,
 } from '@eanhl/db/news'
-import type { PressNote, PressQuote } from '@eanhl/db/queries'
+import type { PinnedStoryline, PressNote, PressQuote } from '@eanhl/db/queries'
 import { finalsBlock, type ClubFinalsFacts } from '../club-finals.ts'
 import { ANGLE_TEXT, type PostAssignment } from './assign.ts'
 import { isBench, quoteSpeaker } from './press-material.ts'
@@ -210,6 +210,12 @@ export interface DeskContext {
    * state (CF1), in game order. A night sheet names each game by its opponent. None when absent.
    */
   clubFinals?: readonly { opponent: string | null; facts: ClubFinalsFacts }[]
+  /**
+   * Press Box L3: the storyline the GM pinned, as a SUGGESTED angle (already checked against the sheet's
+   * forbidden names). It sits beside the finals, the press room and the confirmed background and
+   * replaces none of them. Never a closed or unpinned storyline. None when absent.
+   */
+  pinned?: PinnedStoryline
 }
 
 /** One confirmed background fact about a player on the sheet. */
@@ -232,6 +238,33 @@ export function backgroundBlock(lines: readonly BackgroundLine[] | undefined): s
     "Hockey context about players on the sheet. Say it in your own words if it helps the piece; use at most one or two lines; none is required. Never quote a line, never present one as a player's words, never say where it comes from, and never use a line to criticise a player.",
     ...lines.map((l) => `- About ${l.player}: ${l.text}`),
     BACKGROUND_END,
+  ].join('\n')
+}
+
+export const PINNED_START = "PINNED STORYLINE (the desk's suggested angle for tonight)"
+export const PINNED_END = 'END OF PINNED STORYLINE'
+
+/**
+ * The GM's pinned storyline as a suggestion, or null when there is none. It is an angle, never a
+ * fact: every number and every claim still comes from the fact sheet. The reporters' earlier
+ * stances come as their own words; a stance with a digit is left out (its number is not on this
+ * sheet). Nothing here says where the angle came from.
+ */
+export function pinnedStorylineBlock(pinned: PinnedStoryline | undefined): string | null {
+  if (pinned === undefined) return null
+  const stances = pinned.stances.filter((s) => !/\d/.test(s.stance))
+  return [
+    PINNED_START,
+    `Storyline: ${pinned.title}.`,
+    ...(pinned.angle === '' ? [] : [`Suggested angle: ${pinned.angle}`]),
+    ...(stances.length === 0
+      ? []
+      : [
+          'What the reporters have already said about it (their own earlier words; never a fact and never a source of numbers):',
+          ...stances.map((s) => `- ${REPORTERS[s.reporter].name}: "${s.stance}"`),
+        ]),
+    'Use this angle when it fits the games on the sheet; it is a suggestion, so none of it is required and it may shape one post or one paragraph only. Every number and every claim still comes from the fact sheet. Never say where the angle came from. The hard lines, "Go easy" and the crude-quote rules stay as they are.',
+    PINNED_END,
   ].join('\n')
 }
 
@@ -519,6 +552,8 @@ export function buildGameUserPrompt(args: {
   if (threads !== null) lines.push('', threads)
   const finals = finalsBlock(ctx.clubFinals ?? [])
   if (finals !== null) lines.push('', finals)
+  const pinned = pinnedStorylineBlock(ctx.pinned)
+  if (pinned !== null) lines.push('', pinned)
   lines.push(
     '',
     facts.games.some((g) => g.endedEarly) ? RECAP_RULES_ENDED_EARLY : RECAP_RULES,
@@ -656,6 +691,8 @@ export function buildArticleUserPrompt(args: {
   if (threads !== null) lines.push('', threads)
   const finals = finalsBlock(ctx.clubFinals ?? [])
   if (finals !== null) lines.push('', finals)
+  const pinned = pinnedStorylineBlock(ctx.pinned)
+  if (pinned !== null) lines.push('', pinned)
   const pressRoom = pressRoomBlock(ctx.press)
   if (pressRoom !== null) lines.push('', pressRoom)
   const background = backgroundBlock(ctx.background)
@@ -698,6 +735,8 @@ export function buildGameArticleUserPrompt(args: {
   if (threads !== null) lines.push('', threads)
   const finals = finalsBlock(ctx.clubFinals ?? [])
   if (finals !== null) lines.push('', finals)
+  const pinned = pinnedStorylineBlock(ctx.pinned)
+  if (pinned !== null) lines.push('', pinned)
   lines.push('', deskContextBlock(ctx, [reporter.id]))
   return lines.join('\n')
 }

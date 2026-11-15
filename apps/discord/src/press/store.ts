@@ -18,6 +18,7 @@ import {
   getAdminNewsItem,
   getClubFinalsBadge,
   getGmNote,
+  getPinnedStoryline,
   getPlayerDiscordUserId,
   getPlayerForDiscordUser,
   getPressSettings,
@@ -95,6 +96,8 @@ export const pressDbStore: PressStore = {
   getNewsItem: getAdminNewsItem,
   // Club Finals (CF2): CF1's stored state (migration 0083); a failure is caught by the caller.
   getClubFinalsBadge,
+  // Press Box L3: the pinned storyline (migration 0085); a failure is caught by the caller.
+  getPinnedStoryline,
   listRecapItemsWithoutScrum,
   scrumByRecapItem,
   gmAskForMatch,

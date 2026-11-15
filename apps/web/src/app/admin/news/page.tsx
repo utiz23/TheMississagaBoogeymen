@@ -35,7 +35,6 @@ import { PRESS_LEVEL_OPTIONS } from '@/lib/profile-edit'
 import { AliasesSection } from './aliases-section'
 import { RelationshipsSection } from './relationships-section'
 import { QualitySection } from './quality-section'
-import { TakesSection } from './takes-section'
 import {
   deleteNewsItemAction,
   deleteNewsItemWithCorrectionAction,
@@ -51,13 +50,8 @@ const BADGE =
   'ml-2 border px-1.5 py-0.5 font-condensed text-[10px] font-bold uppercase tracking-[0.14em]'
 
 /** Admin: switch the news desk, see spending, read and delete items, set press levels. */
-export default async function AdminNewsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ takeError?: string }>
-}) {
+export default async function AdminNewsPage() {
   await requireAdmin()
-  const takeError = (await searchParams).takeError === '1'
   const now = new Date()
   const [
     enabled,
@@ -258,7 +252,21 @@ export default async function AdminNewsPage({
 
       <QualitySection report={quality} />
 
-      <TakesSection takes={takes} saveFailed={takeError} />
+      <AdminSection
+        title="Reporter takes"
+        description="The reporter takes and stances editor moved to the Press Box. Edits there are checked on save and written to the change log."
+      >
+        <p className="text-sm text-fg-2">
+          <Link
+            prefetch
+            href="/admin/press-box/storylines"
+            className="text-fg-1 underline hover:text-accent-readable"
+          >
+            Open Press Box · Storylines
+          </Link>{' '}
+          ({takes.length} {takes.length === 1 ? 'take' : 'takes'} stored).
+        </p>
+      </AdminSection>
 
       <AliasesSection aliases={aliases} roster={roster} />
       <RelationshipsSection rows={relationships} />

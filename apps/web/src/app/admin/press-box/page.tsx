@@ -30,6 +30,16 @@ const KIND_VERB: Readonly<Record<string, string>> = {
   background_reject: 'rejected a background fact for',
   background_delete: 'removed a background fact for',
   background_switch: 'switched background questions',
+  storyline_new: 'opened a storyline',
+  storyline_pin: 'pinned the storyline',
+  storyline_unpin: 'unpinned the storyline',
+  storyline_close: 'closed the storyline',
+  take_add: 'added a take about',
+  take_edit: 'changed a take about',
+  take_remove: 'removed a take about',
+  stance_add: 'added a stance on',
+  stance_edit: 'changed a stance on',
+  stance_remove: 'removed a stance on',
 }
 const PILL =
   'border border-border px-2 py-0.5 font-condensed text-[11px] font-bold uppercase tracking-[0.14em] text-fg-3'
@@ -323,7 +333,15 @@ export default async function PressBoxOverviewPage({
 
         <Card
           title="Storylines"
-          aside={<span className="text-xs text-fg-5">read only until L3</span>}
+          aside={
+            <Link
+              prefetch
+              href="/admin/press-box/storylines"
+              className="text-xs text-fg-4 underline hover:text-fg-1"
+            >
+              Open storylines
+            </Link>
+          }
         >
           {d.storylines.length === 0 && <Empty>No stances in the last 14 days.</Empty>}
           {d.storylines.map((s) => (

@@ -86,6 +86,12 @@ export interface AskContext {
    * as they are. Its facts reach the writer as desk notes in `gmNotes`.
    */
   moment?: FinalsMoment
+  /**
+   * Press Box L3: the storyline the GM pinned, as a SUGGESTED angle for the question (already checked
+   * against the sheet's forbidden names). It sits beside the desk notes, the takes, the confirmed
+   * background and the Club Finals moment and replaces none of them. None when absent.
+   */
+  angle?: { title: string; angle: string }
 }
 
 /**
@@ -348,9 +354,21 @@ function questionExtras(ctx: AskContext): string[] {
   return lines
 }
 
+/** The pinned storyline as a suggestion for a question (never for the judge), or no lines. */
+export function angleLines(ctx: Pick<AskContext, 'angle' | 'player'>): string[] {
+  if (ctx.angle === undefined) return []
+  return [
+    '',
+    `The desk's suggested angle for tonight's questions (a suggestion only: use it when it fits ${ctx.player.name}'s game, otherwise ignore it; never say or hint where it came from; it is no fact and no source of numbers; hockey only; a "Go easy" player gets no criticism because of it):`,
+    `- Storyline: ${ctx.angle.title}.`,
+    ...(ctx.angle.angle === '' ? [] : [`- Angle: ${ctx.angle.angle}`]),
+  ]
+}
+
 function questionPrompt(ctx: AskContext): string {
   return [
     ...contextLines(ctx, ctx.history),
+    ...angleLines(ctx),
     ...questionExtras(ctx),
     '',
     `Task: ask question ${String(ctx.questionNumber)} of the scrum. Put the one question in "question", at most ${String(ASK_MAX_CHARS)} characters.`,

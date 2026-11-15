@@ -29,6 +29,7 @@ import type {
   NewsItemRow,
   NewsJobKind,
   NewsMention,
+  PinnedStoryline,
   PressNote,
   PressQuote,
   ReactionItem,
@@ -36,6 +37,7 @@ import type {
 } from '@eanhl/db/queries'
 // rules.ts imports only '@eanhl/db/news' (no discord.js), so the news container may use it.
 import { PRESS_NIGHT_WAIT_MS, extrasBudgetLeft } from '../press/rules.ts'
+import { pinnedForSheet } from './pinned.ts'
 import { pressForSheet, quoteSpeaker } from './press-material.ts'
 import { WebhookOutcomeUnknownError } from '../webhook.ts'
 import {
@@ -241,6 +243,11 @@ export interface NewsStore {
    * (or a database with no Club Finals table yet) means no Club Finals facts and no extra weight.
    */
   clubFinalsOf?(matchIds: readonly number[]): Promise<Map<number, ClubFinalsFacts>>
+  /**
+   * Press Box L3: the storyline the GM pinned (never a closed or unpinned one), or null. Optional: a
+   * store without it (or a database with no storyline table yet) means no suggested angle.
+   */
+  getPinnedStoryline?(): Promise<PinnedStoryline | null>
   /**
    * T9: adds signed relationship points (a big night in a reporter's taste). Optional like the read;
    * a failure is logged and never stops the recap.
@@ -930,6 +937,20 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     }
   }
 
+  /**
+   * Press Box L3: the pinned storyline as a suggested angle for this sheet, or null. It is flavour:
+   * when it cannot be read the piece is written without it and the failure is logged.
+   */
+  async function pinnedFor(res: NewsFactsResponse, tag: string): Promise<PinnedStoryline | null> {
+    if (store.getPinnedStoryline === undefined) return null
+    try {
+      return pinnedForSheet(await store.getPinnedStoryline(), res.forbiddenNames)
+    } catch (err: unknown) {
+      log(`${tag}: pinned storyline not read, none used (${message(err)})`)
+      return null
+    }
+  }
+
   /** The reporters' own last pieces (C3a.3), for every reporter of a request. */
   async function ownRecentOf(
     reporters: readonly ReporterId[],
@@ -991,6 +1012,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     }
     const order = posts.map((p) => p.reporter)
     const offered = posts.map((p) => (p.takeId === null ? [] : [p.takeId]))
+    const pinned = await pinnedFor(res, tag)
     const written = await write(jobId, tag, {
       // Only the takes offered to a post go into the prompt, not every due take (I3).
       user: buildGameUserPrompt({
@@ -1000,6 +1022,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           ...ctx,
           takes: takes.filter((t) => offered.flat().includes(t.id)),
           ...(finals === null ? {} : { clubFinals: finalsEntries }),
+          ...(pinned === null ? {} : { pinned }),
         },
       }),
       schema: GAME_POSTS_SCHEMA,
@@ -1158,12 +1181,18 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
       }
       const reporter = REPORTERS[w.reporter]
       const mine = takes.filter((t) => takeCritics(t).includes(w.reporter))
+      const pinned = await pinnedFor(res, tag)
       const written = await write(jobId, tag, {
         user: buildGameArticleUserPrompt({
           facts,
           reporter,
           kind: w.kind,
-          ctx: { ...ctx, takes: mine, ...(finals === null ? {} : { clubFinals: finalsEntries }) },
+          ctx: {
+            ...ctx,
+            takes: mine,
+            ...(finals === null ? {} : { clubFinals: finalsEntries }),
+            ...(pinned === null ? {} : { pinned }),
+          },
         }),
         schema: ARTICLE_SCHEMA,
         parse: parseArticle,
@@ -1557,6 +1586,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
     let background: BackgroundLine[] = []
     /** Club Finals (CF2): CF1's stored state of the night's games, named by opponent (night recaps). */
     let clubFinals: { opponent: string | null; facts: ClubFinalsFacts }[] = []
+    /** Press Box L3: the GM's pinned storyline as a suggested angle (night recaps). */
+    let pinned: PinnedStoryline | null = null
     try {
       const activity = await loadActivity(now)
       let zero = { tonight: [] as string[], previous: [] as string[] }
@@ -1600,6 +1631,8 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
           return f === undefined ? [] : [{ opponent: g.opponentName, facts: f }]
         })
       }
+      // The pinned storyline is flavour: when it cannot be read, the recap is written without it.
+      if (kind === 'night') pinned = await pinnedFor(res, tag)
       // A relationship is flavour: when it cannot be read, the piece is written without it.
       if (store.listRelationships !== undefined) {
         try {
@@ -1623,6 +1656,7 @@ export async function runNewsCycle(deps: NewsDeps, opts: NewsCycleOptions): Prom
         ...(rels.length === 0 ? {} : { relationships: rels }),
         ...(background.length === 0 ? {} : { background }),
         ...(clubFinals.length === 0 ? {} : { clubFinals }),
+        ...(pinned === null ? {} : { pinned }),
       }
       const who = reporterId
       mine = (await takesDue(res, now)).filter((t) => takeCritics(t).includes(who))

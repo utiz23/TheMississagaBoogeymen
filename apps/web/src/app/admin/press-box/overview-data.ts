@@ -7,7 +7,6 @@ import {
   latestPressNight,
   listWaitingBackground,
   listDisabledReporters,
-  listNewsPlayerGames,
   listPressBoxAudit,
   listPressRoster,
   listRecentPressBoxRequests,
@@ -16,8 +15,8 @@ import {
   monthNewsSpendUsd,
 } from '@eanhl/db/queries'
 import { monthlyLimitUsd } from '@/lib/news/admin-display'
-import { playerGameFromRow } from '@/lib/news/players'
-import { currentTitle, hotAndCold, milestonesInReach, type FormPlayer } from './form'
+import { loadFormPlayers } from './form-data'
+import { currentTitle, hotAndCold, milestonesInReach } from './form'
 
 /** The share of the monthly limit at which the press extras (scrums, interviews) stop. */
 export const EXTRAS_STOP_SHARE = 0.8
@@ -73,18 +72,7 @@ export async function loadOverview(now: Date) {
   const tonight = (await latestPressNight(new Date(now.getTime() - 6 * 3_600_000))) ?? nightKey(now)
 
   // Form and milestones from the stats the site already has (every member's games, every title).
-  const memberIds = roster.map((r) => r.playerId)
-  const rows =
-    latest === null ? [] : await listNewsPlayerGames({ playerIds: memberIds, lastMatchId: latest })
-  const byPlayer = new Map<number, ReturnType<typeof playerGameFromRow>[]>()
-  for (const r of rows) {
-    const list = byPlayer.get(r.playerId) ?? []
-    list.push(playerGameFromRow(r))
-    byPlayer.set(r.playerId, list)
-  }
-  const players: FormPlayer[] = roster
-    .filter((r) => r.pressLevel !== 'out')
-    .map((r) => ({ playerId: r.playerId, name: r.name, games: byPlayer.get(r.playerId) ?? [] }))
+  const players = await loadFormPlayers(roster, latest)
   const title = currentTitle(players)
 
   return {

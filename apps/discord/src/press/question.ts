@@ -27,6 +27,7 @@ import {
 } from './relationships.ts'
 import type { PressDeps, PressStore } from './pass.ts'
 import type { WriterFact } from '@eanhl/db/queries'
+import { pinnedForSheet } from '../news/pinned.ts'
 import { scrumMayAskBackground } from './background-rules.ts'
 import { subjectOf, type Subject } from './subject.ts'
 import { replyingTo } from './reply-ref.ts'
@@ -271,6 +272,17 @@ export async function scrumAskContext(
       moment = null
     }
   }
+  // Press Box L3: the pinned storyline as a suggested angle. A read error leaves it out: the question
+  // is written as before.
+  let angle: { title: string; angle: string } | null = null
+  if (store.getPinnedStoryline !== undefined) {
+    try {
+      const p = pinnedForSheet(await store.getPinnedStoryline(), res.forbiddenNames)
+      if (p !== null) angle = { title: p.title, angle: p.angle }
+    } catch {
+      angle = null
+    }
+  }
   return {
     facts: res.facts,
     forbiddenNames: res.forbiddenNames,
@@ -289,6 +301,7 @@ export async function scrumAskContext(
       ...finalsNotes,
     ],
     ...(moment === null ? {} : { moment }),
+    ...(angle === null ? {} : { angle }),
     takes: res.takes,
     history,
     questionNumber,

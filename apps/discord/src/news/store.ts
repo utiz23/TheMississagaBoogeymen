@@ -2,6 +2,7 @@ import {
   claimNewsJob,
   countNightGames,
   getNewsEnabled,
+  getPinnedStoryline,
   insertNewsItem,
   lastFeature,
   listAdminNewsItems,
@@ -102,6 +103,8 @@ export const newsDbStore: NewsStore = {
   addRelationshipPoints,
   // Club Finals (CF2): CF1's stored state of games (migration 0083); a failure is caught by the caller.
   clubFinalsOf: (matchIds) => getClubFinalsBadges(matchIds),
+  // Press Box L3: the pinned storyline (migration 0085); a failure is caught by the caller.
+  getPinnedStoryline,
   // Task background-b2: confirmed background facts (migration 0082); a failure is caught by the caller.
   listConfirmedBackground: async (playerIds) => {
     const out: { playerId: number; facts: WriterFact[] }[] = []

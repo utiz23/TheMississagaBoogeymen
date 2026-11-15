@@ -33,7 +33,8 @@ import {
 } from './cycle.ts'
 import { assignGamePosts, type ActivityKind } from './assign.ts'
 import { pressForSheet } from './press-material.ts'
-import { PRESS_ROOM_START, SYSTEM_RULES, relationshipsBlock } from './prompts.ts'
+import type { PinnedStoryline } from '@eanhl/db/queries'
+import { PINNED_START, PRESS_ROOM_START, SYSTEM_RULES, relationshipsBlock } from './prompts.ts'
 import { classifyGame } from './situation.ts'
 import type { NewsWebhookPayload } from './messages.ts'
 import { ARTICLE_SCHEMA, FEATURE_SCHEMA, GAME_POSTS_SCHEMA, REVIEW_SCHEMA } from './outputs.ts'
@@ -2980,4 +2981,92 @@ void test('CF2: a night recap names each Club Finals game by its opponent and ma
     prompt.includes('The game against WestKent Creamers: Game 7 of The Final in Attempt 18'),
   )
   assert.ok(!prompt.includes('The game against Shake N Bake'))
+})
+
+// ── Press Box L3: the pinned storyline is a suggested angle ─────────────────
+
+const PINNED: PinnedStoryline = {
+  id: 4,
+  title: 'The hits gap',
+  angle: 'Say the team is getting pushed around',
+  stances: [
+    { reporter: 'pettibone', stance: 'Getting pushed around every night.' },
+    { reporter: 'vale', stance: 'They hit 23 times last night.' },
+  ],
+}
+
+void test('L3: a pinned storyline reaches the game prompt beside the Club Finals block, with no number from a stance', async () => {
+  const users: string[] = []
+  const { h } = finalsHarness(FINALS_NORMAL, {
+    writer: async (req) => {
+      users.push(req.user)
+      return longWriter(req)
+    },
+  })
+  h.deps.store.getPinnedStoryline = async () => PINNED
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('game:701')?.status, 'done')
+  const prompt = users.find((u) => u.includes('Write exactly 2 posts'))!
+  assert.ok(prompt.includes(PINNED_START))
+  assert.ok(prompt.includes('Storyline: The hits gap.'))
+  assert.ok(prompt.includes('Suggested angle: Say the team is getting pushed around'))
+  assert.ok(prompt.includes('Pettibone') || prompt.includes('Gord Pettibone'))
+  // The Club Finals block (an existing input) is still there; the pin replaces nothing.
+  assert.ok(prompt.includes(FINALS_START))
+  assert.ok(prompt.indexOf(FINALS_START) < prompt.indexOf(PINNED_START))
+  // A stance with a digit is left out: its number is not on this sheet.
+  assert.ok(!prompt.includes('They hit 23 times'))
+})
+
+void test('L3: nothing pinned (or a store without the read) ⇒ the game is written as before, no block', async () => {
+  for (const reader of [undefined, async () => null]) {
+    const users: string[] = []
+    const { h } = finalsHarness(null, {
+      writer: async (req) => {
+        users.push(req.user)
+        return longWriter(req)
+      },
+    })
+    if (reader !== undefined) h.deps.store.getPinnedStoryline = reader
+    await runNewsCycle(h.deps, h.opts)
+    assert.equal(h.jobs.get('game:701')?.status, 'done')
+    assert.ok(users.every((u) => !u.includes(PINNED_START)))
+  }
+})
+
+void test('L3: a failed read of the pinned storyline is logged; the posts are still written without it', async () => {
+  const users: string[] = []
+  const { h } = finalsHarness(null, {
+    writer: async (req) => {
+      users.push(req.user)
+      return longWriter(req)
+    },
+  })
+  h.deps.store.getPinnedStoryline = async () => {
+    throw new Error('relation "news_storylines" does not exist')
+  }
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('game:701')?.status, 'done')
+  assert.ok(users.every((u) => !u.includes(PINNED_START)))
+  assert.ok(logs(h.events).some((l) => l.includes('pinned storyline not read, none used')))
+})
+
+void test('L3: the night recap prompt carries the pinned storyline too', async () => {
+  const users: string[] = []
+  const h = harness({
+    store: { getPinnedStoryline: async () => PINNED },
+    deps: {
+      writer: async (req) => {
+        users.push(req.user)
+        return goodWriter(req)
+      },
+    },
+  })
+  h.state.nights = [{ night: '2026-10-12', lastEnd: new Date(NOW.getTime() - 91 * MIN) }]
+  h.state.nightGames['2026-10-12'] = 2
+  await runNewsCycle(h.deps, h.opts)
+  assert.equal(h.jobs.get('night:2026-10-12')?.status, 'done')
+  const prompt = users.find((u) => u.includes('whole night'))!
+  assert.ok(prompt.includes(PINNED_START))
+  assert.ok(prompt.includes('Storyline: The hits gap.'))
 })

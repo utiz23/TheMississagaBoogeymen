@@ -413,3 +413,64 @@ void test('CF2: the hard rules stay in every moment: Go easy text and the rule l
   assert.ok(write.system.includes('A player at press level "easy" gets no criticism at any heat.'))
   assert.ok(write.system.includes('Never repeat or paraphrase a crude word or line of the player.'))
 })
+
+// ── Press Box L3: the pinned storyline is a suggested angle ──────────────────
+
+const PINNED = {
+  id: 4,
+  title: 'The hits gap',
+  angle: 'Push back on the idea that we get pushed around',
+  stances: [{ reporter: 'pettibone', stance: 'Getting pushed around every night.' }],
+} as const
+
+void test('L3: the scrum question gets the pinned storyline as a suggested angle, beside the GM notes', async () => {
+  const reqs: Parameters<ModelCall>[0][] = []
+  const t = setup({ model: capturingModel(reqs, 'Skater A, who set the tone on the forecheck?') })
+  const personId = await scrumWithPerson(t)
+  t.store.pinned = { ...PINNED, stances: [...PINNED.stances] }
+  t.store.gmNotes = [
+    {
+      id: 1,
+      playerId: 1,
+      playerName: 'Skater A',
+      note: 'Skater A broke a stick on the post.',
+      matchId: 90001,
+      critical: false,
+    },
+  ]
+  await startScrumQuestion(t.deps, config('live'), personId)
+  const write = reqs.find((r) => r.purpose === 'write')!
+  assert.ok(write.user.includes("suggested angle for tonight's questions"))
+  assert.ok(write.user.includes('- Storyline: The hits gap.'))
+  assert.ok(write.user.includes('- Angle: Push back on the idea that we get pushed around'))
+  // The existing inputs stay.
+  assert.ok(write.user.includes('Skater A broke a stick on the post.'))
+  // The suggestion is for the question writer only, not for the judge of an answer.
+  assert.ok(
+    reqs.filter((r) => r.purpose === 'review').every((r) => !r.user.includes('The hits gap')),
+  )
+})
+
+void test('L3: nothing pinned ⇒ the question is written as before', async () => {
+  const reqs: Parameters<ModelCall>[0][] = []
+  const t = setup({ model: capturingModel(reqs, 'Skater A, what changed after the first period?') })
+  const personId = await scrumWithPerson(t)
+  await startScrumQuestion(t.deps, config('live'), personId)
+  const write = reqs.find((r) => r.purpose === 'write')!
+  assert.ok(!write.user.includes('suggested angle'))
+})
+
+void test('L3: a failed read of the pinned storyline leaves the question as before', async () => {
+  const reqs: Parameters<ModelCall>[0][] = []
+  const t = setup({ model: capturingModel(reqs, 'Skater A, what changed after the first period?') })
+  const personId = await scrumWithPerson(t)
+  t.store.pinned = { ...PINNED, stances: [] }
+  t.store.pinnedError = new Error('relation "news_storylines" does not exist')
+  await startScrumQuestion(t.deps, config('live'), personId)
+  const write = reqs.find((r) => r.purpose === 'write')!
+  assert.ok(!write.user.includes('The hits gap'))
+  assert.equal(
+    t.sent.at(-1)!.msg.content,
+    `<@${USER_A}> Skater A, what changed after the first period?`,
+  )
+})
