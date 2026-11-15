@@ -160,7 +160,8 @@ export function commandDefinitions(): RESTPostAPIChatInputApplicationCommandsJSO
             {
               type: ApplicationCommandOptionType.String,
               name: 'question',
-              description: 'The question (or a topic when exact is off)',
+              description:
+                'Your brief: the reporter writes their own question from it (private, never posted)',
               required: true,
               max_length: ASK_MAX_CHARS,
             },
@@ -173,7 +174,8 @@ export function commandDefinitions(): RESTPostAPIChatInputApplicationCommandsJSO
             {
               type: ApplicationCommandOptionType.Boolean,
               name: 'exact',
-              description: 'Word for word (default). Off: the reporter writes it as a topic',
+              description:
+                'exact: post my text word for word (off = a private brief the reporter rewrites)',
             },
             {
               type: ApplicationCommandOptionType.Integer,

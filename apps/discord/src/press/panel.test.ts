@@ -593,3 +593,109 @@ void test('fallback lines are never the same twice in one thread', async () => {
 function answer_(t: ReturnType<typeof setup>, personId: number, text: string) {
   return answer(t, personId, USER_A, text)
 }
+
+// ── The GM's brief is private (task gm-ask-brief) ───────────────────────────
+
+/** The text the operator typed at 19:07 on 2026-11-14 (game 3448); the GM meant a private brief. */
+const LIVE_BRIEF =
+  'Ask him about his disaterous game on defense, and ask why he would go for a push faceoff in the offensive zone when he is lined up on the blue line. Put the heat on him.'
+
+/** The brief never reaches a post, in any form a player could read. */
+function assertBriefNotPosted(t: ReturnType<typeof setup>): void {
+  for (const s of t.sent) {
+    const c = s.msg.content.toLowerCase()
+    assert.ok(!c.includes('disaterous'), s.msg.content)
+    assert.ok(!c.includes('put the heat on'), s.msg.content)
+    assert.ok(!/\bask (him|her|them|why)\b/.test(c), s.msg.content)
+    assert.ok(!c.includes('lined up on the blue line'), s.msg.content)
+  }
+}
+
+void test('GM brief (the live case): a writer that echoes the brief is refused on every try; a pool question is posted, never the brief', async () => {
+  const m = model({ questions: Array<string>(8).fill(LIVE_BRIEF) })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  gmAsk(t, { exact: false, question: LIVE_BRIEF, reporter: 'mercer' })
+  await onAccept(t.deps, live, personId, USER_A)
+  assertBriefNotPosted(t)
+  assert.equal(t.sent.at(-1)!.reporter, 'mercer')
+  assert.ok(isPoolLine('question', t.sent.at(-1)!, USER_A))
+  assert.ok(!t.store.people[0]!.currentQuestion!.includes('disaterous'))
+  // The writer was asked (and retried): the brief reached it as fenced data only.
+  assert.ok(m.questionCalls().length >= 2)
+  assert.match(m.questionCalls()[0]!.user, /private brief/)
+  assert.ok(t.logs.some((l) => l.includes('write failed, fixed line used')))
+})
+
+void test('GM brief: reporter-instruction phrasing and a third-person question are refused too, then the pool line', async () => {
+  const bad = [
+    'Skater A, we need to ask him why he went for that faceoff?',
+    'Why did Skater A go for a push faceoff on the blue line?',
+    'Put the heat on yourself: what happened on defense tonight?',
+    'Skater A, what was he thinking on that faceoff?',
+  ]
+  const m = model({ questions: bad })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  gmAsk(t, { exact: false, question: LIVE_BRIEF, reporter: 'mercer' })
+  await onAccept(t.deps, live, personId, USER_A)
+  assertBriefNotPosted(t)
+  assert.ok(isPoolLine('question', t.sent.at(-1)!, USER_A))
+})
+
+void test("GM brief: a good question in the reporter's own words, second person, is posted; a rewrite is allowed after a refusal", async () => {
+  const good =
+    'Skater A, that was a rough night on the back end. What were you thinking, going for a push faceoff from the blue line?'
+  const m = model({ questions: [LIVE_BRIEF, good] })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  gmAsk(t, { exact: false, question: LIVE_BRIEF, reporter: 'mercer' })
+  await onAccept(t.deps, live, personId, USER_A)
+  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> ${good}`)
+  assert.equal(t.sent.at(-1)!.reporter, 'mercer')
+  // The rewrite request names the problem.
+  const rewrite = m.questionCalls()[1]!
+  assert.match(rewrite.user, /brief/i)
+})
+
+void test('GM brief: the writer is told it is a private brief, to write ONE question in the second person, tough but fair', async () => {
+  const m = model({ questions: ['Skater A, why go for that faceoff?'] })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  gmAsk(t, { exact: false, question: LIVE_BRIEF, reporter: 'mercer' })
+  await onAccept(t.deps, live, personId, USER_A)
+  const u = m.questionCalls()[0]!.user
+  assert.match(u, /private brief/)
+  assert.match(u, /ONE question/)
+  assert.match(u, /second person/)
+  assert.match(u, /tough/)
+  assert.match(u, /typo/i)
+  assert.match(u, /never copy/i)
+  // A review rule too.
+  const review = m.reqs.find((r) => r.purpose === 'review')!
+  assert.match(review.user, /brief/i)
+})
+
+void test('GM brief that names a forbidden person is not given to the writer', async () => {
+  const m = model({ questions: ['Skater A, how did the game feel?'] })
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  gmAsk(t, { exact: false, question: 'Ask if Hidden Hank bothered him' })
+  await onAccept(t.deps, live, personId, USER_A)
+  assert.ok(!m.questionCalls()[0]!.user.includes('Hidden Hank'))
+  assert.ok(t.logs.some((l) => l.includes("the GM's question names a forbidden person")))
+  assert.equal(t.sent.at(-1)!.msg.content, `<@${USER_A}> Skater A, how did the game feel?`)
+})
+
+void test('GM ask with exact: true still posts the live text word for word (the GM chose it)', async () => {
+  const m = model()
+  const t = setup({ model: m.call })
+  const personId = await scrumWithPerson(t)
+  gmAsk(t, { exact: true, question: 'Why did you go for a push faceoff on the blue line?' })
+  await onAccept(t.deps, live, personId, USER_A)
+  assert.equal(
+    t.sent.at(-1)!.msg.content,
+    `<@${USER_A}> Why did you go for a push faceoff on the blue line?`,
+  )
+  assert.equal(m.questionCalls().length, 0)
+})

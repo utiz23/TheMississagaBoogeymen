@@ -541,14 +541,15 @@ const ASK_TEXT = {
  * that game's scrum as a GM request (pinged after the usual 60 s; when the
  * scrum opens, if it is not open yet), and the chosen reporter (default: the
  * first of the player's panel) asks the question as the player's FIRST
- * question: word for word when `exact` (the default), else written from it as
- * a topic in the reporter's voice. Fairness runs before anything is stored as
+ * question: written from the GM's text as a private brief in the reporter's own
+ * words (the default), or word for word only when the GM sets `exact`. Fairness runs before anything is stored as
  * active: a "Leave me out" player, a question that names one, or a guest, a
  * "Go easy" player when the question is critical (the note check; fails
  * closed) or the AI check is unavailable, a reporter who is off, a player not
  * in the game, a closed scrum and a player already asked all get a private
  * refusal (stored `refused`, never used). Private reply: "Got it: <Reporter>
- * will ask <Player>: <question>".
+ * will ask <Player>, in their own words, about: <brief>" (`exact`: "... word for
+ * word: <text>"). The code check that keeps a brief out of the post is brief.ts.
  */
 export async function onGmAsk(
   deps: PressDeps,
@@ -570,7 +571,9 @@ export async function onGmAsk(
   const reporterId =
     args.reporter === null ? null : (ASK_REPORTER_IDS.find((id) => id === args.reporter) ?? null)
   if (args.reporter !== null && reporterId === null) return say(ASK_TEXT.badReporter)
-  const exact = args.exact ?? true
+  // The GM's text is a private brief unless `exact` is set on purpose (2026-11-14: a brief was
+  // posted word for word to a player).
+  const exact = args.exact ?? false
 
   const night = await noteNight(deps)
   if (night === null) return say(TEXT.noGame)
@@ -697,12 +700,14 @@ export async function onGmAsk(
       : scrum !== null
         ? REPORTERS[scrum.reporter].name
         : 'the first reporter on their panel'
-  const how = exact ? '' : ' (as a topic, in their own words)'
   const wait = scrum === null ? ' The scrum is not open yet: they are pinged when it opens.' : ''
   const call =
     benchPortOf(deps) === undefined ? '' : `\n${callLine(await benchOfGame(deps, config, game))}`
+  const what = exact
+    ? `word for word: ${escapeMarkdown(question)}`
+    : `, in their own words, about: ${escapeMarkdown(question)}`
   return say(
-    `Got it: ${who} will ask ${escapeMarkdown(name)}: ${escapeMarkdown(question)}${how}${wait}${call}`,
+    `Got it: ${who} will ask ${escapeMarkdown(name)}${exact ? ' ' : ''}${what}${wait}${call}`,
   )
 }
 

@@ -735,8 +735,8 @@ void test('/gm ask: only the GM; the reporter choices are the 8 scrum reporters 
 void test('/gm ask: the player joins the open scrum as a GM request; the reply names the reporter, the player and the question', async () => {
   const t = gmSetup()
   scrumOn(t)
-  const reply = await ask(t, { reporter: 'pettibone' })
-  assert.deepEqual(reply, ephemeral(`Got it: Gord Pettibone will ask Skater A: ${Q}`))
+  const reply = await ask(t, { reporter: 'pettibone', exact: true })
+  assert.deepEqual(reply, ephemeral(`Got it: Gord Pettibone will ask Skater A word for word: ${Q}`))
   assert.equal(REPORTERS.pettibone.name, 'Gord Pettibone')
   const row = t.store.askRows[0]!
   assert.equal(row.status, 'active')
@@ -757,14 +757,14 @@ void test('/gm ask: the player joins the open scrum as a GM request; the reply n
   assert.equal(t.reqs.length, 0)
 })
 
-void test('/gm ask: without a reporter the scrum reporter is named; exact off says it is a topic', async () => {
+void test('/gm ask: without a reporter the scrum reporter is named; exact off says it is a brief', async () => {
   const t = gmSetup()
   scrumOn(t)
   const reply = await ask(t, { exact: false, question: 'the corner battles' })
   assert.deepEqual(
     reply,
     ephemeral(
-      `Got it: ${REPORTERS.voss.name} will ask Skater A: the corner battles (as a topic, in their own words)`,
+      `Got it: ${REPORTERS.voss.name} will ask Skater A, in their own words, about: the corner battles`,
     ),
   )
   assert.equal(t.store.askRows[0]!.exact, false)
@@ -790,7 +790,7 @@ void test('/gm ask: the scrum is not open yet - the ask waits and the pass adds 
   assert.deepEqual(
     reply,
     ephemeral(
-      `Got it: ${REPORTERS.vale.name} will ask Skater A: ${Q} The scrum is not open yet: they are pinged when it opens.`,
+      `Got it: ${REPORTERS.vale.name} will ask Skater A, in their own words, about: ${Q} The scrum is not open yet: they are pinged when it opens.`,
     ),
   )
   assert.equal(t.store.askRows[0]!.status, 'active')
@@ -811,7 +811,9 @@ void test('/gm ask: a second ask for a player who is the scrum pick does not add
   await ask(t)
   assert.deepEqual(
     await ask(t, { question: 'And the third period?' }),
-    ephemeral(`Got it: ${REPORTERS.voss.name} will ask Skater A: And the third period?`),
+    ephemeral(
+      `Got it: ${REPORTERS.voss.name} will ask Skater A, in their own words, about: And the third period?`,
+    ),
   )
   assert.equal(t.store.people.length, 1)
   assert.equal(t.store.askRows.length, 2)
@@ -894,7 +896,9 @@ void test('/gm ask: Go easy + a critical question is refused (the existing check
   scrumOn(ok)
   assert.deepEqual(
     await ask(ok, { player: USER_B, question: 'What went right in the second?' }),
-    ephemeral(`Got it: ${REPORTERS.voss.name} will ask Skater B: What went right in the second?`),
+    ephemeral(
+      `Got it: ${REPORTERS.voss.name} will ask Skater B, in their own words, about: What went right in the second?`,
+    ),
   )
   assert.equal(ok.store.people.length, 1)
   assert.equal(ok.store.askRows[0]!.status, 'active')
@@ -993,4 +997,53 @@ void test('/gm ask in the trial: the ask and the scrum person are test', async (
   scrumOn(live2, 90002, false)
   await ask(live2, {}, GM, config('trial'))
   assert.equal(live2.store.people.length, 0)
+})
+
+// ── /gm ask: the GM's text is a private brief by default (task gm-ask-brief) ──
+
+/** The text the operator typed at 19:07 on 2026-11-14 (game 3448). */
+const LIVE_BRIEF =
+  'Ask him about his disaterous game on defense, and ask why he would go for a push faceoff in the offensive zone when he is lined up on the blue line. Put the heat on him.'
+
+void test('/gm ask: exact is OFF by default - the text is stored as a private brief and the reply says so', async () => {
+  const t = gmSetup()
+  scrumOn(t)
+  const reply = await ask(t, { question: LIVE_BRIEF, reporter: 'mercer' })
+  assert.deepEqual(
+    reply,
+    ephemeral(
+      `Got it: ${REPORTERS.mercer.name} will ask Skater A, in their own words, about: ${LIVE_BRIEF}`,
+    ),
+  )
+  assert.equal(t.store.askRows[0]!.exact, false)
+  assert.equal(t.store.askRows[0]!.question, LIVE_BRIEF)
+})
+
+void test('/gm ask: exact: true is word for word, and the reply says so', async () => {
+  const t = gmSetup()
+  scrumOn(t)
+  const reply = await ask(t, { exact: true, reporter: 'mercer' })
+  assert.deepEqual(
+    reply,
+    ephemeral(`Got it: ${REPORTERS.mercer.name} will ask Skater A word for word: ${Q}`),
+  )
+  assert.equal(t.store.askRows[0]!.exact, true)
+  // Explicit false is the same as the default.
+  const t2 = gmSetup()
+  scrumOn(t2)
+  await ask(t2, { exact: false })
+  assert.equal(t2.store.askRows[0]!.exact, false)
+})
+
+void test('/gm ask: a critical brief for a Go easy player is refused by default (the existing check), nothing active', async () => {
+  const t = gmSetup(critical(true))
+  scrumOn(t)
+  assert.deepEqual(
+    await ask(t, { player: USER_B, question: LIVE_BRIEF }),
+    ephemeral('Skater B is on Go easy — a critical note is not used.'),
+  )
+  assert.equal(t.store.askRows[0]!.status, 'refused')
+  assert.equal(t.store.askRows[0]!.exact, false)
+  assert.equal(t.store.people.length, 0)
+  assert.equal((await t.store.gmAsksForMatch(90002, false)).length, 0)
 })

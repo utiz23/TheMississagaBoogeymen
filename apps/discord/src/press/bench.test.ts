@@ -385,7 +385,8 @@ const ask = (t: Setup, player: string, over: Partial<Parameters<typeof onGmAsk>[
     player,
     question: Q,
     reporter: null,
-    exact: null,
+    // These tests pin the bench path with the GM's exact question; the default is a brief.
+    exact: true,
     game: 1,
     ...over,
   })
@@ -399,10 +400,13 @@ void test('/gm ask accepts a bench person (a known player, and one with no playe
   assert.equal(joey.kind, 'ephemeral')
   assert.match(
     (joey as { text: string }).text,
-    /^Got it: .* will ask Joey Flopfish: What did you see from the call tonight\?\nIn the call, not playing: Joey Flopfish, Coach Mike, Wally$/,
+    /^Got it: .* will ask Joey Flopfish word for word: What did you see from the call tonight\?\nIn the call, not playing: Joey Flopfish, Coach Mike, Wally$/,
   )
   // The coach: no player row. The scrum person is keyed by the Discord user.
-  assert.match(((await ask(t, COACH)) as { text: string }).text, /will ask Coach Mike: /)
+  assert.match(
+    ((await ask(t, COACH)) as { text: string }).text,
+    /will ask Coach Mike word for word: /,
+  )
   const rows = t.store.askRows
   assert.deepEqual(
     rows.map((r) => [r.playerId, r.discordUserId, r.personRole, r.displayName, r.status]),
@@ -445,7 +449,7 @@ void test('/gm ask refuses someone who was not in the call, a player of the game
   )
   // A player of the game is a player, not the bench.
   const a = await ask(t, USER_A)
-  assert.match((a as { text: string }).text, /will ask Skater A:/)
+  assert.match((a as { text: string }).text, /will ask Skater A word for word:/)
   assert.deepEqual(
     t.store.people.map((p) => p.personRole),
     ['player'],
@@ -637,7 +641,7 @@ void test('done when: the coach (no player row) goes from /gm ask to a stored an
   const reply = await ask(t, COACH, { reporter: 'barlow' })
   assert.match(
     (reply as { text: string }).text,
-    /^Got it: Wade Barlow will ask Coach Mike: What did you see/,
+    /^Got it: Wade Barlow will ask Coach Mike word for word: What did you see/,
   )
   t.deps.now = () => new Date(NOW.getTime() + 61_000)
   await runPressPass(t.deps, cfg())

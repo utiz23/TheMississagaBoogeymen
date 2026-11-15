@@ -370,14 +370,18 @@ export async function startScrumQuestion(
       person!.questionsAsked === 0
         ? await gmAskOfPerson(store, person!, matchId, scrum.isTest)
         : null
+    // The GM's text is a private brief unless the GM chose `exact`. A text that names a forbidden
+    // person is used neither word for word nor as a brief.
+    let topic: string | undefined
     if (ask !== null && res.forbiddenNames.some((n) => containsName(ask.question, n))) {
       log(
         `[press] question: person ${String(personId)}: the GM's question names a forbidden person, not used`,
       )
     } else if (ask !== null && ask.exact) {
       return ask.question
+    } else if (ask !== null) {
+      topic = ask.question
     }
-    const topic = ask !== null && !ask.exact ? ask.question : undefined
     if (!extrasBudgetLeft(await store.monthNewsSpendUsd(now), config.monthlyLimitUsd)) {
       const month = now.toISOString().slice(0, 7)
       if (budgetNoticeMonth.get(deps) !== month) {

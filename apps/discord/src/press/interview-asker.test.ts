@@ -197,3 +197,60 @@ void test('question writer: a number off the sheet or a second teammate fails th
   assert.equal(m.reqs.filter((r) => r.purpose === 'write').length, 4)
   assert.equal(m.reqs.filter((r) => r.purpose === 'review').length, 0)
 })
+
+void test('question writer: the desk topic is a private brief - a question that repeats it or reads as an instruction is refused; null after 4 writes', async () => {
+  const topic = 'Ask him about his disaterous game on defense and put the heat on him.'
+  const m = interviewModel({
+    questions: [
+      'Skater A, ask him about his disaterous game on defense?',
+      'Tell me about his disaterous game on defense tonight?',
+      'Put the heat on yourself: what happened?',
+      'Why did Skater A struggle on defense?',
+    ],
+  })
+  assert.equal(await askInterviewQuestion(m.call, ctx({ topic }), noRecord), null)
+  assert.equal(m.reqs.filter((r) => r.purpose === 'write').length, 4)
+  // The brief reached the writer as fenced data, with the brief rule.
+  const write = m.reqs.find((r) => r.purpose === 'write')!
+  assert.match(write.user, /private brief/)
+  assert.match(
+    write.user,
+    /"""\nAsk him about his disaterous game on defense and put the heat on him\.\n"""/,
+  )
+})
+
+void test("question writer: a question written in the reporter's own words from the topic passes; no topic = no brief check", async () => {
+  const topic = 'Ask him about his disaterous game on defense and put the heat on him.'
+  const m = interviewModel({
+    questions: ['Skater A, the back end leaked tonight. What went wrong for you out there?'],
+  })
+  assert.equal(
+    await askInterviewQuestion(m.call, ctx({ topic }), noRecord),
+    'Skater A, the back end leaked tonight. What went wrong for you out there?',
+  )
+  const review = m.reqs.find((r) => r.purpose === 'review')!
+  assert.match(review.user, /private brief/)
+  const m2 = interviewModel({ questions: ['Ask him why he sat?'] })
+  // No topic: this writer's other checks are unchanged (no brief rule at all).
+  assert.equal(
+    await askInterviewQuestion(m2.call, ctx({ topic: null }), noRecord),
+    'Ask him why he sat?',
+  )
+})
+
+void test('article check: the headline, dek and intro never repeat the desk topic (a private brief)', () => {
+  const c = ctx({ topic: 'the corner battles and the third period collapse that followed' })
+  const ok = good()
+  assert.deepEqual(
+    articleProblems(ok, c, OFFERED).filter((p) => /private brief/.test(p)),
+    [],
+  )
+  const bad = {
+    ...ok,
+    dek: 'The corner battles and the third period collapse, he says.',
+  }
+  assert.match(
+    articleProblems(bad, c, OFFERED).join(' '),
+    /The dek repeats the desk's private brief/,
+  )
+})
