@@ -1,6 +1,6 @@
 # Task: L3 — Press Box: storylines, trends, takes and stances editor
 
-- **State:** Verify (built 2026-11-14 18:35; branch `work/press-box-l3`; task agent of `Lead2`) (operator 2026-11-14: "start L3")
+- **State:** Merged 2026-11-14 18:46 (`f060cd49`; operator D25 "yes"); deploy waits for the operator's OK
 - **Lane:** Web, Queries, Database (flags), Discord (writers read pins)
 - **Risk:** medium (edits feed the writers)
 - **Slug:** press-box-l3
