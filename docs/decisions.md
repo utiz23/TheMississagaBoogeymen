@@ -1,14 +1,14 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 19:44 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 19:53 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                                                                                                                                                                       | My advice    | Waiting costs              |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | -------------------------- |
-| D31 | Goals by period (P1): screenshots OK (one goals line on cards, table on home + game page, "read from video")? If yes, 3 steps: merge; deploy worker + website; then the first import of 22 NHL 27 games (fresh backup, dry run, apply, check). | Yes to all 3 | The period box stays empty |
+| ID  | Question  | My advice | Waiting costs |
+| --- | --------- | --------- | ------------- |
+| -   | none open | -         | -             |
 
 ## 2. Right now
 
@@ -58,6 +58,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-14 19:45 · "axe the box score from the game cards"; "a simple box" on the home panel → done. D31 → deployed and 22 games imported 19:53.
 - 2026-11-14 19:44 · Games played on JoeyFlopfish's account earlier this month: "leave those stats for him" (no stat move). Storyline "Joeyflopfish IR" saved without digits. "D31 Yes to all 3" → after the layout changes land.
 - 2026-11-14 19:32 · "deployt" (D30) → Press Box L4 deployed 19:36.
 - 2026-11-14 19:25 · "All approved" → /gm ask fix deployed (19:27) and yoma's old request closed; L4 merged with the mild-words exception kept.

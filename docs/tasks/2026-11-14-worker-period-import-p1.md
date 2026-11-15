@@ -1,6 +1,6 @@
 # Task: P1 — NHL 27 goals and shots by period from the engine's video readings (import + box)
 
-- **State:** Verify (since 2026-11-14 19:20; task agent of `Lead2`; Opus: live data + numbers teammates see)
+- **State:** Deployed 2026-11-14 19:48; first import applied 19:53 (operator: "D31 Yes to all 3")
 - **Lane:** Worker (import CLI), Queries, Web (the period box), Database (only if a column is needed: 0086)
 - **Risk:** medium-high (writes to the live database; numbers teammates see) — a Verifier checks the import
 - **Slug:** period-import (branch `work/period-import`, worktree `.claude/worktrees/period-import`)
@@ -76,7 +76,18 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-14 19:32 task agent: operator decision D27 (via Lead2, 2026-11-14): (a) /games cards show ONE compact goals line ("1st 2–1 · 2nd 1–1 · 3rd 2–1 · OT 1–0") with the small "read from video" label, no blank spacer, a card without data keeps today's height; the full period table stays on the game page and the home panel; (b) goals only for now: no shots per period shown anywhere; shots are still imported and stored with shots review = pending_review. Done: card line, goals-only home table, shots review always pending_review (constant `ENGINE_SHOTS_REVIEW_STATUS`), read side returns no shots to the cards, new screenshots, heights measured. The importer's decision logic (checks, score rule) is unchanged.
 - 2026-11-14 19:44 task agent: operator (via Lead2, ~19:45-19:47): "axe the box score from the game cards as they are too crowded and makes them too tall." and "I remember there just being a box placeholder. It was simple. What we have now is a bit too much." Done: the goals line is gone from the /games cards (cards are back to today's 277 px everywhere; `ScoreCard` and the games page are identical to `main` again); the home latest-game panel now shows the simple classic box (BGM row and EA's opponent abbreviation row, one column per period, TOT, goals only, one small "Read from video" note top right, no heading); the game page Box Score is unchanged. `getEnginePeriodStrips` stays (the home page uses it). The importer is untouched.
 
-Resume: the Lead reviews the report and screenshots, a Verifier re-runs the checks, the Lead merges after the operator gate; a deploy of `worker` + `web` and each import run need the operator's OK and a backup (runbook).
+- 2026-11-14 19:53 Lead2: operator "axe the box score from the game cards" and "a simple box" (home) → done
+  (`df2af011`). Checks: typecheck db/worker/discord clean, web 0 errors outside `.next`, web 780/780, importer
+  30/30, prettier clean. Merged; `worker` + `web` deployed (rollback `:rollback-he-2026-11-14-pre-p1`). The
+  engine folder was identical to the verified snapshot (32 files, 22 complete). Backup
+  `~/eanhl-backups/manual/eanhl-pre-periods-2026-11-14.dump` (29.5 MB, 98 table-data entries); dry run on
+  Hotel-Echo = 22 insert / 6 skipped / 4 refused (= the Verifier); `--apply`: 22 matches, 72 rows, goals
+  reviewed 72, shots reviewed 0; period sum ≠ EA final: 0. Live: /games/3440, 3431, 3405 show the box "Read
+  from video"; 3448 (not imported) none; /games cards none. Undo: `DELETE FROM match_period_summaries WHERE
+source = 'engine_video'` (or per match).
+
+Resume: next import when the engine re-runs its export (11-13/11-14 games in its queue): same runbook steps
+with the operator's OK.
 
 ## Report (task agent fills when state = Verify)
 
