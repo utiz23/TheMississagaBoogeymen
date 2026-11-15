@@ -1,14 +1,15 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 18:00 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-14 18:39 CST** (Lead2). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question  | My advice | Waiting costs |
-| --- | --------- | --------- | ------------- |
-| -   | none open | -         | -             |
+| ID  | Question                                                                                                                                                                                                                                                                                                                                                              | My advice     | Waiting costs                              |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------ |
+| D24 | Goals by period for NHL 27 (games since 11-06): step 1 = goals + shots per period from your recordings, labelled "read from video" (~2–3 days); names later (~4–6 days). Needs 3 OKs: (1) the engine export task Ready, (2) lift your 10-09 hold on video data → live database for this data (backup before each import), (3) the website importer + period box task. | "go on all 3" | The period box stays empty on NHL 27 games |
+| D25 | Press Box L3 (storylines + takes editor): screenshots OK (sent)? OK = I merge; the deploy (migration 0085, news + press, website) is a separate OK.                                                                                                                                                                                                                   | Yes           | L4 cannot start until L3 is merged         |
 
 ## 2. Right now
 
@@ -20,7 +21,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Worker watchdog                                 | LIVE since 14:12: a stuck worker restarts itself within 15 minutes; EA requests stop after 30 s                                                                           |
 | Press Box L1                                    | LIVE since 14:01 at `/admin/press-box` (sign in first). The board is empty until relationships build up on game nights.                                                   |
 | Press Box L2 (player dossiers + AI profiles)    | LIVE since 14:55 at `/admin/press-box/players`. "Write" makes an AI profile (about $0.05).                                                                                |
-| Press Box L3 (storylines + takes editor)        | running (task agent); you get screenshots before the merge                                                                                                                |
+| Press Box L3 (storylines + takes editor)        | built and checked (web 768/768, discord 968/968); waits for your OK (D25)                                                                                                 |
 | Player background                               | LIVE: B1 (blank fact sheets, your editor) and B2 (17:12). **The switch is OFF**: turn it on in the Press Box overview when you want the bots to ask background questions. |
 | Club Finals                                     | LIVE since 15:54: the Club Finals card on the home page and round badges on games. CF3 (finals look) running; CF2 (Discord + news) after B2.                              |
 | News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                                                                          |
