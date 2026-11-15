@@ -62,6 +62,13 @@ export function BoxScore({ rows, opponentLabel, showDiagnostics }: BoxScoreProps
     () => MODES.filter((m) => hasAnyValue(sortedRows, m)),
     [sortedRows],
   )
+  // Rows read from video carry goals and shots only. Their faceoff tab would be a table
+  // of dashes, so it is not offered. Every other source keeps all three tabs.
+  const sourceKind = detectSource(rows)
+  const tabModes = useMemo(
+    () => (sourceKind === 'engine' ? MODES.filter((m) => hasAnyValue(sortedRows, m)) : MODES),
+    [sourceKind, sortedRows],
+  )
   const rotation = useBoxScoreRotation({
     mode,
     modes: rotatableModes,
@@ -71,7 +78,6 @@ export function BoxScore({ rows, opponentLabel, showDiagnostics }: BoxScoreProps
   if (rows.length === 0) return null
 
   const oppAbbrev = abbreviateTeamName(opponentLabel)
-  const sourceKind = detectSource(rows)
   // When the table has finished filling: every column, plus the TOT that lands
   // after them, plus its count. The dwell tick and the footnote both hang off
   // this rather than off a hardcoded guess.
@@ -113,6 +119,7 @@ export function BoxScore({ rows, opponentLabel, showDiagnostics }: BoxScoreProps
           </h2>
 
           <ModeTabs
+            modes={tabModes}
             mode={mode}
             onChange={setMode}
             tablistId={tablistId}
@@ -253,6 +260,7 @@ function useBoxScoreRotation({
 // ─── ModeTabs ─────────────────────────────────────────────────────────────────
 
 function ModeTabs({
+  modes,
   mode,
   onChange,
   tablistId,
@@ -260,6 +268,7 @@ function ModeTabs({
   rotation,
   tickArmMs,
 }: {
+  modes: readonly BoxScoreMode[]
   mode: BoxScoreMode
   onChange: (m: BoxScoreMode) => void
   tablistId: string
@@ -285,7 +294,7 @@ function ModeTabs({
     e.preventDefault()
     // Arrowing to a view is a deliberate takeover, same as clicking one.
     rotation.stop()
-    const next = MODES[nextIdx] ?? 'goals'
+    const next = modes[nextIdx] ?? 'goals'
     onChange(next)
     // After React re-renders with the new tabIndex layout, move focus to the
     // now-active tab (canonical roving-tabindex pattern).
@@ -305,9 +314,10 @@ function ModeTabs({
       // prototype's `grid-template-columns:repeat(3,1fr);gap:5px`. GOALS is a
       // wider word than FO, so content sizing gave three ragged tabs and left
       // the row short of the panel's width.
-      className="grid grid-cols-3 items-stretch gap-[5px]"
+      className="grid items-stretch gap-[5px]"
+      style={{ gridTemplateColumns: `repeat(${String(modes.length)}, minmax(0, 1fr))` }}
     >
-      {MODES.map((m) => {
+      {modes.map((m) => {
         const active = mode === m
         return (
           <button
@@ -550,7 +560,7 @@ function Footnotes({
 }: {
   mode: BoxScoreMode
   rows: MatchPeriodSummaryRow[]
-  sourceKind: 'ocr' | 'ea'
+  sourceKind: PeriodSourceKind
   showDiagnostics: boolean
 }) {
   const totals = computeTotals(rows, mode)
@@ -567,16 +577,21 @@ function Footnotes({
           {totals.missingPeriods.join(', ')} unread — excluded from totals
         </span>
       ) : null}
+      {sourceKind === 'engine' ? (
+        // Visible to everyone: the honest label for numbers that EA does not publish.
+        <span
+          title="Goals and shots per period were read from the game recording. The goals add up to EA's final score."
+          className="font-condensed text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-4"
+        >
+          Read from video
+        </span>
+      ) : null}
       {showDiagnostics ? (
         <span className="ml-auto">
           <ProvenanceChip
-            label={sourceKind === 'ocr' ? 'OCR · post-game' : 'EA · official'}
-            tone={sourceKind === 'ocr' ? 'ok' : 'neutral'}
-            tooltip={
-              sourceKind === 'ocr'
-                ? 'Period rows read from the in-game post-game screens and operator-reviewed.'
-                : 'Period rows derived from the EA Pro Clubs API.'
-            }
+            label={PROVENANCE_LABEL[sourceKind]}
+            tone={sourceKind === 'ea' ? 'neutral' : 'ok'}
+            tooltip={PROVENANCE_TOOLTIP[sourceKind]}
           />
         </span>
       ) : null}
@@ -665,6 +680,21 @@ function computeFaceoffPct(wins: number | null, oppWins: number | null): number 
   return Math.round((wins / total) * 1000) / 10
 }
 
-function detectSource(rows: MatchPeriodSummaryRow[]): 'ocr' | 'ea' {
+type PeriodSourceKind = 'ocr' | 'ea' | 'engine'
+
+const PROVENANCE_LABEL: Record<PeriodSourceKind, string> = {
+  ocr: 'OCR · post-game',
+  ea: 'EA · official',
+  engine: 'Engine · video',
+}
+const PROVENANCE_TOOLTIP: Record<PeriodSourceKind, string> = {
+  ocr: 'Period rows read from the in-game post-game screens and operator-reviewed.',
+  ea: 'Period rows derived from the EA Pro Clubs API.',
+  engine:
+    'Period goals and shots read from the recording by the live engine; the goals add up to the EA final.',
+}
+
+function detectSource(rows: MatchPeriodSummaryRow[]): PeriodSourceKind {
+  if (rows.length > 0 && rows.every((r) => r.source === 'engine_video')) return 'engine'
   return rows.some((r) => r.source === 'ocr' && r.reviewStatus === 'reviewed') ? 'ocr' : 'ea'
 }

@@ -1,0 +1,57 @@
+{
+  "_note": "HAND-MADE FIXTURE (agreed shape, schema_version 1). Not engine output.",
+  "schema_version": 1,
+  "game_title": "nhl27",
+  "ea_match_id": "3999999999999",
+  "recording": "fixture.mkv",
+  "game": 1,
+  "our_side": "away",
+  "our_abbr": "BM",
+  "opp_abbr": "OPP",
+  "final": {
+    "bm": 3,
+    "opp": 0
+  },
+  "end_of_game_check": {
+    "ok": true
+  },
+  "periods": [
+    {
+      "period": 1,
+      "goals": {
+        "bm": 1,
+        "opp": 0
+      },
+      "shots": {
+        "bm": 6,
+        "opp": 3
+      }
+    },
+    {
+      "period": 2,
+      "goals": {
+        "bm": 1,
+        "opp": 0
+      },
+      "shots": {
+        "bm": 6,
+        "opp": 3
+      }
+    },
+    {
+      "period": 3,
+      "goals": {
+        "bm": 1,
+        "opp": 0
+      },
+      "shots": {
+        "bm": 7,
+        "opp": 3
+      }
+    }
+  ],
+  "goal_list": [],
+  "source_commit": "0000000",
+  "complete": true,
+  "exported_at": "2026-11-14T20:00:00Z"
+}

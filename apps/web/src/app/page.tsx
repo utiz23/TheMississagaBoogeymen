@@ -17,6 +17,7 @@ import {
   getHistoricalClubTeamStatsBatch,
   getClubFinalsOverview,
   getClubFinalsBadge,
+  getEnginePeriodStrips,
   getClubFinalsBadges,
   type ClubFinalsBadge,
 } from '@eanhl/db/queries'
@@ -156,6 +157,11 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     lastMatch === null ? Promise.resolve(null) : getClubFinalsBadge(lastMatch.id).catch(() => null),
     getClubFinalsBadges(finalsBadgeIds).catch(() => new Map<number, ClubFinalsBadge>()),
   ])
+  // Goals and shots by period read from video (P1) for the latest game; fails soft.
+  const lastMatchPeriods =
+    lastMatch === null
+      ? null
+      : ((await getEnginePeriodStrips([lastMatch.id]).catch(() => null))?.get(lastMatch.id) ?? null)
   const finalsRunAlive =
     clubFinals !== null && clubFinalsRunAlive(clubFinals.attempts, clubFinals.panel)
   const finalsRecord =
@@ -240,6 +246,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
               faceoffs={lastMatchFaceoffs}
               divisionName={seasonRank?.divisionName ?? null}
               clubFinals={lastMatchFinals}
+              periods={lastMatchPeriods}
             />
           </section>
         )}

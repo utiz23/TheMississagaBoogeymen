@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Match, MatchResult } from '@eanhl/db'
-import type { ClubFinalsBadge } from '@eanhl/db/queries'
+import type { ClubFinalsBadge, EnginePeriodStripRow } from '@eanhl/db/queries'
 import { ClubFinalsTags } from '@/components/matches/club-finals-badge'
+import { PeriodStrip, PeriodStripSpacer } from '@/components/matches/period-strip'
 import { OpponentCrest } from '@/components/ui/opponent-crest'
 import { OcrPill } from '@/components/ui/ocr-pill'
 import { ResultPill } from '@/components/ui/result-pill'
@@ -71,6 +72,13 @@ interface ScoreCardProps {
   ocrCoverage?: OcrCoverageStreams | undefined
   /** Club Finals round, game and marks, when this game has a derived row. */
   clubFinals?: ClubFinalsBadge | undefined
+  /**
+   * Goals and shots by period read from video. Null/omitted: no data for this game.
+   * `reservePeriodSlot`: true when any card in the list has a strip, so a card without
+   * one keeps the same height (CF3b).
+   */
+  periods?: readonly EnginePeriodStripRow[] | null | undefined
+  reservePeriodSlot?: boolean | undefined
 }
 
 /** Stat labels read at fg-5 (~4.6:1), the site's floor for small text. */
@@ -124,6 +132,8 @@ export function ScoreCard({
   href,
   ocrCoverage,
   clubFinals,
+  periods,
+  reservePeriodSlot = false,
 }: ScoreCardProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
 
@@ -307,6 +317,16 @@ export function ScoreCard({
           />
           <DtWStat bgmRaw={dtw} />
         </div>
+
+        {periods !== null && periods !== undefined && periods.length > 0 ? (
+          <div className="mt-3 border-t border-zinc-800/70 pt-3">
+            <PeriodStrip rows={periods} />
+          </div>
+        ) : reservePeriodSlot ? (
+          <div className="mt-3 border-t border-transparent pt-3">
+            <PeriodStripSpacer />
+          </div>
+        ) : null}
       </div>
     </Link>
   )

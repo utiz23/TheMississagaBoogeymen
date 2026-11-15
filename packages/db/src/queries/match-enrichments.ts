@@ -22,6 +22,12 @@ import {
   type PeriodFamilyReading,
   type PeriodSummaryFamily,
 } from '../lib/period-reconciliation.js'
+import {
+  ENGINE_VIDEO_SOURCE,
+  dropUnverifiedEngineRows,
+  periodGoalsMatchFinal,
+  preferOtherSourceRows,
+} from './period-rows.js'
 
 /**
  * Project one stat column through its stat family's review gate.
@@ -48,6 +54,54 @@ function familyGated(column: AnyPgColumn, familyStatus: AnyPgColumn): SQL<number
   ) as SQL<number | null>
 }
 
+/** The projected columns of a period row, each stat family gated by its own review status. */
+const periodSummarySelection = {
+  id: matchPeriodSummaries.id,
+  matchId: matchPeriodSummaries.matchId,
+  periodNumber: matchPeriodSummaries.periodNumber,
+  periodLabel: matchPeriodSummaries.periodLabel,
+  goalsFor: familyGated(matchPeriodSummaries.goalsFor, matchPeriodSummaries.goalsReviewStatus),
+  goalsAgainst: familyGated(
+    matchPeriodSummaries.goalsAgainst,
+    matchPeriodSummaries.goalsReviewStatus,
+  ),
+  shotsFor: familyGated(matchPeriodSummaries.shotsFor, matchPeriodSummaries.shotsReviewStatus),
+  shotsAgainst: familyGated(
+    matchPeriodSummaries.shotsAgainst,
+    matchPeriodSummaries.shotsReviewStatus,
+  ),
+  faceoffsFor: familyGated(
+    matchPeriodSummaries.faceoffsFor,
+    matchPeriodSummaries.faceoffsReviewStatus,
+  ),
+  faceoffsAgainst: familyGated(
+    matchPeriodSummaries.faceoffsAgainst,
+    matchPeriodSummaries.faceoffsReviewStatus,
+  ),
+  source: matchPeriodSummaries.source,
+  ocrExtractionId: matchPeriodSummaries.ocrExtractionId,
+  /** Transitional legacy status — NOT an authorization signal. */
+  reviewStatus: matchPeriodSummaries.reviewStatus,
+  goalsReviewStatus: matchPeriodSummaries.goalsReviewStatus,
+  shotsReviewStatus: matchPeriodSummaries.shotsReviewStatus,
+  faceoffReviewStatus: matchPeriodSummaries.faceoffsReviewStatus,
+  bgmAttackDirection: matchPeriodSummaries.bgmAttackDirection,
+}
+
+/**
+ * Row retention: EA always; otherwise at least one reviewed family.
+ * A row whose every family is unreviewed would be all-NULL stats and is
+ * dropped rather than returned as an empty shell.
+ */
+function periodRowRetention(): SQL | undefined {
+  return or(
+    eq(matchPeriodSummaries.source, 'ea'),
+    eq(matchPeriodSummaries.goalsReviewStatus, 'reviewed'),
+    eq(matchPeriodSummaries.shotsReviewStatus, 'reviewed'),
+    eq(matchPeriodSummaries.faceoffsReviewStatus, 'reviewed'),
+  )
+}
+
 /**
  * Per-period goals/shots/faceoffs for a match, gated PER STAT FAMILY.
  *
@@ -72,55 +126,96 @@ function familyGated(column: AnyPgColumn, familyStatus: AnyPgColumn): SQL<number
  * Ordered by period_number ascending.
  */
 export async function getMatchPeriodSummaries(matchId: number) {
-  return db
+  const rows = await db
     .select({
-      id: matchPeriodSummaries.id,
-      matchId: matchPeriodSummaries.matchId,
-      periodNumber: matchPeriodSummaries.periodNumber,
-      periodLabel: matchPeriodSummaries.periodLabel,
-      goalsFor: familyGated(matchPeriodSummaries.goalsFor, matchPeriodSummaries.goalsReviewStatus),
-      goalsAgainst: familyGated(
-        matchPeriodSummaries.goalsAgainst,
-        matchPeriodSummaries.goalsReviewStatus,
-      ),
-      shotsFor: familyGated(matchPeriodSummaries.shotsFor, matchPeriodSummaries.shotsReviewStatus),
-      shotsAgainst: familyGated(
-        matchPeriodSummaries.shotsAgainst,
-        matchPeriodSummaries.shotsReviewStatus,
-      ),
-      faceoffsFor: familyGated(
-        matchPeriodSummaries.faceoffsFor,
-        matchPeriodSummaries.faceoffsReviewStatus,
-      ),
-      faceoffsAgainst: familyGated(
-        matchPeriodSummaries.faceoffsAgainst,
-        matchPeriodSummaries.faceoffsReviewStatus,
-      ),
-      source: matchPeriodSummaries.source,
-      ocrExtractionId: matchPeriodSummaries.ocrExtractionId,
-      /** Transitional legacy status — NOT an authorization signal. */
-      reviewStatus: matchPeriodSummaries.reviewStatus,
-      goalsReviewStatus: matchPeriodSummaries.goalsReviewStatus,
-      shotsReviewStatus: matchPeriodSummaries.shotsReviewStatus,
-      faceoffsReviewStatus: matchPeriodSummaries.faceoffsReviewStatus,
-      bgmAttackDirection: matchPeriodSummaries.bgmAttackDirection,
+      ...periodSummarySelection,
+      matchScoreFor: matches.scoreFor,
+      matchScoreAgainst: matches.scoreAgainst,
     })
     .from(matchPeriodSummaries)
+    .innerJoin(matches, eq(matches.id, matchPeriodSummaries.matchId))
+    .where(and(eq(matchPeriodSummaries.matchId, matchId), periodRowRetention()))
+    .orderBy(asc(matchPeriodSummaries.periodNumber))
+  if (rows.length === 0) return []
+  const first = rows[0]
+  if (first === undefined) return []
+  // Engine rows (source 'engine_video', task P1): only when their goals add up to EA's
+  // final score, and only when no other source has a visible row (other sources win).
+  const checked = dropUnverifiedEngineRows(rows, first.matchScoreFor, first.matchScoreAgainst)
+  return preferOtherSourceRows(checked).map(
+    ({ matchScoreFor: _f, matchScoreAgainst: _a, ...row }) => row,
+  )
+}
+
+/** One period of the compact "goals and shots by period" strip on cards. */
+export interface EnginePeriodStripRow {
+  periodNumber: number
+  goalsFor: number
+  goalsAgainst: number
+  shotsFor: number
+  shotsAgainst: number
+}
+
+/**
+ * Per-period goals and shots read from video, for many matches at once (home latest
+ * game panel and /games cards). Only `engine_video` rows whose goals AND shots
+ * families are both `reviewed`, and only for matches whose period goals add up to
+ * EA's final score. A match that fails either test is absent from the map.
+ */
+export async function getEnginePeriodStrips(
+  matchIds: readonly number[],
+): Promise<Map<number, EnginePeriodStripRow[]>> {
+  const out = new Map<number, EnginePeriodStripRow[]>()
+  if (matchIds.length === 0) return out
+  const rows = await db
+    .select({
+      matchId: matchPeriodSummaries.matchId,
+      periodNumber: matchPeriodSummaries.periodNumber,
+      goalsFor: matchPeriodSummaries.goalsFor,
+      goalsAgainst: matchPeriodSummaries.goalsAgainst,
+      shotsFor: matchPeriodSummaries.shotsFor,
+      shotsAgainst: matchPeriodSummaries.shotsAgainst,
+      scoreFor: matches.scoreFor,
+      scoreAgainst: matches.scoreAgainst,
+    })
+    .from(matchPeriodSummaries)
+    .innerJoin(matches, eq(matches.id, matchPeriodSummaries.matchId))
     .where(
       and(
-        eq(matchPeriodSummaries.matchId, matchId),
-        // Row retention: EA always; otherwise at least one reviewed family.
-        // A row whose every family is unreviewed would be all-NULL stats and is
-        // dropped rather than returned as an empty shell.
-        or(
-          eq(matchPeriodSummaries.source, 'ea'),
-          eq(matchPeriodSummaries.goalsReviewStatus, 'reviewed'),
-          eq(matchPeriodSummaries.shotsReviewStatus, 'reviewed'),
-          eq(matchPeriodSummaries.faceoffsReviewStatus, 'reviewed'),
-        ),
+        inArray(matchPeriodSummaries.matchId, [...matchIds]),
+        eq(matchPeriodSummaries.source, ENGINE_VIDEO_SOURCE),
+        eq(matchPeriodSummaries.goalsReviewStatus, 'reviewed'),
+        eq(matchPeriodSummaries.shotsReviewStatus, 'reviewed'),
       ),
     )
-    .orderBy(asc(matchPeriodSummaries.periodNumber))
+    .orderBy(asc(matchPeriodSummaries.matchId), asc(matchPeriodSummaries.periodNumber))
+  const byMatch = new Map<number, typeof rows>()
+  for (const r of rows) {
+    const list = byMatch.get(r.matchId)
+    if (list === undefined) byMatch.set(r.matchId, [r])
+    else list.push(r)
+  }
+  for (const [matchId, list] of byMatch) {
+    const first = list[0]
+    if (first === undefined) continue
+    if (!periodGoalsMatchFinal(list, first.scoreFor, first.scoreAgainst)) continue
+    const strip: EnginePeriodStripRow[] = []
+    for (const r of list) {
+      if (r.shotsFor === null || r.shotsAgainst === null) {
+        strip.length = 0
+        break
+      }
+      strip.push({
+        periodNumber: r.periodNumber,
+        goalsFor: r.goalsFor ?? 0,
+        goalsAgainst: r.goalsAgainst ?? 0,
+        shotsFor: r.shotsFor,
+        shotsAgainst: r.shotsAgainst,
+      })
+    }
+    if (strip.length > 0) out.set(matchId, strip)
+  }
+  return out
 }
 
 /**

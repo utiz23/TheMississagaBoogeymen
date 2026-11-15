@@ -12,7 +12,12 @@ import {
 import { matches } from './matches.js'
 import { ocrExtractions, type OcrReviewStatus } from './ocr-pipeline.js'
 
-export type EnrichmentSource = 'ea' | 'ocr' | 'manual'
+/**
+ * `engine_video` (2026-11-14): per-period goals and shots read from recordings by
+ * the eanhl-live-engine and imported by the worker's `import-engine-periods` CLI.
+ * Only `match_period_summaries` carries it today.
+ */
+export type EnrichmentSource = 'ea' | 'ocr' | 'manual' | 'engine_video'
 
 /**
  * Period-level team totals per match.

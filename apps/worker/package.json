@@ -27,6 +27,7 @@
     "match-quality": "node dist/match-quality-cli.js",
     "auto-drain": "node dist/auto-drain-cli.js",
     "reconcile-periods": "node dist/reconcile-periods-cli.js",
+    "import-engine-periods": "node dist/import-engine-periods-cli.js",
     "run-quality": "node dist/run-quality-cli.js",
     "card-recompute": "node dist/card-recompute-cli.js",
     "card-mythic": "node dist/card-mythic-cli.js",
