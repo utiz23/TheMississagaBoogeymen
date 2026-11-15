@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 18:47 CST by Lead2. Fully done tasks leave the board; their files stay in `docs/tasks/`.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-14 18:50 CST by Lead2. Fully done tasks leave the board; their files stay in `docs/tasks/`.
 
 ## Open tasks
 
@@ -25,7 +25,7 @@ Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. 
 | [L2 Press Box: dossiers + AI profiles](tasks/2026-11-14-web-press-box-l2-dossiers.md)                     | Web + DB                | medium      | Deployed 11-14 14:55 (0081)                                     | operator tries a dossier and one profile                        |
 | [Rename public Press Room → News Desk](tasks/2026-11-14-web-news-desk-rename.md)                          | Web                     | low         | Deployed 11-14 14:15                                            | done                                                            |
 | [L3 Press Box: storylines + takes editor](tasks/2026-11-14-web-press-box-l3-storylines.md)                | Web + DB                | medium      | Merged 11-14 18:46                                              | deploy with operator OK (backup, 0085, `news` + `press`, `web`) |
-| [L4 Press Box: reporter editor](tasks/2026-11-14-web-press-box-l4-reporters.md)                           | Web + DB                | medium      | Ready (L3 merged: can start)                                    |                                                                 |
+| [L4 Press Box: reporter editor](tasks/2026-11-14-web-press-box-l4-reporters.md)                           | Web + DB                | medium      | Running (Lead2's task agent; migration 0087)                    | screenshots + one sample line to the operator before merge      |
 | [B1 Player background: bank, facts, admin editor](tasks/2026-11-14-web-background-b1.md)                  | Web + DB + Queries      | medium      | Deployed 11-14 15:41 (0082)                                     | done                                                            |
 | [B2 Player background: bots ask, propose facts, teammate veto](tasks/2026-11-14-discord-background-b2.md) | Discord + Web           | medium-high | Deployed 11-14 17:12 (0084); switch OFF                         | operator turns it on when wanted                                |
 | [CF1 Club Finals: rounds, badges, page](tasks/2026-11-14-web-club-finals-cf1.md)                          | Worker + DB + Web       | medium      | Deployed 11-14 15:54 (0083)                                     | done                                                            |

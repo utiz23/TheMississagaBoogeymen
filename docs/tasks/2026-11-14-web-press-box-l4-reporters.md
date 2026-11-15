@@ -1,6 +1,6 @@
 # Task: L4 — Press Box: reporter editor (bio, voice, catchphrases, disposition)
 
-- **State:** Ready (operator 2026-11-14); starts after L3 is merged
+- **State:** Running (since 2026-11-14 18:50; task agent of `Lead2`; Opus) (operator 2026-11-14: "start L4")
 - **Lane:** Web, Database (overrides), Discord (writers read the merged character)
 - **Risk:** medium (changes the writers' input)
 - **Slug:** press-box-l4
@@ -28,7 +28,7 @@ Hand-written migration with rollback.
 
 - **May edit:** `apps/web/src/app/admin/press-box/`, `apps/web/src/components/press-box/`,
   `packages/db/src/queries/` (+ tests), `packages/db/src/schema/`, `packages/db/src/news/`,
-  `packages/db/migrations/<next>_*.sql`, `apps/discord/src/news/`, `apps/discord/src/press/`,
+  `packages/db/migrations/0087_*.sql (0085 L3, 0086 reserved for P1)`, `apps/discord/src/news/`, `apps/discord/src/press/`,
   this task file.
 
 ## Checks
@@ -43,5 +43,8 @@ All checks pass; screenshots match the mock-up; one previewed line shown to the 
 ## Log
 
 - 2026-11-14 Lead: written.
+- 2026-11-14 18:50 Lead2: started. L3 is merged (not yet deployed): build on its storylines page and text checks. Migration 0087 (0086 is reserved for P1). Live since this was written: Press Box L1–L3 code, B1/B2, Club Finals.
+
+Resume: task agent makes the branch and worktree, reads design §3.5, the mock-up and the reporter definitions in code.
 
 ## Report
