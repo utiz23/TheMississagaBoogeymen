@@ -64,7 +64,6 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   ($100 cap); discord live.
 
 Resume: watch the next 6v6 Club Finals game's post line, news weight and scrum.
-and `up -d --no-deps discord news press`; check the start lines.
 
 ## Report (task agent fills when state = Verify)
 

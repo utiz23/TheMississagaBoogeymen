@@ -1,6 +1,6 @@
 # Task: L4 — Press Box: reporter editor (bio, voice, catchphrases, disposition)
 
-- **State:** Merged 2026-11-14 19:30 (operator D29 "All approved": screenshots OK; keep the mild-words exception); deploy waits for the operator's OK
+- **State:** Deployed 2026-11-14 19:36 (operator: "deployt")
 - **Lane:** Web, Database (overrides), Discord (writers read the merged character)
 - **Risk:** medium (changes the writers' input)
 - **Slug:** press-box-l4
@@ -50,7 +50,14 @@ All checks pass; screenshots match the mock-up; one previewed line shown to the 
 - 2026-11-14 19:30 Lead2: rebased on the gm-ask fix; checks on the combined code: typecheck db/discord/worker
   clean, web 0 errors outside `.next`; web 779/779; discord 1000/1000; db 24/24; prettier clean. Merged.
 
-Resume: operator's OK to deploy: backup, 0087, `news` + `press`, then `web` (never web or an old press first).
+- 2026-11-14 19:37 Lead2: deployed during a game night (last game 19:32). The session was cut during the first
+  backup; nothing had changed on Hotel-Echo; backup retaken and checked
+  (`~/eanhl-backups/manual/eanhl-pre-0087-2026-11-14.dump`, 29.5 MB, 97 table-data entries); 0087 applied
+  (`news_reporter_overrides`, `news_items.character_version`); rollback tags
+  `eanhl-team-website-{news,press,web}:rollback-he-2026-11-14-pre-l4`; `news` + `press` (rejoined 4 of 4 open
+  threads), then `web`. `/` and `/news` 200; reporters page 307 → login signed out.
+
+Resume: operator opens /admin/press-box/reporters; first real "Preview a sample line" is the operator's click.
 
 ## Report
 
