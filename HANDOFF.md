@@ -135,7 +135,9 @@ News Desk; L1–L4; B1–B2; CF1–CF3b; gm-ask fix; P1 + first period import (1
 
 ## Immediate Blockers
 
-None.
+- **Hotel-Echo router pin (temporary, 2026-11-20):** a LAN device `bc:f8:7e:49:fc:a6` claimed the router IP and cut
+  HE's IPv4; HE now pins the real router MAC (lost on reboot). Operator removes the rogue device; then
+  `sudo ip neigh del 192.168.1.254 dev enp3s0` on HE. Journal 11-20.
 
 ## Next 1-3 Actions
 
