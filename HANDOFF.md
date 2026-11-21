@@ -136,7 +136,7 @@ News Desk; L1–L4; B1–B2; CF1–CF3b; gm-ask fix; P1 + first period import (1
 ## Immediate Blockers
 
 - **HE router pin (temporary, 11-20):** a TELUS device `bc:f8:7e:49:fc:a6` claims the router IP; HE pins the real
-  hub MAC (lost on reboot). Suspect the TELUS Boost: unplug it, then `sudo ip neigh del 192.168.1.254 dev enp3s0`.
+  hub MAC (lost on reboot). Suspect the TELUS Boost: unplug it, then `sudo ip neigh del 192.168.1.254 dev enp3s0`
 
 ## Next 1-3 Actions
 
