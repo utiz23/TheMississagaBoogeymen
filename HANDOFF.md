@@ -44,7 +44,7 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 **Discord poster: live to the real channel** (2026-10-24, `c41b915`): game posts + one message per card unlock (migration 0069). New-card pings live (migration 0070; IDs on `/admin` → Discord pings). Deploy `web` before `discord`; roll back both together (`:rollback-he-2026-10-24-pre-unlocks`). Off = `docker compose stop discord`. [Journal](docs/journal/2026-10.md).
 
-**Awards trophy case is live** (2026-10-08); add trophies/banners (3s/6s/arcade) on `/admin/awards`. Awards rank ALL SKATERS totals (operator choice).
+**Awards trophy case is live** (10-08): trophies/banners on `/admin/awards`; ranks ALL SKATERS totals.
 
 **Member-only player pages are live** (2026-10-09, `fafeefb`; rollback `:rollback-he-2026-10-09-pre-members`): only team members, present and past (EA member list for any title, member archive, pinned, AI goalies — 18 of 92) have a `/roster/[id]` page; guests 404 and show as plain text elsewhere (`PlayerLink` + `MemberLinks`), and the home carousel shows members only.
 
@@ -61,7 +61,7 @@ News Desk; L1–L4; B1–B2; CF1–CF3b; gm-ask fix; P1 + first period import (1
 
 **2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; 0065 + 0066; rollback tags `:rollback-he-2026-10-09-pre-*`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables). Steps and commits: [journal 10-09](docs/journal/2026-10.md).
 
-**2026-10-09 responsive sizes** (`fb40008`, `:rollback-he-2026-10-09-pre-responsive`). **2026-10-08 Awards + 0064** (`d038b36`; `:rollback-he-2026-10-08-pre-awards`; 0064 rollback `DELETE … WHERE import_batch = '0064-derived-all-skaters'`).
+**10-09 responsive sizes, 10-08 Awards + 0064:** journal 2026-10 (rollback tags and the 0064 undo there).
 
 **2026-10-08 — player cards, AI goalies, position filter deployed** (`29ee6a2`; migrations 0060–0063; rollbacks `:rollback-he-2026-10-08-pre-{cards,ai-goalies,positions}`, dumps `~/eanhl-backups/pre-*-2026-10-08-*.dump`). Lehmann / Wagner (AI goalies) and pinned Jimmy Cap are players. [Journal](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
 
@@ -135,9 +135,8 @@ News Desk; L1–L4; B1–B2; CF1–CF3b; gm-ask fix; P1 + first period import (1
 
 ## Immediate Blockers
 
-- **Hotel-Echo router pin (temporary, 2026-11-20):** a LAN device `bc:f8:7e:49:fc:a6` claimed the router IP and cut
-  HE's IPv4; HE now pins the real router MAC (lost on reboot). Operator removes the rogue device; then
-  `sudo ip neigh del 192.168.1.254 dev enp3s0` on HE. Journal 11-20.
+- **HE router pin (temporary, 11-20):** a LAN device `bc:f8:7e:49:fc:a6` claimed the router IP; HE pins the real
+  router MAC (lost on reboot). Operator removes the device; then `sudo ip neigh del 192.168.1.254 dev enp3s0`.
 
 ## Next 1-3 Actions
 
