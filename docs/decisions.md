@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-14 19:53 CST** (Lead2). All tasks: `docs/board.md`.
+Last update: **2026-11-20 21:01 CST** (Lead2, handing over to a new Lead chat). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -30,6 +30,10 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 3. Your to-dos (only you can do these)
 
+- **Router test (open since 11-20):** a TELUS device (`bc:f8:7e:49:fc:a6`, Arcadyan; suspect: the **TELUS Boost**,
+  whose label says 192.168.1.254) answers for the router's address and cuts Hotel-Echo's internet. Hotel-Echo has a
+  **temporary pin** to the real hub (`70:3e:76:64:e5:c2`); a Hotel-Echo restart drops it. Test: unplug the Boost,
+  tell the Lead "boost unplugged"; the Lead removes the pin and checks. Or say "make the pin permanent".
 - **Anthropic workspace limit:** set it to $100 a month to match the news desk cap ($100 on
   Hotel-Echo since 11-13; scrums stop at $80). November so far: $15.17.
 
