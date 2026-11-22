@@ -1,21 +1,20 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-22 00:01 CST** (Lead3). All tasks: `docs/board.md`.
+Last update: **2026-11-22 00:02 CST** (Lead3). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
 
-| ID  | Question                                                                                         | My advice                    | Waiting costs        |
-| --- | ------------------------------------------------------------------------------------------------ | ---------------------------- | -------------------- |
-| D1  | Records task: do drop-ins and the AI goalies count for club single-game records?                 | Members only; AI goalies out | Task waits (no harm) |
-| D2  | Records task: personal bests only from a player's 3rd stored game, and only values of 2 or more? | Yes                          | Task waits (no harm) |
+| ID  | Question | My advice | Waiting costs |
+| --- | -------- | --------- | ------------- |
 
 ## 2. Right now
 
 | What                                            | State                                                                                                                                                                     |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Game Score page                                 | LIVE since 21:21 at `boogeymen.app/game-score` (no nav link). Tell me when to remove it.                                                                                  |
+| Records task                                    | Ready: waits for a task agent (open a new chat with the P2 line the Lead gave you).                                                                                       |
 | Interview fix                                   | LIVE since 00:00: a GM topic is question 1. Mike offered interview 5 (Lyle Bergstrom, 52 PIM game) at 00:01.                                                              |
 | Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                                              |
 | T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                                                     |
@@ -65,6 +64,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-22 00:02 · "D1 D2 yes" → club single-game records: members only, AI goalies out; personal bests from the 3rd stored game, values 2+. Records task Ready.
 - 2026-11-21 23:55 · "end the current interview" → #3 stopped 23:54. "End #3, fix, then offer" → interview fix started. "write the records task" → Proposed (D1, D2).
 - 2026-11-21 22:02 · "deploy, drop CF4" → Club Finals off the home page (live 22:02; game pages keep their badges); CF4 dropped.
 - 2026-11-21 21:22 · "Club finals is over. Remove the live playoff progress from the main page and do any other clean up you deem necessary." → task started.

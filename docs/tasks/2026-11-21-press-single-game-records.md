@@ -1,11 +1,12 @@
 # Task: Single-game records and personal bests on the fact sheet; reporters lead with them
 
-- **State:** Proposed
+- **State:** Ready
 - **Lane:** Queries (`packages/db/src/news/`, `packages/db/src/queries/`) + Web (`apps/web/src/lib/news/`) + Discord
   (`apps/discord/src/press/`, `apps/discord/src/news/` prompt rules)
 - **Risk:** medium (public bot text; claims "club record" numbers: a Verifier checks them)
 - **Slug:** single-game-records
-- **Operator approval:** pending (operator 2026-11-21: "write the records task")
+- **Operator approval:** 2026-11-22 00:02 ("D1 D2 yes"; written on the operator's "write the records task")
+- **Helper model:** Sonnet
 - **Operator gate before merge:** yes (dry-run sample questions)
 - **Needs a deploy:** `web` (the fact sheet), then `press` and `news`
 
@@ -29,12 +30,11 @@ milestones, but no single-game record and no personal best, so a routine streak 
    good or bad; EA has no fight data, so the bots never say "fight" unless the player or a confirmed
    background fact says it.
 
-## Open questions for the operator (before Ready)
+## Operator answers (2026-11-22, "D1 D2 yes")
 
-- Do drop-ins (guests on our side) and the AI goalies count for club records? Lead's advice: members only
-  (the member-only rule for player pages), AI goalies out.
-- Personal bests from one game: only from the 3rd stored game of a player on (no "best" on game 1)? Lead's
-  advice: yes, and only when the value is at least 2 (no "best: 1 hit").
+- **D1:** club records count **team members only** (the member-only rule for player pages: EA member list for
+  any title, member archive, pinned); **AI goalies out**. Drop-ins never hold or break a club record.
+- **D2:** a personal best only from a player's **3rd stored game** on, and only for a value of **2 or more**.
 
 ## Paths (draft; the task agent may not go wider)
 
@@ -61,3 +61,5 @@ dry-run scrum questions for Stick Menace on game 3460 (no posting).
 
 - 2026-11-21 23:55 Lead3: written from the operator's request and the 11-21 scrum. Read only: game 3460 lines; top
   single-game PIM 52 / 30 / 28.
+- 2026-11-22 00:02 Lead3: operator "D1 D2 yes" → Ready.
+- Resume: a task agent takes it (P2).
