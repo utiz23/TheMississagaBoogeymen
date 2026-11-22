@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-20 21:01 CST** (Lead2, handing over to a new Lead chat). All tasks: `docs/board.md`.
+Last update: **2026-11-21 21:00 CST** (Lead3). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -14,6 +14,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 | What                                            | State                                                                                                                                                                     |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Game Score page                                 | In work: a temporary page at `boogeymen.app/game-score` (no nav link). You get a screenshot, then I ask to deploy.                                                        |
 | Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                                              |
 | T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                                                     |
 | E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                                                                         |
@@ -62,6 +63,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-21 21:00 · Game Score explainer for the team: "make it live so i can link it" → "On boogeymen.app" (temporary page, no nav link).
 - 2026-11-14 19:45 · "axe the box score from the game cards"; "a simple box" on the home panel → done. D31 → deployed and 22 games imported 19:53.
 - 2026-11-14 19:44 · Games played on JoeyFlopfish's account earlier this month: "leave those stats for him" (no stat move). Storyline "Joeyflopfish IR" saved without digits. "D31 Yes to all 3" → after the layout changes land.
 - 2026-11-14 19:32 · "deployt" (D30) → Press Box L4 deployed 19:36.
