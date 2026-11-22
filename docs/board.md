@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-22 00:21 CST by Lead3 (argument mode proposed). Fully done tasks leave the board; their files stay in `docs/tasks/`.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-22 00:23 CST by Lead3 (/gm for Chel Ready). Fully done tasks leave the board; their files stay in `docs/tasks/`.
 
 ## Open tasks
 
@@ -34,6 +34,7 @@ Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. 
 | [GM interview topic is question 1](tasks/2026-11-21-discord-interview-topic-first.md)                     | Discord                 | low-medium  | Running (Lead3 does it)                                         | deploy `press`, then offer Mike the 52 PIM interview |
 | [Single-game records + personal bests on the fact sheet](tasks/2026-11-21-press-single-game-records.md)   | Queries/Web/Discord     | medium      | Proposed                                                        | operator: 2 questions, then Ready                    |
 | [Argument mode: aggressive reporters rebut pushback](tasks/2026-11-22-press-argument-mode.md)             | Discord                 | medium      | Proposed                                                        | operator: D3, D4, D5                                 |
+| [/gm ask, interview, note, heat for the Chel role](tasks/2026-11-22-press-gm-for-chel.md)                 | Discord                 | medium      | Ready                                                           | a task agent takes it (P2)                           |
 
 ## Branches and worktrees from before v2
 
