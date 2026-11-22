@@ -35,9 +35,17 @@ is about the topic; then the night, the season and the bigger picture. No topic:
 
 - 2026-11-21 23:55 Lead3: #3 ended by the operator's order (status stopped, the bot's own end step: `ended_at`,
   `current_question` cleared; 0 answers, so no article). Task written.
-- Resume: worktree; edit `interview-asker.ts`; tests.
+- 2026-11-21 23:57 Lead3: rule 2 now puts a desk topic first; the question request carries `topicOrderLine` (question 1:
+  ask the topic now; later: not again). 1 new test.
+- Resume: merge, deploy `press`, offer Mike the 52 PIM interview (Press Box request).
 
 ## Report
+
+- **What changed:** with a GM/Press Box topic, interview question 1 is about the topic; later questions leave it
+  alone. No topic: as before.
+- **How checked:** discord tests 1001/1001 (1 new: question 1 / question 3 / no topic); discord typecheck pass;
+  prettier pass; eslint: no new problems (asker 8 = main, test 9 = main).
+- **Not done:** deploy and the new offer (next steps).
 
 ## Verifier result
 

@@ -254,3 +254,34 @@ void test('article check: the headline, dek and intro never repeat the desk topi
     /The dek repeats the desk's private brief/,
   )
 })
+
+void test('question writer: a desk topic is question 1, and later questions leave it alone (operator 2026-11-21)', async () => {
+  const first = interviewModel({ questions: ['What has been working for you?'] })
+  await askInterviewQuestion(
+    first.call,
+    ctx({ topic: 'the 52 penalty minutes', position: 1 }),
+    noRecord,
+  )
+  const w1 = first.reqs.find((r) => r.purpose === 'write')
+  assert.ok(w1)
+  assert.match(w1.user, /This is question 1: ask about the topic now/)
+  assert.match(w1.system, /question 1 is about the topic/)
+
+  const later = interviewModel({ questions: ['What has been working for you?'] })
+  await askInterviewQuestion(
+    later.call,
+    ctx({ topic: 'the 52 penalty minutes', position: 3 }),
+    noRecord,
+  )
+  const w3 = later.reqs.find((r) => r.purpose === 'write')
+  assert.ok(w3)
+  assert.match(w3.user, /do not ask about it again/)
+  assert.doesNotMatch(w3.user, /This is question 1/)
+
+  const none = interviewModel({ questions: ['What has been working for you?'] })
+  await askInterviewQuestion(none.call, ctx({ topic: null, position: 1 }), noRecord)
+  const w0 = none.reqs.find((r) => r.purpose === 'write')
+  assert.ok(w0)
+  assert.match(w0.user, /The desk set no topic for this interview/)
+  assert.doesNotMatch(w0.user, /This is question 1|do not ask about it again/)
+})
