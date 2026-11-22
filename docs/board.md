@@ -1,10 +1,10 @@
 # Board
 
-**Lead chat now:** `eanhl-team-website-bc` (Lead3; session ref `74682f`; started 2026-11-20 21:03 CST as the new Lead; task chats and the engine Lead send to "eanhl-team-website-bc"; a new Lead updates this line first). Earlier: `Lead2` (2026-11-14 03:16 to 2026-11-20 21:03, stood down); `Lead` (ref `08efa5`; 2026-11-13 to 2026-11-14 03:16).
+**Lead chat now:** `Lead3` (session ref `56cf69`; the Lead since 2026-11-20 21:03 CST, first as `eanhl-team-website-bc`; task chats and the engine Lead send to "Lead3"; a new Lead updates this line first). Earlier: `Lead2` (2026-11-14 03:16 to 2026-11-20 21:03, stood down); `Lead` (ref `08efa5`; 2026-11-13 to 2026-11-14 03:16).
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-22 00:23 CST by Lead3 (/gm for Chel Ready). Fully done tasks leave the board; their files stay in `docs/tasks/`.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-22 00:24 CST by Lead3 (records task in Verify; Lead name now "Lead3"). Fully done tasks leave the board; their files stay in `docs/tasks/`.
 
 ## Open tasks
 

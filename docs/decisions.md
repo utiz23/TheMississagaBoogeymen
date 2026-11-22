@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-22 00:23 CST** (Lead3). All tasks: `docs/board.md`.
+Last update: **2026-11-22 00:24 CST** (Lead3). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -18,7 +18,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Game Score page                                 | LIVE since 21:21 at `boogeymen.app/game-score` (no nav link). Tell me when to remove it.                                                                                  |
 | /gm for the Chel role                           | Ready: waits for a task agent (P2 line from the Lead).                                                                                                                    |
-| Records task                                    | Ready: waits for a task agent (open a new chat with the P2 line the Lead gave you).                                                                                       |
+| Records task                                    | In Verify: built and self-checked (52 PIM shows as a club record, old record 25 under your D1 rule). Next: a Verifier chat, then you read 5 sample questions.             |
 | Interview fix                                   | LIVE since 00:00: a GM topic is question 1. Mike offered interview 5 (Lyle Bergstrom, 52 PIM game) at 00:01.                                                              |
 | Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                                              |
 | T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                                                     |
