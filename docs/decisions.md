@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-21 23:55 CST** (Lead3). All tasks: `docs/board.md`.
+Last update: **2026-11-22 00:01 CST** (Lead3). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -16,7 +16,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | What                                            | State                                                                                                                                                                     |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Game Score page                                 | LIVE since 21:21 at `boogeymen.app/game-score` (no nav link). Tell me when to remove it.                                                                                  |
-| Interview fix                                   | In work: a GM topic becomes question 1 (Halberd asked Mike about hits, not the 52 PIM). Then I deploy `press` and offer Mike the interview.                               |
+| Interview fix                                   | LIVE since 00:00: a GM topic is question 1. Mike offered interview 5 (Lyle Bergstrom, 52 PIM game) at 00:01.                                                              |
 | Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                                              |
 | T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                                                     |
 | E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                                                                         |

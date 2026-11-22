@@ -1,6 +1,6 @@
 # Task: A GM interview topic is question 1
 
-- **State:** Running
+- **State:** Deployed 2026-11-22 00:00 (`press` at `7de70488`; rollback `:rollback-he-2026-11-22-pre-topic-first`)
 - **Lane:** Discord
 - **Risk:** low-medium (prompt text of a public bot; no data change)
 - **Slug:** interview-topic-first (branch `work/interview-topic-first`, worktree `.claude/worktrees/interview-topic-first`)
@@ -37,7 +37,11 @@ is about the topic; then the night, the season and the bigger picture. No topic:
   `current_question` cleared; 0 answers, so no article). Task written.
 - 2026-11-21 23:57 Lead3: rule 2 now puts a desk topic first; the question request carries `topicOrderLine` (question 1:
   ask the topic now; later: not again). 1 new test.
-- Resume: merge, deploy `press`, offer Mike the 52 PIM interview (Press Box request).
+- 2026-11-22 00:00 Lead3: merged (`7de70488`, ff); only this change in `apps/discord` since the last deploy.
+  Rollback tag, build, `up -d --no-deps press`: started live, 9 bots (2 thread joins hit Discord 429 at start).
+- 2026-11-22 00:01 Lead3: Press Box request 2 (as the page writes it; no audit row) → interview 5: Lyle Bergstrom offered
+  Stick Menace an interview on the 52 PIM game (topic names 52 PIM, 21:42, the tracked-games record, enforcer).
+- Resume: check that question 1 of interview 5 is about the topic.
 
 ## Report
 
@@ -45,7 +49,7 @@ is about the topic; then the night, the season and the bigger picture. No topic:
   alone. No topic: as before.
 - **How checked:** discord tests 1001/1001 (1 new: question 1 / question 3 / no topic); discord typecheck pass;
   prettier pass; eslint: no new problems (asker 8 = main, test 9 = main).
-- **Not done:** deploy and the new offer (next steps).
+- **Not done:** check of question 1 of interview 5 (when Mike accepts).
 
 ## Verifier result
 
