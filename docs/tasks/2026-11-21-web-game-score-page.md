@@ -1,6 +1,6 @@
 # Task: Temporary "Game Score" explainer page on the site
 
-- **State:** Running
+- **State:** Verify (waits for the operator: screenshot, then merge + deploy `web`)
 - **Lane:** Web
 - **Risk:** low (a new static page; no data change; the score formula is not changed)
 - **Slug:** game-score-page (branch `work/game-score-page`, worktree `.claude/worktrees/game-score-page`)
@@ -46,15 +46,24 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 
 - 2026-11-21 21:00 Lead3: task written; stat lines for the example read (read only) from live: match 3405
   (camrazz, HenryTheBobJr, Matteo Lehmann), 3426 (silkyjoker85), 3390 (HenryTheBobJr).
-- Resume: make the worktree; build the page.
+- 2026-11-21 21:06 Lead3: built `/game-score` (page, calculator, `lib/game-score-explainer.ts` + 6 tests); `skaterBreakdown`,
+  `goalieBreakdown` and their input types exported (no formula change). Checks pass; screenshots taken on
+  the dev server (live DB, read-only tunnel).
+- Resume: operator looks at the screenshots; on OK, merge, push, deploy `web` (docker-redeploy skill).
 
 ## Report (task agent fills when state = Verify)
 
-- **What changed (visible effect):**
-- **How it was checked (commands, numbers):**
-- **Tried, no gain:**
-- **Not done:**
-- **Git state:**
+- **What changed (visible effect):** new page `/game-score` (no nav link): plain-words weights, goalie
+  rules, win bonus, the 11-06 example with stat-by-stat math, a scale, a calculator, where the score
+  shows, limits, questions. All numbers come from `skaterBreakdown` / `goalieBreakdown`.
+- **How it was checked (commands, numbers):** web typecheck pass; web `test:unit` 786/786 (6 new: the
+  example gives camrazz 17.53, Lehmann 13.00, Henry 11.50, and `buildAllTeamScores` ranks them in that
+  order; anchors silky 8.60, Henry 21.99); prettier pass; eslint on the new files clean. Dev server:
+  HTTP 200, no console errors, no sideways scroll at 1280 and 390; calculator 3 saves on 4 shots =
+  3.80 with the "can't be a star" note (hand math: 0.60 + 3.00 − 0.80 + 1.00).
+- **Tried, no gain:** Playwright MCP (needs sudo for its Chrome path); used the local Playwright package.
+- **Not done:** merge and deploy (operator's OK). Removal later (operator says when).
+- **Git state:** `work/game-score-page`, rebased on `main` at `b57e4966`.
 
 ## Verifier result (Verifier fills)
 

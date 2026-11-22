@@ -142,7 +142,7 @@ function hasRecordedActivity(
 //
 // Reference scores: 2G 1A +2, tidy → ~14  •  0G 5A, clean → ~18  •  grind D → ~5
 
-interface SkaterScoreInput {
+export interface SkaterScoreInput {
   goals: number
   assists: number
   plusMinus: number
@@ -158,7 +158,7 @@ interface SkaterScoreInput {
   pim: number
 }
 
-interface GoalieScoreInput {
+export interface GoalieScoreInput {
   saves: number | null
   goalsAgainst: number | null
   shotsAgainst: number | null
@@ -172,7 +172,7 @@ function f(label: string, value: number, weight: number): ScoreFactor {
   return { label, value, weight, contribution: value * weight }
 }
 
-function skaterBreakdown(p: SkaterScoreInput): ScoreFactor[] {
+export function skaterBreakdown(p: SkaterScoreInput): ScoreFactor[] {
   const foNet = p.faceoffWins - p.faceoffLosses
   return [
     // Tier 1 — core offense
@@ -203,7 +203,7 @@ export const GOALIE_FULL_WEIGHT_SHOTS = 15
 /** A goalie is a star only at this SV% or better (operator, 2026-11-09). */
 export const STAR_MIN_GOALIE_SV_PCT = 0.9
 
-function goalieBreakdown(p: GoalieScoreInput): ScoreFactor[] {
+export function goalieBreakdown(p: GoalieScoreInput): ScoreFactor[] {
   const saves = p.saves ?? 0
   const ga = p.goalsAgainst ?? 0
   const sa = p.shotsAgainst ?? 0
