@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-21 21:22 CST** (Lead3). All tasks: `docs/board.md`.
+Last update: **2026-11-21 22:02 CST** (Lead3). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -15,7 +15,6 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | What                                            | State                                                                                                                                                                     |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Game Score page                                 | LIVE since 21:21 at `boogeymen.app/game-score` (no nav link). Tell me when to remove it.                                                                                  |
-| Club Finals off the home page                   | In work: the finals card, chip and round lines leave the home page; game pages keep their badges. Screenshot, then I ask to deploy.                                       |
 | Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                                              |
 | T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                                                     |
 | E1 live events                                  | LIVE since 14:12, Tailscale only (port 3100). Waits for the engine's sender (E2).                                                                                         |
@@ -26,7 +25,6 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Press Box L4 (reporter editor)                  | LIVE since 19:36 at `/admin/press-box/reporters`. All 4 Press Box parts are live.                                                                                         |
 | /gm ask fix                                     | LIVE since 19:27: your text is a private brief by default; word for word only with `exact`. Yoma's old request is closed.                                                 |
 | Player background                               | LIVE: B1 (blank fact sheets, your editor) and B2 (17:12). **The switch is OFF**: turn it on in the Press Box overview when you want the bots to ask background questions. |
-| Club Finals                                     | LIVE since 15:54: the Club Finals card on the home page and round badges on games. CF3 (finals look) running; CF2 (Discord + news) after B2.                              |
 | News Desk name + Press Box in your account menu | LIVE since 14:15                                                                                                                                                          |
 | Backup hardening                                | LIVE since 03:42 (lock proven; this week's weekly copy made); I check the 11-15 03:00 run                                                                                 |
 
@@ -59,11 +57,13 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 6. Done recently
 
+- 2026-11-21: Game Score page live (`/game-score`) · Club Finals off the home page · CF4 dropped.
 - 2026-11-09: no badge posts · goalie stars fix (A + .900) · news desk live, feed in time order, cap
   $60 · game posts after one worker pass · bot test channel off · workflow v2 adopted.
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-21 22:02 · "deploy, drop CF4" → Club Finals off the home page (live 22:02; game pages keep their badges); CF4 dropped.
 - 2026-11-21 21:22 · "Club finals is over. Remove the live playoff progress from the main page and do any other clean up you deem necessary." → task started.
 - 2026-11-21 21:15 · Game Score page: "deploy" → live 21:21 (rollback `:rollback-he-2026-11-21-pre-game-score`).
 - 2026-11-21 21:00 · Game Score explainer for the team: "make it live so i can link it" → "On boogeymen.app" (temporary page, no nav link).

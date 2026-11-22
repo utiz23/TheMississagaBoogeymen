@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-21 21:22 CST by Lead3 (Club Finals off the home page started). Fully done tasks leave the board; their files stay in `docs/tasks/`.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-21 22:02 CST by Lead3 (Club Finals off the home page deployed; finals rows done, CF4 dropped). Fully done tasks leave the board; their files stay in `docs/tasks/`.
 
 ## Open tasks
 
@@ -28,15 +28,9 @@ Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. 
 | [L4 Press Box: reporter editor](tasks/2026-11-14-web-press-box-l4-reporters.md)                           | Web + DB                | medium      | Deployed 11-14 19:36 (0087)                                     | operator tries the editor                      |
 | [B1 Player background: bank, facts, admin editor](tasks/2026-11-14-web-background-b1.md)                  | Web + DB + Queries      | medium      | Deployed 11-14 15:41 (0082)                                     | done                                           |
 | [B2 Player background: bots ask, propose facts, teammate veto](tasks/2026-11-14-discord-background-b2.md) | Discord + Web           | medium-high | Deployed 11-14 17:12 (0084); switch OFF                         | operator turns it on when wanted               |
-| [CF1 Club Finals: rounds, badges, page](tasks/2026-11-14-web-club-finals-cf1.md)                          | Worker + DB + Web       | medium      | Deployed 11-14 15:54 (0083)                                     | done                                           |
-| [CF2 Club Finals in Discord + news weighting](tasks/2026-11-14-discord-club-finals-cf2.md)                | Discord                 | medium      | Deployed 11-14 17:59                                            | watch the next 6v6 finals game                 |
-| [CF3 Club Finals look on the site](tasks/2026-11-14-web-club-finals-cf3.md)                               | Web                     | low-medium  | Deployed 11-14 16:47                                            | done                                           |
-| [CF3b finals card: tags in the top row, same height](tasks/2026-11-14-web-club-finals-card-tags.md)       | Web                     | low         | Deployed 11-14 17:54                                            | done                                           |
-| [CF4 Club Finals stats](tasks/2026-11-14-web-club-finals-cf4.md)                                          | Worker + DB + Web       | medium      | Proposed                                                        | operator decides (after CF3)                   |
 | [P1 NHL 27 goals + shots by period (engine import)](tasks/2026-11-14-worker-period-import-p1.md)          | Worker + Web            | medium-high | Deployed 11-14 19:48; 22 games imported 19:53                   | next import when the engine exports more games |
 | [/gm ask: a private brief by default, never posted](tasks/2026-11-14-discord-gm-ask-brief.md)             | Discord                 | medium      | Deployed 11-14 19:27                                            | done                                           |
 | [Temporary Game Score explainer page](tasks/2026-11-21-web-game-score-page.md)                            | Web                     | low         | Running (Lead3 does it)                                         | screenshot to the operator, then deploy `web`  |
-| [Club Finals off the home page](tasks/2026-11-21-web-home-club-finals-off.md)                             | Web                     | low         | Running (Lead3 does it)                                         | screenshot to the operator, then deploy `web`  |
 
 ## Branches and worktrees from before v2
 

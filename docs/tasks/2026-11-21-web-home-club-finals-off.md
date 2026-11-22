@@ -1,6 +1,6 @@
 # Task: Club Finals off the home page (the finals are over)
 
-- **State:** Verify (waits for the operator: screenshot, then merge + deploy `web`)
+- **State:** Deployed 2026-11-21 22:02 (`web` at `f3a6f7fd`; rollback `:rollback-he-2026-11-21-pre-finals-off`)
 - **Lane:** Web
 - **Risk:** low (removes home-page parts; no data change)
 - **Slug:** home-club-finals-off (branch `work/home-club-finals-off`, worktree `.claude/worktrees/home-club-finals-off`)
@@ -46,7 +46,10 @@ Press Box note. No finals storyline is stored (checked read-only 11-21).
 - 2026-11-21 21:28 Lead3: removed the home card (both places), the record-strip finals chips (+ their CSS), the finals line
   on the latest-game card and the recent strip; deleted `club-finals-card.tsx` and the home-only helpers
   (`clubFinalsSituation`, `clubFinalsReached`, `clubFinalsRunAlive`, `clubFinalsRecordLine`) and their tests.
-- Resume: operator looks at the screenshots; on OK, merge, push, deploy `web`.
+- 2026-11-21 22:02 Lead3: operator "deploy, drop CF4". Merged (`f3a6f7fd`, ff), rollback tag, build, `up -d --no-deps web`.
+  Checks: `/`, `/games`, `/games/3405`, `/game-score` 200 (HE + public); home 0 finals text; 3405 keeps its badge.
+  CF4 Dropped; finished finals rows left the board.
+- Resume: none (done). To bring the home parts back: revert `f3a6f7fd`.
 
 ## Report
 
@@ -57,7 +60,7 @@ Press Box note. No finals storyline is stored (checked read-only 11-21).
   Dev server (live DB, read only): home page text has 0 "finals" (live today: 3); game 3405 still shows
   "Club Finals Round 1 · Game 1" and its series; `/games` 200. Desktop 16 px sideways scroll and the 404 of
   EA crest t126 are the same on live (not this change).
-- **Not done:** merge and deploy (operator's OK). CF4 (finals stats) is still Proposed: operator's call.
+- **Not done:** nothing. CF4 dropped by the operator.
 - **Git state:** `work/home-club-finals-off`, on `main` at the task commit.
 
 ## Verifier result

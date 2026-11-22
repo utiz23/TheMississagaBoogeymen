@@ -28,7 +28,7 @@ $100, `PRESS_TYPED_ANSWERS=1`, `PRESS_WIRE_REPLIES=1`, coach `PRESS_COACH_USER_I
 interviews + Q&A articles, Discord replies, hard lines, relationships (open war ↔ glazing; Father Rink
 never feuds), bench voices from the call, free test scrums. Also live 11-14 (0079–0087): **E1** live
 events (Tailscale) + worker watchdog; **Press Box** L1–L4 (`/admin/press-box`); player background
-B1–B2 (switch OFF); **Club Finals** CF1–CF3 + CF2 (site + Discord); `/gm ask` brief by default;
+B1–B2 (switch OFF); **Club Finals** CF1–CF3 (off the home page 11-21; CF4 dropped); `/gm ask` brief by default;
 **goals by period** for NHL 27 (engine export WX1 → `import-engine-periods`, 22 games). Tasks: board.
 
 ## Current Objective / Status
@@ -52,6 +52,9 @@ unattended backup nights 10-06 → 10-09). Next: post-launch polish.
 
 ## Latest Verified Checkpoint
 
+**2026-11-21:** `web` `f3a6f7fd`: temporary `/game-score` explainer (21:21) and Club Finals off the home page
+(22:02); rollbacks `:rollback-he-2026-11-21-pre-{game-score,finals-off}`. Detail: journal 11-21.
+
 **Latest deploys 2026-11-14** (all on Hotel-Echo; rollback tags `:rollback-he-2026-11-14-pre-*`; backups
 `~/eanhl-backups/manual/eanhl-pre-00NN-2026-11-14.dump`): T3–T10; backup hardening; E1 + watchdog (14:12);
 News Desk; L1–L4; B1–B2; CF1–CF3b; gm-ask fix; P1 + first period import (19:53; undo = delete
@@ -61,9 +64,7 @@ News Desk; L1–L4; B1–B2; CF1–CF3b; gm-ask fix; P1 + first period import (1
 
 **2026-10-09 — member logins + admin tools deployed** (web `86a902b`, worker `3616aab`; 0065 + 0066; rollback tags `:rollback-he-2026-10-09-pre-*`; server `.env.bak-2026-10-09`; 0066 rollback = drop the two award tables). Steps and commits: [journal 10-09](docs/journal/2026-10.md).
 
-**10-09 responsive sizes, 10-08 Awards + 0064:** journal 2026-10 (rollback tags and the 0064 undo there).
-
-**2026-10-08 — player cards, AI goalies, position filter deployed** (`29ee6a2`; migrations 0060–0063; rollbacks `:rollback-he-2026-10-08-pre-{cards,ai-goalies,positions}`, dumps `~/eanhl-backups/pre-*-2026-10-08-*.dump`). Lehmann / Wagner (AI goalies) and pinned Jimmy Cap are players. [Journal](docs/journal/2026-10.md), [AI goalies spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md).
+**2026-10-08/09 — player cards, AI goalies, positions (`29ee6a2`; 0060–0064), Awards, responsive sizes:** rollback tags, dumps and the 0064 undo in journal 2026-10. Lehmann / Wagner (AI goalies) and pinned Jimmy Cap are players ([spec](docs/superpowers/specs/2026-10-08-ai-goalies-design.md)).
 
 **2026-10-06 — NHL 26 contamination cleaned up** (worker `3f35733`; rollback `:rollback-2026-10-05-quarantine`; dump `~/eanhl-backups/pre-quarantine-2026-10-05/`): club 19224 is "Chipstuttar" since 2026-09-07; its 172 matches are out. [Plan](docs/planning/2026-10-05-nhl26-club-19224-quarantine.md), [journal](docs/journal/2026-10.md).
 
@@ -143,7 +144,6 @@ News Desk; L1–L4; B1–B2; CF1–CF3b; gm-ask fix; P1 + first period import (1
 1. **Next period import** when the engine re-runs WX1 for the 11-13/11-14 games: runbook
    `docs/operations/runbooks/engine-period-import.md` (backup, dry run, apply) with the operator's OK.
    Shots stay hidden until the engine checks 3852785320026 (16-20 vs EA 12-18).
-2. Operator's choices waiting: background switch (Press Box overview, OFF); pin a storyline; CF4 (finals
-   stats) proposed. Engine E2 sender: secrets by file when it names a path.
-3. Check the 11-15 03:00 backup; watch the next finals game (post line, news weight, scrum); small:
-   Contribution Wheel, prettier on old files.
+2. Operator's choices waiting: background switch (Press Box overview, OFF); pin a storyline; remove the
+   temporary `/game-score` page when asked. Engine E2 sender: secrets by file when it names a path.
+3. Small: Contribution Wheel, prettier on old files, 16 px desktop sideways scroll on the home page.

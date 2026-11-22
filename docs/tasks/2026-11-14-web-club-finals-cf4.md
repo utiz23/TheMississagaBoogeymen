@@ -1,6 +1,7 @@
 # Task: CF4 — Club Finals stats (records row, finals leaders, player and stats pages, news pinning)
 
-- **State:** Proposed (written 2026-11-14 15:27 by Lead2; the "later" items of the operator's list)
+- **State:** Dropped 2026-11-21 22:02 (operator: "drop CF4"; the Club Finals are over. Write it again if they come back.)
+  Written 2026-11-14 15:27 by Lead2 (the "later" items of the operator's list).
 - **Lane:** Worker (precomputed finals aggregates), Database, Queries, Web
 - **Risk:** medium (new numbers teammates see; a Verifier checks them)
 - **Slug:** club-finals-cf4
