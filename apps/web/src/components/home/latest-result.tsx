@@ -1,8 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Match, MatchType } from '@eanhl/db'
-import type { ClubFinalsBadge, EnginePeriodStripRow } from '@eanhl/db/queries'
-import { ClubFinalsStrip } from '@/components/matches/club-finals-badge'
+import type { EnginePeriodStripRow } from '@eanhl/db/queries'
 import { PeriodGoalsTable } from '@/components/matches/period-strip'
 import {
   formatMatchDate,
@@ -43,8 +42,6 @@ interface LatestResultProps {
   } | null
   /** Current season division placement (from EA clubs/seasonRank). */
   divisionName: string | null
-  /** Club Finals round, game and marks, when the latest game has a derived row (CF3). */
-  clubFinals?: ClubFinalsBadge | null
   /** Goals by period read from video (P1, goals only). Null: no data for this game. */
   periods?: readonly EnginePeriodStripRow[] | null
 }
@@ -56,7 +53,6 @@ export function LatestResult({
   opponentCrestUseBaseAsset,
   faceoffs,
   divisionName,
-  clubFinals = null,
   periods = null,
 }: LatestResultProps) {
   const opponentAbbrev = abbreviateTeamName(match.opponentName)
@@ -125,9 +121,6 @@ export function LatestResult({
             {formatMatchDate(match.playedAt)} · {formatMatchTime(match.playedAt)}
           </span>
         </div>
-
-        {/* Club Finals context: round, game, series score, what the game decided */}
-        {clubFinals !== null ? <ClubFinalsStrip badge={clubFinals} /> : null}
 
         {/* Body: team | center | team */}
         <div className="grid grid-cols-1 items-center gap-5 px-7 py-6 sm:grid-cols-[1fr_auto_1fr] sm:gap-x-3.5">

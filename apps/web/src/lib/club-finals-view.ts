@@ -11,8 +11,6 @@
 /** Rule constants of the mode, as the club-room panel shows them. */
 export const FINALS_ROUND_COUNT = 4
 export const FINALS_BOX_COUNT = 7
-/** The wins (and the losses) that end a round: 4. A threshold, never a computed value. */
-const ROUND_LIMIT = 4
 
 export interface FinalsBadgeLike {
   attempt: number
@@ -223,113 +221,6 @@ export function clubFinalsContextLine(
     kind: 'next',
     title: nextBox >= 0 ? `Next: Game ${String(nextBox + 1)}` : 'Round goes on',
     detail: `${roundName(badge.round, badge.isFinal)}, series ${clubFinalsSeriesScore(badge)}`,
-  }
-}
-
-// ── Home page: playoff mode ──────────────────────────────────────────────────
-
-export interface FinalsSituation {
-  text: string
-  /** `danger` = an elimination game is next; `chance` = a win moves the run on. */
-  tone: 'danger' | 'chance' | 'done'
-}
-
-interface SituationGame {
-  roundWon: boolean
-  finalWon: boolean
-  eliminated: boolean
-  roundWinsAfter: number
-  roundLossesAfter: number
-}
-
-/**
- * One line about the stakes of the next game, from the last game's stored state. A win or a loss
- * count is only compared with the rule limit of 4 (3 = one game away). Null when nothing is
- * special or nothing is known.
- */
-export function clubFinalsSituation(
-  panelRound: number,
-  lastGame: SituationGame | null,
-): FinalsSituation | null {
-  if (lastGame === null || lastGame.eliminated || lastGame.finalWon) return null
-  if (lastGame.roundWon) {
-    return {
-      tone: 'done',
-      text:
-        panelRound === FINALS_ROUND_COUNT
-          ? 'Round won. On to the final'
-          : `Round won. On to round ${String(panelRound)}`,
-    }
-  }
-  const oneWin = lastGame.roundWinsAfter === ROUND_LIMIT - 1
-  const oneLoss = lastGame.roundLossesAfter === ROUND_LIMIT - 1
-  if (oneWin && oneLoss) return { tone: 'danger', text: 'Win or go home' }
-  if (oneWin) {
-    return {
-      tone: 'chance',
-      text:
-        panelRound === FINALS_ROUND_COUNT
-          ? 'One win from the title'
-          : panelRound === FINALS_ROUND_COUNT - 1
-            ? 'One win from the final'
-            : 'One win from the next round',
-    }
-  }
-  if (oneLoss) return { tone: 'danger', text: 'One loss from elimination' }
-  return null
-}
-
-// ── Attempt wording (home card and record strip) ─────────────────────────────
-
-export interface AttemptLike {
-  attempt: number
-  status: 'active' | 'eliminated' | 'final_won'
-  wins: number
-  losses: number
-  roundReached: number
-}
-
-/** "Reached round 2", "In the final", "Won the final". */
-export function clubFinalsReached(a: Pick<AttemptLike, 'roundReached' | 'status'>): string {
-  if (a.status === 'final_won') return 'Won the final'
-  if (a.roundReached === FINALS_ROUND_COUNT) {
-    return a.status === 'active' ? 'In the final' : 'Reached the final'
-  }
-  return `Reached round ${String(a.roundReached)}`
-}
-
-/** A run is alive when the newest attempt is still active and its panel state is stored. */
-export function clubFinalsRunAlive(
-  attempts: readonly Pick<AttemptLike, 'status'>[],
-  panel: unknown,
-): boolean {
-  return attempts[attempts.length - 1]?.status === 'active' && panel !== null && panel !== undefined
-}
-
-export interface FinalsRecordLine {
-  /** "13–5 · Reached the final", from the stored best attempt. Null = unknown. */
-  best: string | null
-  /** "Attempt 4 · Round 2 · 3–1", only while an attempt runs. */
-  current: string | null
-}
-
-/** The Club Finals line of the record strip. Null when no attempt is derived. */
-export function clubFinalsRecordLine(
-  attempts: readonly AttemptLike[],
-  panel: { round: number; attemptWins: number; attemptLosses: number } | null,
-  best: AttemptLike | null,
-): FinalsRecordLine | null {
-  const last = attempts[attempts.length - 1]
-  if (last === undefined) return null
-  const running = last.status === 'active' && panel !== null
-  return {
-    best:
-      best === null
-        ? null
-        : `${String(best.wins)}–${String(best.losses)} · ${clubFinalsReached(best)}`,
-    current: running
-      ? `Attempt ${String(last.attempt)} · ${roundName(panel.round, panel.round === FINALS_ROUND_COUNT)} · ${String(panel.attemptWins)}–${String(panel.attemptLosses)}`
-      : null,
   }
 }
 

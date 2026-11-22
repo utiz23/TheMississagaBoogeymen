@@ -6,14 +6,10 @@ import {
   clubFinalsLabel,
   clubFinalsMatchIds,
   clubFinalsOutcome,
-  clubFinalsReached,
-  clubFinalsRecordLine,
   clubFinalsRoundHeader,
   clubFinalsRoundKey,
-  clubFinalsRunAlive,
   clubFinalsCardLabel,
   clubFinalsShortLabel,
-  clubFinalsSituation,
   finalsRoundGamesUpTo,
   parseFinalsRound,
   seriesPanelView,
@@ -179,101 +175,6 @@ describe('context line', () => {
     assert.equal(unknown.title, 'Round goes on')
     const noNext = clubFinalsContextLine(badge({ roundWon: true }), null)
     assert.equal(noNext.detail, null)
-  })
-})
-
-describe('playoff situation', () => {
-  const g = (over: Partial<Parameters<typeof clubFinalsSituation>[1] & object> = {}) => ({
-    roundWon: false,
-    finalWon: false,
-    eliminated: false,
-    roundWinsAfter: 0,
-    roundLossesAfter: 0,
-    ...over,
-  })
-
-  it('is empty with no game, after the end of a run, or when nothing is special', () => {
-    assert.equal(clubFinalsSituation(2, null), null)
-    assert.equal(clubFinalsSituation(1, g({ eliminated: true })), null)
-    assert.equal(clubFinalsSituation(4, g({ finalWon: true })), null)
-    assert.equal(clubFinalsSituation(2, g({ roundWinsAfter: 2, roundLossesAfter: 2 })), null)
-  })
-
-  it('says one win from the next round, the final or the title', () => {
-    assert.equal(
-      clubFinalsSituation(1, g({ roundWinsAfter: 3 }))?.text,
-      'One win from the next round',
-    )
-    assert.equal(clubFinalsSituation(3, g({ roundWinsAfter: 3 }))?.text, 'One win from the final')
-    assert.equal(clubFinalsSituation(4, g({ roundWinsAfter: 3 }))?.text, 'One win from the title')
-    assert.equal(clubFinalsSituation(4, g({ roundWinsAfter: 3 }))?.tone, 'chance')
-  })
-
-  it('warns at one loss from elimination, and at 3-3', () => {
-    assert.deepEqual(clubFinalsSituation(2, g({ roundLossesAfter: 3 })), {
-      tone: 'danger',
-      text: 'One loss from elimination',
-    })
-    assert.equal(
-      clubFinalsSituation(2, g({ roundWinsAfter: 3, roundLossesAfter: 3 }))?.text,
-      'Win or go home',
-    )
-  })
-
-  it('welcomes a round won', () => {
-    assert.equal(clubFinalsSituation(3, g({ roundWon: true }))?.text, 'Round won. On to round 3')
-    assert.equal(clubFinalsSituation(4, g({ roundWon: true }))?.text, 'Round won. On to the final')
-  })
-})
-
-describe('record line', () => {
-  const att = (over = {}) => ({
-    attempt: 3,
-    status: 'eliminated' as const,
-    wins: 13,
-    losses: 9,
-    roundReached: 4,
-    ...over,
-  })
-
-  it('is null when no attempt is derived', () => {
-    assert.equal(clubFinalsRecordLine([], null, null), null)
-  })
-
-  it('shows the best attempt, and the current one only while it runs', () => {
-    const quiet = clubFinalsRecordLine([att()], null, att())
-    assert.deepEqual(quiet, { best: '13–9 · Reached the final', current: null })
-    const running = att({
-      attempt: 4,
-      status: 'active' as const,
-      wins: 2,
-      losses: 1,
-      roundReached: 1,
-    })
-    const alive = clubFinalsRecordLine(
-      [att(), running],
-      { round: 1, attemptWins: 2, attemptLosses: 1 },
-      att(),
-    )
-    assert.equal(alive?.current, 'Attempt 4 · Round 1 · 2–1')
-  })
-
-  it('knows when a run is alive', () => {
-    assert.equal(clubFinalsRunAlive([att(), att({ status: 'active' as const })], {}), true)
-    assert.equal(clubFinalsRunAlive([att({ status: 'active' as const })], null), false)
-    assert.equal(clubFinalsRunAlive([att({ status: 'active' as const }), att()], {}), false)
-    assert.equal(clubFinalsRunAlive([att({ status: 'final_won' as const })], {}), false)
-    assert.equal(clubFinalsRunAlive([], {}), false)
-  })
-
-  it('says unknown (null) for a best attempt it does not have', () => {
-    assert.equal(clubFinalsRecordLine([att()], null, null)?.best, null)
-  })
-
-  it('words the furthest round', () => {
-    assert.equal(clubFinalsReached(att({ roundReached: 2 })), 'Reached round 2')
-    assert.equal(clubFinalsReached(att({ status: 'active', roundReached: 4 })), 'In the final')
-    assert.equal(clubFinalsReached(att({ status: 'final_won' })), 'Won the final')
   })
 })
 

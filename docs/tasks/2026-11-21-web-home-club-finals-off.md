@@ -1,6 +1,6 @@
 # Task: Club Finals off the home page (the finals are over)
 
-- **State:** Running
+- **State:** Verify (waits for the operator: screenshot, then merge + deploy `web`)
 - **Lane:** Web
 - **Risk:** low (removes home-page parts; no data change)
 - **Slug:** home-club-finals-off (branch `work/home-club-finals-off`, worktree `.claude/worktrees/home-club-finals-off`)
@@ -43,9 +43,22 @@ Press Box note. No finals storyline is stored (checked read-only 11-21).
 ## Log
 
 - 2026-11-21 21:22 Lead3: task written. Live (read only): 3 attempts, last finals game 2026-11-14 19:32.
-- Resume: make the worktree; remove the home parts.
+- 2026-11-21 21:28 Lead3: removed the home card (both places), the record-strip finals chips (+ their CSS), the finals line
+  on the latest-game card and the recent strip; deleted `club-finals-card.tsx` and the home-only helpers
+  (`clubFinalsSituation`, `clubFinalsReached`, `clubFinalsRunAlive`, `clubFinalsRecordLine`) and their tests.
+- Resume: operator looks at the screenshots; on OK, merge, push, deploy `web`.
 
 ## Report
+
+- **What changed (visible effect):** the home page has no Club Finals parts (top card, quiet line, record
+  chips, finals tags on the latest and recent games). Game pages and the games list keep their badges.
+- **How it was checked:** web typecheck pass; web `test:unit` 777/777 (9 removed with the deleted helpers);
+  prettier pass; eslint: no new problems (home page 6 → 0, record strip 8 → 1 old, test 70 → 22 old style).
+  Dev server (live DB, read only): home page text has 0 "finals" (live today: 3); game 3405 still shows
+  "Club Finals Round 1 · Game 1" and its series; `/games` 200. Desktop 16 px sideways scroll and the 404 of
+  EA crest t126 are the same on live (not this change).
+- **Not done:** merge and deploy (operator's OK). CF4 (finals stats) is still Proposed: operator's call.
+- **Git state:** `work/home-club-finals-off`, on `main` at the task commit.
 
 ## Verifier result
 

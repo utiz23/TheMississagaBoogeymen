@@ -15,14 +15,9 @@ import {
   getCardProgressForPlayers,
   getClubMemberIds,
   getHistoricalClubTeamStatsBatch,
-  getClubFinalsOverview,
-  getClubFinalsBadge,
   getEnginePeriodStrips,
-  getClubFinalsBadges,
-  type ClubFinalsBadge,
 } from '@eanhl/db/queries'
 import { redirect } from 'next/navigation'
-import { ClubFinalsCard } from '@/components/club-finals/club-finals-card'
 import { LatestResult } from '@/components/home/latest-result'
 import { PlayerCarousel } from '@/components/home/player-carousel'
 import { ScoringLeadersPanel } from '@/components/home/leaders-section'
@@ -32,7 +27,6 @@ import { TitleRecordsTable } from '@/components/home/title-records-table'
 import { cardFromRosterRow } from '@/components/cards/card-adapters'
 import { SectionHeader } from '@/components/ui/section-header'
 import { Panel } from '@/components/ui/panel'
-import { clubFinalsRecordLine, clubFinalsRunAlive } from '@/lib/club-finals-view'
 import { resolveTitleFromSlug } from '@/lib/title-resolver'
 import { loadTitleRecords } from '@/lib/title-records'
 
@@ -127,15 +121,9 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     },
   })
 
-  // Club Finals rounds (CF1): stored by the worker. A failure (also before migration 0083) only
-  // leaves the card out.
-  const clubFinalsPromise = getClubFinalsOverview(gameTitle.id).catch(() => null)
-
-  const [fetched, titleRecords, clubFinals] = await Promise.all([
-    criticalPromise,
-    titleRecordsPromise,
-    clubFinalsPromise,
-  ])
+  // Club Finals left the home page on 2026-11-21 (the finals were over); game pages keep their
+  // badges. Task docs/tasks/2026-11-21-web-home-club-finals-off.md says how to bring it back.
+  const [fetched, titleRecords] = await Promise.all([criticalPromise, titleRecordsPromise])
 
   if (fetched === null) {
     return (
@@ -151,23 +139,11 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const lastMatch = recentMatches[0] ?? null
   const latestClubRecord = officialRecord ?? null
 
-  // Club Finals marks (CF3) for the latest game and the recent strip: stored rows, fail soft.
-  const finalsBadgeIds = recentMatches.map((m) => m.id)
-  const [lastMatchFinals, recentFinals] = await Promise.all([
-    lastMatch === null ? Promise.resolve(null) : getClubFinalsBadge(lastMatch.id).catch(() => null),
-    getClubFinalsBadges(finalsBadgeIds).catch(() => new Map<number, ClubFinalsBadge>()),
-  ])
   // Goals by period read from video (P1, goals only) for the latest game; fails soft.
   const lastMatchPeriods =
     lastMatch === null
       ? null
       : ((await getEnginePeriodStrips([lastMatch.id]).catch(() => null))?.get(lastMatch.id) ?? null)
-  const finalsRunAlive =
-    clubFinals !== null && clubFinalsRunAlive(clubFinals.attempts, clubFinals.panel)
-  const finalsRecord =
-    clubFinals === null
-      ? null
-      : clubFinalsRecordLine(clubFinals.attempts, clubFinals.panel, clubFinals.best)
 
   let lastMatchOpponent = null
   let lastMatchFaceoffs: Awaited<ReturnType<typeof getMatchFaceoffTotals>> | null = null
@@ -219,9 +195,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   return (
     <MemberLinks>
       <div className="space-y-8">
-        {/* 0a. PLAYOFF MODE — while a Club Finals attempt runs, its card goes to the very top (CF3) */}
-        {finalsRunAlive && clubFinals !== null && <ClubFinalsCard overview={clubFinals} />}
-
         {/* Page header — team identity first */}
         <div className="flex items-baseline gap-3">
           <h1 className="font-condensed text-2xl font-semibold uppercase tracking-widest text-zinc-50">
@@ -231,9 +204,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             {gameTitle.name}
           </span>
         </div>
-
-        {/* 0. CLUB FINALS — one quiet line when no attempt runs (CF1); the running card is above */}
-        {!finalsRunAlive && clubFinals !== null && <ClubFinalsCard overview={clubFinals} />}
 
         {/* 1. LATEST RESULT */}
         {lastMatch !== null && (
@@ -245,7 +215,6 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
               opponentCrestUseBaseAsset={lastMatchOpponent?.useBaseAsset ?? null}
               faceoffs={lastMatchFaceoffs}
               divisionName={seasonRank?.divisionName ?? null}
-              clubFinals={lastMatchFinals}
               periods={lastMatchPeriods}
             />
           </section>
@@ -285,14 +254,13 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           seasonRank={seasonRank}
           recentResults={recentMatches.map((m) => ({ result: m.result, playedAt: m.playedAt }))}
           gameTitleName={gameTitle.name}
-          clubFinals={finalsRecord}
         />
 
         {/* 5. RECENT RESULTS */}
         {recentMatches.length > 1 && (
           <section className="space-y-3">
             <SectionHeader label="Recent Results" />
-            <RecentGamesStrip matches={recentMatches.slice(1, 6)} clubFinals={recentFinals} />
+            <RecentGamesStrip matches={recentMatches.slice(1, 6)} />
           </section>
         )}
 
