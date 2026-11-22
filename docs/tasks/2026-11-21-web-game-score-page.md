@@ -1,6 +1,6 @@
 # Task: Temporary "Game Score" explainer page on the site
 
-- **State:** Verify (waits for the operator: screenshot, then merge + deploy `web`)
+- **State:** Deployed 2026-11-21 21:21 (`web` at `fb8a149b`; rollback `:rollback-he-2026-11-21-pre-game-score`)
 - **Lane:** Web
 - **Risk:** low (a new static page; no data change; the score formula is not changed)
 - **Slug:** game-score-page (branch `work/game-score-page`, worktree `.claude/worktrees/game-score-page`)
@@ -49,7 +49,10 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
 - 2026-11-21 21:06 Lead3: built `/game-score` (page, calculator, `lib/game-score-explainer.ts` + 6 tests); `skaterBreakdown`,
   `goalieBreakdown` and their input types exported (no formula change). Checks pass; screenshots taken on
   the dev server (live DB, read-only tunnel).
-- Resume: operator looks at the screenshots; on OK, merge, push, deploy `web` (docker-redeploy skill).
+- 2026-11-21 21:21 Lead3: operator "deploy". Merged (`fb8a149b`, ff); live web was `df2af011` (docs only
+  between). Rollback tag, build, `up -d --no-deps web`. Checks: `/`, `/games`, `/game-score` 200 on HE and
+  public; page shows 17.53 / 13.00 / 11.50.
+- Resume: remove the page when the operator says.
 
 ## Report (task agent fills when state = Verify)
 
@@ -62,7 +65,7 @@ is unclear; an operator decision is needed; a live write, deploy or anything irr
   HTTP 200, no console errors, no sideways scroll at 1280 and 390; calculator 3 saves on 4 shots =
   3.80 with the "can't be a star" note (hand math: 0.60 + 3.00 − 0.80 + 1.00).
 - **Tried, no gain:** Playwright MCP (needs sudo for its Chrome path); used the local Playwright package.
-- **Not done:** merge and deploy (operator's OK). Removal later (operator says when).
+- **Not done:** removal later (operator says when).
 - **Git state:** `work/game-score-page`, rebased on `main` at `b57e4966`.
 
 ## Verifier result (Verifier fills)
