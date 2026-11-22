@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-21 21:21 CST by Lead3 (Game Score page deployed). Fully done tasks leave the board; their files stay in `docs/tasks/`.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-21 21:22 CST by Lead3 (Club Finals off the home page started). Fully done tasks leave the board; their files stay in `docs/tasks/`.
 
 ## Open tasks
 
@@ -36,6 +36,7 @@ Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. 
 | [P1 NHL 27 goals + shots by period (engine import)](tasks/2026-11-14-worker-period-import-p1.md)          | Worker + Web            | medium-high | Deployed 11-14 19:48; 22 games imported 19:53                   | next import when the engine exports more games |
 | [/gm ask: a private brief by default, never posted](tasks/2026-11-14-discord-gm-ask-brief.md)             | Discord                 | medium      | Deployed 11-14 19:27                                            | done                                           |
 | [Temporary Game Score explainer page](tasks/2026-11-21-web-game-score-page.md)                            | Web                     | low         | Running (Lead3 does it)                                         | screenshot to the operator, then deploy `web`  |
+| [Club Finals off the home page](tasks/2026-11-21-web-home-club-finals-off.md)                             | Web                     | low         | Running (Lead3 does it)                                         | screenshot to the operator, then deploy `web`  |
 
 ## Branches and worktrees from before v2
 
