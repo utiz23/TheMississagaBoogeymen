@@ -1,7 +1,7 @@
 # For the operator: what needs you now
 
 Your dashboard. The Lead updates it after every merge, decision, deploy or new task.
-Last update: **2026-11-22 00:25 CST** (Lead3). All tasks: `docs/board.md`.
+Last update: **2026-11-22 16:12 CST** (Lead3). All tasks: `docs/board.md`.
 Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves.
 
 ## 1. Waiting for your answer (max 3)
@@ -17,7 +17,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 | Game Score page                                 | LIVE since 21:21 at `boogeymen.app/game-score` (no nav link). Tell me when to remove it.                                                                                  |
 | Argument mode                                   | Ready: waits for a task agent (P2 line from the Lead).                                                                                                                    |
 | /gm for the Chel role                           | Ready: waits for a task agent (P2 line from the Lead).                                                                                                                    |
-| Records task                                    | In Verify: built and self-checked (52 PIM shows as a club record, old record 25 under your D1 rule). Next: a Verifier chat, then you read 5 sample questions.             |
+| Records task                                    | Back in work: records split by mode (3s with 3s, 6s with 6s), your D6 b. Then a quick re-check, then you OK the merge.                                                    |
 | Interview fix                                   | LIVE since 00:00: a GM topic is question 1. Mike offered interview 5 (Lyle Bergstrom, 52 PIM game) at 00:01.                                                              |
 | Press bots                                      | LIVE in the game channel (typed answers, own threads, panel scrums, interviews, replies, bench, test scrums)                                                              |
 | T9 relationships + T10 Talk fix                 | LIVE since 2026-11-14                                                                                                                                                     |
@@ -67,6 +67,7 @@ Tip: open with Markdown preview (Ctrl+Shift+V); it refreshes when the Lead saves
 
 ## 7. Decided (newest first, your words)
 
+- 2026-11-22 16:12 · "D6 b" → single-game records and personal bests compare the same mode only (3s / 6s). The 5 sample questions were shown (all lead with the 52 PIM).
 - 2026-11-22 00:25 · "D3 D4 D5 a" → argument mode Ready: Dex Mercer + Gord Pettibone rebut pushback from any "full" player, up to 2 rebuttals; interviews up to 2 follow-ups.
 - 2026-11-22 00:23 · "also enable the gm commands for everyone with chel role" → ask, interview, note + heat for Chel; testscrum GM-only. Task Ready (Lead defaults: `exact` GM-only, non-GM actions logged).
 - 2026-11-22 00:02 · "D1 D2 yes" → club single-game records: members only, AI goalies out; personal bests from the 3rd stored game, values 2+. Records task Ready.
