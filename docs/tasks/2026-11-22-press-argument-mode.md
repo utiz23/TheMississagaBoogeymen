@@ -1,10 +1,11 @@
 # Task: Argument mode: an aggressive reporter rebuts a player who pushes back
 
-- **State:** Proposed
+- **State:** Ready
 - **Lane:** Discord (`apps/discord/src/press/`)
 - **Risk:** medium (public bot text, a sharper tone; more model calls)
 - **Slug:** press-argument-mode
-- **Operator approval:** pending (D3, D4, D5 on the decisions page)
+- **Operator approval:** 2026-11-22 00:25 ("D3 D4 D5 a")
+- **Helper model:** Sonnet
 - **Operator gate before merge:** yes (dry-run sample exchanges)
 - **Needs a deploy:** `press`
 
@@ -27,13 +28,13 @@ limit the reporter closes in voice. Scrums and interviews both. Every rule stays
 from the sheet / notes / answers, no profanity past the reporter's rule, never real life, "Go easy" players
 never get it, hard lines never acknowledged, a player who says it is over ends it.
 
-## Decisions (operator)
+## Decisions (operator, 2026-11-22: "D3 D4 D5 a")
 
-- **D3 Who argues:** a) Dex Mercer and Gord Pettibone only (Lead's advice: the two written as combative);
+- **D3 Who argues:** **chosen: a.** a) Dex Mercer and Gord Pettibone only (Lead's advice: the two written as combative);
   b) also any reporter on the feud side with the player; c) every reporter.
-- **D4 Who gets it:** a) every player at press level "full" (Lead's advice: no database change; "Go easy"
+- **D4 Who gets it:** **chosen: a.** a) every player at press level "full" (Lead's advice: no database change; "Go easy"
   stays out); b) only players who opt in (a new press level: a migration, high risk, slower).
-- **D5 How long:** a) up to 2 rebuttals per answer, then the reporter closes (Lead's advice); interviews may
+- **D5 How long:** **chosen: a.** a) up to 2 rebuttals per answer, then the reporter closes (Lead's advice); interviews may
   then have up to 2 follow-ups in all; b) 1 rebuttal; c) 3 rebuttals.
 
 ## Paths (draft)
@@ -58,3 +59,6 @@ easy" player (never a rebuttal).
 ## Log
 
 - 2026-11-22 00:21 Lead3: written from Stick Menace's feedback (relayed by the operator). Read only: interview 5.
+- 2026-11-22 00:25 Lead3: operator "D3 D4 D5 a" → Ready (Dex Mercer + Gord Pettibone; every "full" player; up to 2
+  rebuttals, interviews up to 2 follow-ups).
+- Resume: a task agent takes it (P2).

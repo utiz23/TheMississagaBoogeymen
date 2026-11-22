@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-22 00:24 CST by Lead3 (records task in Verify; Lead name now "Lead3"). Fully done tasks leave the board; their files stay in `docs/tasks/`.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-22 00:25 CST by Lead3 (argument mode Ready; records in Verify). Fully done tasks leave the board; their files stay in `docs/tasks/`.
 
 ## Open tasks
 
@@ -33,7 +33,7 @@ Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. 
 | [Temporary Game Score explainer page](tasks/2026-11-21-web-game-score-page.md)                            | Web                     | low         | Deployed 11-21 21:21                                            | remove when the operator says                                                            |
 | [GM interview topic is question 1](tasks/2026-11-21-discord-interview-topic-first.md)                     | Discord                 | low-medium  | Deployed 11-22 00:00                                            | make question 1 name the topic (it opened with a soft "how is your game" on interview 5) |
 | [Single-game records + personal bests on the fact sheet](tasks/2026-11-21-press-single-game-records.md)   | Queries/Web/Discord     | medium      | Verify (task agent done 11-22)                                  | Verifier (P3), then the operator reads 5 sample questions                                |
-| [Argument mode: aggressive reporters rebut pushback](tasks/2026-11-22-press-argument-mode.md)             | Discord                 | medium      | Proposed                                                        | operator: D3, D4, D5                                                                     |
+| [Argument mode: aggressive reporters rebut pushback](tasks/2026-11-22-press-argument-mode.md)             | Discord                 | medium      | Ready                                                           | a task agent takes it (P2)                                                               |
 | [/gm ask, interview, note, heat for the Chel role](tasks/2026-11-22-press-gm-for-chel.md)                 | Discord                 | medium      | Ready                                                           | a task agent takes it (P2)                                                               |
 
 ## Branches and worktrees from before v2
