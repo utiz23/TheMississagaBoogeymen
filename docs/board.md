@@ -4,7 +4,7 @@
 
 Only the Lead edits this file. One line per open task. Guide: `docs/operations/workflow-v2.md`.
 Template: `docs/tasks/TEMPLATE.md`. Operator's live page: `docs/decisions.md`.
-Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-25 02:41 CST by Lead3 (records: D6 b done, Verify). Fully done tasks leave the board; their files stay in `docs/tasks/`.
+Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. Updated 2026-11-25 02:58 CST by Lead3 (records: Verifier passed D6 b). Fully done tasks leave the board; their files stay in `docs/tasks/`.
 
 ## Open tasks
 
@@ -32,7 +32,7 @@ Limits: 3 task agents at once (operator 2026-11-14); 3 open operator decisions. 
 | [/gm ask: a private brief by default, never posted](tasks/2026-11-14-discord-gm-ask-brief.md)             | Discord                 | medium      | Deployed 11-14 19:27                                            | done                                                                                     |
 | [Temporary Game Score explainer page](tasks/2026-11-21-web-game-score-page.md)                            | Web                     | low         | Deployed 11-21 21:21                                            | remove when the operator says                                                            |
 | [GM interview topic is question 1](tasks/2026-11-21-discord-interview-topic-first.md)                     | Discord                 | low-medium  | Deployed 11-22 00:00                                            | make question 1 name the topic (it opened with a soft "how is your game" on interview 5) |
-| [Single-game records + personal bests on the fact sheet](tasks/2026-11-21-press-single-game-records.md)   | Queries/Web/Discord     | medium      | Verify (D6 b done 11-25: split 3s/6s; 0 mismatches on 30 games) | Verifier re-check; operator OK on merge; then deploy web, press, news                    |
+| [Single-game records + personal bests on the fact sheet](tasks/2026-11-21-press-single-game-records.md)   | Queries/Web/Discord     | medium      | Verify passed (D6 b re-check: pass, 0 wrong standouts)          | operator OK on merge; then deploy web, press, news                                       |
 | [Argument mode: aggressive reporters rebut pushback](tasks/2026-11-22-press-argument-mode.md)             | Discord                 | medium      | Ready                                                           | a task agent takes it (P2)                                                               |
 | [/gm ask, interview, note, heat for the Chel role](tasks/2026-11-22-press-gm-for-chel.md)                 | Discord                 | medium      | Ready                                                           | a task agent takes it (P2)                                                               |
 
